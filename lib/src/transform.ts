@@ -4,6 +4,12 @@ type Result = {
   code: string
 }
 
-export function transform(source: string): Result {
+export function transform({
+  fileId,
+  source,
+}: {
+  fileId: string
+  source: string
+}): Result {
   // todo
 }
