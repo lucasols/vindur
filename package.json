@@ -1,12 +1,14 @@
 {
-  "name": "vindur",
-  "version": "0.1.0",
-  "description": "",
-  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "pnpm -r run test",
+    "test:watch": "pnpm --filter vindur run test:watch",
+    "test:ui": "pnpm --filter vindur run test:ui",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "dev": "pnpm --filter vindur-test-app run dev",
+    "lib:build": "pnpm --filter vindur run build",
+    "lib:lint": "pnpm --filter vindur run lint",
+    "lib:test": "pnpm --filter vindur run test"
   },
-  "keywords": [],
-  "author": "",
   "license": "MIT"
 }

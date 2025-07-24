@@ -1,12 +1,17 @@
 {
-  "name": "test-app",
+  "name": "vindur-test-app",
+  "description": "Test application for Vindur CSS-in-JS library",
   "private": true,
-  "version": "0.0.0",
+  "author": "Lucas Santos",
+  "license": "MIT",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "echo \"No tests specified\"",
+    "lint": "echo \"No linting configured\""
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -17,7 +22,7 @@
     "@types/react": "^18.2.25",
     "@types/react-dom": "^18.2.10",
     "@vitejs/plugin-react-swc": "^3.4.0",
-    "typescript": "^5.2.2",
+    "typescript": "^5.6.3",
     "vite": "^4.5.5",
     "vite-plugin-inspect": "^0.7.42"
   }
