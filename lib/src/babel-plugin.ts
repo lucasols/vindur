@@ -1,5 +1,5 @@
-import { murmur2 } from '@ls-stack/utils/hash'
 import type { PluginObj } from '@babel/core'
+import { murmur2 } from '@ls-stack/utils/hash'
 
 export interface VindurPluginOptions {
   dev?: boolean
@@ -15,10 +15,10 @@ export function createVindurPlugin(
   state: VindurPluginState
 ): PluginObj {
   const { dev = false, filePath } = options
-  
+
   // Generate base hash from file path with 'c' prefix
   const fileHash = `c${murmur2(filePath)}`
-  let cssIndex = 1
+  let classIndex = 1
 
   return {
     name: 'vindur-css-transform',
@@ -34,16 +34,16 @@ export function createVindurPlugin(
         ) {
           const varName = path.node.id.name
           const cssContent = path.node.init.quasi.quasis[0]?.value.raw || ''
-          
+
           // Generate class name based on dev mode
-          const className = dev 
-            ? `${fileHash}-${cssIndex}-${varName}`
-            : `${fileHash}-${cssIndex}`
-          cssIndex++
-          
+          const className = dev
+            ? `${fileHash}-${classIndex}-${varName}`
+            : `${fileHash}-${classIndex}`
+          classIndex++
+
           // Store the CSS rule
           state.cssRules.push(`.${className} {\n${cssContent.trim()}\n}`)
-          
+
           // Replace the tagged template with the class name string
           path.node.init = {
             type: 'StringLiteral',
@@ -57,14 +57,14 @@ export function createVindurPlugin(
           path.node.tag.name === 'css'
         ) {
           const cssContent = path.node.quasi.quasis[0]?.value.raw || ''
-          
+
           // Generate class name with hash and index (no varName for direct usage)
-          const className = `${fileHash}-${cssIndex}`
-          cssIndex++
-          
+          const className = `${fileHash}-${classIndex}`
+          classIndex++
+
           // Store the CSS rule
           state.cssRules.push(`.${className} {\n${cssContent.trim()}\n}`)
-          
+
           // Replace the tagged template with the class name string
           path.replaceWith({
             type: 'StringLiteral',
@@ -75,7 +75,7 @@ export function createVindurPlugin(
     },
     pre() {
       state.cssRules.length = 0
-      cssIndex = 1
+      classIndex = 1
     },
   }
 }
