@@ -5,6 +5,8 @@ import { transform } from '../src/transform'
 describe('css', () => {
   test('should transform css styles', () => {
     const source = dedent`
+      import { css } from 'vindur'
+
       const style = css\`
         background-color: red;
       \`
@@ -29,6 +31,8 @@ console.log(style);"`)
 
   test('should transform css styles in dev mode with variable names', () => {
     const source = dedent`
+      import { css } from 'vindur'
+
       const buttonStyle = css\`
         padding: 10px;
         color: blue;
@@ -60,7 +64,8 @@ console.log(style);"`)
       }"
     `)
 
-    expect(result.code).toMatchInlineSnapshot(`"const buttonStyle = "ccixwtu-1-buttonStyle";
+    expect(result.code)
+      .toMatchInlineSnapshot(`"const buttonStyle = "ccixwtu-1-buttonStyle";
 const headerStyle = "ccixwtu-2-headerStyle";
 console.log(buttonStyle, headerStyle);"`)
   })
