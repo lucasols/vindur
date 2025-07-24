@@ -1,0 +1,9 @@
+node_modules
+table.cpuprofile
+dist
+dist-bench
+cache.json
+.DS_Store
+benchmarks/profiles/*.cpuprofile
+test-mocks-dir*
+notes
