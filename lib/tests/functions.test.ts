@@ -40,19 +40,17 @@ test('function with multiple params', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { margin } from './functions'
-
-    const style = css\`
-      \${margin(10, 20, 30, 40)};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { margin } from './functions'
+
+      const style = css\`
+        \${margin(10, 20, 30, 40)};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -75,18 +73,16 @@ test('function with destructured object param', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { inline } from './functions'
-
-    const style = css\`
-      \${inline({ gap: 10 })};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
+    source: dedent`
+      import { css } from 'vindur'
+      import { inline } from './functions'
+
+      const style = css\`
+        \${inline({ gap: 10 })};
+      \`
+    `,
     fs: createFsMock({ './functions.ts': fnFile }),
   });
 
@@ -112,20 +108,18 @@ test('function with no parameters', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { reset } from './functions'
-
-    const style = css\`
-      \${reset()};
-      color: red;
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { reset } from './functions'
+
+      const style = css\`
+        \${reset()};
+        color: red;
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -146,19 +140,17 @@ test('function returning static string', () => {
     export const border = vindurFn(() => '1px solid black')
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { border } from './functions'
-
-    const style = css\`
-      border: \${border()};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { border } from './functions'
+
+      const style = css\`
+        border: \${border()};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -178,19 +170,17 @@ test('function with simple conditional', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { spacing } from './functions'
-
-    const style = css\`
-      \${spacing({ size: 'large' })};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { spacing } from './functions'
+
+      const style = css\`
+        \${spacing({ size: 'large' })};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -210,21 +200,17 @@ test('multiple functions in one file', () => {
     export const color = vindurFn((name: string) => '\${name}')
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { px, percent, color } from './functions'
-
-    const style = css\`
-      font-size: \${px(24)};
-      width: \${percent(50)};
-      background: \${color('red')};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { shadow } from './functions'
+
+      const style = css\`
+        box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -244,19 +230,17 @@ test('function with mixed parameter types', () => {
     export const shadow = vindurFn((x: number, y: number, blur: number, color: string) => '\${x}px \${y}px \${blur}px \${color}')
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { shadow } from './functions'
-
-    const style = css\`
-      box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { shadow } from './functions'
+
+      const style = css\`
+        box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -286,19 +270,17 @@ test('function with all default values used', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { button } from './functions'
-
-    const style = css\`
-      \${button({})};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { button } from './functions'
+
+      const style = css\`
+        \${button({})};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -327,7 +309,14 @@ test('error handling - missing function file', () => {
   expect(() => {
     transform({
       fileAbsPath: 'test.ts',
-      source,
+      source: dedent`
+        import { css } from 'vindur'
+        import { nonExistent } from './missing'
+
+        const style = css\`
+          color: \${nonExistent()};
+        \`
+      `,
       fs: createFsMock({ '/test.ts': source }),
     });
   }).toThrowErrorMatchingInlineSnapshot(
@@ -346,19 +335,17 @@ test('function with simple interpolation', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { grid } from './functions'
-
-    const style = css\`
-      \${grid(3, 16)};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { grid } from './functions'
+
+      const style = css\`
+        \${grid(3, 16)};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -381,19 +368,17 @@ test('function with simple ternary expressions', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { theme } from './functions'
-
-    const style = css\`
-      \${theme({ variant: 'secondary', disabled: false })};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { theme } from './functions'
+
+      const style = css\`
+        \${theme({ variant: 'secondary', disabled: false })};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -422,19 +407,17 @@ test('function with partial parameter override', () => {
     \`)
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { card } from './functions'
-
-    const style = css\`
-      \${card({ shadow: 'large', bg: '#f8f9fa' })};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { card } from './functions'
+
+      const style = css\`
+        \${card({ shadow: 'large', bg: '#f8f9fa' })};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -457,20 +440,18 @@ test('function with return statement syntax', () => {
     })
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { transition } from './functions'
-
-    const style = css\`
-      \${transition('opacity', 300)};
-      opacity: 0.5;
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { transition } from './functions'
+
+      const style = css\`
+        \${transition('opacity', 300)};
+        opacity: 0.5;
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -480,4 +461,198 @@ test('function with return statement syntax', () => {
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+});
+
+test('error handling - function without vindurFn wrapper', () => {
+  const fnFile = dedent`
+    export const invalidFn = (size: number) => \`width: \${size}px\`
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { invalidFn } from './functions'
+
+        const style = css\`
+          \${invalidFn(10)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - non-function export', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const notAFunction = 'just a string'
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { invalidWrapper } from './functions'
+
+        const style = css\`
+          \${invalidWrapper()};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - vindurFn with non-function argument', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const invalidWrapper = vindurFn('not a function')
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { invalidWrapper } from './functions'
+
+        const style = css\`
+          \${invalidWrapper()};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - vindurFn with complex function body', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const complexFn = vindurFn((size: number) => {
+      const computed = size * 2;
+      if (computed > 100) {
+        return \`width: 100px\`;
+      }
+      return \`width: \${computed}px\`;
+    })
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { complexFn } from './functions'
+
+        const style = css\`
+          \${complexFn(50)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - vindurFn with async function', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const asyncFn = vindurFn(async (size: number) => \`width: \${size}px\`)
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { asyncFn } from './functions'
+
+        const style = css\`
+          \${asyncFn(10)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - vindurFn with generator function', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const generatorFn = vindurFn(function* (size: number) {
+      yield \`width: \${size}px\`;
+    })
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { generatorFn } from './functions'
+
+        const style = css\`
+          \${generatorFn(10)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - vindurFn with external dependency', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+    import { someExternalLib } from 'external-lib'
+
+    export const externalFn = vindurFn((size: number) => someExternalLib.transform(\`width: \${size}px\`))
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { externalFn } from './functions'
+
+        const style = css\`
+          \${externalFn(10)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
+});
+
+test('error handling - function called with wrong number of arguments', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const twoParams = vindurFn((width: number, height: number) => \`
+      width: \${width}px;
+      height: \${height}px;
+    \`)
+  `;
+
+  expect(() => {
+    transform({
+      fileAbsPath: 'test.ts',
+      source: dedent`
+        import { css } from 'vindur'
+        import { twoParams } from './functions'
+
+        const style = css\`
+          \${twoParams(10)};
+        \`
+      `,
+      fs: createFsMock({ './functions.ts': fnFile }),
+    });
+  }).toThrow();
 });
