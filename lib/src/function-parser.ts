@@ -209,6 +209,10 @@ function parseTemplateLiteral(
           // Simple binary expressions for comparisons in ternary conditions
           validateTemplateExpressionDuringParsing(expr.left, functionName);
           validateTemplateExpressionDuringParsing(expr.right, functionName);
+        } else if (t.isLogicalExpression(expr)) {
+          // Handle logical expressions like || for default values
+          validateTemplateExpressionDuringParsing(expr.left, functionName);
+          validateTemplateExpressionDuringParsing(expr.right, functionName);
         } else if (
           t.isStringLiteral(expr)
           || t.isNumericLiteral(expr)
@@ -252,6 +256,10 @@ function validateTemplateExpressionDuringParsing(
       validateTemplateExpressionDuringParsing(expr.alternate, functionName);
     } else if (t.isBinaryExpression(expr)) {
       // Simple binary expressions for comparisons in ternary conditions
+      validateTemplateExpressionDuringParsing(expr.left, functionName);
+      validateTemplateExpressionDuringParsing(expr.right, functionName);
+    } else if (t.isLogicalExpression(expr)) {
+      // Handle logical expressions like || for default values
       validateTemplateExpressionDuringParsing(expr.left, functionName);
       validateTemplateExpressionDuringParsing(expr.right, functionName);
     } else if (

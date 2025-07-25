@@ -10,9 +10,7 @@ import {
   isLiteralExpression,
 } from './ast-utils';
 import { evaluateOutput } from './evaluation';
-import {
-  createExtractVindurFunctionsPlugin,
-} from './extract-vindur-functions-plugin';
+import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { parseFunction } from './function-parser';
 import type { TransformFS } from './transform';
 import type { CompiledFunction, FunctionArg } from './types';
@@ -218,7 +216,12 @@ function resolveFunctionCall(
   if (!functionFilePath) return null;
 
   // Load the function (validation happens here, throws on error)
-  const compiledFn = loadExternalFunction(fs, functionFilePath, functionName, compiledFunctions);
+  const compiledFn = loadExternalFunction(
+    fs,
+    functionFilePath,
+    functionName,
+    compiledFunctions,
+  );
   const args = callExpr.arguments;
 
   // Mark this function as used
@@ -226,10 +229,10 @@ function resolveFunctionCall(
 
   // Validate argument count for positional functions
   if (compiledFn.type === 'positional') {
-    const requiredArgs = compiledFn.args.filter(arg => !arg.optional).length;
+    const requiredArgs = compiledFn.args.filter((arg) => !arg.optional).length;
     const totalArgs = compiledFn.args.length;
     const receivedArgs = args.length;
-    
+
     if (receivedArgs < requiredArgs || receivedArgs > totalArgs) {
       if (requiredArgs === totalArgs) {
         throw new Error(
@@ -273,7 +276,8 @@ function resolveFunctionCall(
   } else {
     // Handle destructured object arguments
     if (args.length === 1 && t.isObjectExpression(args[0])) {
-      const argValues: Record<string, string | number | boolean | undefined> = {};
+      const argValues: Record<string, string | number | boolean | undefined> =
+        {};
 
       // Add default values first
       for (const [name, argDef] of Object.entries(compiledFn.args)) {
@@ -325,9 +329,7 @@ function loadExternalFunction(
   // Parse the file to extract vindurFn functions
   babel.transformSync(fileContent, {
     filename: relativePath,
-    plugins: [
-      createExtractVindurFunctionsPlugin(filePath, compiledFunctions),
-    ],
+    plugins: [createExtractVindurFunctionsPlugin(filePath, compiledFunctions)],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
   });
 
@@ -565,6 +567,14 @@ export function createVindurPlugin(
   };
 }
 
+const doubleSemicolonRegex = /;\s*;/g;
+
 function cleanCss(css: string) {
-  return css.trim().replace(/;\s*;/g, ';'); // Remove double semicolons
+  let cleaned = css.trim().replace(doubleSemicolonRegex, ';'); // Remove double semicolons
+
+  if (cleaned.startsWith(';')) {
+    cleaned = cleaned.slice(1).trim();
+  }
+
+  return cleaned;
 }

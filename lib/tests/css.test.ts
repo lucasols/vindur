@@ -72,10 +72,10 @@ describe('class generation', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-        "const buttonStyle = "vcixwtu-1-buttonStyle";
-        const headerStyle = "vcixwtu-2-headerStyle";
-        console.log(buttonStyle, headerStyle);"
-      `);
+      "const buttonStyle = "vcixwtu-1-buttonStyle";
+      const headerStyle = "vcixwtu-2-headerStyle";
+      console.log(buttonStyle, headerStyle);"
+    `);
   });
 });
 
@@ -421,8 +421,8 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1v2q6wl-1 {
-        
-      }"
+  
+}"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "v1v2q6wl-1";"`);
@@ -433,8 +433,8 @@ describe('corner cases', () => {
       import { css } from 'vindur'
 
       const style = css\`
-        
-        
+  
+  
       \`
     `;
 
@@ -446,8 +446,8 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".vngi9r6-1 {
-        
-      }"
+  
+}"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "vngi9r6-1";"`);
