@@ -31,6 +31,7 @@ export type VindurPluginOptions = {
   filePath: string;
   fs: PluginFS;
   transformFunctionCache: FunctionCache;
+  importAliases?: Record<string, string>;
 };
 
 export type VindurPluginState = {
@@ -312,6 +313,32 @@ function getParameterNames(compiledFn: {
   return compiledFn.args.map((arg) => arg.name ?? 'unknown');
 }
 
+function resolveImportPath(
+  source: string,
+  currentFilePath: string,
+  importAliases: Record<string, string> = {},
+): string {
+  // Check for alias first
+  for (const [alias, aliasPath] of Object.entries(importAliases)) {
+    if (source.startsWith(alias)) {
+      const resolvedPath = source.replace(alias, aliasPath);
+      return `${resolvedPath}.ts`;
+    }
+  }
+
+  // Handle relative imports using Node.js path module
+  if (source.startsWith('./') || source.startsWith('../')) {
+    const currentDir = nodePath.dirname(currentFilePath);
+    const resolvedPath = nodePath.join(currentDir, source);
+    // Normalize the path to remove any remaining '..' or '.' segments
+    const normalizedPath = nodePath.normalize(resolvedPath);
+    return `${normalizedPath}.ts`;
+  }
+
+  // Return as-is for absolute imports or package imports
+  return source;
+}
+
 function loadExternalFunction(
   fs: PluginFS,
   filePath: string,
@@ -362,7 +389,7 @@ export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
 ): PluginObj {
-  const { dev = false, debug, filePath, fs, transformFunctionCache } = options;
+  const { dev = false, debug, filePath, fs, transformFunctionCache, importAliases = {} } = options;
 
   // Generate base hash from file path with 'c' prefix
   const fileHash = `v${murmur2(filePath)}`;
@@ -396,23 +423,15 @@ export function createVindurPlugin(
           // Track imports from other files (for functions)
           const source = path.node.source.value;
           if (typeof source === 'string') {
-            // Resolve relative imports
-            let fullPath = source;
-            if (source.startsWith('./') || source.startsWith('../')) {
-              // Simple relative path resolution (could be more sophisticated)
-              fullPath = `${source}.ts`;
-              // For mock filesystems in tests, strip the ./ prefix
-              if (fullPath.startsWith('./')) {
-                fullPath = fullPath.slice(2);
-              }
-            }
+            const resolvedPath = resolveImportPath(source, filePath, importAliases);
+            debug?.log(`[vindur:import] ${source} from ${filePath} resolved to ${resolvedPath}`);
 
             for (const specifier of path.node.specifiers) {
               if (
                 t.isImportSpecifier(specifier)
                 && t.isIdentifier(specifier.imported)
               ) {
-                importedFunctions.set(specifier.imported.name, fullPath);
+                importedFunctions.set(specifier.imported.name, resolvedPath);
               }
             }
           }

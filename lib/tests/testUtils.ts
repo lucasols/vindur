@@ -8,9 +8,9 @@ export function createFsMock(files: FileTree): TransformFS {
 
   const walk = (tree: FileTree, path: string) => {
     for (const [key, value] of Object.entries(tree)) {
-      if (key.startsWith('/') || key.endsWith('/')) {
+      if (key.startsWith('/') || key.endsWith('/') || key.includes('/')) {
         throw new Error(
-          `File path cannot start or end with a slash: ${key}, it should be just the filename and extension`,
+          `File path cannot start, include or end with a slash: ${key}, it should be just the filename and extension`,
         );
       }
 

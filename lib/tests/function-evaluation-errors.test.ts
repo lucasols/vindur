@@ -213,4 +213,90 @@ describe('function evaluation errors', () => {
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
     );
   });
+
+  describe('circular variable references', () => {
+    test('direct circular variable reference', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: 'test.ts',
+          source: dedent`
+            import { css } from 'vindur'
+
+            const a = b;
+            const b = a;
+
+            const style = css\`
+              color: \${a};
+            \`
+          `,
+          fs: createFsMock({}),
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      );
+    });
+
+    test('self-referential variable', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: 'test.ts',
+          source: dedent`
+            import { css } from 'vindur'
+
+            const a = a;
+
+            const style = css\`
+              color: \${a};
+            \`
+          `,
+          fs: createFsMock({}),
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      );
+    });
+
+    test('indirect circular variable reference chain', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: 'test.ts',
+          source: dedent`
+            import { css } from 'vindur'
+
+            const a = b;
+            const b = c;
+            const c = a;
+
+            const style = css\`
+              color: \${a};
+            \`
+          `,
+          fs: createFsMock({}),
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      );
+    });
+
+    test('circular reference in template literal expressions', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: 'test.ts',
+          source: dedent`
+            import { css } from 'vindur'
+
+            const prefix = \`prefix-\${suffix}\`;
+            const suffix = \`suffix-\${prefix}\`;
+
+            const style = css\`
+              color: \${prefix};
+            \`
+          `,
+          fs: createFsMock({}),
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      );
+    });
+  });
 });
