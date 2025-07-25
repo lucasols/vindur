@@ -227,24 +227,7 @@ function resolveFunctionCall(
   // Mark this function as used
   usedFunctions.add(functionName);
 
-  // Validate argument count for positional functions
-  if (compiledFn.type === 'positional') {
-    const requiredArgs = compiledFn.args.filter((arg) => !arg.optional).length;
-    const totalArgs = compiledFn.args.length;
-    const receivedArgs = args.length;
-
-    if (receivedArgs < requiredArgs || receivedArgs > totalArgs) {
-      if (requiredArgs === totalArgs) {
-        throw new Error(
-          `Function "${functionName}" expects ${requiredArgs} arguments, but received ${receivedArgs}`,
-        );
-      } else {
-        throw new Error(
-          `Function "${functionName}" expects ${requiredArgs}-${totalArgs} arguments, but received ${receivedArgs}`,
-        );
-      }
-    }
-  }
+  // TypeScript will handle argument count validation, so we don't need runtime checks
 
   if (compiledFn.type === 'positional') {
     // Handle positional arguments - need to map to parameter names

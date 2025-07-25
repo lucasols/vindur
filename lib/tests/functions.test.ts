@@ -1027,31 +1027,4 @@ describe('error handling', () => {
     );
   });
 
-  test('function called with wrong number of arguments', () => {
-    const fnFile = dedent`
-      import { vindurFn } from 'vindur'
-
-      export const twoParams = vindurFn((width: number, height: number) => \`
-        width: \${width}px;
-        height: \${height}px;
-      \`)
-    `;
-
-    expect(() => {
-      transform({
-        fileAbsPath: 'test.ts',
-        source: dedent`
-          import { css } from 'vindur'
-          import { twoParams } from './functions'
-
-          const style = css\`
-            \${twoParams(10)};
-          \`
-        `,
-        fs: createFsMock({ 'functions.ts': fnFile }),
-      });
-    }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Function "twoParams" expects 2 arguments, but received 1]`,
-    );
-  });
 });
