@@ -1,55 +1,94 @@
 import type { NodePath, PluginObj } from '@babel/core';
+import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import { murmur2 } from '@ls-stack/utils/hash';
+import {
+  extractArgumentValue,
+  extractLiteralValue,
+  isLiteralExpression,
+} from './ast-utils';
+import { evaluateOutput } from './evaluation';
+import { parseFunction } from './function-parser';
+import type { TransformFS } from './transform';
+import type { CompiledFunction, FunctionArg } from './types';
 
-export type VindurPluginOptions = { dev?: boolean; filePath: string };
-
-type FunctionValueTypes = 'string' | 'number' | 'boolean';
-
-type TernaryConditionValue =
-  | { type: 'string' | 'number' | 'boolean'; value: string | number | boolean }
-  | { type: 'arg'; name: string };
-
-type OutputQuasi =
-  | { type: 'string'; value: string }
-  | { type: 'arg'; name: string }
-  | {
-      type: 'ternary';
-      condition: [
-        TernaryConditionValue,
-        '===' | '!==' | '>' | '<' | '>=' | '<=',
-        TernaryConditionValue,
-      ];
-      ifTrue: OutputQuasi;
-      ifFalse: OutputQuasi;
-    };
-
-type FunctionArg = {
-  type: FunctionValueTypes;
-  defaultValue: string | number | boolean | undefined;
+export type VindurPluginOptions = {
+  dev?: boolean;
+  filePath: string;
+  fs: { readFile: (path: string) => string };
 };
 
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
   compiledFunctions: {
-    [filePath: string]: {
-      [functionName: string]:
-        | {
-            type: 'destructured';
-            args: Record<string, FunctionArg>;
-            output: OutputQuasi[];
-          }
-        | { type: 'positional'; args: FunctionArg[]; output: OutputQuasi[] };
-    };
+    [filePath: string]: { [functionName: string]: CompiledFunction };
   };
 };
+
+function processInterpolationExpression(
+  expression: t.Expression,
+  path: NodePath,
+  fs: TransformFS,
+  compiledFunctions: VindurPluginState['compiledFunctions'],
+  importedFunctions: Map<string, string>,
+  variableName: string | undefined,
+): string {
+  if (t.isIdentifier(expression)) {
+    const resolvedValue = resolveVariable(expression.name, path);
+    if (resolvedValue !== null) {
+      return resolvedValue;
+    } else {
+      const varContext = variableName ? `... ${variableName} = css` : 'css';
+      throw new Error(
+        `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+      );
+    }
+  } else if (isLiteralExpression(expression)) {
+    const value = extractLiteralValue(expression);
+    return String(value);
+  } else if (t.isTemplateLiteral(expression)) {
+    const nested = processTemplateWithInterpolation(
+      expression,
+      path,
+      fs,
+      compiledFunctions,
+      importedFunctions,
+      variableName,
+    );
+    return nested.cssContent;
+  } else if (t.isCallExpression(expression)) {
+    const resolved = resolveFunctionCall(
+      expression,
+      compiledFunctions,
+      importedFunctions,
+      fs,
+    );
+    if (resolved !== null) {
+      return resolved;
+    } else {
+      const expressionSource = generate(expression).code;
+      const varContext = variableName ? `... ${variableName} = css` : 'css';
+      throw new Error(
+        `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable`,
+      );
+    }
+  } else {
+    const expressionSource = generate(expression).code;
+    const varContext = variableName ? `... ${variableName} = css` : 'css';
+    const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
+    throw new Error(errorMessage);
+  }
+}
 
 function processTemplateWithInterpolation(
   quasi: t.TemplateLiteral,
   path: NodePath,
-  variableName?: string,
+  fs: TransformFS,
+  compiledFunctions: VindurPluginState['compiledFunctions'],
+  importedFunctions: Map<string, string>,
+  variableName: string | undefined,
 ) {
   let cssContent = '';
 
@@ -61,40 +100,16 @@ function processTemplateWithInterpolation(
     // Add the interpolated expression if it exists
     if (i < quasi.expressions.length) {
       const expression = quasi.expressions[i];
-
-      // Handle different types of expressions
-      if (t.isIdentifier(expression)) {
-        // Try to resolve the variable value at compile time
-        const resolvedValue = resolveVariable(expression.name, path);
-        if (resolvedValue !== null) {
-          cssContent += resolvedValue;
-        } else {
-          // Throw simple error for unresolvable variables
-          const varContext = variableName ? `... ${variableName} = css` : 'css';
-          throw new Error(
-            `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-          );
-        }
-      } else if (t.isStringLiteral(expression)) {
-        cssContent += expression.value;
-      } else if (t.isNumericLiteral(expression)) {
-        cssContent += expression.value.toString();
-      } else if (t.isTemplateLiteral(expression)) {
-        // Nested template literals - recursively process
-        const nested = processTemplateWithInterpolation(
+      if (expression && t.isExpression(expression)) {
+        const resolvedExpression = processInterpolationExpression(
           expression,
           path,
+          fs,
+          compiledFunctions,
+          importedFunctions,
           variableName,
         );
-        cssContent += nested.cssContent;
-      } else {
-        // Generate the source code of the problematic expression
-        const expressionSource =
-          expression ? generate(expression).code : 'expression';
-
-        const varContext = variableName ? `... ${variableName} = css` : 'css';
-        const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
-        throw new Error(errorMessage);
+        cssContent += resolvedExpression;
       }
     }
   }
@@ -116,12 +131,9 @@ function resolveVariable(variableName: string, path: NodePath): string | null {
   if (declarationPath.isVariableDeclarator() && declarationPath.node.init) {
     const init = declarationPath.node.init;
 
-    if (t.isStringLiteral(init)) {
-      return init.value;
-    } else if (t.isNumericLiteral(init)) {
-      return init.value.toString();
-    } else if (t.isBooleanLiteral(init)) {
-      return init.value.toString();
+    const literalValue = extractLiteralValue(init);
+    if (literalValue !== null) {
+      return String(literalValue);
     } else if (t.isBinaryExpression(init)) {
       // Try to resolve simple binary expressions like `margin * 2`
       const resolved = resolveBinaryExpression(init, path);
@@ -142,8 +154,9 @@ function resolveBinaryExpression(
   let rightValue: number | null = null;
 
   // Resolve left operand
-  if (t.isNumericLiteral(left)) {
-    leftValue = left.value;
+  const leftLiteral = extractLiteralValue(left);
+  if (typeof leftLiteral === 'number') {
+    leftValue = leftLiteral;
   } else if (t.isIdentifier(left)) {
     const resolved = resolveVariable(left.name, path);
     if (resolved !== null && !isNaN(Number(resolved))) {
@@ -152,8 +165,9 @@ function resolveBinaryExpression(
   }
 
   // Resolve right operand
-  if (t.isNumericLiteral(right)) {
-    rightValue = right.value;
+  const rightLiteral = extractLiteralValue(right);
+  if (typeof rightLiteral === 'number') {
+    rightValue = rightLiteral;
   } else if (t.isIdentifier(right)) {
     const resolved = resolveVariable(right.name, path);
     if (resolved !== null && !isNaN(Number(resolved))) {
@@ -180,15 +194,157 @@ function resolveBinaryExpression(
   return null;
 }
 
+function resolveFunctionCall(
+  callExpr: t.CallExpression,
+  compiledFunctions: VindurPluginState['compiledFunctions'],
+  importedFunctions: Map<string, string>, // Maps function name to file path
+  fs: { readFile: (path: string) => string },
+): string | null {
+  if (!t.isIdentifier(callExpr.callee)) return null;
+
+  const functionName = callExpr.callee.name;
+  const functionFilePath = importedFunctions.get(functionName);
+
+  if (!functionFilePath) return null;
+
+  // Load the function if not already compiled
+  if (!compiledFunctions[functionFilePath]?.[functionName]) {
+    loadExternalFunction(fs, functionFilePath, functionName, compiledFunctions);
+  }
+
+  if (!compiledFunctions[functionFilePath]?.[functionName]) {
+    return null;
+  }
+
+  const compiledFn = compiledFunctions[functionFilePath][functionName];
+  const args = callExpr.arguments;
+
+  if (compiledFn.type === 'positional') {
+    // Handle positional arguments - need to map to parameter names
+    const argValues: Record<string, string | number | boolean> = {};
+
+    // Get parameter names from the compiled function
+    const paramNames = getParameterNames(compiledFn);
+
+    args.forEach((arg, index) => {
+      const paramName = paramNames[index];
+      if (paramName && t.isExpression(arg)) {
+        const { value, resolved } = extractArgumentValue(arg);
+        if (resolved && value !== null) {
+          argValues[paramName] = value;
+        }
+      }
+    });
+
+    return evaluateOutput(compiledFn.output, argValues);
+  } else {
+    // Handle destructured object arguments
+    if (args.length === 1 && t.isObjectExpression(args[0])) {
+      const argValues: Record<string, string | number | boolean> = {};
+
+      // Add default values first
+      for (const [name, argDef] of Object.entries(compiledFn.args)) {
+        if (argDef.defaultValue !== undefined) {
+          argValues[name] = argDef.defaultValue;
+        }
+      }
+
+      // Override with provided values
+      for (const prop of args[0].properties) {
+        if (t.isObjectProperty(prop) && t.isIdentifier(prop.key)) {
+          const key = prop.key.name;
+          const value = extractLiteralValue(prop.value);
+          if (value !== null) {
+            argValues[key] = value;
+          }
+        }
+      }
+
+      return evaluateOutput(compiledFn.output, argValues);
+    }
+  }
+
+  return null;
+}
+
+function getParameterNames(compiledFn: {
+  type: 'positional';
+  args: FunctionArg[];
+}): string[] {
+  return compiledFn.args.map((arg) => arg.name ?? 'unknown');
+}
+
+function loadExternalFunction(
+  fs: { readFile: (path: string) => string },
+  filePath: string,
+  _functionName: string,
+  compiledFunctions: VindurPluginState['compiledFunctions'],
+): void {
+  if (!compiledFunctions[filePath]) {
+    // Load and parse the external file
+
+    const fileContent = fs.readFile(filePath);
+
+    // Parse the file to extract vindurFn functions
+    babel.transformSync(fileContent, {
+      plugins: [
+        function extractVindurFunctions(): PluginObj {
+          return {
+            visitor: {
+              ExportNamedDeclaration(path) {
+                if (
+                  path.node.declaration
+                  && t.isVariableDeclaration(path.node.declaration)
+                ) {
+                  for (const declarator of path.node.declaration.declarations) {
+                    if (
+                      t.isVariableDeclarator(declarator)
+                      && t.isIdentifier(declarator.id)
+                      && declarator.init
+                      && t.isCallExpression(declarator.init)
+                      && t.isIdentifier(declarator.init.callee)
+                      && declarator.init.callee.name === 'vindurFn'
+                      && declarator.init.arguments.length === 1
+                    ) {
+                      const arg = declarator.init.arguments[0];
+                      if (
+                        t.isArrowFunctionExpression(arg)
+                        || t.isFunctionExpression(arg)
+                      ) {
+                        const name = declarator.id.name;
+                        const compiledFn = parseFunction(arg);
+
+                        compiledFunctions[filePath] ??= {};
+                        compiledFunctions[filePath][name] = compiledFn;
+                      }
+                    }
+                  }
+                }
+              },
+            },
+          };
+        },
+      ],
+      parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+    });
+  }
+}
+
 export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
 ): PluginObj {
-  const { dev = false, filePath } = options;
+  const { dev = false, filePath, fs } = options;
 
   // Generate base hash from file path with 'c' prefix
   const fileHash = `c${murmur2(filePath)}`;
   let classIndex = 1;
+
+  // Track imported functions and their file paths
+  const importedFunctions = new Map<string, string>();
+
+  // Initialize compiledFunctions for current file if not exists
+  state.compiledFunctions[filePath] ??= {};
 
   return {
     name: 'vindur-css-transform',
@@ -206,6 +362,57 @@ export function createVindurPlugin(
           });
           // Remove the import statement since we're processing the css at build time
           path.remove();
+        } else {
+          // Track imports from other files (for functions)
+          const source = path.node.source.value;
+          if (typeof source === 'string') {
+            // Resolve relative imports
+            let fullPath = source;
+            if (source.startsWith('./') || source.startsWith('../')) {
+              // Simple relative path resolution (could be more sophisticated)
+              fullPath = `${source}.ts`;
+            }
+
+            path.node.specifiers.forEach((specifier) => {
+              if (
+                t.isImportSpecifier(specifier)
+                && t.isIdentifier(specifier.imported)
+              ) {
+                importedFunctions.set(specifier.imported.name, fullPath);
+              }
+            });
+          }
+        }
+      },
+      ExportNamedDeclaration(path) {
+        // Handle vindurFn function declarations for compilation
+        if (
+          path.node.declaration
+          && t.isVariableDeclaration(path.node.declaration)
+        ) {
+          for (const declarator of path.node.declaration.declarations) {
+            if (
+              t.isVariableDeclarator(declarator)
+              && t.isIdentifier(declarator.id)
+              && declarator.init
+              && t.isCallExpression(declarator.init)
+              && t.isIdentifier(declarator.init.callee)
+              && declarator.init.callee.name === 'vindurFn'
+              && declarator.init.arguments.length === 1
+            ) {
+              const arg = declarator.init.arguments[0];
+              if (
+                t.isArrowFunctionExpression(arg)
+                || t.isFunctionExpression(arg)
+              ) {
+                const functionName = declarator.id.name;
+                const compiledFn = parseFunction(arg);
+
+                state.compiledFunctions[filePath] ??= {};
+                state.compiledFunctions[filePath][functionName] = compiledFn;
+              }
+            }
+          }
         }
       },
       VariableDeclarator(path) {
@@ -222,6 +429,9 @@ export function createVindurPlugin(
           const { cssContent } = processTemplateWithInterpolation(
             path.node.init.quasi,
             path,
+            fs,
+            state.compiledFunctions,
+            importedFunctions,
             varName,
           );
 
@@ -232,8 +442,12 @@ export function createVindurPlugin(
             : `${fileHash}-${classIndex}`;
           classIndex++;
 
-          // Store the CSS rule
-          state.cssRules.push(`.${className} {\n  ${cssContent.trim()}\n}`);
+          // Clean up CSS content and store the CSS rule
+          const cleanedCss = cssContent
+            .trim()
+            .replace(/;\s*;/g, ';')
+            .replace(/;\s*$/, '');
+          state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
 
           // Replace the tagged template with the class name string
           path.node.init = t.stringLiteral(className);
@@ -248,6 +462,9 @@ export function createVindurPlugin(
           const { cssContent } = processTemplateWithInterpolation(
             path.node.quasi,
             path,
+            fs,
+            state.compiledFunctions,
+            importedFunctions,
             undefined,
           );
 
@@ -255,8 +472,9 @@ export function createVindurPlugin(
           const className = `${fileHash}-${classIndex}`;
           classIndex++;
 
-          // Store the CSS rule
-          state.cssRules.push(`.${className} {\n  ${cssContent.trim()}\n}`);
+          // Clean up CSS content and store the CSS rule
+          const cleanedCss = cssContent.trim();
+          state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
 
           // Replace the tagged template with the class name string
           path.replaceWith(t.stringLiteral(className));

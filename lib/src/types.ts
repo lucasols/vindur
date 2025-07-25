@@ -1,0 +1,31 @@
+export type TernaryConditionValue =
+  | { type: 'string' | 'number' | 'boolean'; value: string | number | boolean }
+  | { type: 'arg'; name: string };
+
+export type OutputQuasi =
+  | { type: 'string'; value: string }
+  | { type: 'arg'; name: string }
+  | {
+      type: 'ternary';
+      condition: [
+        TernaryConditionValue,
+        '===' | '!==' | '>' | '<' | '>=' | '<=',
+        TernaryConditionValue,
+      ];
+      ifTrue: OutputQuasi;
+      ifFalse: OutputQuasi;
+    };
+
+export type FunctionArg = {
+  name?: string; // Parameter name for positional args
+  type: 'string' | 'number' | 'boolean';
+  defaultValue: string | number | boolean | undefined;
+};
+
+export type CompiledFunction = 
+  | {
+      type: 'destructured';
+      args: Record<string, FunctionArg>;
+      output: OutputQuasi[];
+    }
+  | { type: 'positional'; args: FunctionArg[]; output: OutputQuasi[] };

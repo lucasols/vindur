@@ -3,17 +3,17 @@ import { createVindurPlugin, type VindurPluginState } from './babel-plugin';
 
 type Result = { css: string; styleDependencies: string[]; code: string };
 
-export type TransformFS = { readFile: (filePath: string) => string };
+export type TransformFS = { readFile: (fileAbsPath: string) => string };
 
 export type TransformOptions = {
-  filePath: string;
+  fileAbsPath: string;
   source: string;
   dev?: boolean;
-  fs?: TransformFS;
+  fs: TransformFS;
 };
 
 export function transform({
-  filePath,
+  fileAbsPath: filePath,
   source,
   dev = false,
   fs,
@@ -21,9 +21,10 @@ export function transform({
   const pluginState: VindurPluginState = {
     cssRules: [],
     vindurImports: new Set<string>(),
+    compiledFunctions: {},
   };
 
-  const plugin = createVindurPlugin({ filePath, dev }, pluginState);
+  const plugin = createVindurPlugin({ filePath, dev, fs }, pluginState);
 
   const result = babel.transformSync(source, {
     plugins: [plugin],
