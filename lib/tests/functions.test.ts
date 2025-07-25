@@ -26,14 +26,11 @@ test('function with simple params', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       width: 10px
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { pixelSize } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with multiple params', () => {
@@ -61,14 +58,11 @@ test('function with multiple params', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       margin: 10px 20px 30px 40px
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { margin } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with destructured object param', () => {
@@ -99,17 +93,14 @@ test('function with destructured object param', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       display: flex;
       justify-content: ;
       align-items: center;
       gap: 10px
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { inline } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with no parameters', () => {
@@ -140,17 +131,14 @@ test('function with no parameters', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
       color: red
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { reset } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function returning static string', () => {
@@ -176,14 +164,11 @@ test('function returning static string', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       border: 1px solid black
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { border } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with simple conditional', () => {
@@ -211,14 +196,11 @@ test('function with simple conditional', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       padding: large
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { spacing } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('multiple functions in one file', () => {
@@ -248,16 +230,13 @@ test('multiple functions in one file', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       font-size: 24px;
       width: 50%;
       background: red
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { px, percent, color } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with mixed parameter types', () => {
@@ -283,14 +262,11 @@ test('function with mixed parameter types', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       box-shadow: 2px 4px 8px rgba(0,0,0,0.3)
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { shadow } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with all default values used', () => {
@@ -328,7 +304,7 @@ test('function with all default values used', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       background: blue;
       color: white;
       padding: 8px 16px;
@@ -337,10 +313,7 @@ test('function with all default values used', () => {
       cursor: pointer
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { button } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('error handling - missing function file', () => {
@@ -389,16 +362,13 @@ test('function with simple interpolation', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { grid } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with simple ternary expressions', () => {
@@ -427,15 +397,12 @@ test('function with simple ternary expressions', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       background: secondary;
       opacity: false
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { theme } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with partial parameter override', () => {
@@ -471,17 +438,14 @@ test('function with partial parameter override', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       background: #f8f9fa;
       border-radius: 8px;
       padding: 16px;
       box-shadow: large
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { card } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
 test('function with return statement syntax', () => {
@@ -510,13 +474,10 @@ test('function with return statement syntax', () => {
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".c196xm6g-1 {
+    ".v196xm6g-1 {
       transition: opacity 300ms ease-in-out;
       opacity: 0.5
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`
-    "import { transition } from './functions';
-    const style = "c196xm6g-1";"
-  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });

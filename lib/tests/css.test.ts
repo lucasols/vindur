@@ -24,13 +24,15 @@ describe('class generation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".cmcre00-1 {
+      ".vmcre00-1 {
         background-color: red
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"const style = "cmcre00-1";
-console.log(style);"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "vmcre00-1";
+      console.log(style);"
+    `);
   });
 
   test('should transform css styles in dev mode with variable names', () => {
@@ -58,21 +60,22 @@ console.log(style);"`);
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".ccixwtu-1-buttonStyle {
+      ".vcixwtu-1-buttonStyle {
         padding: 10px;
         color: blue
       }
 
-      .ccixwtu-2-headerStyle {
+      .vcixwtu-2-headerStyle {
         font-size: 24px;
         font-weight: bold
       }"
     `);
 
-    expect(result.code)
-      .toMatchInlineSnapshot(`"const buttonStyle = "ccixwtu-1-buttonStyle";
-const headerStyle = "ccixwtu-2-headerStyle";
-console.log(buttonStyle, headerStyle);"`);
+    expect(result.code).toMatchInlineSnapshot(`
+        "const buttonStyle = "vcixwtu-1-buttonStyle";
+        const headerStyle = "vcixwtu-2-headerStyle";
+        console.log(buttonStyle, headerStyle);"
+      `);
   });
 });
 
@@ -98,7 +101,7 @@ describe('interpolation', () => {
 
     // This should now contain resolved values, not placeholders
     expect(result.css).toMatchInlineSnapshot(`
-      ".chqnxci-1 {
+      ".vhqnxci-1 {
         color: blue;
         font-size: 16px
       }"
@@ -107,7 +110,7 @@ describe('interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = 'blue';
       const fontSize = 16;
-      const style = "chqnxci-1";"
+      const style = "vhqnxci-1";"
     `);
   });
 
@@ -134,7 +137,7 @@ describe('interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".c9525ba-1 {
+      ".v9525ba-1 {
         color: blue;
         font-size: 16px;
         background: red
@@ -144,7 +147,7 @@ describe('interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = 'blue';
       const fontSize = 16;
-      const style = "c9525ba-1";
+      const style = "v9525ba-1";
       console.log(style);"
     `);
   });
@@ -169,7 +172,7 @@ describe('interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".co47uo2-1 {
+      ".vo47uo2-1 {
         margin: 10px;
         padding: 20px
       }"
@@ -178,7 +181,7 @@ describe('interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const margin = 10;
       const padding = margin * 2;
-      const style = "co47uo2-1";"
+      const style = "vo47uo2-1";"
     `);
   });
 
@@ -222,7 +225,7 @@ describe('interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".cmgoafb-1 {
+      ".vmgoafb-1 {
         content: "my-class"
       }"
     `);
@@ -230,7 +233,7 @@ describe('interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const prefix = 'my';
       const suffix = 'class';
-      const style = "cmgoafb-1";"
+      const style = "vmgoafb-1";"
     `);
   });
 
@@ -417,12 +420,12 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".c1v2q6wl-1 {
+      ".v1v2q6wl-1 {
         
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"const style = "c1v2q6wl-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "v1v2q6wl-1";"`);
   });
 
   test('should handle css with only whitespace', () => {
@@ -442,12 +445,12 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".cngi9r6-1 {
+      ".vngi9r6-1 {
         
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"const style = "cngi9r6-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vngi9r6-1";"`);
   });
 
   test('should handle multiple css declarations in one file', () => {
@@ -466,23 +469,23 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".c1m1fhxk-1 {
+      ".v1m1fhxk-1 {
         color: red
       }
 
-      .c1m1fhxk-2 {
+      .v1m1fhxk-2 {
         color: blue
       }
 
-      .c1m1fhxk-3 {
+      .v1m1fhxk-3 {
         color: green
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style1 = "c1m1fhxk-1";
-      const style2 = "c1m1fhxk-2";
-      const style3 = "c1m1fhxk-3";"
+      "const style1 = "v1m1fhxk-1";
+      const style2 = "v1m1fhxk-2";
+      const style3 = "v1m1fhxk-3";"
     `);
   });
 
@@ -504,14 +507,14 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".ciwoa2i-1 {
+      ".viwoa2i-1 {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"const style = "ciwoa2i-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "viwoa2i-1";"`);
   });
 
   test('should resolve variables at different positions in CSS', () => {
@@ -535,7 +538,7 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".cjenap5-1 {
+      ".vjenap5-1 {
         color: red;
         font-size: 16px
       }"
@@ -545,7 +548,7 @@ describe('corner cases', () => {
       "const property = 'color';
       const value = 'red';
       const unit = 'px';
-      const style = "cjenap5-1";"
+      const style = "vjenap5-1";"
     `);
   });
 
@@ -567,14 +570,14 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".cidwcaw-1 {
+      ".vidwcaw-1 {
         color: ;
         font-size;
         background: red blue green yellow orange
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"const style = "cidwcaw-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vidwcaw-1";"`);
   });
 
   test('should handle very long css content', () => {
@@ -594,9 +597,9 @@ describe('corner cases', () => {
     });
 
     // Should contain the generated class name pattern and margin styles
-    expect(result.css).toMatch(/\.c[a-z0-9]+-1 \{/);
+    expect(result.css).toMatch(/\.v[a-z0-9]+-1 \{/);
     expect(result.css).toContain('margin: 1px;');
-    expect(result.code).toMatch(/^const style = "c[a-z0-9]+-1";$/);
+    expect(result.code).toMatch(/^const style = "v[a-z0-9]+-1";$/);
   });
 
   test('should handle direct css usage without assignment', () => {
@@ -613,11 +616,11 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".c1w3db20-1 {
+      ".v1w3db20-1 {
         color: red;
       }"
     `);
 
-    expect(result.code).toMatchInlineSnapshot(`"console.log("c1w3db20-1");"`);
+    expect(result.code).toMatchInlineSnapshot(`"console.log("v1w3db20-1");"`);
   });
 });

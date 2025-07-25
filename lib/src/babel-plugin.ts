@@ -34,6 +34,7 @@ function processInterpolationExpression(
   compiledFunctions: VindurPluginState['compiledFunctions'],
   importedFunctions: Map<string, string>,
   variableName: string | undefined,
+  usedFunctions: Set<string>,
 ): string {
   if (t.isIdentifier(expression)) {
     const resolvedValue = resolveVariable(expression.name, path);
@@ -56,6 +57,7 @@ function processInterpolationExpression(
       compiledFunctions,
       importedFunctions,
       variableName,
+      usedFunctions,
     );
     return nested.cssContent;
   } else if (t.isCallExpression(expression)) {
@@ -64,6 +66,7 @@ function processInterpolationExpression(
       compiledFunctions,
       importedFunctions,
       fs,
+      usedFunctions,
     );
     if (resolved !== null) {
       return resolved;
@@ -89,6 +92,7 @@ function processTemplateWithInterpolation(
   compiledFunctions: VindurPluginState['compiledFunctions'],
   importedFunctions: Map<string, string>,
   variableName: string | undefined,
+  usedFunctions: Set<string>,
 ) {
   let cssContent = '';
 
@@ -108,6 +112,7 @@ function processTemplateWithInterpolation(
           compiledFunctions,
           importedFunctions,
           variableName,
+          usedFunctions,
         );
         cssContent += resolvedExpression;
       }
@@ -199,6 +204,7 @@ function resolveFunctionCall(
   compiledFunctions: VindurPluginState['compiledFunctions'],
   importedFunctions: Map<string, string>, // Maps function name to file path
   fs: { readFile: (path: string) => string },
+  usedFunctions?: Set<string>,
 ): string | null {
   if (!t.isIdentifier(callExpr.callee)) return null;
 
@@ -218,6 +224,11 @@ function resolveFunctionCall(
 
   const compiledFn = compiledFunctions[functionFilePath][functionName];
   const args = callExpr.arguments;
+
+  // Mark this function as used
+  if (usedFunctions) {
+    usedFunctions.add(functionName);
+  }
 
   if (compiledFn.type === 'positional') {
     // Handle positional arguments - need to map to parameter names
@@ -337,11 +348,13 @@ export function createVindurPlugin(
   const { dev = false, filePath, fs } = options;
 
   // Generate base hash from file path with 'c' prefix
-  const fileHash = `c${murmur2(filePath)}`;
+  const fileHash = `v${murmur2(filePath)}`;
   let classIndex = 1;
 
   // Track imported functions and their file paths
   const importedFunctions = new Map<string, string>();
+  // Track which functions are actually used during CSS processing
+  const usedFunctions = new Set<string>();
 
   // Initialize compiledFunctions for current file if not exists
   state.compiledFunctions[filePath] ??= {};
@@ -433,6 +446,7 @@ export function createVindurPlugin(
             state.compiledFunctions,
             importedFunctions,
             varName,
+            usedFunctions,
           );
 
           // Generate class name based on dev mode
@@ -466,6 +480,7 @@ export function createVindurPlugin(
             state.compiledFunctions,
             importedFunctions,
             undefined,
+            usedFunctions,
           );
 
           // Generate class name with hash and index (no varName for direct usage)
@@ -485,6 +500,53 @@ export function createVindurPlugin(
       state.cssRules.length = 0;
       state.vindurImports.clear();
       classIndex = 1;
+      usedFunctions.clear();
+    },
+    post(file) {
+      // Remove unused function imports
+      file.path.traverse({
+        ImportDeclaration(path) {
+          const source = path.node.source.value;
+          if (
+            typeof source === 'string'
+            && (source.startsWith('./') || source.startsWith('../'))
+          ) {
+            // Filter out unused function imports
+            const unusedSpecifiers: t.ImportSpecifier[] = [];
+            const usedSpecifiers: t.ImportSpecifier[] = [];
+
+            path.node.specifiers.forEach((specifier) => {
+              if (
+                t.isImportSpecifier(specifier)
+                && t.isIdentifier(specifier.imported)
+              ) {
+                const functionName = specifier.imported.name;
+                // Remove functions that were used during CSS processing (they're compiled away)
+                if (
+                  importedFunctions.has(functionName)
+                  && usedFunctions.has(functionName)
+                ) {
+                  unusedSpecifiers.push(specifier);
+                } else {
+                  usedSpecifiers.push(specifier);
+                }
+              } else if (t.isImportSpecifier(specifier)) {
+                usedSpecifiers.push(specifier);
+              }
+            });
+
+            if (unusedSpecifiers.length > 0) {
+              if (usedSpecifiers.length === 0) {
+                // Remove the entire import statement if no functions are used
+                path.remove();
+              } else {
+                // Remove only unused specifiers
+                path.node.specifiers = usedSpecifiers;
+              }
+            }
+          }
+        },
+      });
     },
   };
 }
