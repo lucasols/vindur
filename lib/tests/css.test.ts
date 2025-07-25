@@ -274,7 +274,7 @@ describe('error handling', () => {
     expect(() => {
       transform({ source, filePath: '/src/function.ts' });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${Math.max()}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${Math.max(10, 20)}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -292,7 +292,7 @@ describe('error handling', () => {
     expect(() => {
       transform({ source, filePath: '/src/conditional.ts' });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${condition ? value1 : value2}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -310,7 +310,7 @@ describe('error handling', () => {
     expect(() => {
       transform({ source, filePath: '/src/logical.ts' });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${condition ? value1 : value2}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -327,7 +327,7 @@ describe('error handling', () => {
     expect(() => {
       transform({ source, filePath: '/src/unary.ts' });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${condition ? value1 : value2}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -343,7 +343,7 @@ describe('error handling', () => {
     expect(() => {
       transform({ source, filePath: '/src/array-literal.ts' });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${obj[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: unknown file: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 

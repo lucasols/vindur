@@ -1,5 +1,6 @@
 import type { NodePath, PluginObj } from '@babel/core';
 import { types as t } from '@babel/core';
+import generate from '@babel/generator';
 import { murmur2 } from '@ls-stack/utils/hash';
 
 export type VindurPluginOptions = { dev?: boolean; filePath: string };
@@ -52,49 +53,7 @@ function processTemplateWithInterpolation(
         cssContent += nested.cssContent;
       } else {
         // Generate the source code of the problematic expression
-        let expressionSource = '';
-        if (expression) {
-          try {
-            if (t.isMemberExpression(expression)) {
-              const object =
-                t.isIdentifier(expression.object) ?
-                  expression.object.name
-                : 'obj';
-              const property =
-                expression.computed ?
-                  t.isNumericLiteral(expression.property) ?
-                    expression.property.value.toString()
-                  : '0'
-                : t.isIdentifier(expression.property) ? expression.property.name
-                : 'prop';
-              expressionSource =
-                expression.computed ?
-                  `${object}[${property}]`
-                : `${object}.${property}`;
-            } else if (t.isCallExpression(expression)) {
-              const callee =
-                t.isIdentifier(expression.callee) ? expression.callee.name
-                : (
-                  t.isMemberExpression(expression.callee)
-                  && t.isIdentifier(expression.callee.object)
-                  && t.isIdentifier(expression.callee.property)
-                ) ?
-                  `${expression.callee.object.name}.${expression.callee.property.name}`
-                : 'func';
-              expressionSource = `${callee}()`;
-            } else if (t.isConditionalExpression(expression)) {
-              expressionSource = 'condition ? value1 : value2';
-            } else if (t.isIdentifier(expression)) {
-              // TypeScript narrowing issue workaround
-              const id = expression as t.Identifier;
-              expressionSource = id.name;
-            } else {
-              expressionSource = 'expression';
-            }
-          } catch {
-            expressionSource = 'expression';
-          }
-        }
+        const expressionSource = expression ? generate(expression).code : 'expression';
 
         const varContext = variableName ? `... ${variableName} = css` : 'css';
         const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;

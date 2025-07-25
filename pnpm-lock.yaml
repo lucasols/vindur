@@ -44,6 +44,9 @@ importers:
       '@babel/core':
         specifier: ^7.25.8
         version: 7.28.0
+      '@babel/generator':
+        specifier: ^7.28.0
+        version: 7.28.0
       '@ls-stack/extended-lint':
         specifier: ^0.3.1
         version: 0.3.1(eslint@9.31.0)(typescript@5.8.3)
@@ -53,6 +56,9 @@ importers:
       '@types/babel__core':
         specifier: ^7.20.5
         version: 7.20.5
+      '@types/babel__generator':
+        specifier: ^7.27.0
+        version: 7.27.0
       '@types/eslint__js':
         specifier: ^8.42.3
         version: 8.42.3
