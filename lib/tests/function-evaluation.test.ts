@@ -976,7 +976,12 @@ describe('function evaluation', () => {
           content: "Hello World";
         }"
       `);
-      expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+      expect(code).toMatchInlineSnapshot(`
+        "const prefix = 'Hello';
+        const suffix = 'World';
+        const message = \`\${prefix} \${suffix}\`;
+        const style = "vwmy4ur-1";"
+      `);
     });
   });
 });
