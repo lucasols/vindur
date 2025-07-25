@@ -76,3 +76,4 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Do not use `any`
 - Do not use `as Type` casts, except for `as const`
 - Do not use non-null assertions (`!`)
+- Avoid using optional parameters, use default values or `| undefined` instead
