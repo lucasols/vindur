@@ -17,7 +17,8 @@ export function transform({
   dev?: boolean
 }): Result {
   const pluginState: VindurPluginState = {
-    cssRules: []
+    cssRules: [],
+    vindurImports: new Set<string>()
   }
   
   const plugin = createVindurPlugin({ filePath, dev }, pluginState)
@@ -30,7 +31,7 @@ export function transform({
     },
   })
 
-  if (!result || !result.code) {
+  if (!result?.code) {
     throw new Error('Transform failed')
   }
 

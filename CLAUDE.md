@@ -70,3 +70,9 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 ## Code Style Guidelines
 
 - Use types instead of interfaces
+
+## Typesafety
+
+- Do not use `any`
+- Do not use `as Type` casts, except for `as const`
+- Do not use non-null assertions (`!`)

@@ -8,7 +8,8 @@
     "dev": "pnpm --filter vindur-test-app run dev",
     "lib:build": "pnpm --filter vindur run build",
     "lib:lint": "pnpm --filter vindur run lint",
-    "lib:test": "pnpm --filter vindur run test"
+    "lib:test": "pnpm --filter vindur run test",
+    "lib:test:ui": "pnpm --filter vindur run test:ui"
   },
   "license": "MIT"
 }
