@@ -1,31 +1,44 @@
 import * as babel from '@babel/core';
 import path from 'path';
-import { createVindurPlugin, type VindurPluginState } from './babel-plugin';
+import {
+  createVindurPlugin,
+  type DebugLogger,
+  type FunctionCache,
+  type VindurPluginState,
+} from './babel-plugin';
 
 type Result = { css: string; styleDependencies: string[]; code: string };
 
 export type TransformFS = { readFile: (fileAbsPath: string) => string };
 
+export type TransformFunctionCache = FunctionCache;
+
 export type TransformOptions = {
   fileAbsPath: string;
   source: string;
   dev?: boolean;
+  debug?: DebugLogger;
   fs: TransformFS;
+  transformFunctionCache?: TransformFunctionCache;
 };
 
 export function transform({
   fileAbsPath: filePath,
   source,
   dev = false,
+  debug,
   fs,
+  transformFunctionCache = {},
 }: TransformOptions): Result {
   const pluginState: VindurPluginState = {
     cssRules: [],
     vindurImports: new Set<string>(),
-    compiledFunctions: {},
   };
 
-  const plugin = createVindurPlugin({ filePath, dev, fs }, pluginState);
+  const plugin = createVindurPlugin(
+    { filePath, dev, debug, fs, transformFunctionCache },
+    pluginState,
+  );
 
   const result = babel.transformSync(source, {
     plugins: [plugin],

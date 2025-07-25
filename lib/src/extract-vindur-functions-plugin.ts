@@ -1,18 +1,14 @@
 import type { PluginObj } from '@babel/core';
 import { types as t } from '@babel/core';
-import type { VindurPluginState } from './babel-plugin';
+import type { DebugLogger, FunctionCache } from './babel-plugin';
 import { parseFunction } from './function-parser';
-
 
 export function createExtractVindurFunctionsPlugin(
   filePath: string,
-  compiledFunctions: VindurPluginState['compiledFunctions'],
+  compiledFunctions: FunctionCache,
+  debug?: DebugLogger,
 ): PluginObj {
   return {
-    pre() {
-      // Ensure the file entry exists even if no vindurFn functions are found
-      compiledFunctions[filePath] ??= {};
-    },
     visitor: {
       ExportNamedDeclaration(path) {
         if (
@@ -39,6 +35,10 @@ export function createExtractVindurFunctionsPlugin(
 
                 compiledFunctions[filePath] ??= {};
                 compiledFunctions[filePath][name] = compiledFn;
+
+                debug?.log(
+                  `[vindur:cache] Cached function "${name}" in ${filePath}`,
+                );
               } else {
                 throw new Error(
                   `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,

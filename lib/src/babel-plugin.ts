@@ -15,28 +15,38 @@ import { parseFunction } from './function-parser';
 import type { TransformFS } from './transform';
 import type { CompiledFunction, FunctionArg } from './types';
 
+export type DebugLogger = { log: (message: string) => void };
+
+export type FunctionCache = {
+  [filePath: string]: { [functionName: string]: CompiledFunction };
+};
+
+export type PluginFS = { readFile: (path: string) => string };
+
+export type ImportedFunctions = Map<string, string>;
+
 export type VindurPluginOptions = {
   dev?: boolean;
+  debug?: DebugLogger;
   filePath: string;
-  fs: { readFile: (path: string) => string };
+  fs: PluginFS;
+  transformFunctionCache: FunctionCache;
 };
 
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
-  compiledFunctions: {
-    [filePath: string]: { [functionName: string]: CompiledFunction };
-  };
 };
 
 function processInterpolationExpression(
   expression: t.Expression,
   path: NodePath,
   fs: TransformFS,
-  compiledFunctions: VindurPluginState['compiledFunctions'],
-  importedFunctions: Map<string, string>,
+  compiledFunctions: FunctionCache,
+  importedFunctions: ImportedFunctions,
   variableName: string | undefined,
   usedFunctions: Set<string>,
+  debug?: DebugLogger,
 ): string {
   if (t.isIdentifier(expression)) {
     const resolvedValue = resolveVariable(expression.name, path);
@@ -60,6 +70,7 @@ function processInterpolationExpression(
       importedFunctions,
       variableName,
       usedFunctions,
+      debug,
     );
     return nested.cssContent;
   } else if (t.isCallExpression(expression)) {
@@ -69,6 +80,7 @@ function processInterpolationExpression(
       importedFunctions,
       fs,
       usedFunctions,
+      debug,
     );
     if (resolved !== null) {
       return resolved;
@@ -91,10 +103,11 @@ function processTemplateWithInterpolation(
   quasi: t.TemplateLiteral,
   path: NodePath,
   fs: TransformFS,
-  compiledFunctions: VindurPluginState['compiledFunctions'],
-  importedFunctions: Map<string, string>,
+  compiledFunctions: FunctionCache,
+  importedFunctions: ImportedFunctions,
   variableName: string | undefined,
   usedFunctions: Set<string>,
+  debug?: DebugLogger,
 ) {
   let cssContent = '';
 
@@ -115,6 +128,7 @@ function processTemplateWithInterpolation(
           importedFunctions,
           variableName,
           usedFunctions,
+          debug,
         );
         cssContent += resolvedExpression;
       }
@@ -203,10 +217,11 @@ function resolveBinaryExpression(
 
 function resolveFunctionCall(
   callExpr: t.CallExpression,
-  compiledFunctions: VindurPluginState['compiledFunctions'],
-  importedFunctions: Map<string, string>, // Maps function name to file path
-  fs: { readFile: (path: string) => string },
+  compiledFunctions: FunctionCache,
+  importedFunctions: ImportedFunctions, // Maps function name to file path
+  fs: PluginFS,
   usedFunctions: Set<string>,
+  debug?: DebugLogger,
 ): string | null {
   if (!t.isIdentifier(callExpr.callee)) return null;
 
@@ -221,6 +236,7 @@ function resolveFunctionCall(
     functionFilePath,
     functionName,
     compiledFunctions,
+    debug,
   );
   const args = callExpr.arguments;
 
@@ -295,13 +311,17 @@ function getParameterNames(compiledFn: {
 }
 
 function loadExternalFunction(
-  fs: { readFile: (path: string) => string },
+  fs: PluginFS,
   filePath: string,
   functionName: string,
-  compiledFunctions: VindurPluginState['compiledFunctions'],
+  compiledFunctions: FunctionCache,
+  debug?: DebugLogger,
 ): CompiledFunction {
   // Check if already cached
   if (compiledFunctions[filePath]?.[functionName]) {
+    debug?.log(
+      `[vindur:cache] Cache HIT for function "${functionName}" in ${filePath}`,
+    );
     return compiledFunctions[filePath][functionName];
   }
 
@@ -312,7 +332,9 @@ function loadExternalFunction(
   // Parse the file to extract vindurFn functions
   babel.transformSync(fileContent, {
     filename: relativePath,
-    plugins: [createExtractVindurFunctionsPlugin(filePath, compiledFunctions)],
+    plugins: [
+      createExtractVindurFunctionsPlugin(filePath, compiledFunctions, debug),
+    ],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
   });
 
@@ -338,7 +360,7 @@ export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
 ): PluginObj {
-  const { dev = false, filePath, fs } = options;
+  const { dev = false, debug, filePath, fs, transformFunctionCache } = options;
 
   // Generate base hash from file path with 'c' prefix
   const fileHash = `v${murmur2(filePath)}`;
@@ -350,7 +372,7 @@ export function createVindurPlugin(
   const usedFunctions = new Set<string>();
 
   // Initialize compiledFunctions for current file if not exists
-  state.compiledFunctions[filePath] ??= {};
+  transformFunctionCache[filePath] ??= {};
 
   return {
     name: 'vindur-css-transform',
@@ -419,8 +441,8 @@ export function createVindurPlugin(
 
                 const compiledFn = parseFunction(arg, functionName);
 
-                state.compiledFunctions[filePath] ??= {};
-                state.compiledFunctions[filePath][functionName] = compiledFn;
+                transformFunctionCache[filePath] ??= {};
+                transformFunctionCache[filePath][functionName] = compiledFn;
               } else {
                 throw new Error(
                   `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,
@@ -445,10 +467,11 @@ export function createVindurPlugin(
             path.node.init.quasi,
             path,
             fs,
-            state.compiledFunctions,
+            transformFunctionCache,
             importedFunctions,
             varName,
             usedFunctions,
+            debug,
           );
 
           // Generate class name based on dev mode
@@ -476,10 +499,11 @@ export function createVindurPlugin(
             path.node.quasi,
             path,
             fs,
-            state.compiledFunctions,
+            transformFunctionCache,
             importedFunctions,
             undefined,
             usedFunctions,
+            debug,
           );
 
           // Generate class name with hash and index (no varName for direct usage)
