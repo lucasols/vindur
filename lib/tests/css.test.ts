@@ -87,8 +87,8 @@ describe('interpolation', () => {
     // This should now contain resolved values, not placeholders
     expect(result.css).toMatchInlineSnapshot(`
       ".chqnxci-1 {
-        color: \${primaryColor};
-        font-size: \${fontSize}px;
+        color: blue;
+        font-size: 16px;
       }"
     `);
 
@@ -150,8 +150,8 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".co47uo2-1 {
-        margin: \${margin}px;
-        padding: \${padding}px;
+        margin: 10px;
+        padding: 20px;
       }"
     `);
 
@@ -199,7 +199,7 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cmgoafb-1 {
-        content: "\${prefix}-\${suffix}";
+        content: "my-class";
       }"
     `);
 
@@ -492,8 +492,8 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cjenap5-1 {
-      color: red;
-              font-size: 16px;
+        color: red;
+        font-size: 16px;
       }"
     `);
 
