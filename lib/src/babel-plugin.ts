@@ -237,7 +237,7 @@ function resolveFunctionCall(
     // Get parameter names from the compiled function
     const paramNames = getParameterNames(compiledFn);
 
-    args.forEach((arg, index) => {
+    for (const [index, arg] of args.entries()) {
       const paramName = paramNames[index];
       if (paramName && t.isExpression(arg)) {
         const { value, resolved } = extractArgumentValue(arg);
@@ -245,7 +245,7 @@ function resolveFunctionCall(
           argValues[paramName] = value;
         }
       }
-    });
+    }
 
     return evaluateOutput(compiledFn.output, argValues);
   } else {
@@ -365,14 +365,14 @@ export function createVindurPlugin(
       ImportDeclaration(path) {
         // Track imports from 'vindur' package
         if (path.node.source.value === 'vindur') {
-          path.node.specifiers.forEach((specifier) => {
+          for (const specifier of path.node.specifiers) {
             if (
               t.isImportSpecifier(specifier)
               && t.isIdentifier(specifier.imported)
             ) {
               state.vindurImports.add(specifier.imported.name);
             }
-          });
+          }
           // Remove the import statement since we're processing the css at build time
           path.remove();
         } else {
@@ -386,14 +386,14 @@ export function createVindurPlugin(
               fullPath = `${source}.ts`;
             }
 
-            path.node.specifiers.forEach((specifier) => {
+            for (const specifier of path.node.specifiers) {
               if (
                 t.isImportSpecifier(specifier)
                 && t.isIdentifier(specifier.imported)
               ) {
                 importedFunctions.set(specifier.imported.name, fullPath);
               }
-            });
+            }
           }
         }
       },
@@ -512,7 +512,7 @@ export function createVindurPlugin(
             const unusedSpecifiers: t.ImportSpecifier[] = [];
             const usedSpecifiers: t.ImportSpecifier[] = [];
 
-            path.node.specifiers.forEach((specifier) => {
+            for (const specifier of path.node.specifiers) {
               if (
                 t.isImportSpecifier(specifier)
                 && t.isIdentifier(specifier.imported)
@@ -530,7 +530,7 @@ export function createVindurPlugin(
               } else if (t.isImportSpecifier(specifier)) {
                 usedSpecifiers.push(specifier);
               }
-            });
+            }
 
             if (unusedSpecifiers.length > 0) {
               if (usedSpecifiers.length === 0) {

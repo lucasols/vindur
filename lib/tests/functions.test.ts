@@ -10,19 +10,17 @@ test('function with simple params', () => {
     export const pixelSize = vindurFn((size: number) => '\${size}px')
   `;
 
-  const source = dedent`
-    import { css } from 'vindur'
-    import { pixelSize } from './functions'
-
-    const style = css\`
-      width: \${pixelSize(10)};
-    \`
-  `;
-
   const { code, css } = transform({
     fileAbsPath: 'test.ts',
-    source,
-    fs: createFsMock({ './functions.ts': fnFile, '/test.ts': source }),
+    source: dedent`
+      import { css } from 'vindur'
+      import { pixelSize } from './functions'
+
+      const style = css\`
+        width: \${pixelSize(10)};
+      \`
+    `,
+    fs: createFsMock({ './functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
