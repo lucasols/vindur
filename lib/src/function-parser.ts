@@ -1,6 +1,11 @@
 import { types as t } from '@babel/core';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
-import type { TernaryConditionValue, OutputQuasi, FunctionArg, CompiledFunction } from './types';
+import type {
+  CompiledFunction,
+  FunctionArg,
+  OutputQuasi,
+  TernaryConditionValue,
+} from './types';
 
 export function parseFunction(
   fnExpression: t.ArrowFunctionExpression | t.FunctionExpression,
@@ -29,7 +34,7 @@ export function parseFunction(
       ) {
         // Handle default values
         const defaultValue = extractLiteralValue(prop.value.right);
-        
+
         args[prop.key.name] = {
           type: getLiteralValueType(defaultValue),
           defaultValue: defaultValue ?? undefined,
@@ -136,15 +141,13 @@ function isValidComparisonOperator(
   return ['===', '!==', '>', '<', '>=', '<='].includes(operator);
 }
 
-function parseTernaryCondition(
-  test: t.Expression,
-):
-  | [
-      TernaryConditionValue,
-      '===' | '!==' | '>' | '<' | '>=' | '<=',
-      TernaryConditionValue,
-    ]
-  | null {
+type TernaryCondition = [
+  TernaryConditionValue,
+  '===' | '!==' | '>' | '<' | '>=' | '<=',
+  TernaryConditionValue,
+];
+
+function parseTernaryCondition(test: t.Expression): TernaryCondition | null {
   if (t.isBinaryExpression(test)) {
     const left =
       t.isExpression(test.left) ? parseConditionValue(test.left) : null;
@@ -155,6 +158,13 @@ function parseTernaryCondition(
     if (left && right && isValidComparisonOperator(operator)) {
       return [left, operator, right];
     }
+  } else if (t.isIdentifier(test)) {
+    // Handle simple boolean conditions like `disabled ? '0.5' : '1'`
+    return [
+      { type: 'arg', name: test.name },
+      '===',
+      { type: 'boolean', value: true },
+    ];
   }
 
   return null;

@@ -25,7 +25,7 @@ describe('class generation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".vmcre00-1 {
-        background-color: red
+        background-color: red;
       }"
     `);
 
@@ -62,12 +62,12 @@ describe('class generation', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".vcixwtu-1-buttonStyle {
         padding: 10px;
-        color: blue
+        color: blue;
       }
 
       .vcixwtu-2-headerStyle {
         font-size: 24px;
-        font-weight: bold
+        font-weight: bold;
       }"
     `);
 
@@ -103,7 +103,7 @@ describe('interpolation', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".vhqnxci-1 {
         color: blue;
-        font-size: 16px
+        font-size: 16px;
       }"
     `);
 
@@ -140,7 +140,7 @@ describe('interpolation', () => {
       ".v9525ba-1 {
         color: blue;
         font-size: 16px;
-        background: red
+        background: red;
       }"
     `);
 
@@ -174,7 +174,7 @@ describe('interpolation', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".vo47uo2-1 {
         margin: 10px;
-        padding: 20px
+        padding: 20px;
       }"
     `);
 
@@ -226,7 +226,7 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".vmgoafb-1 {
-        content: "my-class"
+        content: "my-class";
       }"
     `);
 
@@ -470,15 +470,15 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1m1fhxk-1 {
-        color: red
+        color: red;
       }
 
       .v1m1fhxk-2 {
-        color: blue
+        color: blue;
       }
 
       .v1m1fhxk-3 {
-        color: green
+        color: green;
       }"
     `);
 
@@ -510,7 +510,7 @@ describe('corner cases', () => {
       ".viwoa2i-1 {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
-        font-family: 'Font Name', sans-serif
+        font-family: 'Font Name', sans-serif;
       }"
     `);
 
@@ -540,7 +540,7 @@ describe('corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".vjenap5-1 {
         color: red;
-        font-size: 16px
+        font-size: 16px;
       }"
     `);
 
@@ -573,7 +573,7 @@ describe('corner cases', () => {
       ".vidwcaw-1 {
         color: ;
         font-size;
-        background: red blue green yellow orange
+        background: red blue green yellow orange;
       }"
     `);
 

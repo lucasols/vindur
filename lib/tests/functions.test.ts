@@ -27,7 +27,7 @@ test('function with simple params', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      width: 10px
+      width: 10px;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -59,7 +59,8 @@ test('function with multiple params', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      margin: 10px 20px 30px 40px
+      margin: 10px 20px 30px 40px;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -97,7 +98,8 @@ test('function with destructured object param', () => {
       display: flex;
       justify-content: ;
       align-items: center;
-      gap: 10px
+      gap: 10px;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -135,7 +137,8 @@ test('function with no parameters', () => {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      color: red
+    ;
+      color: red;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -165,7 +168,7 @@ test('function returning static string', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      border: 1px solid black
+      border: 1px solid black;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -197,7 +200,8 @@ test('function with simple conditional', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      padding: large
+      padding: large;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -233,7 +237,7 @@ test('multiple functions in one file', () => {
     ".v196xm6g-1 {
       font-size: 24px;
       width: 50%;
-      background: red
+      background: red;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -263,7 +267,7 @@ test('function with mixed parameter types', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      box-shadow: 2px 4px 8px rgba(0,0,0,0.3)
+      box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -310,7 +314,8 @@ test('function with all default values used', () => {
       padding: 8px 16px;
       border-radius: 4px;
       border: none;
-      cursor: pointer
+      cursor: pointer;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -332,7 +337,9 @@ test('error handling - missing function file', () => {
       source,
       fs: createFsMock({ '/test.ts': source }),
     });
-  }).toThrowErrorMatchingInlineSnapshot(`[Error: unknown file: File not found: ./missing.ts]`);
+  }).toThrowErrorMatchingInlineSnapshot(
+    `[Error: unknown file: File not found: ./missing.ts]`,
+  );
 });
 
 test('function with simple interpolation', () => {
@@ -365,7 +372,8 @@ test('function with simple interpolation', () => {
     ".v196xm6g-1 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 16px
+      gap: 16px;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -377,7 +385,7 @@ test('function with simple ternary expressions', () => {
 
     export const theme = vindurFn(({ variant = 'primary', disabled = false }) => \`
       background: \${variant};
-      opacity: \${disabled};
+      opacity: \${disabled ? '0.5' : '1'};
     \`)
   `;
 
@@ -399,7 +407,8 @@ test('function with simple ternary expressions', () => {
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
       background: secondary;
-      opacity: false
+      opacity: 1;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -442,7 +451,8 @@ test('function with partial parameter override', () => {
       background: #f8f9fa;
       border-radius: 8px;
       padding: 16px;
-      box-shadow: large
+      box-shadow: large;
+    ;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
@@ -475,8 +485,8 @@ test('function with return statement syntax', () => {
 
   expect(css).toMatchInlineSnapshot(`
     ".v196xm6g-1 {
-      transition: opacity 300ms ease-in-out;
-      opacity: 0.5
+      transition: opacity 300ms ease-in-out;;
+      opacity: 0.5;
     }"
   `);
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);

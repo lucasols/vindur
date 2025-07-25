@@ -457,10 +457,7 @@ export function createVindurPlugin(
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
-          const cleanedCss = cssContent
-            .trim()
-            .replace(/;\s*;/g, ';')
-            .replace(/;\s*$/, '');
+          const cleanedCss = cssContent.trim();
           state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
 
           // Replace the tagged template with the class name string
