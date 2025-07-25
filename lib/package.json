@@ -7,7 +7,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:update-snapshots": "vitest run --u ",
     "lint": "pnpm tsc && pnpm eslint",
     "tsc": "tsc -p tsconfig.prod.json",
     "eslint": "CI=true eslint --color src/ --max-warnings 0",

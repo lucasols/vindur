@@ -457,7 +457,7 @@ export function createVindurPlugin(
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
-          const cleanedCss = cssContent.trim();
+          const cleanedCss = cleanCss(cssContent);
           state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
 
           // Replace the tagged template with the class name string
@@ -485,7 +485,7 @@ export function createVindurPlugin(
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
-          const cleanedCss = cssContent.trim();
+          const cleanedCss = cleanCss(cssContent);
           state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
 
           // Replace the tagged template with the class name string
@@ -546,4 +546,8 @@ export function createVindurPlugin(
       });
     },
   };
+}
+
+function cleanCss(css: string) {
+  return css.trim().replace(/;\s*;/g, ';'); // Remove double semicolons
 }

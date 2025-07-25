@@ -189,6 +189,15 @@ function parseQuasiFromExpression(expr: t.Expression): OutputQuasi | null {
     return { type: 'string', value: expr.value };
   } else if (t.isIdentifier(expr)) {
     return { type: 'arg', name: expr.name };
+  } else if (t.isConditionalExpression(expr)) {
+    // Handle nested ternary expressions
+    const condition = parseTernaryCondition(expr.test);
+    const ifTrue = parseQuasiFromExpression(expr.consequent);
+    const ifFalse = parseQuasiFromExpression(expr.alternate);
+
+    if (condition && ifTrue && ifFalse) {
+      return { type: 'ternary', condition, ifTrue, ifFalse };
+    }
   }
 
   return null;

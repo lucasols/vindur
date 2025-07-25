@@ -12,6 +12,8 @@ This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-
 
 ## Development Commands
 
+Do not use `npx` to run commands, use `pnpm` only
+
 ### Library Development (lib/)
 
 ```bash
@@ -30,15 +32,6 @@ cd app-test
 pnpm dev           # Start Vite dev server
 pnpm build         # Build for production
 pnpm preview       # Preview production build
-```
-
-### Testing
-
-Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
-
-```bash
-cd lib
-pnpm test         # Run tests
 ```
 
 ## Architecture
@@ -77,3 +70,15 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Do not use `as Type` casts, except for `as const`
 - Do not use non-null assertions (`!`)
 - Avoid using optional parameters, use default values or `| undefined` instead
+
+## Testing
+
+Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
+
+```bash
+cd lib
+pnpm test         # Run tests
+```
+
+- Prefer using `toMatchInlineSnapshot` when possible
+- Do not update snapshots via `vitest run --u`, update them manually
