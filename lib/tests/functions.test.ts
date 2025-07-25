@@ -1,5 +1,5 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
@@ -204,10 +204,12 @@ test('multiple functions in one file', () => {
     fileAbsPath: 'test.ts',
     source: dedent`
       import { css } from 'vindur'
-      import { shadow } from './functions'
+      import { px, percent, color } from './functions'
 
       const style = css\`
-        box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
+        font-size: \${px(24)};
+        width: \${percent(50)};
+        background: \${color('red')};
       \`
     `,
     fs: createFsMock({ './functions.ts': fnFile }),
@@ -296,7 +298,7 @@ test('function with all default values used', () => {
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
-test('error handling - missing function file', () => {
+test('missing function file', () => {
   const source = dedent`
     import { css } from 'vindur'
     import { nonExistent } from './missing'
@@ -463,196 +465,202 @@ test('function with return statement syntax', () => {
   expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
 });
 
-test('error handling - function without vindurFn wrapper', () => {
-  const fnFile = dedent`
-    export const invalidFn = (size: number) => \`width: \${size}px\`
-  `;
+describe('error handling', () => {
+  test('function without vindurFn wrapper', () => {
+    const fnFile = dedent`
+      export const invalidFn = (size: number) => \`width: \${size}px\`
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { invalidFn } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { invalidFn } from './functions'
 
-        const style = css\`
-          \${invalidFn(10)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${invalidFn(10)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: unknown file: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+    );
+  });
 
-test('error handling - non-function export', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('non-function export', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const notAFunction = 'just a string'
-  `;
+      export const notAFunction = 'just a string'
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { invalidWrapper } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { invalidWrapper } from './functions'
 
-        const style = css\`
-          \${invalidWrapper()};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${invalidWrapper()};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: unknown file: Unresolved function call at \`... style = css\` ... \${invalidWrapper()}, function must be statically analyzable]`,
+    );
+  });
 
-test('error handling - vindurFn with non-function argument', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('vindurFn with non-function argument', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const invalidWrapper = vindurFn('not a function')
-  `;
+      export const invalidWrapper = vindurFn('not a function')
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { invalidWrapper } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { invalidWrapper } from './functions'
 
-        const style = css\`
-          \${invalidWrapper()};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${invalidWrapper()};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 
-test('error handling - vindurFn with complex function body', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('vindurFn with complex function body', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const complexFn = vindurFn((size: number) => {
-      const computed = size * 2;
-      if (computed > 100) {
-        return \`width: 100px\`;
-      }
-      return \`width: \${computed}px\`;
-    })
-  `;
+      export const complexFn = vindurFn((size: number) => {
+        const computed = size * 2;
+        if (computed > 100) {
+          return \`width: 100px\`;
+        }
+        return \`width: \${computed}px\`;
+      })
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { complexFn } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { complexFn } from './functions'
 
-        const style = css\`
-          \${complexFn(50)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${complexFn(50)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 
-test('error handling - vindurFn with async function', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('vindurFn with async function', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const asyncFn = vindurFn(async (size: number) => \`width: \${size}px\`)
-  `;
+      export const asyncFn = vindurFn(async (size: number) => \`width: \${size}px\`)
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { asyncFn } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { asyncFn } from './functions'
 
-        const style = css\`
-          \${asyncFn(10)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${asyncFn(10)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 
-test('error handling - vindurFn with generator function', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('vindurFn with generator function', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const generatorFn = vindurFn(function* (size: number) {
-      yield \`width: \${size}px\`;
-    })
-  `;
+      export const generatorFn = vindurFn(function* (size: number) {
+        yield \`width: \${size}px\`;
+      })
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { generatorFn } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { generatorFn } from './functions'
 
-        const style = css\`
-          \${generatorFn(10)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${generatorFn(10)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 
-test('error handling - vindurFn with external dependency', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
-    import { someExternalLib } from 'external-lib'
+  test('vindurFn with external dependency', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
+      import { someExternalLib } from 'external-lib'
 
-    export const externalFn = vindurFn((size: number) => someExternalLib.transform(\`width: \${size}px\`))
-  `;
+      export const externalFn = vindurFn((size: number) => someExternalLib.transform(\`width: \${size}px\`))
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { externalFn } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { externalFn } from './functions'
 
-        const style = css\`
-          \${externalFn(10)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
-});
+          const style = css\`
+            \${externalFn(10)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 
-test('error handling - function called with wrong number of arguments', () => {
-  const fnFile = dedent`
-    import { vindurFn } from 'vindur'
+  test('function called with wrong number of arguments', () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
 
-    export const twoParams = vindurFn((width: number, height: number) => \`
-      width: \${width}px;
-      height: \${height}px;
-    \`)
-  `;
+      export const twoParams = vindurFn((width: number, height: number) => \`
+        width: \${width}px;
+        height: \${height}px;
+      \`)
+    `;
 
-  expect(() => {
-    transform({
-      fileAbsPath: 'test.ts',
-      source: dedent`
-        import { css } from 'vindur'
-        import { twoParams } from './functions'
+    expect(() => {
+      transform({
+        fileAbsPath: 'test.ts',
+        source: dedent`
+          import { css } from 'vindur'
+          import { twoParams } from './functions'
 
-        const style = css\`
-          \${twoParams(10)};
-        \`
-      `,
-      fs: createFsMock({ './functions.ts': fnFile }),
-    });
-  }).toThrow();
+          const style = css\`
+            \${twoParams(10)};
+          \`
+        `,
+        fs: createFsMock({ './functions.ts': fnFile }),
+      });
+    }).toThrow();
+  });
 });
