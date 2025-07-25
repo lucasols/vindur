@@ -20,7 +20,7 @@ export type TransformOptions = {
   debug?: DebugLogger;
   fs: TransformFS;
   transformFunctionCache?: TransformFunctionCache;
-  importAliases?: Record<string, string>;
+  importAliases: Record<string, string>;
 };
 
 export function transform({
@@ -30,7 +30,7 @@ export function transform({
   debug,
   fs,
   transformFunctionCache = {},
-  importAliases = {},
+  importAliases,
 }: TransformOptions): Result {
   const pluginState: VindurPluginState = {
     cssRules: [],

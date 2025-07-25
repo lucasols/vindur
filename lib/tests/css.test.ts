@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
+const importAliases = { '#/': '/' };
+
 const emptyFs = createFsMock({});
 
 describe('class generation', () => {
@@ -21,6 +23,7 @@ describe('class generation', () => {
       source,
       fileAbsPath: '/src/test.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -57,6 +60,7 @@ describe('class generation', () => {
       fileAbsPath: '/src/components.ts',
       dev: true,
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -97,6 +101,7 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/debug.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     // This should now contain resolved values, not placeholders
@@ -134,6 +139,7 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/interpolation.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -169,6 +175,7 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/variables.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -200,7 +207,12 @@ describe('interpolation', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/complex.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/complex.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -222,6 +234,7 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/nested.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -247,7 +260,12 @@ describe('interpolation', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/undefined.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/undefined.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/undefined.ts: Invalid interpolation used at \`... style = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -266,7 +284,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/object.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/object.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -283,7 +306,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/array.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/array.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/array.ts: Invalid interpolation used at \`... style = css\` ... \${colors[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -299,7 +327,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/function.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/function.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable]`,
     );
@@ -317,7 +350,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/conditional.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/conditional.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/conditional.ts: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -335,7 +373,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/logical.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/logical.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/logical.ts: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -352,7 +395,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/unary.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/unary.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/unary.ts: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -368,7 +416,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/array-literal.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/array-literal.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/array-literal.ts: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -384,7 +437,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/button.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/button.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/button.ts: Invalid interpolation used at \`... buttonStyle = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -398,7 +456,12 @@ describe('error handling', () => {
     `;
 
     expect(() => {
-      transform({ source, fileAbsPath: '/src/direct.ts', fs: emptyFs });
+      transform({
+        source,
+        fileAbsPath: '/src/direct.ts',
+        fs: emptyFs,
+        importAliases,
+      });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/direct.ts: Invalid interpolation used at \`css\` ... \${obj.value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
@@ -417,12 +480,13 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/empty.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1v2q6wl-1 {
+            ".v1v2q6wl-1 {
   
-}"
+      }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "v1v2q6wl-1";"`);
@@ -442,12 +506,13 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/whitespace.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vngi9r6-1 {
+            ".vngi9r6-1 {
   
-}"
+      }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "vngi9r6-1";"`);
@@ -466,6 +531,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/multiple.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -504,6 +570,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/special.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -535,6 +602,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/positions.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -594,6 +662,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/long.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     // Should contain the generated class name pattern and margin styles
@@ -613,6 +682,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/direct.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`

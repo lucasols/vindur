@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
+const importAliases = { '#/': '/' };
+
 describe('function compilation errors', () => {
   describe('variable references', () => {
     test('function with simple variable reference should throw error', () => {
@@ -29,9 +31,10 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -58,9 +61,10 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -87,9 +91,10 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -117,9 +122,10 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
   });
@@ -146,9 +152,10 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "invalidOp" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "invalidOp" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported]`,
       );
     });
 
@@ -173,6 +180,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression]`,
@@ -200,6 +208,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained]`,
@@ -227,6 +236,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained]`,
@@ -254,6 +264,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained]`,
@@ -281,6 +292,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression]`,
@@ -308,6 +320,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression]`,
@@ -335,6 +348,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression]`,
@@ -362,6 +376,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "fnInBranch" contains function calls which are not supported - functions must be self-contained]`,
@@ -389,6 +404,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained]`,
@@ -416,6 +432,7 @@ describe('function compilation errors', () => {
             \`
           `,
           fs: createFsMock({ 'functions.ts': fnFile }),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression]`,

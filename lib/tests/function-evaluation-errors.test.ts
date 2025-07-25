@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
+const importAliases = { '#/': '/' };
+
 describe('function evaluation errors', () => {
   test('missing function file', () => {
     const source = dedent`
@@ -19,13 +21,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { nonExistent } from './missing'
+          import { nonExistent } from '#/missing'
 
           const style = css\`
             color: \${nonExistent()};
           \`
         `,
         fs: createFsMock({ 'test.ts': source }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /test.ts: File not found: /missing.ts]`,
@@ -42,13 +45,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { invalidFn } from './functions'
+          import { invalidFn } from '#/functions'
 
           const style = css\`
             \${invalidFn(10)};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
@@ -67,13 +71,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { notAFunction } from './functions'
+          import { notAFunction } from '#/functions'
 
           const style = css\`
             \${notAFunction()};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
@@ -92,13 +97,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { invalidWrapper } from './functions'
+          import { invalidWrapper } from '#/functions'
 
           const style = css\`
             \${invalidWrapper()};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"]`,
@@ -123,13 +129,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { complexFn } from './functions'
+          import { complexFn } from '#/functions'
 
           const style = css\`
             \${complexFn(50)};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals]`,
@@ -148,13 +155,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { asyncFn } from './functions'
+          import { asyncFn } from '#/functions'
 
           const style = css\`
             \${asyncFn(10)};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation]`,
@@ -175,13 +183,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { generatorFn } from './functions'
+          import { generatorFn } from '#/functions'
 
           const style = css\`
             \${generatorFn(10)};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings]`,
@@ -201,13 +210,14 @@ describe('function evaluation errors', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { externalFn } from './functions'
+          import { externalFn } from '#/functions'
 
           const style = css\`
             \${externalFn(10)};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
@@ -230,6 +240,7 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
@@ -250,6 +261,7 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
@@ -272,6 +284,7 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
@@ -293,6 +306,7 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,

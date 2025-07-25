@@ -3,119 +3,6 @@ import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
 describe('Path Resolution', () => {
-  describe('relative imports', () => {
-    it('should resolve relative imports with ./', () => {
-      const mockFS = createFsMock({
-        'main.ts': `
-          import { spacing } from './utils';
-          import { css } from 'vindur';
-          
-          const button = css\`
-            \${spacing(2)};
-          \`;
-        `,
-        'utils.ts': `
-          import { vindurFn } from 'vindur';
-          
-          export const spacing = vindurFn((multiplier: number) => \`margin: \${multiplier}px;\`);
-        `,
-      });
-
-      const result = transform({
-        fileAbsPath: 'main.ts',
-        source: mockFS.readFile('main.ts'),
-        fs: mockFS,
-      });
-
-      expect(result.css).toMatchInlineSnapshot(`
-        ".v6jbliu-1 {
-          margin: 2px;
-        }"
-      `);
-    });
-
-    it('should resolve relative imports with ../', () => {
-      const mockFS = createFsMock({
-        components: {
-          'Button.ts': `
-            import { spacing } from '../utils/styles';
-            import { css } from 'vindur';
-            
-            const button = css\`
-              padding: \${spacing(1)};
-            \`;
-          `,
-        },
-        utils: {
-          'styles.ts': `
-            import { vindurFn } from 'vindur';
-            
-            export const spacing = vindurFn((multiplier: number) => \`\${multiplier * 4}px\`);
-          `,
-        },
-      });
-
-      const result = transform({
-        fileAbsPath: 'components/Button.ts',
-        source: mockFS.readFile('components/Button.ts'),
-        fs: mockFS,
-      });
-
-      expect(result.css).toMatchInlineSnapshot(`
-        ".v1vw6kc1-1 {
-          padding: 4px;
-        }"
-      `);
-    });
-
-    it('should handle nested relative imports', () => {
-      const mockFS = createFsMock({
-        pages: {
-          'Home.ts': `
-            import { buttonStyles } from '../components/Button';
-            import { css } from 'vindur';
-            
-            const home = css\`
-              \${buttonStyles()};
-              background: white;
-            \`;
-          `,
-        },
-        components: {
-          'Button.ts': `
-            import { vindurFn } from 'vindur';
-            
-            export const buttonStyles = vindurFn(() => \`
-              padding: 16px;
-              border-radius: 4px;
-            \`);
-          `,
-        },
-        utils: {
-          'styles.ts': `
-            import { vindurFn } from 'vindur';
-            
-            export const spacing = vindurFn((multiplier: number) => \`\${multiplier * 8}px\`);
-          `,
-        },
-      });
-
-      const result = transform({
-        fileAbsPath: 'pages/Home.ts',
-        source: mockFS.readFile('pages/Home.ts'),
-        fs: mockFS,
-      });
-
-      expect(result.css).toMatchInlineSnapshot(`
-        ".vqcvxt5-1 {
-          padding: 16px;
-            border-radius: 4px;
-            background: white;
-        }"
-      `);
-    });
-  });
-
   describe('alias imports', () => {
     it('should resolve alias imports using importAliases option', () => {
       const mockFS = createFsMock({
@@ -142,7 +29,9 @@ describe('Path Resolution', () => {
         fileAbsPath: 'main.ts',
         source: mockFS.readFile('main.ts'),
         fs: mockFS,
-        importAliases: { '@utils': 'src/utils' },
+        importAliases: {
+          '@utils': 'src/utils',
+        },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
@@ -188,7 +77,10 @@ describe('Path Resolution', () => {
         fileAbsPath: 'main.ts',
         source: mockFS.readFile('main.ts'),
         fs: mockFS,
-        importAliases: { '@utils': 'lib/utils', '@theme': 'design/theme' },
+        importAliases: {
+          '@utils': 'lib/utils',
+          '@theme': 'design/theme',
+        },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
@@ -199,7 +91,7 @@ describe('Path Resolution', () => {
       `);
     });
 
-    it('should prioritize aliases over relative paths', () => {
+    it('should prioritize aliases over non-alias imports', () => {
       const mockFS = createFsMock({
         'main.ts': `
           import { spacing } from '@utils/spacing';
@@ -231,7 +123,9 @@ describe('Path Resolution', () => {
         fileAbsPath: 'main.ts',
         source: mockFS.readFile('main.ts'),
         fs: mockFS,
-        importAliases: { '@utils': 'lib/utils' },
+        importAliases: {
+          '@utils': 'lib/utils',
+        },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
@@ -285,54 +179,7 @@ describe('Path Resolution', () => {
       expect(result.css).toMatchInlineSnapshot(`
         ".v6jbliu-1 {
           padding: 16px;
-                border: 1px solid #ccc;
-        }"
-      `);
-    });
-  });
-
-  describe('mixed imports', () => {
-    it('should handle both relative and alias imports in the same file', () => {
-      const mockFS = createFsMock({
-        components: {
-          'Button.ts': `
-            import { spacing } from './spacing';
-            import { colors } from '@theme/colors';
-            import { css } from 'vindur';
-            
-            const button = css\`
-              padding: \${spacing(2)};
-              background: \${colors('primary')};
-            \`;
-          `,
-          'spacing.ts': `
-            import { vindurFn } from 'vindur';
-            
-            export const spacing = vindurFn((multiplier: number) => \`\${multiplier * 4}px\`);
-          `,
-        },
-        design: {
-          theme: {
-            'colors.ts': `
-              import { vindurFn } from 'vindur';
-              
-              export const colors = vindurFn((color: string) => \`#ff6b6b\`);
-            `,
-          },
-        },
-      });
-
-      const result = transform({
-        fileAbsPath: 'components/Button.ts',
-        source: mockFS.readFile('components/Button.ts'),
-        fs: mockFS,
-        importAliases: { '@theme': 'design/theme' },
-      });
-
-      expect(result.css).toMatchInlineSnapshot(`
-        ".v1vw6kc1-1 {
-          padding: 8px;
-          background: #ff6b6b;
+          border: 1px solid #ccc;
         }"
       `);
     });
@@ -356,28 +203,9 @@ describe('Path Resolution', () => {
           fileAbsPath: 'main.ts',
           source: mockFS.readFile('main.ts'),
           fs: mockFS,
-          importAliases: { '@theme': 'design/theme' },
-        });
-      }).toThrow();
-    });
-
-    it('should throw error when relative import file does not exist', () => {
-      const mockFS = createFsMock({
-        'main.ts': `
-          import { spacing } from './utils';
-          import { css } from 'vindur';
-          
-          const button = css\`
-            margin: \${spacing(1)};
-          \`;
-        `,
-      });
-
-      expect(() => {
-        transform({
-          fileAbsPath: 'main.ts',
-          source: mockFS.readFile('main.ts'),
-          fs: mockFS,
+          importAliases: {
+            '@theme': 'design/theme',
+          },
         });
       }).toThrow();
     });

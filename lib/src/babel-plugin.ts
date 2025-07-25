@@ -90,7 +90,7 @@ function processInterpolationExpression(
       const expressionSource = generate(expression).code;
       const varContext = variableName ? `... ${variableName} = css` : 'css';
       throw new Error(
-        `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable`,
+        `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
       );
     }
   } else {
@@ -315,10 +315,9 @@ function getParameterNames(compiledFn: {
 
 function resolveImportPath(
   source: string,
-  currentFilePath: string,
-  importAliases: Record<string, string> = {},
-): string {
-  // Check for alias first
+  importAliases: Record<string, string>,
+): string | null {
+  // Check for alias imports
   for (const [alias, aliasPath] of Object.entries(importAliases)) {
     if (source.startsWith(alias)) {
       const resolvedPath = source.replace(alias, aliasPath);
@@ -326,17 +325,8 @@ function resolveImportPath(
     }
   }
 
-  // Handle relative imports using Node.js path module
-  if (source.startsWith('./') || source.startsWith('../')) {
-    const currentDir = nodePath.dirname(currentFilePath);
-    const resolvedPath = nodePath.join(currentDir, source);
-    // Normalize the path to remove any remaining '..' or '.' segments
-    const normalizedPath = nodePath.normalize(resolvedPath);
-    return `${normalizedPath}.ts`;
-  }
-
-  // Return as-is for absolute imports or package imports
-  return source;
+  // Return as-is for all other imports (relative, absolute, or package imports)
+  return null;
 }
 
 function loadExternalFunction(
@@ -389,7 +379,14 @@ export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
 ): PluginObj {
-  const { dev = false, debug, filePath, fs, transformFunctionCache, importAliases = {} } = options;
+  const {
+    dev = false,
+    debug,
+    filePath,
+    fs,
+    transformFunctionCache,
+    importAliases = {},
+  } = options;
 
   // Generate base hash from file path with 'c' prefix
   const fileHash = `v${murmur2(filePath)}`;
@@ -423,8 +420,16 @@ export function createVindurPlugin(
           // Track imports from other files (for functions)
           const source = path.node.source.value;
           if (typeof source === 'string') {
-            const resolvedPath = resolveImportPath(source, filePath, importAliases);
-            debug?.log(`[vindur:import] ${source} from ${filePath} resolved to ${resolvedPath}`);
+            const resolvedPath = resolveImportPath(source, importAliases);
+
+            if (resolvedPath === null) {
+              debug?.log(
+                `[vindur:import] ${source} is not an alias import, skipping`,
+              );
+              return;
+            }
+
+            debug?.log(`[vindur:import] ${source} resolved to ${resolvedPath}`);
 
             for (const specifier of path.node.specifiers) {
               if (
