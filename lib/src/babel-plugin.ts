@@ -5,9 +5,45 @@ import { murmur2 } from '@ls-stack/utils/hash';
 
 export type VindurPluginOptions = { dev?: boolean; filePath: string };
 
+type FunctionValueTypes = 'string' | 'number' | 'boolean';
+
+type TernaryConditionValue =
+  | { type: 'string' | 'number' | 'boolean'; value: string | number | boolean }
+  | { type: 'arg'; name: string };
+
+type OutputQuasi =
+  | { type: 'string'; value: string }
+  | { type: 'arg'; name: string }
+  | {
+      type: 'ternary';
+      condition: [
+        TernaryConditionValue,
+        '===' | '!==' | '>' | '<' | '>=' | '<=',
+        TernaryConditionValue,
+      ];
+      ifTrue: OutputQuasi;
+      ifFalse: OutputQuasi;
+    };
+
+type FunctionArg = {
+  type: FunctionValueTypes;
+  defaultValue: string | number | boolean | undefined;
+};
+
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
+  compiledFunctions: {
+    [filePath: string]: {
+      [functionName: string]:
+        | {
+            type: 'destructured';
+            args: Record<string, FunctionArg>;
+            output: OutputQuasi[];
+          }
+        | { type: 'positional'; args: FunctionArg[]; output: OutputQuasi[] };
+    };
+  };
 };
 
 function processTemplateWithInterpolation(
