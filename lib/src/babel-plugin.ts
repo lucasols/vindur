@@ -53,7 +53,8 @@ function processTemplateWithInterpolation(
         cssContent += nested.cssContent;
       } else {
         // Generate the source code of the problematic expression
-        const expressionSource = expression ? generate(expression).code : 'expression';
+        const expressionSource =
+          expression ? generate(expression).code : 'expression';
 
         const varContext = variableName ? `... ${variableName} = css` : 'css';
         const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
@@ -196,7 +197,7 @@ export function createVindurPlugin(
           classIndex++;
 
           // Store the CSS rule
-          state.cssRules.push(`.${className} {\n${cssContent.trim()}\n}`);
+          state.cssRules.push(`.${className} {\n  ${cssContent.trim()}\n}`);
 
           // Replace the tagged template with the class name string
           path.node.init = t.stringLiteral(className);
@@ -219,7 +220,7 @@ export function createVindurPlugin(
           classIndex++;
 
           // Store the CSS rule
-          state.cssRules.push(`.${className} {\n${cssContent.trim()}\n}`);
+          state.cssRules.push(`.${className} {\n  ${cssContent.trim()}\n}`);
 
           // Replace the tagged template with the class name string
           path.replaceWith(t.stringLiteral(className));

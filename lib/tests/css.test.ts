@@ -18,7 +18,7 @@ describe('class generation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cmcre00-1 {
-      background-color: red;
+        background-color: red;
       }"
     `);
 
@@ -51,12 +51,12 @@ console.log(style);"`);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".ccixwtu-1-buttonStyle {
-      padding: 10px;
+        padding: 10px;
         color: blue;
       }
 
       .ccixwtu-2-headerStyle {
-      font-size: 24px;
+        font-size: 24px;
         font-weight: bold;
       }"
     `);
@@ -70,7 +70,7 @@ console.log(buttonStyle, headerStyle);"`);
 
 describe('interpolation', () => {
   test('DEBUG: should resolve simple variables at compile time', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const primaryColor = 'blue'
@@ -87,8 +87,8 @@ describe('interpolation', () => {
     // This should now contain resolved values, not placeholders
     expect(result.css).toMatchInlineSnapshot(`
       ".chqnxci-1 {
-      color: blue;
-              font-size: 16px;
+        color: \${primaryColor};
+        font-size: \${fontSize}px;
       }"
     `);
 
@@ -100,7 +100,7 @@ describe('interpolation', () => {
   });
 
   test('should handle variable interpolation in css styles', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const primaryColor = 'blue'
@@ -119,9 +119,9 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".c9525ba-1 {
-      color: blue;
-              font-size: 16px;
-              background: red;
+        color: blue;
+        font-size: 16px;
+        background: red;
       }"
     `);
 
@@ -134,7 +134,7 @@ describe('interpolation', () => {
   });
 
   test('should resolve valid variable references within the same file', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const margin = 10
@@ -150,8 +150,8 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".co47uo2-1 {
-      margin: 10px;
-              padding: 20px;
+        margin: \${margin}px;
+        padding: \${padding}px;
       }"
     `);
 
@@ -163,7 +163,7 @@ describe('interpolation', () => {
   });
 
   test('should throw error for complex expressions in interpolation', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const obj = { color: 'red' }
@@ -199,7 +199,7 @@ describe('interpolation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cmgoafb-1 {
-      content: "\${prefix}-\${suffix}";
+        content: "\${prefix}-\${suffix}";
       }"
     `);
 
@@ -211,7 +211,7 @@ describe('interpolation', () => {
   });
 
   test('should throw error for undefined variable references', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const style = css\`
@@ -229,7 +229,7 @@ describe('interpolation', () => {
 
 describe('error handling', () => {
   test('should throw error for object property access', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const theme = { primary: 'blue' }
@@ -246,7 +246,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for array access', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const colors = ['red', 'blue', 'green']
@@ -263,7 +263,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for function calls', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const style = css\`
@@ -279,7 +279,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for conditional expressions', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const a = 5
@@ -297,7 +297,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for logical expressions', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const visible = true
@@ -315,7 +315,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for unary expressions', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const condition = true
@@ -332,7 +332,7 @@ describe('error handling', () => {
   });
 
   test('should throw error for array literals', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const style = css\`
@@ -348,7 +348,7 @@ describe('error handling', () => {
   });
 
   test('should show actual variable name in error message', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const buttonStyle = css\`
@@ -364,7 +364,7 @@ describe('error handling', () => {
   });
 
   test('should show direct usage in error message', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       console.log(css\`color: \${obj.value};\`)
@@ -390,7 +390,7 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".c1v2q6wl-1 {
-
+        
       }"
     `);
 
@@ -411,7 +411,7 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cngi9r6-1 {
-
+        
       }"
     `);
 
@@ -431,15 +431,15 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".c1m1fhxk-1 {
-      color: red;
+        color: red;
       }
 
       .c1m1fhxk-2 {
-      color: blue;
+        color: blue;
       }
 
       .c1m1fhxk-3 {
-      color: green;
+        color: green;
       }"
     `);
 
@@ -465,7 +465,7 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".ciwoa2i-1 {
-      content: "quotes \\"with\\" escapes";
+        content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif;
       }"
@@ -475,7 +475,7 @@ describe('corner cases', () => {
   });
 
   test('should resolve variables at different positions in CSS', () => {
-    const source = `
+    const source = dedent`
       import { css } from 'vindur'
 
       const property = 'color'
@@ -520,7 +520,7 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".cidwcaw-1 {
-      color: ;
+        color: ;
         font-size;
         background: red blue green yellow orange;
       }"
@@ -558,7 +558,7 @@ describe('corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".c1w3db20-1 {
-      color: red;
+        color: red;
       }"
     `);
 
