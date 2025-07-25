@@ -845,7 +845,10 @@ describe('function evaluation', () => {
           width: 24px;
         }"
       `);
-      expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+      expect(code).toMatchInlineSnapshot(`
+        "const mySize = 24;
+        const style = "vwmy4ur-1";"
+      `);
     });
 
     test('function call with arithmetic using variables', () => {
@@ -880,7 +883,11 @@ describe('function evaluation', () => {
           padding: 8px;
         }"
       `);
-      expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+      expect(code).toMatchInlineSnapshot(`
+        "const baseUnit = 8;
+        const scale = 2;
+        const style = "vwmy4ur-1";"
+      `);
     });
 
     test('function call with string variable', () => {
@@ -910,7 +917,10 @@ describe('function evaluation', () => {
           color: blue;
         }"
       `);
-      expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+      expect(code).toMatchInlineSnapshot(`
+        "const primaryColor = 'blue';
+        const style = "vwmy4ur-1";"
+      `);
     });
 
     test('function call with multiple variable references', () => {
@@ -944,7 +954,12 @@ describe('function evaluation', () => {
           border: 2px solid red;
         }"
       `);
-      expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+      expect(code).toMatchInlineSnapshot(`
+        "const borderWidth = 2;
+        const borderStyle = 'solid';
+        const borderColor = 'red';
+        const style = "vwmy4ur-1";"
+      `);
     });
 
     test('function call with template literal variable', () => {

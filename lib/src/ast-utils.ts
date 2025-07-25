@@ -39,6 +39,19 @@ export function extractArgumentValue(arg: t.Expression, path?: NodePath): { valu
     }
   }
   
+  // If it's a binary expression and we have a path, try to resolve it
+  if (t.isBinaryExpression(arg) && path) {
+    const resolvedValue = resolveBinaryExpression(arg, path);
+    if (resolvedValue !== null) {
+      // Try to parse as number if it looks like one
+      const numValue = Number(resolvedValue);
+      if (!isNaN(numValue) && isFinite(numValue)) {
+        return { value: numValue, resolved: true };
+      }
+      return { value: resolvedValue, resolved: true };
+    }
+  }
+  
   return { value: null, resolved: false };
 }
 
@@ -63,6 +76,10 @@ function resolveVariable(variableName: string, path: NodePath): string | null {
     } else if (t.isBinaryExpression(init)) {
       // Try to resolve simple binary expressions like `margin * 2`
       const resolved = resolveBinaryExpression(init, path);
+      return resolved;
+    } else if (t.isTemplateLiteral(init)) {
+      // Try to resolve template literals like `${prefix} ${suffix}`
+      const resolved = resolveTemplateLiteral(init, path);
       return resolved;
     }
   }
@@ -118,4 +135,39 @@ function resolveBinaryExpression(
   }
 
   return null;
+}
+
+function resolveTemplateLiteral(
+  template: t.TemplateLiteral,
+  path: NodePath,
+): string | null {
+  let result = '';
+
+  // Process template literal with interpolations
+  for (let i = 0; i < template.quasis.length; i++) {
+    // Add the static string part
+    result += template.quasis[i]?.value.cooked ?? '';
+
+    // Add the interpolated expression if it exists
+    if (i < template.expressions.length) {
+      const expression = template.expressions[i];
+      if (expression && t.isExpression(expression)) {
+        if (t.isIdentifier(expression)) {
+          // Try to resolve the variable
+          const resolvedValue = resolveVariable(expression.name, path);
+          if (resolvedValue !== null) {
+            result += resolvedValue;
+          } else {
+            // Can't resolve, return null
+            return null;
+          }
+        } else {
+          // For now, only support simple variable references in template literals
+          return null;
+        }
+      }
+    }
+  }
+
+  return result;
 }

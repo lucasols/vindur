@@ -80,6 +80,7 @@ function processInterpolationExpression(
       importedFunctions,
       fs,
       usedFunctions,
+      path,
       debug,
     );
     if (resolved !== null) {
@@ -221,6 +222,7 @@ function resolveFunctionCall(
   importedFunctions: ImportedFunctions, // Maps function name to file path
   fs: PluginFS,
   usedFunctions: Set<string>,
+  path: NodePath,
   debug?: DebugLogger,
 ): string | null {
   if (!t.isIdentifier(callExpr.callee)) return null;
@@ -264,7 +266,7 @@ function resolveFunctionCall(
     for (const [index, arg] of args.entries()) {
       const paramName = paramNames[index];
       if (paramName && t.isExpression(arg)) {
-        const { value, resolved } = extractArgumentValue(arg);
+        const { value, resolved } = extractArgumentValue(arg, path);
         if (resolved && value !== null) {
           argValues[paramName] = value;
         }

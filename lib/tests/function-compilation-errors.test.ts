@@ -31,7 +31,7 @@ describe('function compilation errors', () => {
           fs: createFsMock({ 'functions.ts': fnFile }),
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier: number) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -60,7 +60,7 @@ describe('function compilation errors', () => {
           fs: createFsMock({ 'functions.ts': fnFile }),
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale: number) => \` ... \${baseSize * scale}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -89,7 +89,7 @@ describe('function compilation errors', () => {
           fs: createFsMock({ 'functions.ts': fnFile }),
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... className = vindurFn((variant: string) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -119,7 +119,7 @@ describe('function compilation errors', () => {
           fs: createFsMock({ 'functions.ts': fnFile }),
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... color = vindurFn((opacity: number) => \` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
   });
