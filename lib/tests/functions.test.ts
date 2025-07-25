@@ -20,7 +20,7 @@ test('function with simple params', () => {
         width: \${pixelSize(10)};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -50,7 +50,7 @@ test('function with multiple params', () => {
         \${margin(10, 20, 30, 40)};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -83,7 +83,7 @@ test('function with destructured object param', () => {
         \${inline({ gap: 10 })};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -119,7 +119,7 @@ test('function with no parameters', () => {
         color: red;
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -150,7 +150,7 @@ test('function returning static string', () => {
         border: \${border()};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -180,7 +180,7 @@ test('function with simple conditional', () => {
         \${spacing({ size: 'large' })};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -212,7 +212,7 @@ test('multiple functions in one file', () => {
         background: \${color('red')};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -242,7 +242,7 @@ test('function with mixed parameter types', () => {
         box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -282,7 +282,7 @@ test('function with all default values used', () => {
         \${button({})};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
@@ -310,7 +310,7 @@ test('missing function file', () => {
 
   expect(() => {
     transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
         import { nonExistent } from './missing'
@@ -319,10 +319,10 @@ test('missing function file', () => {
           color: \${nonExistent()};
         \`
       `,
-      fs: createFsMock({ '/test.ts': source }),
+      fs: createFsMock({ 'test.ts': source }),
     });
   }).toThrowErrorMatchingInlineSnapshot(
-    `[Error: unknown file: File not found: ./missing.ts]`,
+    `[Error: /test.ts: File not found: missing.ts]`,
   );
 });
 
@@ -338,7 +338,7 @@ test('function with simple interpolation', () => {
   `;
 
   const { code, css } = transform({
-    fileAbsPath: 'test.ts',
+    fileAbsPath: '/test.ts',
     source: dedent`
       import { css } from 'vindur'
       import { grid } from './functions'
@@ -347,17 +347,17 @@ test('function with simple interpolation', () => {
         \${grid(3, 16)};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".v196xm6g-1 {
+    ".vwmy4ur-1 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+  expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
 });
 
 test('function with simple ternary expressions', () => {
@@ -371,7 +371,7 @@ test('function with simple ternary expressions', () => {
   `;
 
   const { code, css } = transform({
-    fileAbsPath: 'test.ts',
+    fileAbsPath: '/test.ts',
     source: dedent`
       import { css } from 'vindur'
       import { theme } from './functions'
@@ -380,16 +380,16 @@ test('function with simple ternary expressions', () => {
         \${theme({ variant: 'secondary', disabled: false })};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".v196xm6g-1 {
+    ".vwmy4ur-1 {
       background: secondary;
       opacity: 1;
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+  expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
 });
 
 test('function with partial parameter override', () => {
@@ -410,7 +410,7 @@ test('function with partial parameter override', () => {
   `;
 
   const { code, css } = transform({
-    fileAbsPath: 'test.ts',
+    fileAbsPath: '/test.ts',
     source: dedent`
       import { css } from 'vindur'
       import { card } from './functions'
@@ -419,18 +419,18 @@ test('function with partial parameter override', () => {
         \${card({ shadow: 'large', bg: '#f8f9fa' })};
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".v196xm6g-1 {
+    ".vwmy4ur-1 {
       background: #f8f9fa;
       border-radius: 8px;
       padding: 16px;
       box-shadow: large;
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+  expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
 });
 
 test('function with return statement syntax', () => {
@@ -443,7 +443,7 @@ test('function with return statement syntax', () => {
   `;
 
   const { code, css } = transform({
-    fileAbsPath: 'test.ts',
+    fileAbsPath: '/test.ts',
     source: dedent`
       import { css } from 'vindur'
       import { transition } from './functions'
@@ -453,16 +453,16 @@ test('function with return statement syntax', () => {
         opacity: 0.5;
       \`
     `,
-    fs: createFsMock({ './functions.ts': fnFile }),
+    fs: createFsMock({ 'functions.ts': fnFile }),
   });
 
   expect(css).toMatchInlineSnapshot(`
-    ".v196xm6g-1 {
+    ".vwmy4ur-1 {
       transition: opacity 300ms ease-in-out;
       opacity: 0.5;
     }"
   `);
-  expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+  expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
 });
 
 describe('error handling', () => {
@@ -482,10 +482,10 @@ describe('error handling', () => {
             \${invalidFn(10)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
     );
   });
 
@@ -507,10 +507,10 @@ describe('error handling', () => {
             \${invalidWrapper()};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: unknown file: Unresolved function call at \`... style = css\` ... \${invalidWrapper()}, function must be statically analyzable]`,
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Unresolved function call at \`... style = css\` ... \${invalidWrapper()}, function must be statically analyzable]`,
     );
   });
 
@@ -532,9 +532,11 @@ describe('error handling', () => {
             \${invalidWrapper()};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"]`,
+    );
   });
 
   test('vindurFn with complex function body', () => {
@@ -561,9 +563,11 @@ describe('error handling', () => {
             \${complexFn(50)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals]`,
+    );
   });
 
   test('vindurFn with async function', () => {
@@ -584,9 +588,11 @@ describe('error handling', () => {
             \${asyncFn(10)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation]`,
+    );
   });
 
   test('vindurFn with generator function', () => {
@@ -609,9 +615,11 @@ describe('error handling', () => {
             \${generatorFn(10)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings]`,
+    );
   });
 
   test('vindurFn with external dependency', () => {
@@ -633,9 +641,11 @@ describe('error handling', () => {
             \${externalFn(10)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
+    );
   });
 
   test('function called with wrong number of arguments', () => {
@@ -659,8 +669,10 @@ describe('error handling', () => {
             \${twoParams(10)};
           \`
         `,
-        fs: createFsMock({ './functions.ts': fnFile }),
+        fs: createFsMock({ 'functions.ts': fnFile }),
       });
-    }).toThrow();
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Function "twoParams" expects 2 arguments, but received 1]`,
+    );
   });
 });

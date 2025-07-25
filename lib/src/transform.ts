@@ -1,4 +1,5 @@
 import * as babel from '@babel/core';
+import path from 'path';
 import { createVindurPlugin, type VindurPluginState } from './babel-plugin';
 
 type Result = { css: string; styleDependencies: string[]; code: string };
@@ -29,6 +30,7 @@ export function transform({
   const result = babel.transformSync(source, {
     plugins: [plugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+    filename: path.relative(process.cwd(), filePath),
   });
 
   if (!result?.code) {

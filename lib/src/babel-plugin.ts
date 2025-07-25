@@ -3,12 +3,17 @@ import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import { murmur2 } from '@ls-stack/utils/hash';
+import * as nodePath from 'path';
 import {
   extractArgumentValue,
   extractLiteralValue,
   isLiteralExpression,
 } from './ast-utils';
 import { evaluateOutput } from './evaluation';
+import {
+  createExtractVindurFunctionsPlugin,
+  validateVindurFunction,
+} from './extract-vindur-functions-plugin';
 import { parseFunction } from './function-parser';
 import type { TransformFS } from './transform';
 import type { CompiledFunction, FunctionArg } from './types';
@@ -204,7 +209,7 @@ function resolveFunctionCall(
   compiledFunctions: VindurPluginState['compiledFunctions'],
   importedFunctions: Map<string, string>, // Maps function name to file path
   fs: { readFile: (path: string) => string },
-  usedFunctions?: Set<string>,
+  usedFunctions: Set<string>,
 ): string | null {
   if (!t.isIdentifier(callExpr.callee)) return null;
 
@@ -219,6 +224,13 @@ function resolveFunctionCall(
   }
 
   if (!compiledFunctions[functionFilePath]?.[functionName]) {
+    // Check if function exists but is not properly wrapped with vindurFn
+    const fileContent = fs.readFile(functionFilePath);
+    if (fileContent.includes(`export const ${functionName}`)) {
+      throw new Error(
+        `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
+      );
+    }
     return null;
   }
 
@@ -226,8 +238,17 @@ function resolveFunctionCall(
   const args = callExpr.arguments;
 
   // Mark this function as used
-  if (usedFunctions) {
-    usedFunctions.add(functionName);
+  usedFunctions.add(functionName);
+
+  // Validate argument count for positional functions
+  if (compiledFn.type === 'positional') {
+    const expectedArgs = compiledFn.args.length;
+    const receivedArgs = args.length;
+    if (expectedArgs !== receivedArgs) {
+      throw new Error(
+        `Function "${functionName}" expects ${expectedArgs} arguments, but received ${receivedArgs}`,
+      );
+    }
   }
 
   if (compiledFn.type === 'positional') {
@@ -296,45 +317,13 @@ function loadExternalFunction(
 
     const fileContent = fs.readFile(filePath);
 
+    const relativePath = nodePath.relative(process.cwd(), filePath);
+
     // Parse the file to extract vindurFn functions
     babel.transformSync(fileContent, {
+      filename: relativePath,
       plugins: [
-        function extractVindurFunctions(): PluginObj {
-          return {
-            visitor: {
-              ExportNamedDeclaration(path) {
-                if (
-                  path.node.declaration
-                  && t.isVariableDeclaration(path.node.declaration)
-                ) {
-                  for (const declarator of path.node.declaration.declarations) {
-                    if (
-                      t.isVariableDeclarator(declarator)
-                      && t.isIdentifier(declarator.id)
-                      && declarator.init
-                      && t.isCallExpression(declarator.init)
-                      && t.isIdentifier(declarator.init.callee)
-                      && declarator.init.callee.name === 'vindurFn'
-                      && declarator.init.arguments.length === 1
-                    ) {
-                      const arg = declarator.init.arguments[0];
-                      if (
-                        t.isArrowFunctionExpression(arg)
-                        || t.isFunctionExpression(arg)
-                      ) {
-                        const name = declarator.id.name;
-                        const compiledFn = parseFunction(arg);
-
-                        compiledFunctions[filePath] ??= {};
-                        compiledFunctions[filePath][name] = compiledFn;
-                      }
-                    }
-                  }
-                }
-              },
-            },
-          };
-        },
+        createExtractVindurFunctionsPlugin(filePath, compiledFunctions),
       ],
       parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
     });
@@ -384,6 +373,10 @@ export function createVindurPlugin(
             if (source.startsWith('./') || source.startsWith('../')) {
               // Simple relative path resolution (could be more sophisticated)
               fullPath = `${source}.ts`;
+              // For mock filesystems in tests, strip the ./ prefix
+              if (fullPath.startsWith('./')) {
+                fullPath = fullPath.slice(2);
+              }
             }
 
             for (const specifier of path.node.specifiers) {
@@ -419,10 +412,18 @@ export function createVindurPlugin(
                 || t.isFunctionExpression(arg)
               ) {
                 const functionName = declarator.id.name;
+
+                // Validate function before parsing
+                validateVindurFunction(arg, functionName);
+
                 const compiledFn = parseFunction(arg);
 
                 state.compiledFunctions[filePath] ??= {};
                 state.compiledFunctions[filePath][functionName] = compiledFn;
+              } else {
+                throw new Error(
+                  `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,
+                );
               }
             }
           }
