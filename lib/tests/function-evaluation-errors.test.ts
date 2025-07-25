@@ -28,7 +28,7 @@ describe('function evaluation errors', () => {
         fs: createFsMock({ 'test.ts': source }),
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.ts: File not found: missing.ts]`,
+      `[Error: /test.ts: File not found: /missing.ts]`,
     );
   });
 

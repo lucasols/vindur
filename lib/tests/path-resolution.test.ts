@@ -11,13 +11,13 @@ describe('Path Resolution', () => {
           import { css } from 'vindur';
           
           const button = css\`
-            margin: \${spacing(2)};
+            \${spacing(2)};
           \`;
         `,
         'utils.ts': `
           import { vindurFn } from 'vindur';
           
-          export const spacing = vindurFn((multiplier: number) => \`\${multiplier * 8}px\`);
+          export const spacing = vindurFn((multiplier: number) => \`margin: \${multiplier}px;\`);
         `,
       });
 
@@ -29,7 +29,7 @@ describe('Path Resolution', () => {
 
       expect(result.css).toMatchInlineSnapshot(`
         ".v6jbliu-1 {
-          margin: 16px;
+          margin: 2px;
         }"
       `);
     });
