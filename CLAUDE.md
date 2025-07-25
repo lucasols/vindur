@@ -71,6 +71,10 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Do not use non-null assertions (`!`)
 - Avoid using optional parameters, use default values or `| undefined` instead
 
+## Code Organization
+
+- Abstract redundant types into a single type
+
 ## Testing
 
 Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
