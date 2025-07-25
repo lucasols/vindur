@@ -9,7 +9,24 @@ import type {
 
 export function parseFunction(
   fnExpression: t.ArrowFunctionExpression | t.FunctionExpression,
+  functionName?: string,
 ): CompiledFunction {
+  const name = functionName ?? 'unknown';
+
+  // Check for async functions during parsing
+  if (fnExpression.async) {
+    throw new Error(
+      `vindurFn "${name}" cannot be async - functions must be synchronous for compile-time evaluation`,
+    );
+  }
+
+  // Check for generator functions during parsing
+  if (fnExpression.generator) {
+    throw new Error(
+      `vindurFn "${name}" cannot be a generator function - functions must return simple template strings`,
+    );
+  }
+
   const params = fnExpression.params;
 
   if (params.length === 1 && t.isObjectPattern(params[0])) {
@@ -42,48 +59,92 @@ export function parseFunction(
       }
     }
 
-    const output = parseTemplateOutput(fnExpression.body);
+    const output = parseTemplateOutput(fnExpression.body, name);
     return { type: 'destructured', args, output };
-  } else {
-    // Positional parameters
-    const args: FunctionArg[] = params.map((param) => {
-      if (t.isIdentifier(param)) {
-        return {
-          name: param.name,
-          type: 'string', // Default type
-          defaultValue: undefined,
-        };
-      }
-      return { name: 'unknown', type: 'string', defaultValue: undefined };
-    });
-
-    const output = parseTemplateOutput(fnExpression.body);
-    return { type: 'positional', args, output };
   }
+
+  // Positional parameters
+  const args: FunctionArg[] = params.map((param) => {
+    if (t.isIdentifier(param)) {
+      return {
+        name: param.name,
+        type: 'string', // Default type
+        defaultValue: undefined,
+      };
+    }
+    return { name: 'unknown', type: 'string', defaultValue: undefined };
+  });
+
+  const output = parseTemplateOutput(fnExpression.body, name);
+  return { type: 'positional', args, output };
 }
 
 function parseTemplateOutput(
   body: t.BlockStatement | t.Expression,
+  functionName: string,
 ): OutputQuasi[] {
   if (t.isTemplateLiteral(body)) {
-    return parseTemplateLiteral(body);
+    return parseTemplateLiteral(body, functionName);
   } else if (t.isStringLiteral(body)) {
     // Parse string literal with ${} interpolations
     return parseStringWithInterpolation(body.value);
   } else if (t.isBlockStatement(body)) {
-    // For block statements, look for a return statement with a template literal or string literal
-    for (const stmt of body.body) {
-      if (t.isReturnStatement(stmt) && stmt.argument) {
-        if (t.isTemplateLiteral(stmt.argument)) {
-          return parseTemplateLiteral(stmt.argument);
-        } else if (t.isStringLiteral(stmt.argument)) {
-          return parseStringWithInterpolation(stmt.argument.value);
-        }
-      }
+    // Validate block statement complexity during parsing
+    const statements = body.body;
+    if (statements.length !== 1) {
+      throw new Error(
+        `vindurFn "${functionName}" body is too complex - functions must contain only a single return statement or be arrow functions with template literals`,
+      );
     }
-  }
 
-  return [{ type: 'string', value: '' }];
+    const statement = statements[0];
+    if (!t.isReturnStatement(statement)) {
+      throw new Error(
+        `vindurFn "${functionName}" body must contain only a return statement`,
+      );
+    }
+
+    if (!statement.argument) {
+      throw new Error(
+        `vindurFn "${functionName}" return statement must return a value`,
+      );
+    }
+
+    // Parse the return expression based on its type
+    if (t.isTemplateLiteral(statement.argument)) {
+      return parseTemplateLiteral(statement.argument, functionName);
+    } else if (t.isStringLiteral(statement.argument)) {
+      return parseStringWithInterpolation(statement.argument.value);
+    } else if (t.isCallExpression(statement.argument)) {
+      // Function calls in return position are not allowed
+      throw new Error(
+        `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+      );
+    } else if (t.isMemberExpression(statement.argument)) {
+      // Member expressions suggest external dependencies
+      throw new Error(
+        `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+      );
+    } else {
+      throw new Error(
+        `vindurFn "${functionName}" must return a template literal or string literal, got ${statement.argument.type}`,
+      );
+    }
+  } else if (t.isCallExpression(body)) {
+    // Function calls in return position are not allowed
+    throw new Error(
+      `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+    );
+  } else if (t.isMemberExpression(body)) {
+    // Member expressions suggest external dependencies
+    throw new Error(
+      `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+    );
+  } else {
+    throw new Error(
+      `vindurFn "${functionName}" must return a template literal or string literal, got ${body.type}`,
+    );
+  }
 }
 
 function parseStringWithInterpolation(str: string): OutputQuasi[] {
@@ -104,7 +165,10 @@ function parseStringWithInterpolation(str: string): OutputQuasi[] {
   return output;
 }
 
-function parseTemplateLiteral(template: t.TemplateLiteral): OutputQuasi[] {
+function parseTemplateLiteral(
+  template: t.TemplateLiteral,
+  functionName: string,
+): OutputQuasi[] {
   const output: OutputQuasi[] = [];
 
   for (let i = 0; i < template.quasis.length; i++) {
@@ -119,20 +183,90 @@ function parseTemplateLiteral(template: t.TemplateLiteral): OutputQuasi[] {
         if (t.isIdentifier(expr)) {
           output.push({ type: 'arg', name: expr.name });
         } else if (t.isConditionalExpression(expr)) {
-          // Handle ternary expressions
-          const condition = parseTernaryCondition(expr.test);
-          const ifTrue = parseQuasiFromExpression(expr.consequent);
-          const ifFalse = parseQuasiFromExpression(expr.alternate);
+          // Handle ternary expressions - validate their parts during parsing
+          const condition = parseTernaryCondition(expr.test, functionName);
+          const ifTrue = parseQuasiFromExpression(
+            expr.consequent,
+            functionName,
+          );
+          const ifFalse = parseQuasiFromExpression(
+            expr.alternate,
+            functionName,
+          );
 
-          if (condition && ifTrue && ifFalse) {
-            output.push({ type: 'ternary', condition, ifTrue, ifFalse });
-          }
+          output.push({ type: 'ternary', condition, ifTrue, ifFalse });
+        } else if (t.isBinaryExpression(expr)) {
+          // Simple binary expressions for comparisons in ternary conditions
+          validateTemplateExpressionDuringParsing(expr.left, functionName);
+          validateTemplateExpressionDuringParsing(expr.right, functionName);
+        } else if (
+          t.isStringLiteral(expr)
+          || t.isNumericLiteral(expr)
+          || t.isBooleanLiteral(expr)
+        ) {
+          // Literals are allowed
+        } else if (t.isCallExpression(expr)) {
+          // Function calls are not allowed - suggests external dependencies
+          throw new Error(
+            `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+          );
+        } else if (t.isMemberExpression(expr)) {
+          // Member expressions suggest external dependencies
+          throw new Error(
+            `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+          );
+        } else {
+          throw new Error(
+            `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
+          );
         }
       }
     }
   }
 
   return output;
+}
+
+function validateTemplateExpressionDuringParsing(
+  expr: t.Expression | t.PrivateName,
+  functionName: string,
+): void {
+  if (t.isExpression(expr)) {
+    if (t.isIdentifier(expr)) {
+      // Identifiers (parameters) are allowed
+      return;
+    } else if (t.isConditionalExpression(expr)) {
+      // Ternary expressions are allowed - validate their parts
+      validateTemplateExpressionDuringParsing(expr.test, functionName);
+      validateTemplateExpressionDuringParsing(expr.consequent, functionName);
+      validateTemplateExpressionDuringParsing(expr.alternate, functionName);
+    } else if (t.isBinaryExpression(expr)) {
+      // Simple binary expressions for comparisons in ternary conditions
+      validateTemplateExpressionDuringParsing(expr.left, functionName);
+      validateTemplateExpressionDuringParsing(expr.right, functionName);
+    } else if (
+      t.isStringLiteral(expr)
+      || t.isNumericLiteral(expr)
+      || t.isBooleanLiteral(expr)
+    ) {
+      // Literals are allowed
+      return;
+    } else if (t.isCallExpression(expr)) {
+      // Function calls are not allowed - suggests external dependencies
+      throw new Error(
+        `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+      );
+    } else if (t.isMemberExpression(expr)) {
+      // Member expressions suggest external dependencies
+      throw new Error(
+        `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+      );
+    } else {
+      throw new Error(
+        `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
+      );
+    }
+  }
 }
 
 function isValidComparisonOperator(
@@ -147,16 +281,27 @@ type TernaryCondition = [
   TernaryConditionValue,
 ];
 
-function parseTernaryCondition(test: t.Expression): TernaryCondition | null {
+function parseTernaryCondition(
+  test: t.Expression,
+  functionName: string,
+): TernaryCondition {
   if (t.isBinaryExpression(test)) {
-    const left =
-      t.isExpression(test.left) ? parseConditionValue(test.left) : null;
-    const right =
-      t.isExpression(test.right) ? parseConditionValue(test.right) : null;
+    if (!t.isExpression(test.left) || !t.isExpression(test.right)) {
+      throw new Error(
+        `vindurFn "${functionName}" contains invalid binary expression in ternary condition`,
+      );
+    }
+
+    const left = parseConditionValue(test.left, functionName);
+    const right = parseConditionValue(test.right, functionName);
     const operator = test.operator;
 
-    if (left && right && isValidComparisonOperator(operator)) {
+    if (isValidComparisonOperator(operator)) {
       return [left, operator, right];
+    } else {
+      throw new Error(
+        `vindurFn "${functionName}" contains unsupported comparison operator "${operator}" - only ===, !==, >, <, >=, <= are supported`,
+      );
     }
   } else if (t.isIdentifier(test)) {
     // Handle simple boolean conditions like `disabled ? '0.5' : '1'`
@@ -167,10 +312,15 @@ function parseTernaryCondition(test: t.Expression): TernaryCondition | null {
     ];
   }
 
-  return null;
+  throw new Error(
+    `vindurFn "${functionName}" contains unsupported ternary condition type: ${test.type}`,
+  );
 }
 
-function parseConditionValue(expr: t.Expression): TernaryConditionValue | null {
+function parseConditionValue(
+  expr: t.Expression,
+  functionName: string,
+): TernaryConditionValue {
   if (t.isIdentifier(expr)) {
     return { type: 'arg', name: expr.name };
   } else if (t.isStringLiteral(expr)) {
@@ -179,26 +329,51 @@ function parseConditionValue(expr: t.Expression): TernaryConditionValue | null {
     return { type: 'number', value: expr.value };
   } else if (t.isBooleanLiteral(expr)) {
     return { type: 'boolean', value: expr.value };
+  } else if (t.isCallExpression(expr)) {
+    // Function calls are not allowed
+    throw new Error(
+      `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+    );
+  } else if (t.isMemberExpression(expr)) {
+    // Member expressions suggest external dependencies
+    throw new Error(
+      `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+    );
   }
 
-  return null;
+  throw new Error(
+    `vindurFn "${functionName}" contains unsupported condition value type: ${expr.type}`,
+  );
 }
 
-function parseQuasiFromExpression(expr: t.Expression): OutputQuasi | null {
+function parseQuasiFromExpression(
+  expr: t.Expression,
+  functionName: string,
+): OutputQuasi {
   if (t.isStringLiteral(expr)) {
     return { type: 'string', value: expr.value };
   } else if (t.isIdentifier(expr)) {
     return { type: 'arg', name: expr.name };
   } else if (t.isConditionalExpression(expr)) {
     // Handle nested ternary expressions
-    const condition = parseTernaryCondition(expr.test);
-    const ifTrue = parseQuasiFromExpression(expr.consequent);
-    const ifFalse = parseQuasiFromExpression(expr.alternate);
+    const condition = parseTernaryCondition(expr.test, functionName);
+    const ifTrue = parseQuasiFromExpression(expr.consequent, functionName);
+    const ifFalse = parseQuasiFromExpression(expr.alternate, functionName);
 
-    if (condition && ifTrue && ifFalse) {
-      return { type: 'ternary', condition, ifTrue, ifFalse };
-    }
+    return { type: 'ternary', condition, ifTrue, ifFalse };
+  } else if (t.isCallExpression(expr)) {
+    // Function calls are not allowed
+    throw new Error(
+      `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+    );
+  } else if (t.isMemberExpression(expr)) {
+    // Member expressions suggest external dependencies
+    throw new Error(
+      `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+    );
   }
 
-  return null;
+  throw new Error(
+    `vindurFn "${functionName}" contains unsupported expression type in ternary: ${expr.type}`,
+  );
 }

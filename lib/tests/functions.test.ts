@@ -501,16 +501,16 @@ describe('error handling', () => {
         fileAbsPath: 'test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { invalidWrapper } from './functions'
+          import { notAFunction } from './functions'
 
           const style = css\`
-            \${invalidWrapper()};
+            \${notAFunction()};
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Unresolved function call at \`... style = css\` ... \${invalidWrapper()}, function must be statically analyzable]`,
+      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
     );
   });
 

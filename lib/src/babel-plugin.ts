@@ -12,7 +12,6 @@ import {
 import { evaluateOutput } from './evaluation';
 import {
   createExtractVindurFunctionsPlugin,
-  validateVindurFunction,
 } from './extract-vindur-functions-plugin';
 import { parseFunction } from './function-parser';
 import type { TransformFS } from './transform';
@@ -218,23 +217,8 @@ function resolveFunctionCall(
 
   if (!functionFilePath) return null;
 
-  // Load the function if not already compiled
-  if (!compiledFunctions[functionFilePath]?.[functionName]) {
-    loadExternalFunction(fs, functionFilePath, functionName, compiledFunctions);
-  }
-
-  if (!compiledFunctions[functionFilePath]?.[functionName]) {
-    // Check if function exists but is not properly wrapped with vindurFn
-    const fileContent = fs.readFile(functionFilePath);
-    if (fileContent.includes(`export const ${functionName}`)) {
-      throw new Error(
-        `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
-      );
-    }
-    return null;
-  }
-
-  const compiledFn = compiledFunctions[functionFilePath][functionName];
+  // Load the function (validation happens here, throws on error)
+  const compiledFn = loadExternalFunction(fs, functionFilePath, functionName, compiledFunctions);
   const args = callExpr.arguments;
 
   // Mark this function as used
@@ -309,25 +293,43 @@ function getParameterNames(compiledFn: {
 function loadExternalFunction(
   fs: { readFile: (path: string) => string },
   filePath: string,
-  _functionName: string,
+  functionName: string,
   compiledFunctions: VindurPluginState['compiledFunctions'],
-): void {
-  if (!compiledFunctions[filePath]) {
-    // Load and parse the external file
-
-    const fileContent = fs.readFile(filePath);
-
-    const relativePath = nodePath.relative(process.cwd(), filePath);
-
-    // Parse the file to extract vindurFn functions
-    babel.transformSync(fileContent, {
-      filename: relativePath,
-      plugins: [
-        createExtractVindurFunctionsPlugin(filePath, compiledFunctions),
-      ],
-      parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
-    });
+): CompiledFunction {
+  // Check if already cached
+  if (compiledFunctions[filePath]?.[functionName]) {
+    return compiledFunctions[filePath][functionName];
   }
+
+  // Load and parse the external file
+  const fileContent = fs.readFile(filePath);
+  const relativePath = nodePath.relative(process.cwd(), filePath);
+
+  // Parse the file to extract vindurFn functions
+  babel.transformSync(fileContent, {
+    filename: relativePath,
+    plugins: [
+      createExtractVindurFunctionsPlugin(filePath, compiledFunctions),
+    ],
+    parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+  });
+
+  // Check if the requested function was found and is properly wrapped
+  const compiledFn = compiledFunctions[filePath]?.[functionName];
+  if (!compiledFn) {
+    // Check if function exists but is not properly wrapped with vindurFn
+    if (fileContent.includes(`export const ${functionName}`)) {
+      throw new Error(
+        `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
+      );
+    } else {
+      throw new Error(
+        `Function "${functionName}" not found in ${relativePath}`,
+      );
+    }
+  }
+
+  return compiledFn;
 }
 
 export function createVindurPlugin(
@@ -413,10 +415,7 @@ export function createVindurPlugin(
               ) {
                 const functionName = declarator.id.name;
 
-                // Validate function before parsing
-                validateVindurFunction(arg, functionName);
-
-                const compiledFn = parseFunction(arg);
+                const compiledFn = parseFunction(arg, functionName);
 
                 state.compiledFunctions[filePath] ??= {};
                 state.compiledFunctions[filePath][functionName] = compiledFn;
