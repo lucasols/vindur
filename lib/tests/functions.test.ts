@@ -18,6 +18,8 @@ function createFsMock(files: Record<string, string>): TransformFS {
 
 test('function with simple params', () => {
   const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
     export const pixelSize = vindurFn((size: number) => '\${size}px')
   `;
 
@@ -42,6 +44,8 @@ test('function with simple params', () => {
 
 test('function with multiple params', () => {
   const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
     export const margin = vindurFn((top: number, right: number, bottom: number, left: number) => \`
       margin: \${top}px \${right}px \${bottom}px \${left}px;
     \`)
