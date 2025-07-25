@@ -3,7 +3,6 @@ import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import { murmur2 } from '@ls-stack/utils/hash';
-import * as nodePath from 'path';
 import {
   extractArgumentValue,
   extractLiteralValue,
@@ -31,7 +30,7 @@ export type VindurPluginOptions = {
   filePath: string;
   fs: PluginFS;
   transformFunctionCache: FunctionCache;
-  importAliases?: Record<string, string>;
+  importAliases: Record<string, string>;
 };
 
 export type VindurPluginState = {
@@ -315,10 +314,10 @@ function getParameterNames(compiledFn: {
 
 function resolveImportPath(
   source: string,
-  importAliases: Record<string, string>,
+  importAliases: [string, string][],
 ): string | null {
   // Check for alias imports
-  for (const [alias, aliasPath] of Object.entries(importAliases)) {
+  for (const [alias, aliasPath] of importAliases) {
     if (source.startsWith(alias)) {
       const resolvedPath = source.replace(alias, aliasPath);
       return `${resolvedPath}.ts`;
@@ -346,11 +345,10 @@ function loadExternalFunction(
 
   // Load and parse the external file
   const fileContent = fs.readFile(filePath);
-  const relativePath = nodePath.relative(process.cwd(), filePath);
 
   // Parse the file to extract vindurFn functions
   babel.transformSync(fileContent, {
-    filename: relativePath,
+    filename: filePath,
     plugins: [
       createExtractVindurFunctionsPlugin(filePath, compiledFunctions, debug),
     ],
@@ -366,9 +364,7 @@ function loadExternalFunction(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
       );
     } else {
-      throw new Error(
-        `Function "${functionName}" not found in ${relativePath}`,
-      );
+      throw new Error(`Function "${functionName}" not found in ${filePath}`);
     }
   }
 
@@ -400,6 +396,8 @@ export function createVindurPlugin(
   // Initialize compiledFunctions for current file if not exists
   transformFunctionCache[filePath] ??= {};
 
+  const importAliasesArray = Object.entries(importAliases);
+
   return {
     name: 'vindur-css-transform',
     visitor: {
@@ -420,7 +418,7 @@ export function createVindurPlugin(
           // Track imports from other files (for functions)
           const source = path.node.source.value;
           if (typeof source === 'string') {
-            const resolvedPath = resolveImportPath(source, importAliases);
+            const resolvedPath = resolveImportPath(source, importAliasesArray);
 
             if (resolvedPath === null) {
               debug?.log(
@@ -556,41 +554,45 @@ export function createVindurPlugin(
       file.path.traverse({
         ImportDeclaration(path) {
           const source = path.node.source.value;
-          if (
-            typeof source === 'string'
-            && (source.startsWith('./') || source.startsWith('../'))
-          ) {
-            // Filter out unused function imports
-            const unusedSpecifiers: t.ImportSpecifier[] = [];
-            const usedSpecifiers: t.ImportSpecifier[] = [];
+          if (typeof source === 'string') {
+            // Check if this is a relative import or an alias import that was resolved
+            const isRelativeImport = source.startsWith('./') || source.startsWith('../');
+            const resolvedPath = resolveImportPath(source, importAliasesArray);
+            const isResolvedAliasImport = resolvedPath !== null;
 
-            for (const specifier of path.node.specifiers) {
-              if (
-                t.isImportSpecifier(specifier)
-                && t.isIdentifier(specifier.imported)
-              ) {
-                const functionName = specifier.imported.name;
-                // Remove functions that were used during CSS processing (they're compiled away)
+            if (isRelativeImport || isResolvedAliasImport) {
+              // Filter out unused function imports
+              const unusedSpecifiers: t.ImportSpecifier[] = [];
+              const usedSpecifiers: t.ImportSpecifier[] = [];
+
+              for (const specifier of path.node.specifiers) {
                 if (
-                  importedFunctions.has(functionName)
-                  && usedFunctions.has(functionName)
+                  t.isImportSpecifier(specifier)
+                  && t.isIdentifier(specifier.imported)
                 ) {
-                  unusedSpecifiers.push(specifier);
-                } else {
+                  const functionName = specifier.imported.name;
+                  // Remove functions that were used during CSS processing (they're compiled away)
+                  if (
+                    importedFunctions.has(functionName)
+                    && usedFunctions.has(functionName)
+                  ) {
+                    unusedSpecifiers.push(specifier);
+                  } else {
+                    usedSpecifiers.push(specifier);
+                  }
+                } else if (t.isImportSpecifier(specifier)) {
                   usedSpecifiers.push(specifier);
                 }
-              } else if (t.isImportSpecifier(specifier)) {
-                usedSpecifiers.push(specifier);
               }
-            }
 
-            if (unusedSpecifiers.length > 0) {
-              if (usedSpecifiers.length === 0) {
-                // Remove the entire import statement if no functions are used
-                path.remove();
-              } else {
-                // Remove only unused specifiers
-                path.node.specifiers = usedSpecifiers;
+              if (unusedSpecifiers.length > 0) {
+                if (usedSpecifiers.length === 0) {
+                  // Remove the entire import statement if no functions are used
+                  path.remove();
+                } else {
+                  // Remove only unused specifiers
+                  path.node.specifiers = usedSpecifiers;
+                }
               }
             }
           }

@@ -52,7 +52,10 @@ export function evaluateQuasi(
     return quasi.value;
   } else if (quasi.type === 'arg') {
     const argValue = args[quasi.name];
-    return argValue !== undefined ? String(argValue) : '';
+    if (argValue === undefined) {
+      throw new Error(`Argument '${quasi.name}' is undefined`);
+    }
+    return String(argValue);
   } else if (quasi.type === 'template') {
     // Evaluate each part of the template and concatenate
     let result = '';
@@ -60,6 +63,51 @@ export function evaluateQuasi(
       result += evaluateQuasi(part, args);
     }
     return result;
+  } else if (quasi.type === 'binary') {
+    // Handle binary expressions like `multiplier * 8`
+    const leftValue = quasi.left.type === 'arg' ? args[quasi.left.name] : quasi.left.value;
+    const rightValue = quasi.right.type === 'arg' ? args[quasi.right.name] : quasi.right.value;
+    
+    // Check if left value is undefined
+    if (leftValue === undefined) {
+      const leftName = quasi.left.type === 'arg' ? quasi.left.name : 'literal';
+      throw new Error(`Binary expression evaluation failed: left operand '${leftName}' is undefined`);
+    }
+    
+    // Check if right value is undefined
+    if (rightValue === undefined) {
+      const rightName = quasi.right.type === 'arg' ? quasi.right.name : 'literal';
+      throw new Error(`Binary expression evaluation failed: right operand '${rightName}' is undefined`);
+    }
+    
+    // Check if both values are numbers
+    if (typeof leftValue !== 'number' || typeof rightValue !== 'number') {
+      const leftName = quasi.left.type === 'arg' ? quasi.left.name : 'literal';
+      const rightName = quasi.right.type === 'arg' ? quasi.right.name : 'literal';
+      throw new Error(`Binary expression evaluation failed: operands must be numbers, got ${typeof leftValue} for '${leftName}' and ${typeof rightValue} for '${rightName}'`);
+    }
+    
+    let result: number;
+    switch (quasi.operator) {
+      case '+':
+        result = leftValue + rightValue;
+        break;
+      case '-':
+        result = leftValue - rightValue;
+        break;
+      case '*':
+        result = leftValue * rightValue;
+        break;
+      case '/':
+        if (rightValue === 0) {
+          throw new Error(`Binary expression evaluation failed: division by zero`);
+        }
+        result = leftValue / rightValue;
+        break;
+      default:
+        throw new Error(`Binary expression evaluation failed: unsupported operator '${String(quasi.operator)}'`);
+    }
+    return result.toString();
   } else {
     // quasi.type === 'ternary'
     const conditionResult = evaluateCondition(quasi.condition, args);

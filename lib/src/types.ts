@@ -15,6 +15,12 @@ export type OutputQuasi =
       ];
       ifTrue: OutputQuasi;
       ifFalse: OutputQuasi;
+    }
+  | {
+      type: 'binary';
+      operator: '+' | '-' | '*' | '/';
+      left: TernaryConditionValue;
+      right: TernaryConditionValue;
     };
 
 export type FunctionArg = {

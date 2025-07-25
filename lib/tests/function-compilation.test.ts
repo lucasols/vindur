@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { transform, type TransformFunctionCache } from '../src/transform';
 import { createFsMock } from './testUtils';
 
+const importAliases = { '#/': '/' };
+
 function createCacheLogger() {
   const cacheLogs: string[] = [];
 
@@ -27,7 +29,7 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { spacing } from './styles';
+        import { spacing } from '#/styles';
 
         const button = css\`
           \${spacing(16)}
@@ -39,25 +41,26 @@ describe('function compilation caching', () => {
     const cache: TransformFunctionCache = {};
 
     transform({
-      fileAbsPath: 'main.ts',
-      source: fs.readFile('main.ts'),
+      fileAbsPath: '/main.ts',
+      source: fs.readFile('/main.ts'),
       debug: logger,
       transformFunctionCache: cache,
       fs,
+      importAliases,
     });
 
     // Should log exactly once when function is cached for first function load
     const logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "spacing" in styles.ts",
+        "[vindur:cache] Cached function "spacing" in /styles.ts",
       ]
     `);
 
     expect(cache).toMatchInlineSnapshot(`
       {
-        "main.ts": {},
-        "styles.ts": {
+        "/main.ts": {},
+        "/styles.ts": {
           "spacing": {
             "args": [
               {
@@ -98,7 +101,7 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { spacing } from './styles';
+        import { spacing } from '#/styles';
 
         const button = css\`
           \${spacing(8)}
@@ -115,19 +118,20 @@ describe('function compilation caching', () => {
     const cache: TransformFunctionCache = {};
 
     transform({
-      fileAbsPath: 'main.ts',
-      source: fs.readFile('main.ts'),
+      fileAbsPath: '/main.ts',
+      source: fs.readFile('/main.ts'),
       debug: logger,
       transformFunctionCache: cache,
       fs,
+      importAliases,
     });
 
     // Should cache function once, then cache hit for subsequent calls
     const logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "spacing" in styles.ts",
-        "[vindur:cache] Cache HIT for function "spacing" in styles.ts",
+        "[vindur:cache] Cached function "spacing" in /styles.ts",
+        "[vindur:cache] Cache HIT for function "spacing" in /styles.ts",
       ]
     `);
   });
@@ -143,7 +147,7 @@ describe('function compilation caching', () => {
       `,
       'main1.ts': dedent`
         import { css } from 'vindur';
-        import { spacing } from './styles';
+        import { spacing } from '#/styles';
 
         const button = css\`
           \${spacing(16)}
@@ -152,7 +156,7 @@ describe('function compilation caching', () => {
       `,
       'main2.ts': dedent`
         import { css } from 'vindur';
-        import { spacing, colors } from './styles';
+        import { spacing, colors } from '#/styles';
 
         const card = css\`
           \${spacing(8)}
@@ -167,15 +171,16 @@ describe('function compilation caching', () => {
 
     // First transform - caches both functions in the file
     const result1 = transform({
-      fileAbsPath: 'main1.ts',
-      source: fs.readFile('main1.ts'),
+      fileAbsPath: '/main1.ts',
+      source: fs.readFile('/main1.ts'),
       debug: logger,
       transformFunctionCache: sharedCache,
       fs,
+      importAliases,
     });
 
     expect(result1.css).toMatchInlineSnapshot(`
-      ".v13z76cw-1 {
+      ".vqqet9a-1 {
         margin: 16px;
         background: blue;
       }"
@@ -184,8 +189,8 @@ describe('function compilation caching', () => {
     let logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "spacing" in styles.ts",
-        "[vindur:cache] Cached function "colors" in styles.ts",
+        "[vindur:cache] Cached function "spacing" in /styles.ts",
+        "[vindur:cache] Cached function "colors" in /styles.ts",
       ]
     `);
 
@@ -194,15 +199,16 @@ describe('function compilation caching', () => {
 
     // Second transform - both functions are cache hits since the file was already loaded
     const result2 = transform({
-      fileAbsPath: 'main2.ts',
-      source: fs.readFile('main2.ts'),
+      fileAbsPath: '/main2.ts',
+      source: fs.readFile('/main2.ts'),
       debug: logger2,
       transformFunctionCache: sharedCache,
       fs,
+      importAliases,
     });
 
     expect(result2.css).toMatchInlineSnapshot(`
-      ".v1agitcr-1 {
+      ".v15x2i7v-1 {
         margin: 8px;
         color: red;
         background: white;
@@ -212,8 +218,8 @@ describe('function compilation caching', () => {
     logs = logger2.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cache HIT for function "spacing" in styles.ts",
-        "[vindur:cache] Cache HIT for function "colors" in styles.ts",
+        "[vindur:cache] Cache HIT for function "spacing" in /styles.ts",
+        "[vindur:cache] Cache HIT for function "colors" in /styles.ts",
       ]
     `);
   });
@@ -233,8 +239,8 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { marginFn } from './styles1';
-        import { paddingFn } from './styles2';
+        import { marginFn } from '#/styles1';
+        import { paddingFn } from '#/styles2';
 
         const button = css\`
           \${marginFn(16)}
@@ -247,19 +253,20 @@ describe('function compilation caching', () => {
     const cache: TransformFunctionCache = {};
 
     transform({
-      fileAbsPath: 'main.ts',
-      source: fs.readFile('main.ts'),
+      fileAbsPath: '/main.ts',
+      source: fs.readFile('/main.ts'),
       debug: logger,
       transformFunctionCache: cache,
       fs,
+      importAliases,
     });
 
     // Both functions should be cached (different files)
     const logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "marginFn" in styles1.ts",
-        "[vindur:cache] Cached function "paddingFn" in styles2.ts",
+        "[vindur:cache] Cached function "marginFn" in /styles1.ts",
+        "[vindur:cache] Cached function "paddingFn" in /styles2.ts",
       ]
     `);
   });
@@ -273,7 +280,7 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { spacing } from './styles';
+        import { spacing } from '#/styles';
 
         const button = css\`
           \${spacing(16)}
@@ -287,10 +294,11 @@ describe('function compilation caching', () => {
     // Should not throw when debug is not provided
     expect(() => {
       transform({
-        fileAbsPath: 'main.ts',
-        source: fs.readFile('main.ts'),
+        fileAbsPath: '/main.ts',
+        source: fs.readFile('/main.ts'),
         transformFunctionCache: cache,
         fs,
+        importAliases,
       });
     }).not.toThrow();
   });
@@ -307,7 +315,7 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { spacing } from './styles';
+        import { spacing } from '#/styles';
 
         const button = css\`
           \${spacing({ size: 16, type: 'margin' })}
@@ -324,19 +332,20 @@ describe('function compilation caching', () => {
     const cache: TransformFunctionCache = {};
 
     transform({
-      fileAbsPath: 'main.ts',
-      source: fs.readFile('main.ts'),
+      fileAbsPath: '/main.ts',
+      source: fs.readFile('/main.ts'),
       debug: logger,
       transformFunctionCache: cache,
       fs,
+      importAliases,
     });
 
     // Function should be cached after first call, then hit on second call
     const logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "spacing" in styles.ts",
-        "[vindur:cache] Cache HIT for function "spacing" in styles.ts",
+        "[vindur:cache] Cached function "spacing" in /styles.ts",
+        "[vindur:cache] Cache HIT for function "spacing" in /styles.ts",
       ]
     `);
   });
@@ -352,7 +361,7 @@ describe('function compilation caching', () => {
       `,
       'main.ts': dedent`
         import { css } from 'vindur';
-        import { spacing, padding } from './styles';
+        import { spacing, padding } from '#/styles';
 
         const button = css\`
           \${spacing(16)}
@@ -370,11 +379,12 @@ describe('function compilation caching', () => {
     const cache: TransformFunctionCache = {};
 
     transform({
-      fileAbsPath: 'main.ts',
-      source: fs.readFile('main.ts'),
+      fileAbsPath: '/main.ts',
+      source: fs.readFile('/main.ts'),
       debug: logger,
       transformFunctionCache: cache,
       fs,
+      importAliases,
     });
 
     // First CSS block: spacing loads the file and caches both functions
@@ -382,10 +392,10 @@ describe('function compilation caching', () => {
     const logs = logger.getLogs();
     expect(logs).toMatchInlineSnapshot(`
       [
-        "[vindur:cache] Cached function "spacing" in styles.ts",
-        "[vindur:cache] Cached function "padding" in styles.ts",
-        "[vindur:cache] Cache HIT for function "padding" in styles.ts",
-        "[vindur:cache] Cache HIT for function "spacing" in styles.ts",
+        "[vindur:cache] Cached function "spacing" in /styles.ts",
+        "[vindur:cache] Cached function "padding" in /styles.ts",
+        "[vindur:cache] Cache HIT for function "padding" in /styles.ts",
+        "[vindur:cache] Cache HIT for function "spacing" in /styles.ts",
       ]
     `);
   });

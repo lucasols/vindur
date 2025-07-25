@@ -14,7 +14,7 @@ export function createFsMock(files: FileTree): TransformFS {
         );
       }
 
-      const fullPath = path ? `${path}/${key}` : key;
+      const fullPath = path ? `${path}/${key}` : `/${key}`;
 
       if (typeof value === 'string') {
         fileMap[fullPath] = value;

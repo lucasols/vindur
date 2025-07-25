@@ -24,7 +24,7 @@ describe('function compilation errors', () => {
           fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { theme } from './functions'
+            import { theme } from '#/functions'
 
             const style = css\`
               \${theme(1.5)};
@@ -54,7 +54,7 @@ describe('function compilation errors', () => {
           fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { fontSize } from './functions'
+            import { fontSize } from '#/functions'
 
             const style = css\`
               \${fontSize(2)};
@@ -84,7 +84,7 @@ describe('function compilation errors', () => {
           fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { className } from './functions'
+            import { className } from '#/functions'
 
             const style = css\`
               \${className('primary')};
@@ -115,7 +115,7 @@ describe('function compilation errors', () => {
           fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { color } from './functions'
+            import { color } from '#/functions'
 
             const style = css\`
               \${color(0.5)};
@@ -142,10 +142,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { invalidOp } from './functions'
+            import { invalidOp } from '#/functions'
 
             const style = css\`
               \${invalidOp(1, 2)};
@@ -170,10 +170,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { logicalAnd } from './functions'
+            import { logicalAnd } from '#/functions'
 
             const style = css\`
               \${logicalAnd(1, 2)};
@@ -183,7 +183,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression]`,
       );
     });
 
@@ -198,10 +198,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { fnCall } from './functions'
+            import { fnCall } from '#/functions'
 
             const style = css\`
               \${fnCall(10)};
@@ -211,7 +211,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained]`,
       );
     });
 
@@ -226,10 +226,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { memberExpr } from './functions'
+            import { memberExpr } from '#/functions'
 
             const style = css\`
               \${memberExpr({value: 10})};
@@ -239,7 +239,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -254,10 +254,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { arrayAccess } from './functions'
+            import { arrayAccess } from '#/functions'
 
             const style = css\`
               \${arrayAccess([1, 2, 3])};
@@ -267,7 +267,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -282,10 +282,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { complexExpr } from './functions'
+            import { complexExpr } from '#/functions'
 
             const style = css\`
               \${complexExpr(1)};
@@ -295,7 +295,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression]`,
       );
     });
 
@@ -310,10 +310,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { objLiteral } from './functions'
+            import { objLiteral } from '#/functions'
 
             const style = css\`
               \${objLiteral(5)};
@@ -323,7 +323,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression]`,
       );
     });
 
@@ -338,10 +338,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { arrLiteral } from './functions'
+            import { arrLiteral } from '#/functions'
 
             const style = css\`
               \${arrLiteral(5)};
@@ -351,7 +351,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression]`,
       );
     });
 
@@ -366,10 +366,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { fnInBranch } from './functions'
+            import { fnInBranch } from '#/functions'
 
             const style = css\`
               \${fnInBranch(true)};
@@ -379,7 +379,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "fnInBranch" contains function calls which are not supported - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "fnInBranch" contains function calls which are not supported - functions must be self-contained]`,
       );
     });
 
@@ -394,10 +394,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { memberInBranch } from './functions'
+            import { memberInBranch } from '#/functions'
 
             const style = css\`
               \${memberInBranch({color: 'red'}, true)};
@@ -407,7 +407,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -422,10 +422,10 @@ describe('function compilation errors', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
-            import { unsupportedExpr } from './functions'
+            import { unsupportedExpr } from '#/functions'
 
             const style = css\`
               \${unsupportedExpr(true)};
@@ -435,7 +435,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression]`,
+        `[Error: /test.ts: /functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression]`,
       );
     });
   });

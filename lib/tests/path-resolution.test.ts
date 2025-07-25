@@ -26,16 +26,14 @@ describe('Path Resolution', () => {
       });
 
       const result = transform({
-        fileAbsPath: 'main.ts',
-        source: mockFS.readFile('main.ts'),
+        fileAbsPath: '/main.ts',
+        source: mockFS.readFile('/main.ts'),
         fs: mockFS,
-        importAliases: {
-          '@utils': 'src/utils',
-        },
+        importAliases: { '@utils': '/src/utils' },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v6jbliu-1 {
+        ".v1mq0rjp-1 {
           margin: 24px;
         }"
       `);
@@ -74,19 +72,16 @@ describe('Path Resolution', () => {
       });
 
       const result = transform({
-        fileAbsPath: 'main.ts',
-        source: mockFS.readFile('main.ts'),
+        fileAbsPath: '/main.ts',
+        source: mockFS.readFile('/main.ts'),
         fs: mockFS,
-        importAliases: {
-          '@utils': 'lib/utils',
-          '@theme': 'design/theme',
-        },
+        importAliases: { '@utils': '/lib/utils', '@theme': '/design/theme' },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v6jbliu-1 {
+        ".v1mq0rjp-1 {
           margin: 8px;
-          color: #007bff;
+                    color: #007bff;
         }"
       `);
     });
@@ -120,16 +115,14 @@ describe('Path Resolution', () => {
       });
 
       const result = transform({
-        fileAbsPath: 'main.ts',
-        source: mockFS.readFile('main.ts'),
+        fileAbsPath: '/main.ts',
+        source: mockFS.readFile('/main.ts'),
         fs: mockFS,
-        importAliases: {
-          '@utils': 'lib/utils',
-        },
+        importAliases: { '@utils': '/lib/utils' },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v6jbliu-1 {
+        ".v1mq0rjp-1 {
           margin: 16px;
         }"
       `);
@@ -167,19 +160,19 @@ describe('Path Resolution', () => {
       });
 
       const result = transform({
-        fileAbsPath: 'main.ts',
-        source: mockFS.readFile('main.ts'),
+        fileAbsPath: '/main.ts',
+        source: mockFS.readFile('/main.ts'),
         fs: mockFS,
         importAliases: {
-          '@components': 'src/components',
-          '@utils': 'src/utils',
+          '@components': '/src/components',
+          '@utils': '/src/utils',
         },
       });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v6jbliu-1 {
+        ".v1mq0rjp-1 {
           padding: 16px;
-          border: 1px solid #ccc;
+                        border: 1px solid #ccc;
         }"
       `);
     });
@@ -200,12 +193,10 @@ describe('Path Resolution', () => {
 
       expect(() => {
         transform({
-          fileAbsPath: 'main.ts',
-          source: mockFS.readFile('main.ts'),
+          fileAbsPath: '/main.ts',
+          source: mockFS.readFile('/main.ts'),
           fs: mockFS,
-          importAliases: {
-            '@theme': 'design/theme',
-          },
+          importAliases: { '@theme': '/design/theme' },
         });
       }).toThrow();
     });

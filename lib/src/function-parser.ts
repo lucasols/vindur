@@ -219,9 +219,15 @@ function parseTemplateLiteral(
 
           output.push({ type: 'ternary', condition, ifTrue, ifFalse });
         } else if (t.isBinaryExpression(expr)) {
-          // Simple binary expressions for comparisons in ternary conditions
-          validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
-          validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+          // Handle binary expressions like `multiplier * 8`
+          const binaryExpr = parseBinaryExpression(expr, functionName, validParameterNames);
+          if (binaryExpr) {
+            output.push(binaryExpr);
+          } else {
+            // Simple binary expressions for comparisons in ternary conditions
+            validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
+            validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+          }
         } else if (t.isLogicalExpression(expr)) {
           // Handle logical expressions like || for default values
           validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
@@ -398,6 +404,41 @@ function parseConditionValue(
   throw new Error(
     `vindurFn "${functionName}" contains unsupported condition value type: ${expr.type}`,
   );
+}
+
+function parseBinaryExpression(
+  expr: t.BinaryExpression,
+  functionName: string,
+  validParameterNames?: Set<string>,
+): OutputQuasi | null {
+  const { left, right, operator } = expr;
+  
+  // Only support basic arithmetic operators
+  if (!['+', '-', '*', '/'].includes(operator)) {
+    return null;
+  }
+  
+  // Ensure operands are expressions
+  if (!t.isExpression(left) || !t.isExpression(right)) {
+    return null;
+  }
+  
+  // Parse left operand
+  const leftValue = parseConditionValue(left, functionName, validParameterNames);
+  
+  // Parse right operand  
+  const rightValue = parseConditionValue(right, functionName, validParameterNames);
+  
+  if (operator !== '+' && operator !== '-' && operator !== '*' && operator !== '/') {
+    return null;
+  }
+  
+  return {
+    type: 'binary',
+    operator,
+    left: leftValue,
+    right: rightValue,
+  };
 }
 
 function parseQuasiFromExpression(

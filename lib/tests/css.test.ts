@@ -334,7 +334,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable]`,
+      `[Error: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable and correctly imported with the configured aliases]`,
     );
   });
 
@@ -484,8 +484,8 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-            ".v1v2q6wl-1 {
-  
+      ".v1v2q6wl-1 {
+        
       }"
     `);
 
@@ -510,8 +510,8 @@ describe('corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-            ".vngi9r6-1 {
-  
+      ".vngi9r6-1 {
+        
       }"
     `);
 

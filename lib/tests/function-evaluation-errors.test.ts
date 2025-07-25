@@ -42,7 +42,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { invalidFn } from '#/functions'
@@ -55,7 +55,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+      `[Error: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
     );
   });
 
@@ -68,7 +68,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { notAFunction } from '#/functions'
@@ -81,7 +81,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+      `[Error: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
     );
   });
 
@@ -94,7 +94,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { invalidWrapper } from '#/functions'
@@ -107,7 +107,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"]`,
+      `[Error: /test.ts: /functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"]`,
     );
   });
 
@@ -126,7 +126,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { complexFn } from '#/functions'
@@ -139,7 +139,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals]`,
+      `[Error: /test.ts: /functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals]`,
     );
   });
 
@@ -152,7 +152,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { asyncFn } from '#/functions'
@@ -165,7 +165,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation]`,
+      `[Error: /test.ts: /functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation]`,
     );
   });
 
@@ -180,7 +180,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { generatorFn } from '#/functions'
@@ -193,7 +193,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings]`,
+      `[Error: /test.ts: /functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings]`,
     );
   });
 
@@ -207,7 +207,7 @@ describe('function evaluation errors', () => {
 
     expect(() => {
       transform({
-        fileAbsPath: 'test.ts',
+        fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
           import { externalFn } from '#/functions'
@@ -220,7 +220,7 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: /Users/lucasoliveirasantos/Github/vindur/lib/functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
+      `[Error: /test.ts: /functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
     );
   });
 
@@ -228,7 +228,7 @@ describe('function evaluation errors', () => {
     test('direct circular variable reference', () => {
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
 
@@ -243,14 +243,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
     test('self-referential variable', () => {
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
 
@@ -264,14 +264,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
     test('indirect circular variable reference chain', () => {
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
 
@@ -287,14 +287,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
     test('circular reference in template literal expressions', () => {
       expect(() => {
         transform({
-          fileAbsPath: 'test.ts',
+          fileAbsPath: '/test.ts',
           source: dedent`
             import { css } from 'vindur'
 
@@ -309,7 +309,7 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /Users/lucasoliveirasantos/Github/vindur/lib/test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
   });

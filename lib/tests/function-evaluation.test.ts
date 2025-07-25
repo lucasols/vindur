@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
 
+const importAliases = { '#/': '/' };
+
 describe('function evaluation', () => {
   test('function with simple params', () => {
     const fnFile = dedent`
@@ -12,24 +14,25 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { pixelSize } from './functions'
+        import { pixelSize } from '#/functions'
 
         const style = css\`
           width: \${pixelSize(10)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         width: 10px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with multiple params', () => {
@@ -42,24 +45,25 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { margin } from './functions'
+        import { margin } from '#/functions'
 
         const style = css\`
           \${margin(10, 20, 30, 40)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         margin: 10px 20px 30px 40px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with destructured object param', () => {
@@ -75,27 +79,28 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { inline } from './functions'
+        import { inline } from '#/functions'
 
         const style = css\`
           \${inline({ gap: 10 })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         display: flex;
         justify-content: flex-start;
         align-items: center;
         gap: 10px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with no parameters', () => {
@@ -110,10 +115,10 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { reset } from './functions'
+        import { reset } from '#/functions'
 
         const style = css\`
           \${reset()};
@@ -121,17 +126,18 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
         color: red;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function returning static string', () => {
@@ -142,24 +148,25 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { border } from './functions'
+        import { border } from '#/functions'
 
         const style = css\`
           border: \${border()};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         border: 1px solid black;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with simple conditional', () => {
@@ -172,24 +179,25 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { spacing } from './functions'
+        import { spacing } from '#/functions'
 
         const style = css\`
           \${spacing({ size: 'large' })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         padding: large;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('multiple functions in one file', () => {
@@ -202,10 +210,10 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { px, percent, color } from './functions'
+        import { px, percent, color } from '#/functions'
 
         const style = css\`
           font-size: \${px(24)};
@@ -214,16 +222,17 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         font-size: 24px;
         width: 50%;
         background: red;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with mixed parameter types', () => {
@@ -234,24 +243,25 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { shadow } from './functions'
+        import { shadow } from '#/functions'
 
         const style = css\`
           box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with all default values used', () => {
@@ -274,20 +284,21 @@ describe('function evaluation', () => {
     `;
 
     const { code, css } = transform({
-      fileAbsPath: 'test.ts',
+      fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { button } from './functions'
+        import { button } from '#/functions'
 
         const style = css\`
           \${button({})};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
-      ".v196xm6g-1 {
+      ".vwmy4ur-1 {
         background: blue;
         color: white;
         padding: 8px 16px;
@@ -296,7 +307,7 @@ describe('function evaluation', () => {
         cursor: pointer;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "v196xm6g-1";"`);
+    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
   test('function with simple interpolation', () => {
@@ -314,13 +325,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { grid } from './functions'
+        import { grid } from '#/functions'
 
         const style = css\`
           \${grid(3, 16)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -347,13 +359,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { theme } from './functions'
+        import { theme } from '#/functions'
 
         const style = css\`
           \${theme({ variant: 'secondary', disabled: false })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -386,13 +399,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { card } from './functions'
+        import { card } from '#/functions'
 
         const style = css\`
           \${card({ shadow: 'large', bg: '#f8f9fa' })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -419,7 +433,7 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { transition } from './functions'
+        import { transition } from '#/functions'
 
         const style = css\`
           \${transition('opacity', 300)};
@@ -427,6 +441,7 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -452,13 +467,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { test } from './functions'
+        import { test } from '#/functions'
 
         const style = css\`
           \${test(true, 100)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -482,7 +498,7 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { spacing } from './functions'
+        import { spacing } from '#/functions'
 
         const style = css\`
           \${spacing(8)};
@@ -490,6 +506,7 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -517,13 +534,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { layout } from './functions'
+        import { layout } from '#/functions'
 
         const style = css\`
           \${layout(100, 200, '20px')};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css1).toMatchInlineSnapshot(`
@@ -539,13 +557,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { layout } from './functions'
+        import { layout } from '#/functions'
 
         const style = css\`
           \${layout(100, 200)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css2).toMatchInlineSnapshot(`
@@ -560,13 +579,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { layout } from './functions'
+        import { layout } from '#/functions'
 
         const style = css\`
           \${layout(100)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css3).toMatchInlineSnapshot(`
@@ -593,13 +613,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { flex } from './functions'
+        import { flex } from '#/functions'
 
         const style = css\`
           \${flex()};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css).toMatchInlineSnapshot(`
@@ -621,13 +642,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { visibility } from './functions'
+        import { visibility } from '#/functions'
 
         const style = css\`
           \${visibility(false, 0.5)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css1).toMatchInlineSnapshot(`
@@ -641,13 +663,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { visibility } from './functions'
+        import { visibility } from '#/functions'
 
         const style = css\`
           \${visibility(undefined, 0.8)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css2).toMatchInlineSnapshot(`
@@ -661,7 +684,7 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { visibility } from './functions'
+        import { visibility } from '#/functions'
 
         const style = css\`
           \${visibility()};
@@ -669,6 +692,7 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css3).toMatchInlineSnapshot(`
@@ -692,13 +716,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { border } from './functions'
+        import { border } from '#/functions'
 
         const style = css\`
           \${border(2, 'solid', 'red')};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css1).toMatchInlineSnapshot(`
@@ -712,13 +737,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { border } from './functions'
+        import { border } from '#/functions'
 
         const style = css\`
           \${border(3, 'dashed')};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css2).toMatchInlineSnapshot(`
@@ -732,13 +758,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { border } from './functions'
+        import { border } from '#/functions'
 
         const style = css\`
           \${border(4)};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css3).toMatchInlineSnapshot(`
@@ -760,13 +787,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { spacing } from './functions'
+        import { spacing } from '#/functions'
 
         const style = css\`
           \${spacing({ m: 10, p: 20, mx: 30, my: 40 })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css1).toMatchInlineSnapshot(`
@@ -780,13 +808,14 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { spacing } from './functions'
+        import { spacing } from '#/functions'
 
         const style = css\`
           \${spacing({ p: 15, mx: 25 })};
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css2).toMatchInlineSnapshot(`
@@ -800,7 +829,7 @@ describe('function evaluation', () => {
       fileAbsPath: '/test.ts',
       source: dedent`
         import { css } from 'vindur'
-        import { spacing } from './functions'
+        import { spacing } from '#/functions'
 
         const style = css\`
           \${spacing({})};
@@ -808,6 +837,7 @@ describe('function evaluation', () => {
         \`
       `,
       fs: createFsMock({ 'functions.ts': fnFile }),
+      importAliases,
     });
 
     expect(css3).toMatchInlineSnapshot(`
@@ -829,7 +859,7 @@ describe('function evaluation', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { pixelSize } from './functions'
+          import { pixelSize } from '#/functions'
 
           const mySize = 24
 
@@ -838,6 +868,7 @@ describe('function evaluation', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
 
       expect(css).toMatchInlineSnapshot(`
@@ -865,7 +896,7 @@ describe('function evaluation', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { spacing } from './functions'
+          import { spacing } from '#/functions'
 
           const baseUnit = 8
           const scale = 2
@@ -875,6 +906,7 @@ describe('function evaluation', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
 
       expect(css).toMatchInlineSnapshot(`
@@ -901,7 +933,7 @@ describe('function evaluation', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { colorize } from './functions'
+          import { colorize } from '#/functions'
 
           const primaryColor = 'blue'
 
@@ -910,6 +942,7 @@ describe('function evaluation', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
 
       expect(css).toMatchInlineSnapshot(`
@@ -936,7 +969,7 @@ describe('function evaluation', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { border } from './functions'
+          import { border } from '#/functions'
 
           const borderWidth = 2
           const borderStyle = 'solid'
@@ -947,6 +980,7 @@ describe('function evaluation', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
 
       expect(css).toMatchInlineSnapshot(`
@@ -973,7 +1007,7 @@ describe('function evaluation', () => {
         fileAbsPath: '/test.ts',
         source: dedent`
           import { css } from 'vindur'
-          import { content } from './functions'
+          import { content } from '#/functions'
 
           const prefix = 'Hello'
           const suffix = 'World'
@@ -984,6 +1018,7 @@ describe('function evaluation', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        importAliases,
       });
 
       expect(css).toMatchInlineSnapshot(`

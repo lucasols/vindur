@@ -1,5 +1,4 @@
 import * as babel from '@babel/core';
-import path from 'path';
 import {
   createVindurPlugin,
   type DebugLogger,
@@ -24,7 +23,7 @@ export type TransformOptions = {
 };
 
 export function transform({
-  fileAbsPath: filePath,
+  fileAbsPath,
   source,
   dev = false,
   debug,
@@ -37,15 +36,26 @@ export function transform({
     vindurImports: new Set<string>(),
   };
 
+  if (!fileAbsPath.includes('/')) {
+    throw new Error('fileAbsPath must be an absolute path');
+  }
+
   const plugin = createVindurPlugin(
-    { filePath, dev, debug, fs, transformFunctionCache, importAliases },
+    {
+      filePath: fileAbsPath,
+      dev,
+      debug,
+      fs,
+      transformFunctionCache,
+      importAliases,
+    },
     pluginState,
   );
 
   const result = babel.transformSync(source, {
     plugins: [plugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
-    filename: path.relative(process.cwd(), filePath),
+    filename: fileAbsPath,
   });
 
   if (!result?.code) {
