@@ -226,22 +226,39 @@ function resolveFunctionCall(
 
   // Validate argument count for positional functions
   if (compiledFn.type === 'positional') {
-    const expectedArgs = compiledFn.args.length;
+    const requiredArgs = compiledFn.args.filter(arg => !arg.optional).length;
+    const totalArgs = compiledFn.args.length;
     const receivedArgs = args.length;
-    if (expectedArgs !== receivedArgs) {
-      throw new Error(
-        `Function "${functionName}" expects ${expectedArgs} arguments, but received ${receivedArgs}`,
-      );
+    
+    if (receivedArgs < requiredArgs || receivedArgs > totalArgs) {
+      if (requiredArgs === totalArgs) {
+        throw new Error(
+          `Function "${functionName}" expects ${requiredArgs} arguments, but received ${receivedArgs}`,
+        );
+      } else {
+        throw new Error(
+          `Function "${functionName}" expects ${requiredArgs}-${totalArgs} arguments, but received ${receivedArgs}`,
+        );
+      }
     }
   }
 
   if (compiledFn.type === 'positional') {
     // Handle positional arguments - need to map to parameter names
-    const argValues: Record<string, string | number | boolean> = {};
+    const argValues: Record<string, string | number | boolean | undefined> = {};
 
     // Get parameter names from the compiled function
     const paramNames = getParameterNames(compiledFn);
 
+    // Initialize all parameters to undefined first
+    for (const [index] of compiledFn.args.entries()) {
+      const paramName = paramNames[index];
+      if (paramName) {
+        argValues[paramName] = undefined;
+      }
+    }
+
+    // Then set the provided arguments
     for (const [index, arg] of args.entries()) {
       const paramName = paramNames[index];
       if (paramName && t.isExpression(arg)) {
@@ -256,7 +273,7 @@ function resolveFunctionCall(
   } else {
     // Handle destructured object arguments
     if (args.length === 1 && t.isObjectExpression(args[0])) {
-      const argValues: Record<string, string | number | boolean> = {};
+      const argValues: Record<string, string | number | boolean | undefined> = {};
 
       // Add default values first
       for (const [name, argDef] of Object.entries(compiledFn.args)) {

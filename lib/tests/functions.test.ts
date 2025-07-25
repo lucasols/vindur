@@ -465,6 +465,38 @@ test('function with return statement syntax', () => {
   expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
 });
 
+test('function optional parameters', () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur'
+
+    export const spacing = vindurFn((margin: number, padding?: string | number) => {
+      return \`margin: \${margin}px; \${padding ? \`padding: \${padding};\` : ''}\`;
+    })
+  `;
+
+  const { code, css } = transform({
+    fileAbsPath: '/test.ts',
+    source: dedent`
+      import { css } from 'vindur'
+      import { spacing } from './functions'
+
+      const style = css\`
+        \${spacing(8)};
+        color: blue;
+      \`
+    `,
+    fs: createFsMock({ 'functions.ts': fnFile }),
+  });
+
+  expect(css).toMatchInlineSnapshot(`
+    ".vwmy4ur-1 {
+      margin: 8px;
+      color: blue;
+    }"
+  `);
+  expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+});
+
 describe('error handling', () => {
   test('function without vindurFn wrapper', () => {
     const fnFile = dedent`

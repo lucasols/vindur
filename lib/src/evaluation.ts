@@ -2,25 +2,12 @@ import type { TernaryConditionValue, OutputQuasi } from './types';
 
 export function evaluateOutput(
   output: OutputQuasi[],
-  args: Record<string, string | number | boolean>,
+  args: Record<string, string | number | boolean | undefined>,
 ): string {
   let result = '';
 
   for (const quasi of output) {
-    if (quasi.type === 'string') {
-      result += quasi.value;
-    } else if (quasi.type === 'arg') {
-      const argValue = args[quasi.name];
-      result += argValue !== undefined ? String(argValue) : '';
-    } else {
-      // quasi.type === 'ternary'
-      const conditionResult = evaluateCondition(quasi.condition, args);
-      if (conditionResult) {
-        result += evaluateQuasi(quasi.ifTrue, args);
-      } else {
-        result += evaluateQuasi(quasi.ifFalse, args);
-      }
-    }
+    result += evaluateQuasi(quasi, args);
   }
 
   return result;
@@ -32,7 +19,7 @@ export function evaluateCondition(
     '===' | '!==' | '>' | '<' | '>=' | '<=',
     TernaryConditionValue,
   ],
-  args: Record<string, string | number | boolean>,
+  args: Record<string, string | number | boolean | undefined>,
 ): boolean {
   const [left, operator, right] = condition;
 
@@ -59,20 +46,27 @@ export function evaluateCondition(
 
 export function evaluateQuasi(
   quasi: OutputQuasi,
-  args: Record<string, string | number | boolean>,
+  args: Record<string, string | number | boolean | undefined>,
 ): string {
   if (quasi.type === 'string') {
     return quasi.value;
   } else if (quasi.type === 'arg') {
     const argValue = args[quasi.name];
     return argValue !== undefined ? String(argValue) : '';
-  }
-  
-  // quasi.type === 'ternary'
-  const conditionResult = evaluateCondition(quasi.condition, args);
-  if (conditionResult) {
-    return evaluateQuasi(quasi.ifTrue, args);
+  } else if (quasi.type === 'template') {
+    // Evaluate each part of the template and concatenate
+    let result = '';
+    for (const part of quasi.parts) {
+      result += evaluateQuasi(part, args);
+    }
+    return result;
   } else {
-    return evaluateQuasi(quasi.ifFalse, args);
+    // quasi.type === 'ternary'
+    const conditionResult = evaluateCondition(quasi.condition, args);
+    if (conditionResult) {
+      return evaluateQuasi(quasi.ifTrue, args);
+    } else {
+      return evaluateQuasi(quasi.ifFalse, args);
+    }
   }
 }

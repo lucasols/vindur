@@ -5,6 +5,7 @@ export type TernaryConditionValue =
 export type OutputQuasi =
   | { type: 'string'; value: string }
   | { type: 'arg'; name: string }
+  | { type: 'template'; parts: OutputQuasi[] }
   | {
       type: 'ternary';
       condition: [
@@ -20,6 +21,7 @@ export type FunctionArg = {
   name?: string; // Parameter name for positional args
   type: 'string' | 'number' | 'boolean';
   defaultValue: string | number | boolean | undefined;
+  optional?: boolean; // Whether the parameter is optional
 };
 
 export type CompiledFunction = 

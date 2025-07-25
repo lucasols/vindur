@@ -70,9 +70,19 @@ export function parseFunction(
         name: param.name,
         type: 'string', // Default type
         defaultValue: undefined,
+        optional: param.optional ?? false,
+      };
+    } else if (t.isAssignmentPattern(param) && t.isIdentifier(param.left)) {
+      // Handle default parameters
+      const defaultValue = extractLiteralValue(param.right);
+      return {
+        name: param.left.name,
+        type: getLiteralValueType(defaultValue),
+        defaultValue: defaultValue ?? undefined,
+        optional: true, // Parameters with defaults are optional
       };
     }
-    return { name: 'unknown', type: 'string', defaultValue: undefined };
+    return { name: 'unknown', type: 'string', defaultValue: undefined, optional: false };
   });
 
   const output = parseTemplateOutput(fnExpression.body, name);
@@ -354,6 +364,17 @@ function parseQuasiFromExpression(
     return { type: 'string', value: expr.value };
   } else if (t.isIdentifier(expr)) {
     return { type: 'arg', name: expr.name };
+  } else if (t.isTemplateLiteral(expr)) {
+    // Handle template literals in ternary expressions
+    const parts = parseTemplateLiteral(expr, functionName);
+    
+    // If it's a single string part, return it directly
+    if (parts.length === 1 && parts[0]?.type === 'string') {
+      return parts[0];
+    }
+    
+    // Otherwise, return as a template type
+    return { type: 'template', parts };
   } else if (t.isConditionalExpression(expr)) {
     // Handle nested ternary expressions
     const condition = parseTernaryCondition(expr.test, functionName);
