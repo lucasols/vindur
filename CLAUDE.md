@@ -155,6 +155,6 @@ When implementing features:
    - The feature may be already implemented, so run the tests first
 3. If the feature is not simple, wait me for review the tests first
 4. Implement the feature
-5. Ensure all tests pass
-6. Run lint and fix all errors
+5. Ensure all tests pass and no other features are broken
+6. Run tsc and lint and fix all errors
 7. Update ROADMAP.md
