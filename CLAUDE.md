@@ -108,6 +108,7 @@ test('should handle ...', async () => {
     `,
   })
 
+  // code assertion should come first, then css assertion
   expect(result.code).toMatchInlineSnapshot(`
     // ...
   `)
