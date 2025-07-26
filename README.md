@@ -371,64 +371,59 @@ const Component = () => {
 }
 ```
 
-### CSS Selector Usage
+### CSS as Selectors
 
 Use CSS styles as selectors within styled components using the `&` operator:
 
 ```tsx
 import { css, styled } from 'vindur'
 
-const highlightedStyle = css`
-  background: yellow;
-  border: 2px solid orange;
-`
-
-const interactiveStyle = css`
-  cursor: pointer;
-  transition: all 0.2s;
+const baseStyles = css`
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 500;
 `
 
 const Container = styled.div`
   padding: 20px;
 
-  ${highlightedStyle} & {
-    transform: scale(1.05);
+  ${baseStyles} & {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
   }
 
-  & ${interactiveStyle}:hover {
-    opacity: 0.8;
+  &:hover ${baseStyles} {
+    background: #007bff;
+    color: white;
   }
 `
 
 // Usage
 <Container>
-  <div className={highlightedStyle}>Highlighted content</div>
-  <button className={interactiveStyle}>Interactive button</button>
+  <button className={baseStyles}>Click me</button>
 </Container>
 ```
 
 Compiles to CSS using native CSS nesting:
 
 ```css
-.vhash-1-highlightedStyle {
-  background: yellow;
-  border: 2px solid orange;
+.vhash-1-baseStyles {
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
-.vhash-2-interactiveStyle {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.vhash-3-Container {
+.vhash-2-Container {
   padding: 20px;
 
-  .vhash-1-highlightedStyle & {
-    transform: scale(1.05);
+  .vhash-1-baseStyles & {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
   }
 
-  & .vhash-2-interactiveStyle:hover {
-    opacity: 0.8;
+  &:hover .vhash-1-baseStyles {
+    background: #007bff;
+    color: white;
   }
 }
 ```
