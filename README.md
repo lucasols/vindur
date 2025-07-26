@@ -70,15 +70,17 @@ const baseStyles = css`
 `
 
 const Button = styled.div`
-  ${baseStyles} {
+  ${baseStyles} & {
+    ...
   }
 `
 ```
 
-- global styles, via `:global() {}` selector or `createGlobalStyle`
-- withComponent
+- global styles, via `createGlobalStyle`
 - media queries
 - css keyframes
+- theme/color utils
+- jsx `css` prop (like `styled-components`/`emotion`)
 - jsx `cx` prop (like `classnames`)
 
 ```tsx
@@ -94,13 +96,7 @@ const Component = () => {
 }
 ```
 
-- jsx `css` prop (like `styled-components`/`emotion`)
-- scoped classes and css variables, will be compiled to hash to avoid collisions
-  - scoped jsx modifier classes `_scoped` (used in `cx` prop or `className` prop, or `style flags` props)
-  - scoped css variables `---var`
-- stable ids
 - dynamic css variables
-- theme/color utils
 - style flags props
 
 ```tsx
@@ -123,6 +119,15 @@ const Component = () => {
   return <StyledWithModifier active disabled={false} />
 }
 ```
+
+- stable ids, via `stableId` function, it will just generate a hash id for that variable, just like ` const id = css`` `
+
+- withComponent
+
+- scoped classes and css variables, will be compiled to hash to avoid collisions
+  - scoped jsx modifier classes (used in `cx` prop or `className` prop, or `style flags` props)
+    - not scoped classes must start with `_`, e.g. `_active`
+  - scoped css variables `---var`, vars starting with `---` are scoped and replaced with a hash
 
 - styled.div.attrs support
 
