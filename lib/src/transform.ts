@@ -36,6 +36,7 @@ export function transform({
     vindurImports: new Set<string>(),
     styledComponents: new Map(),
     cssVariables: new Map(),
+    keyframes: new Map(),
   };
 
   if (!fileAbsPath.includes('/')) {

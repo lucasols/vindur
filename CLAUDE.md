@@ -99,6 +99,9 @@ pnpm test         # Run tests
 Tests for transform function should follow this structure:
 
 ```tsx
+import { describe, expect, test } from 'vitest'
+import { dedent } from '@ls-stack/utils/dedent'
+import { transformWithFormat } from './testUtils'
 // ...
 
 test('should handle ...', async () => {
@@ -158,3 +161,7 @@ When implementing features:
 5. Ensure all tests pass and no other features are broken
 6. Run tsc and lint and fix all errors
 7. Update ROADMAP.md
+
+## Test Utility Memories
+
+- `overrideDefaultFs` should use `createFsMock`

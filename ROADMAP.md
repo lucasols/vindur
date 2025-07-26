@@ -22,10 +22,10 @@ A compile-time CSS-in-JS library focused on performance.
 - [x] CSS style interpolation with semicolon extension
 - [x] CSS selector usage in styled components used as a selector
 
-### 🚧 **Advanced Styling**
+### ✅ **Advanced Styling**
 
 - [x] Global styles via `createGlobalStyle` ✅
-- [ ] CSS keyframes via `keyframes` function (like `styled-components`)
+- [x] CSS keyframes via `keyframes` function (like `styled-components`) ✅
 - [ ] Theme/color utilities
 
 ### 🚧 **JSX Props**

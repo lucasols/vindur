@@ -13,6 +13,7 @@ import {
   processStyledTemplate,
   processStyledExtension,
   processGlobalStyle,
+  processKeyframes,
 } from './css-processing';
 
 type ImportHandlerContext = {
@@ -272,6 +273,45 @@ export function handleStyledExtensionAssignment(
   return true;
 }
 
+export function handleKeyframesVariableAssignment(
+  path: NodePath<t.VariableDeclarator>,
+  handlerContext: VariableHandlerContext,
+): boolean {
+  const { context, dev, fileHash, classIndex } = handlerContext;
+  
+  if (
+    !context.state.vindurImports.has('keyframes')
+    || !path.node.init
+    || !t.isTaggedTemplateExpression(path.node.init)
+    || !t.isIdentifier(path.node.init.tag)
+    || path.node.init.tag.name !== 'keyframes'
+  ) {
+    return false;
+  }
+
+  const varName = t.isIdentifier(path.node.id) ? path.node.id.name : undefined;
+
+  const result = processKeyframes(
+    path.node.init.quasi,
+    context,
+    varName,
+    dev,
+    fileHash,
+    classIndex.current,
+  );
+  classIndex.current++;
+
+  // Track the keyframes for future reference
+  if (varName) {
+    context.state.keyframes.set(varName, result.finalClassName);
+  }
+
+  // Replace the keyframes call with animation name string
+  path.node.init = t.stringLiteral(result.finalClassName);
+  
+  return true;
+}
+
 export function handleGlobalStyleVariableAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
@@ -322,6 +362,36 @@ export function handleCssTaggedTemplate(
   classIndex.current++;
 
   // Replace the tagged template with the class name string
+  path.replaceWith(t.stringLiteral(result.finalClassName));
+  
+  return true;
+}
+
+export function handleKeyframesTaggedTemplate(
+  path: NodePath<t.TaggedTemplateExpression>,
+  handlerContext: TaggedTemplateHandlerContext,
+): boolean {
+  const { context, dev, fileHash, classIndex } = handlerContext;
+  
+  if (
+    !context.state.vindurImports.has('keyframes')
+    || !t.isIdentifier(path.node.tag)
+    || path.node.tag.name !== 'keyframes'
+  ) {
+    return false;
+  }
+
+  const result = processKeyframes(
+    path.node.quasi,
+    context,
+    undefined,
+    dev,
+    fileHash,
+    classIndex.current,
+  );
+  classIndex.current++;
+
+  // Replace the tagged template with the animation name string
   path.replaceWith(t.stringLiteral(result.finalClassName));
   
   return true;

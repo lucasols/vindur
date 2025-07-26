@@ -465,6 +465,63 @@ Compiles to CSS using native CSS nesting:
 }
 ```
 
+### CSS Keyframes
+
+Create CSS animations using the `keyframes` function:
+
+```tsx
+import { keyframes, styled } from 'vindur'
+
+const fadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`
+
+const slideIn = keyframes`
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(-10px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+`
+
+const AnimatedCard = styled.div`
+  background: white;
+  padding: 20px;
+  animation: ${fadeIn} 0.3s ease-out;
+
+  &:hover {
+    animation: ${slideIn} 0.5s ease-in-out;
+  }
+`
+```
+
+Keyframes support variable interpolation just like other CSS functions:
+
+```tsx
+const startPosition = '-100%'
+const endPosition = '0'
+
+const slideAnimation = keyframes`
+  from {
+    transform: translateX(${startPosition});
+  }
+  to {
+    transform: translateX(${endPosition});
+  }
+`
+```
+
 ### Global Styles
 
 Create global CSS styles that apply to the entire document using `createGlobalStyle`:

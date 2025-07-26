@@ -8,6 +8,8 @@ import {
 } from './ast-utils';
 import { evaluateOutput } from './evaluation';
 import type { CompiledFunction, FunctionArg } from './types';
+import * as babel from '@babel/core';
+import { createVindurPlugin } from './babel-plugin';
 
 export type CssProcessingContext = {
   fs: { readFile: (path: string) => string };
@@ -19,6 +21,7 @@ export type CssProcessingContext = {
     vindurImports: Set<string>;
     styledComponents: Map<string, { element: string; className: string }>;
     cssVariables: Map<string, string>;
+    keyframes: Map<string, string>;
   };
   path: NodePath;
   debug?: { log: (message: string) => void };
@@ -64,6 +67,19 @@ export function processInterpolationExpression(
         // For CSS variables, always return with dot prefix for selector usage
         return `.${cssVariable}`;
       }
+    }
+
+    // Check if this identifier refers to a keyframes animation
+    const keyframesAnimation = context.state.keyframes.get(expression.name);
+    if (keyframesAnimation) {
+      // For keyframes, return the animation name without prefix
+      return keyframesAnimation;
+    }
+
+    // Check if this identifier refers to an imported keyframes
+    const importedKeyframes = resolveImportedKeyframes(expression.name, context);
+    if (importedKeyframes !== null) {
+      return importedKeyframes;
     }
 
     const resolvedValue = resolveVariable(expression.name, context.path);
@@ -339,4 +355,84 @@ function getParameterNames(compiledFn: {
   args: FunctionArg[];
 }): string[] {
   return compiledFn.args.map((arg) => arg.name ?? 'unknown');
+}
+
+function resolveImportedKeyframes(
+  keyframesName: string,
+  context: CssProcessingContext,
+): string | null {
+  // Check if this keyframes is imported from another file
+  const keyframesFilePath = context.importedFunctions.get(keyframesName);
+  
+  if (!keyframesFilePath) return null;
+
+  // Load and process the external file to extract keyframes
+  try {
+    const fileContent = context.fs.readFile(keyframesFilePath);
+    
+    // Parse the external file to extract keyframes variables
+    const externalKeyframes = extractKeyframesFromSource(fileContent, keyframesFilePath, context);
+    
+    // Look for the specific keyframes in the external file
+    const keyframesAnimationName = externalKeyframes.get(keyframesName);
+    if (keyframesAnimationName) {
+      // Mark this keyframes as used (for import cleanup)
+      context.usedFunctions.add(keyframesName);
+      return keyframesAnimationName;
+    }
+    
+    throw new Error(`Function "${keyframesName}" not found in ${keyframesFilePath}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to load keyframes "${keyframesName}" from ${keyframesFilePath}`);
+  }
+}
+
+function extractKeyframesFromSource(
+  source: string,
+  filePath: string,
+  context: CssProcessingContext,
+): Map<string, string> {
+  // This will store the keyframes found in the external file
+  const keyframesMap = new Map<string, string>();
+  
+  // Create a temporary state to capture keyframes from external file
+  const tempState = {
+    cssRules: [],
+    vindurImports: new Set<string>(),
+    styledComponents: new Map(),
+    cssVariables: new Map(),
+    keyframes: new Map<string, string>(),
+  };
+  
+  // Create the plugin with the same context but temporary state
+  const plugin = createVindurPlugin(
+    {
+      filePath,
+      dev: false, // Use production mode for external files
+      fs: context.fs,
+      transformFunctionCache: context.compiledFunctions,
+      importAliases: {}, // External files don't need alias resolution for their own processing
+    },
+    tempState,
+  );
+  
+  // Parse the external file
+  babel.transformSync(source, {
+    plugins: [plugin],
+    parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+    filename: filePath,
+  });
+  
+  // Copy the keyframes from temp state and add CSS rules to main state
+  for (const [name, animationName] of tempState.keyframes) {
+    keyframesMap.set(name, animationName);
+  }
+  
+  // Add the CSS rules from the external file to the main CSS output
+  context.state.cssRules.push(...tempState.cssRules);
+  
+  return keyframesMap;
 }

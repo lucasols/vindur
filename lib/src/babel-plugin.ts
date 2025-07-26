@@ -1,23 +1,25 @@
 import type { PluginObj } from '@babel/core';
 import * as babel from '@babel/core';
 import { murmur2 } from '@ls-stack/utils/hash';
-import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
-import type { CompiledFunction } from './types';
 import type { CssProcessingContext } from './css-processing';
+import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
+import { performPostProcessing } from './post-processing-handlers';
+import type { CompiledFunction } from './types';
 import {
-  handleVindurImports,
-  handleFunctionImports,
-  handleVindurFnExport,
-  handleCssVariableAssignment,
-  handleStyledElementAssignment,
-  handleStyledExtensionAssignment,
-  handleGlobalStyleVariableAssignment,
   handleCssTaggedTemplate,
+  handleCssVariableAssignment,
+  handleFunctionImports,
   handleGlobalStyleTaggedTemplate,
+  handleGlobalStyleVariableAssignment,
   handleInlineStyledError,
   handleJsxStyledComponent,
+  handleKeyframesTaggedTemplate,
+  handleKeyframesVariableAssignment,
+  handleStyledElementAssignment,
+  handleStyledExtensionAssignment,
+  handleVindurFnExport,
+  handleVindurImports,
 } from './visitor-handlers';
-import { performPostProcessing } from './post-processing-handlers';
 
 export type DebugLogger = { log: (message: string) => void };
 
@@ -26,6 +28,7 @@ export type VindurPluginState = {
   vindurImports: Set<string>;
   styledComponents: Map<string, { element: string; className: string }>;
   cssVariables: Map<string, string>; // Track css tagged template variables
+  keyframes: Map<string, string>; // Track keyframes animation names
 };
 
 export type FunctionCache = {
@@ -44,7 +47,6 @@ export type VindurPluginOptions = {
   transformFunctionCache: FunctionCache;
   importAliases: Record<string, string>;
 };
-
 
 function loadExternalFunction(
   fs: PluginFS,
@@ -89,8 +91,6 @@ function loadExternalFunction(
   return compiledFn;
 }
 
-
-
 export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
@@ -106,7 +106,7 @@ export function createVindurPlugin(
 
   // Generate base hash from file path with 'c' prefix
   const fileHash = `v${murmur2(filePath)}`;
-  let classIndex = 1;
+  let idIndex = 1;
 
   // Track imported functions and their file paths
   const importedFunctions = new Map<string, string>();
@@ -140,7 +140,7 @@ export function createVindurPlugin(
           transformFunctionCache,
           filePath,
         };
-        
+
         handleVindurFnExport(path, exportHandlerContext);
       },
       VariableDeclarator(path) {
@@ -156,22 +156,32 @@ export function createVindurPlugin(
           loadExternalFunction,
         };
 
-        const classIndexRef = { current: classIndex };
+        const idIndexRef = { current: idIndex };
         const variableHandlerContext = {
           context,
           dev,
           fileHash,
-          classIndex: classIndexRef,
+          classIndex: idIndexRef,
         };
 
         // Try each handler in order - they return true if they handled the node
         if (handleCssVariableAssignment(path, variableHandlerContext)) {
-          classIndex = classIndexRef.current;
-        } else if (handleStyledElementAssignment(path, variableHandlerContext)) {
-          classIndex = classIndexRef.current;
-        } else if (handleStyledExtensionAssignment(path, variableHandlerContext)) {
-          classIndex = classIndexRef.current;
-        } else if (handleGlobalStyleVariableAssignment(path, variableHandlerContext)) {
+          idIndex = idIndexRef.current;
+        } else if (
+          handleStyledElementAssignment(path, variableHandlerContext)
+        ) {
+          idIndex = idIndexRef.current;
+        } else if (
+          handleStyledExtensionAssignment(path, variableHandlerContext)
+        ) {
+          idIndex = idIndexRef.current;
+        } else if (
+          handleKeyframesVariableAssignment(path, variableHandlerContext)
+        ) {
+          idIndex = idIndexRef.current;
+        } else if (
+          handleGlobalStyleVariableAssignment(path, variableHandlerContext)
+        ) {
           // No classIndex increment for global styles
         }
       },
@@ -188,7 +198,7 @@ export function createVindurPlugin(
           loadExternalFunction,
         };
 
-        const classIndexRef = { current: classIndex };
+        const classIndexRef = { current: idIndex };
         const taggedTemplateHandlerContext = {
           context,
           dev,
@@ -198,8 +208,14 @@ export function createVindurPlugin(
 
         // Try each handler in order - they return true if they handled the node
         if (handleCssTaggedTemplate(path, taggedTemplateHandlerContext)) {
-          classIndex = classIndexRef.current;
-        } else if (handleGlobalStyleTaggedTemplate(path, taggedTemplateHandlerContext)) {
+          idIndex = classIndexRef.current;
+        } else if (
+          handleKeyframesTaggedTemplate(path, taggedTemplateHandlerContext)
+        ) {
+          idIndex = classIndexRef.current;
+        } else if (
+          handleGlobalStyleTaggedTemplate(path, taggedTemplateHandlerContext)
+        ) {
           // No classIndex increment for global styles
         } else if (handleInlineStyledError(path, { state })) {
           // Error handler - throws exception
@@ -214,7 +230,8 @@ export function createVindurPlugin(
       state.vindurImports.clear();
       state.styledComponents.clear();
       state.cssVariables.clear();
-      classIndex = 1;
+      state.keyframes.clear();
+      idIndex = 1;
       usedFunctions.clear();
     },
     post(file) {
@@ -224,7 +241,7 @@ export function createVindurPlugin(
         usedFunctions,
         importAliasesArray,
       };
-      
+
       performPostProcessing(file, postProcessingContext);
     },
   };

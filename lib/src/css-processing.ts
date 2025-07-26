@@ -1,9 +1,13 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import type { TransformFS } from './transform';
-import type { FunctionCache, DebugLogger, VindurPluginState } from './babel-plugin';
-import type { CompiledFunction } from './types';
 import { processTemplateWithInterpolation } from './ast-processing';
+import type {
+  DebugLogger,
+  FunctionCache,
+  VindurPluginState,
+} from './babel-plugin';
+import type { TransformFS } from './transform';
+import type { CompiledFunction } from './types';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -52,11 +56,15 @@ export function generateCssRule(
 ): string {
   const cleanedCss = cleanCss(cssContent);
   if (!cleanedCss.trim()) {
-    return extensions.length > 0 ? `${extensions.join(' ')} ${className}` : className;
+    return extensions.length > 0 ?
+        `${extensions.join(' ')} ${className}`
+      : className;
   }
 
   state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
-  return extensions.length > 0 ? `${extensions.join(' ')} ${className}` : className;
+  return extensions.length > 0 ?
+      `${extensions.join(' ')} ${className}`
+    : className;
 }
 
 export function processStyledTemplate(
@@ -76,7 +84,12 @@ export function processStyledTemplate(
   );
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
-  const finalClassName = generateCssRule(className, cssContent, extensions, context.state);
+  const finalClassName = generateCssRule(
+    className,
+    cssContent,
+    extensions,
+    context.state,
+  );
 
   return { cssContent, extensions, finalClassName };
 }
@@ -98,7 +111,7 @@ export function processStyledExtension(
   );
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
-  
+
   // Check if extending a styled component
   const extendedInfo = context.state.styledComponents.get(extendedName);
   if (!extendedInfo) {
@@ -120,14 +133,15 @@ export function processStyledExtension(
   }
 
   // Extend the styled component - inherit element and merge classes
-  const mergedClassName = cleanedCss.trim() 
-    ? `${extendedInfo.className} ${finalClassName}`
+  const mergedClassName =
+    cleanedCss.trim() ?
+      `${extendedInfo.className} ${finalClassName}`
     : extendedInfo.className;
 
-  return { 
-    cssContent, 
-    extensions, 
-    finalClassName: mergedClassName 
+  return {
+    cssContent,
+    extensions,
+    finalClassName: mergedClassName,
   };
 }
 
@@ -147,6 +161,49 @@ export function processGlobalStyle(
   if (cleanedCss.trim()) {
     context.state.cssRules.push(cleanedCss);
   }
+}
+
+export function processKeyframes(
+  quasi: t.TemplateLiteral,
+  context: CssProcessingContext,
+  variableName: string | undefined,
+  dev: boolean,
+  fileHash: string,
+  classIndex: number,
+): CssProcessingResult {
+  const { cssContent } = processCssTemplate(
+    quasi,
+    context,
+    variableName,
+    'keyframes',
+  );
+
+  const animationName = generateClassName(
+    dev,
+    fileHash,
+    classIndex,
+    variableName,
+  );
+
+  if (cssContent.trim() === '') {
+    return {
+      cssContent,
+      extensions: [],
+      finalClassName: animationName,
+    };
+  }
+
+  // Clean up CSS content and wrap in @keyframes rule
+  const cleanedCss = cleanCss(cssContent);
+  const keyframesRule = `@keyframes ${animationName} {\n  ${cleanedCss}\n}`;
+
+  context.state.cssRules.push(keyframesRule);
+
+  return {
+    cssContent,
+    extensions: [],
+    finalClassName: animationName,
+  };
 }
 
 const doubleSemicolonRegex = /;\s*;/g;
