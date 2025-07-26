@@ -31,7 +31,7 @@ const Button = styled.div`
 
 ### 🚧 **CSS Extension**
 
-- [ ] CSS style interpolation with semicolon extension
+- [x] CSS style interpolation with semicolon extension
 
   ```tsx
   const baseStyles = css`...`
@@ -41,7 +41,7 @@ const Button = styled.div`
   `
   ```
 
-- [ ] CSS selector usage in styled components used as a selector
+- [x] CSS selector usage in styled components used as a selector
 
   ```tsx
   const baseStyles = css`...`
