@@ -445,6 +445,83 @@ Compiles to CSS using native CSS nesting:
 }
 ```
 
+### Global Styles
+
+Create global CSS styles that apply to the entire document using `createGlobalStyle`:
+
+```tsx
+import { createGlobalStyle } from 'vindur'
+
+// Global styles are applied directly without class wrappers
+createGlobalStyle`
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    color: #333;
+    background: #fff;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin: 0 0 1rem 0;
+    font-weight: 600;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+`
+```
+
+Global styles support variable interpolation just like regular styles:
+
+````tsx
+const primaryColor = '#007bff'
+const fontFamily = 'Inter, system-ui, sans-serif'
+
+createGlobalStyle`
+  :root {
+    --primary-color: ${primaryColor};
+    --font-family: ${fontFamily};
+  }
+
+  body {
+    font-family: var(--font-family);
+    color: #333;
+  }
+
+  .highlight {
+    color: ${primaryColor};
+  }
+`
+
+And also references to styled components are supported:
+
+```tsx
+const Button = styled.button`
+  padding: 12px 24px;
+`
+
+createGlobalStyle`
+  ${Button} {
+    background: #007bff;
+    color: white;
+  }
+`
+```
+
 ### Mixins and Functions
 
 Create reusable style functions with `vindurFn`:
@@ -491,3 +568,4 @@ See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
 ## License
 
 MIT
+````
