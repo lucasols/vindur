@@ -45,18 +45,22 @@ export async function formatCode(code: string) {
 
 export async function transformWithFormat({
   source,
-  fileAbsPath = '/test.tsx',
-  fs = createFsMock({}),
-  importAliases = { '#/': '/' },
+  overrideDefaultFs: fs = createFsMock({}),
+  overrideDefaultImportAliases: importAliases = { '#/': '/' },
   dev = false,
 }: {
   source: string;
-  fileAbsPath?: string;
-  fs?: TransformFS;
+  overrideDefaultFs?: TransformFS;
   dev?: boolean;
-  importAliases?: Record<string, string>;
+  overrideDefaultImportAliases?: Record<string, string>;
 }) {
-  const result = transform({ fileAbsPath, fs, importAliases, source, dev });
+  const result = transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    importAliases,
+    source,
+    dev,
+  });
 
   return { ...result, code: await formatCode(result.code) };
 }

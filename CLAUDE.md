@@ -94,18 +94,20 @@ pnpm test         # Run tests
 - Do not update snapshots via `vitest run --u`, update them manually
 - If test failures are due to minor snapshot changes or coding formatting, just ignore them, i will update them manually
 
-# Styled components tests
+# transform tests
 
-Tests should follow this structure:
+Tests for transform function should follow this structure:
 
 ```tsx
 // ...
 
 test('should handle ...', async () => {
   const result = await transformWithFormat({
+    // source should be inlined if it is not used multiple times
     source: dedent`
       // ...
     `,
+    // prefer using default props for `fs` and `importAliases` unless the test requires it
   })
 
   // code assertion should come first, then css assertion
@@ -145,3 +147,14 @@ When implementing features:
 2. **Update README.md** - add documentation section with examples
 3. **Keep examples current** - ensure examples match actual implementation
 4. **Test examples** - verify all documentation examples actually work
+
+# Feature implementation guidelines
+
+1. Add or adjust documentation in README.md
+2. Implement the tests
+   - The feature may be already implemented, so run the tests first
+3. If the feature is not simple, wait me for review the tests first
+4. Implement the feature
+5. Ensure all tests pass
+6. Run lint and fix all errors
+7. Update ROADMAP.md

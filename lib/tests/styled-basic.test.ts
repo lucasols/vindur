@@ -23,12 +23,12 @@ describe('styled components - basic functionality', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/test.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vmcre00-1 {
+      ".v1560qbr-1 {
         background-color: red;
         padding: 10px;
       }"
@@ -36,7 +36,7 @@ describe('styled components - basic functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div className="vmcre00-1" />;
+        return <div className="v1560qbr-1" />;
       };
       "
     `);
@@ -71,18 +71,18 @@ describe('styled components - basic functionality', () => {
       source,
       fileAbsPath: '/src/components.ts',
       dev: true,
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vcixwtu-1-Button {
+      ".v1560qbr-1-Button {
         padding: 8px 16px;
         background: blue;
         color: white;
       }
 
-      .vcixwtu-2-Header {
+      .v1560qbr-2-Header {
         font-size: 24px;
         font-weight: bold;
       }"
@@ -92,8 +92,8 @@ describe('styled components - basic functionality', () => {
       "const Component = () => {
         return (
           <div>
-            <button className="vcixwtu-1-Button">Click me</button>
-            <h1 className="vcixwtu-2-Header">Title</h1>
+            <button className="v1560qbr-1-Button">Click me</button>
+            <h1 className="v1560qbr-2-Header">Title</h1>
           </div>
         );
       };
@@ -120,12 +120,12 @@ describe('styled components - basic functionality', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/styled-button.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vi3fon9-1 {
+      ".v1560qbr-1 {
         background-color: blue;
         padding: 12px;
         border: 1px solid gray;
@@ -135,7 +135,7 @@ describe('styled components - basic functionality', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
       const padding = 12;
-      const App = () => <button className="vi3fon9-1">Click</button>;
+      const App = () => <button className="v1560qbr-1">Click</button>;
       "
     `);
   });
@@ -164,28 +164,28 @@ describe('styled components - basic functionality', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/elements.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1012akl-1 {
+      ".v1560qbr-1 {
         color: red;
       }
 
-      .v1012akl-2 {
+      .v1560qbr-2 {
         color: blue;
       }
 
-      .v1012akl-3 {
+      .v1560qbr-3 {
         color: green;
       }
 
-      .v1012akl-4 {
+      .v1560qbr-4 {
         color: purple;
       }
 
-      .v1012akl-5 {
+      .v1560qbr-5 {
         color: orange;
       }"
     `);
@@ -193,11 +193,11 @@ describe('styled components - basic functionality', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => (
         <div>
-          <div className="v1012akl-1">div</div>
-          <span className="v1012akl-2">span</span>
-          <p className="v1012akl-3">p</p>
-          <button className="v1012akl-4">button</button>
-          <input className="v1012akl-5" />
+          <div className="v1560qbr-1">div</div>
+          <span className="v1560qbr-2">span</span>
+          <p className="v1560qbr-3">p</p>
+          <button className="v1560qbr-4">button</button>
+          <input className="v1560qbr-5" />
         </div>
       );
       "
@@ -219,11 +219,11 @@ describe('styled components - basic functionality', () => {
       await transformWithFormat({
         source,
         fileAbsPath: '/src/direct.ts',
-        fs: emptyFs,
-        importAliases,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/direct.ts: Inline styled component usage is not supported. Please assign styled components to a variable first.]`,
+      `[Error: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.]`,
     );
   });
 });

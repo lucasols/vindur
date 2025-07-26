@@ -55,7 +55,7 @@ const Button = styled.div`
 
 ### 🚧 **Advanced Styling**
 
-- [ ] Global styles via `createGlobalStyle`
+- [x] Global styles via `createGlobalStyle` ✅
 - [ ] CSS keyframes via `keyframes` function (like `styled-components`)
 - [ ] Theme/color utilities
 

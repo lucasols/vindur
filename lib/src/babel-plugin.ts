@@ -16,7 +16,9 @@ import type { CompiledFunction, FunctionArg } from './types';
 
 const STYLED_TAG_NAME = 'styled';
 
-function isExtensionResult(result: string | { type: 'extension'; className: string }): result is { type: 'extension'; className: string } {
+function isExtensionResult(
+  result: string | { type: 'extension'; className: string },
+): result is { type: 'extension'; className: string } {
   return typeof result === 'object' && 'type' in result;
 }
 
@@ -54,7 +56,7 @@ function processInterpolationExpression(
   importedFunctions: ImportedFunctions,
   variableName: string | undefined,
   usedFunctions: Set<string>,
-  tagType: 'css' | 'styled',
+  tagType: string,
   state: VindurPluginState,
   context: {
     isExtension?: boolean; // true if followed by semicolon
@@ -89,6 +91,24 @@ function processInterpolationExpression(
         variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new Error(
         `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
+      );
+    }
+  } else if (t.isArrowFunctionExpression(expression)) {
+    // Handle forward references: ${() => Component}
+    if (
+      expression.params.length === 0 &&
+      t.isIdentifier(expression.body) &&
+      !expression.async
+    ) {
+      const componentName = expression.body.name;
+      // For forward references, we'll defer the resolution by storing a placeholder
+      // The actual resolution will happen during post-processing when all components are defined
+      return `__FORWARD_REF__${componentName}__`;
+    } else {
+      const varContext =
+        variableName ? `... ${variableName} = ${tagType}` : tagType;
+      throw new Error(
+        `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
       );
     }
   } else if (isLiteralExpression(expression)) {
@@ -630,7 +650,10 @@ export function createVindurPlugin(
           }
 
           // Store the styled component mapping
-          state.styledComponents.set(varName, { element: tagName, className: finalClassName });
+          state.styledComponents.set(varName, {
+            element: tagName,
+            className: finalClassName,
+          });
 
           // Remove the styled component declaration
           path.remove();
@@ -712,6 +735,34 @@ export function createVindurPlugin(
 
           // Remove the styled component declaration
           path.remove();
+        } else if (
+          state.vindurImports.has('createGlobalStyle')
+          && path.node.init
+          && t.isTaggedTemplateExpression(path.node.init)
+          && t.isIdentifier(path.node.init.tag)
+          && path.node.init.tag.name === 'createGlobalStyle'
+        ) {
+          const { cssContent } = processTemplateWithInterpolation(
+            path.node.init.quasi,
+            path,
+            fs,
+            transformFunctionCache,
+            importedFunctions,
+            undefined,
+            usedFunctions,
+            'createGlobalStyle',
+            state,
+            debug,
+          );
+
+          // Clean up CSS content and add to global styles (no class wrapper)
+          const cleanedCss = cleanCss(cssContent);
+          if (cleanedCss.trim()) {
+            state.cssRules.push(cleanedCss);
+          }
+
+          // Remove the createGlobalStyle declaration since it doesn't produce a value
+          path.remove();
         }
       },
       TaggedTemplateExpression(path) {
@@ -752,6 +803,38 @@ export function createVindurPlugin(
 
           // Replace the tagged template with the class name string
           path.replaceWith(t.stringLiteral(finalClassName));
+        } else if (
+          state.vindurImports.has('createGlobalStyle')
+          && t.isIdentifier(path.node.tag)
+          && path.node.tag.name === 'createGlobalStyle'
+        ) {
+          const { cssContent } = processTemplateWithInterpolation(
+            path.node.quasi,
+            path,
+            fs,
+            transformFunctionCache,
+            importedFunctions,
+            undefined,
+            usedFunctions,
+            'createGlobalStyle',
+            state,
+            debug,
+          );
+
+          // Clean up CSS content and add to global styles (no class wrapper)
+          const cleanedCss = cleanCss(cssContent);
+          if (cleanedCss.trim()) {
+            state.cssRules.push(cleanedCss);
+          }
+
+          // Remove createGlobalStyle expression since it produces no output
+          if (t.isExpressionStatement(path.parent)) {
+            // Remove the entire expression statement
+            path.parentPath.remove();
+          } else {
+            // If it's part of another expression, replace with void 0
+            path.replaceWith(t.unaryExpression('void', t.numericLiteral(0)));
+          }
         } else if (
           state.vindurImports.has('styled')
           && t.isMemberExpression(path.node.tag)
@@ -935,6 +1018,33 @@ export function createVindurPlugin(
       usedFunctions.clear();
     },
     post(file) {
+      // Resolve forward references in CSS rules
+      state.cssRules = state.cssRules.map(cssRule => {
+        let resolvedRule = cssRule;
+        // Find all forward reference placeholders
+        const forwardRefRegex = /__FORWARD_REF__(\w+)__/g;
+        let match;
+        while ((match = forwardRefRegex.exec(cssRule)) !== null) {
+          const componentName = match[1];
+          if (!componentName) {
+            throw new Error('Invalid forward reference placeholder found');
+          }
+          const styledComponent = state.styledComponents.get(componentName);
+          if (styledComponent) {
+            // Replace the placeholder with the actual class name
+            resolvedRule = resolvedRule.replace(
+              match[0], 
+              `.${styledComponent.className}`
+            );
+          } else {
+            throw new Error(
+              `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`
+            );
+          }
+        }
+        return resolvedRule;
+      });
+
       // Handle vindur imports and remove unused function imports
       file.path.traverse({
         ImportDeclaration(path) {

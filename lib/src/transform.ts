@@ -60,7 +60,7 @@ export function transform({
     filename: fileAbsPath,
   });
 
-  if (!result?.code) {
+  if (!result?.code && result?.code !== '') {
     throw new Error('Transform failed');
   }
 

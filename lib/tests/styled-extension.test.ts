@@ -30,9 +30,8 @@ describe('styled component extension', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/extend.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -71,9 +70,8 @@ describe('styled component extension', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/invalid-extend.ts',
-        fs: emptyFs,
-        importAliases,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `[Error: /src/invalid-extend.ts: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
@@ -104,9 +102,8 @@ describe('styled component extension', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/multiple-extend.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`

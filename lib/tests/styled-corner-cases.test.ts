@@ -18,8 +18,8 @@ describe('styled components - corner cases', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/empty.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`""`);
@@ -46,8 +46,8 @@ describe('styled components - corner cases', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/special.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -84,8 +84,8 @@ describe('styled components - corner cases', () => {
     const result = await transformWithFormat({
       source,
       fileAbsPath: '/src/merge-class.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`

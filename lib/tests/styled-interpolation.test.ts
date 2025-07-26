@@ -23,9 +23,8 @@ describe('styled components - interpolation', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/debug.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -59,9 +58,8 @@ describe('styled components - interpolation', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/nested.ts',
-      fs: emptyFs,
-      importAliases,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -77,5 +75,4 @@ describe('styled components - interpolation', () => {
       "
     `);
   });
-
 });

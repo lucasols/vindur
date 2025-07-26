@@ -306,6 +306,26 @@ const styleWithCss = css`
 `
 ```
 
+Components defined after the styled components are also supported by using `${() => Component}` syntax to avoid used before defined error:
+
+```tsx
+const Card = styled.div`
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  ${() => Container}:hover & {
+    background: #007bff;
+    color: white;
+  }
+`
+
+const Container = styled.div`
+  background: #007bff;
+  color: white;
+  border-color: #0056b3;
+`
+```
+
 ### CSS Style Extension
 
 Extend CSS styles from `css` function into styled components using semicolon extension:
@@ -487,7 +507,7 @@ createGlobalStyle`
 
 Global styles support variable interpolation just like regular styles:
 
-````tsx
+```tsx
 const primaryColor = '#007bff'
 const fontFamily = 'Inter, system-ui, sans-serif'
 
@@ -506,6 +526,7 @@ createGlobalStyle`
     color: ${primaryColor};
   }
 `
+```
 
 And also references to styled components are supported:
 
@@ -568,4 +589,3 @@ See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
 ## License
 
 MIT
-````
