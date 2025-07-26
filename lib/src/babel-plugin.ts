@@ -16,6 +16,10 @@ import type { CompiledFunction, FunctionArg } from './types';
 
 const STYLED_TAG_NAME = 'styled';
 
+function isExtensionResult(result: string | { type: 'extension'; className: string }): result is { type: 'extension'; className: string } {
+  return typeof result === 'object' && 'type' in result;
+}
+
 export type DebugLogger = { log: (message: string) => void };
 
 export type FunctionCache = {
@@ -39,6 +43,7 @@ export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
   styledComponents: Map<string, { element: string; className: string }>;
+  cssVariables: Map<string, string>; // Track css tagged template variables
 };
 
 function processInterpolationExpression(
@@ -51,14 +56,29 @@ function processInterpolationExpression(
   usedFunctions: Set<string>,
   tagType: 'css' | 'styled',
   state: VindurPluginState,
+  context: {
+    isExtension?: boolean; // true if followed by semicolon
+  } = {},
   debug?: DebugLogger,
-): string {
+): string | { type: 'extension'; className: string } {
   if (t.isIdentifier(expression)) {
     // Check if this identifier refers to a styled component
     const styledComponent = state.styledComponents.get(expression.name);
     if (styledComponent) {
       // Return the className with a dot prefix for CSS selector usage
       return `.${styledComponent.className}`;
+    }
+
+    // Check if this identifier refers to a CSS variable
+    const cssVariable = state.cssVariables.get(expression.name);
+    if (cssVariable) {
+      if (context.isExtension) {
+        // For extension syntax (${baseStyles};), return extension object
+        return { type: 'extension', className: cssVariable };
+      } else {
+        // For CSS variables, always return with dot prefix for selector usage
+        return `.${cssVariable}`;
+      }
     }
 
     const resolvedValue = resolveVariable(expression.name, path);
@@ -130,16 +150,22 @@ function processTemplateWithInterpolation(
   debug?: DebugLogger,
 ) {
   let cssContent = '';
+  const extensions: string[] = [];
 
   // Process template literal with interpolations
   for (let i = 0; i < quasi.quasis.length; i++) {
     // Add the static string part - use cooked value to preserve formatting
-    cssContent += quasi.quasis[i]?.value.cooked ?? '';
+    const staticPart = quasi.quasis[i]?.value.cooked ?? '';
+    cssContent += staticPart;
 
     // Add the interpolated expression if it exists
     if (i < quasi.expressions.length) {
       const expression = quasi.expressions[i];
       if (expression && t.isExpression(expression)) {
+        // Check context around interpolation
+        const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
+        const isExtension = nextPart.trimStart().startsWith(';');
+
         const resolvedExpression = processInterpolationExpression(
           expression,
           path,
@@ -150,14 +176,21 @@ function processTemplateWithInterpolation(
           usedFunctions,
           tagType.includes('styled') ? 'styled' : 'css',
           state,
+          { isExtension },
           debug,
         );
-        cssContent += resolvedExpression;
+
+        if (typeof resolvedExpression === 'string') {
+          cssContent += resolvedExpression;
+        } else if (isExtensionResult(resolvedExpression)) {
+          // Handle extension - store for later class combination
+          extensions.push(resolvedExpression.className);
+        }
       }
     }
   }
 
-  return { cssContent };
+  return { cssContent, extensions };
 }
 
 function resolveVariable(variableName: string, path: NodePath): string | null {
@@ -508,7 +541,7 @@ export function createVindurPlugin(
           && t.isIdentifier(path.node.id)
         ) {
           const varName = path.node.id.name;
-          const { cssContent } = processTemplateWithInterpolation(
+          const { cssContent, extensions } = processTemplateWithInterpolation(
             path.node.init.quasi,
             path,
             fs,
@@ -537,8 +570,17 @@ export function createVindurPlugin(
             state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
           }
 
+          // Handle extensions - combine class names like styled(Component)
+          let finalClassName = className;
+          if (extensions.length > 0) {
+            finalClassName = `${extensions.join(' ')} ${className}`;
+          }
+
+          // Track the CSS variable for future reference
+          state.cssVariables.set(varName, finalClassName);
+
           // Replace the tagged template with the class name string
-          path.node.init = t.stringLiteral(className);
+          path.node.init = t.stringLiteral(finalClassName);
         } else if (
           state.vindurImports.has('styled')
           && path.node.init
@@ -552,7 +594,7 @@ export function createVindurPlugin(
           // Handle styled.div`` variable assignments
           const varName = path.node.id.name;
           const tagName = path.node.init.tag.property.name;
-          const { cssContent } = processTemplateWithInterpolation(
+          const { cssContent, extensions } = processTemplateWithInterpolation(
             path.node.init.quasi,
             path,
             fs,
@@ -581,8 +623,14 @@ export function createVindurPlugin(
             state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
           }
 
+          // Handle extensions - combine class names like styled(Component)
+          let finalClassName = className;
+          if (extensions.length > 0) {
+            finalClassName = `${extensions.join(' ')} ${className}`;
+          }
+
           // Store the styled component mapping
-          state.styledComponents.set(varName, { element: tagName, className });
+          state.styledComponents.set(varName, { element: tagName, className: finalClassName });
 
           // Remove the styled component declaration
           path.remove();
@@ -609,7 +657,7 @@ export function createVindurPlugin(
           const extendedName = extendedArg.name;
 
           // Process the CSS content
-          const { cssContent } = processTemplateWithInterpolation(
+          const { cssContent, extensions } = processTemplateWithInterpolation(
             path.node.init.quasi,
             path,
             fs,
@@ -647,12 +695,18 @@ export function createVindurPlugin(
             );
           }
 
+          // Handle extensions first
+          let finalClassName = className;
+          if (extensions.length > 0) {
+            finalClassName = `${extensions.join(' ')} ${className}`;
+          }
+
           // Extending a styled component - inherit the element and merge classes
           state.styledComponents.set(varName, {
             element: extendedInfo.element,
             className:
               cleanedCss.trim() ?
-                `${extendedInfo.className} ${className}`
+                `${extendedInfo.className} ${finalClassName}`
               : extendedInfo.className,
           });
 
@@ -666,7 +720,7 @@ export function createVindurPlugin(
           && t.isIdentifier(path.node.tag)
           && path.node.tag.name === 'css'
         ) {
-          const { cssContent } = processTemplateWithInterpolation(
+          const { cssContent, extensions } = processTemplateWithInterpolation(
             path.node.quasi,
             path,
             fs,
@@ -690,8 +744,14 @@ export function createVindurPlugin(
             state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
           }
 
+          // Handle extensions - combine class names like styled(Component)
+          let finalClassName = className;
+          if (extensions.length > 0) {
+            finalClassName = `${extensions.join(' ')} ${className}`;
+          }
+
           // Replace the tagged template with the class name string
-          path.replaceWith(t.stringLiteral(className));
+          path.replaceWith(t.stringLiteral(finalClassName));
         } else if (
           state.vindurImports.has('styled')
           && t.isMemberExpression(path.node.tag)
@@ -870,6 +930,7 @@ export function createVindurPlugin(
       state.cssRules.length = 0;
       state.vindurImports.clear();
       state.styledComponents.clear();
+      state.cssVariables.clear();
       classIndex = 1;
       usedFunctions.clear();
     },

@@ -35,6 +35,7 @@ export function transform({
     cssRules: [],
     vindurImports: new Set<string>(),
     styledComponents: new Map(),
+    cssVariables: new Map(),
   };
 
   if (!fileAbsPath.includes('/')) {
