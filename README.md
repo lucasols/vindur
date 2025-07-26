@@ -289,6 +289,23 @@ Compiles to CSS using native CSS nesting:
 
 **Native CSS Nesting**: The `&` selector is preserved as-is, leveraging the CSS Nesting standard supported by modern browsers. No additional transformation needed!
 
+References also works with css function, and css function can be extended with css function:
+
+```tsx
+const Card = styled.div`
+  ${baseStyles};
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`
+
+const styleWithCss = css`
+  ${baseStyles}:hover & {
+    background: #007bff;
+    color: white;
+  }
+`
+```
+
 ### CSS Style Extension
 
 Extend CSS styles from `css` function into styled components using semicolon extension:
