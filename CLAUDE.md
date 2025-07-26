@@ -92,4 +92,4 @@ pnpm test         # Run tests
 
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
-- If test failures are due to minor snapshot changes, just ignore them, i will update them manually
+- If test failures are due to minor snapshot changes or coding formatting, just ignore them, i will update them manually
