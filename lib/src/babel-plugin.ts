@@ -48,9 +48,17 @@ function processInterpolationExpression(
   variableName: string | undefined,
   usedFunctions: Set<string>,
   tagType: 'css' | 'styled',
+  state: VindurPluginState,
   debug?: DebugLogger,
 ): string {
   if (t.isIdentifier(expression)) {
+    // Check if this identifier refers to a styled component
+    const styledComponent = state.styledComponents.get(expression.name);
+    if (styledComponent) {
+      // Return the className with a dot prefix for CSS selector usage
+      return `.${styledComponent.className}`;
+    }
+
     const resolvedValue = resolveVariable(expression.name, path);
     if (resolvedValue !== null) {
       return resolvedValue;
@@ -58,7 +66,7 @@ function processInterpolationExpression(
       const varContext =
         variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new Error(
-        `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+        `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
       );
     }
   } else if (isLiteralExpression(expression)) {
@@ -74,6 +82,7 @@ function processInterpolationExpression(
       variableName,
       usedFunctions,
       tagType,
+      state,
       debug,
     );
     return nested.cssContent;
@@ -115,6 +124,7 @@ function processTemplateWithInterpolation(
   variableName: string | undefined,
   usedFunctions: Set<string>,
   tagType: string,
+  state: VindurPluginState,
   debug?: DebugLogger,
 ) {
   let cssContent = '';
@@ -137,6 +147,7 @@ function processTemplateWithInterpolation(
           variableName,
           usedFunctions,
           tagType.includes('styled') ? 'styled' : 'css',
+          state,
           debug,
         );
         cssContent += resolvedExpression;
@@ -504,6 +515,7 @@ export function createVindurPlugin(
             varName,
             usedFunctions,
             'css',
+            state,
             debug,
           );
 
@@ -545,6 +557,7 @@ export function createVindurPlugin(
             varName,
             usedFunctions,
             `styled.${tagName}`,
+            state,
             debug,
           );
 
@@ -599,6 +612,7 @@ export function createVindurPlugin(
             varName,
             usedFunctions,
             `styled(${extendedName})`,
+            state,
             debug,
           );
 
@@ -653,6 +667,7 @@ export function createVindurPlugin(
             undefined,
             usedFunctions,
             'css',
+            state,
             debug,
           );
 
@@ -708,7 +723,7 @@ export function createVindurPlugin(
               if (!t.isIdentifier(attr.argument)) {
                 const expressionCode = generate(attr.argument).code;
                 throw new Error(
-                  `${path.hub.file.opts.filename || '/test.tsx'}: Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`
+                  `Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`
                 );
               }
             }

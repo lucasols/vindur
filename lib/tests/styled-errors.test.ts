@@ -45,7 +45,7 @@ describe('styled components - error handling', () => {
         importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/undefined.ts: Invalid interpolation used at \`... StyledDiv = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: /src/undefined.ts: Invalid interpolation used at \`... StyledDiv = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 });

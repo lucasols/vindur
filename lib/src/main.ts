@@ -21,7 +21,7 @@ export function css(
 type StyledFunction = (
   strings: TemplateStringsArray,
   ...values: (string | number)[]
-) => ComponentType<any>;
+) => ComponentType<unknown>;
 
 // Create a Proxy that handles all DOM element access dynamically
 const styledHandler = {

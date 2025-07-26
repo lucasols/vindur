@@ -243,7 +243,7 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
       );
     });
 
@@ -264,7 +264,7 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
       );
     });
 
@@ -287,7 +287,7 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
       );
     });
 
@@ -309,7 +309,7 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[Error: /test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
       );
     });
   });
