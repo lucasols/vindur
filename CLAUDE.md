@@ -117,3 +117,30 @@ test('should handle ...', async () => {
   `)
 })
 ```
+
+## Documentation Guidelines
+
+### README.md
+
+The README.md serves as the main user documentation and should:
+
+- **Focus on implemented features only** - do not document planned/future features
+- **Use concise examples** - keep code examples short and focused
+- **Use correct syntax** - ensure all examples use supported language features
+- Be concise and to the point, do not include unnecessary details or redundant information
+
+### ROADMAP.md
+
+The ROADMAP.md tracks feature development:
+
+- **Use checkboxes** - `[x]` for completed, `[ ]` for planned
+- **Status indicators** - ✅ (completed), 🚧 (in progress), 🔮 (future)
+
+### Documentation Updates
+
+When implementing features:
+
+1. **Update ROADMAP.md** - mark features as completed `[x]` and change status to ✅
+2. **Update README.md** - add documentation section with examples
+3. **Keep examples current** - ensure examples match actual implementation
+4. **Test examples** - verify all documentation examples actually work

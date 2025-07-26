@@ -1,148 +1,481 @@
-# A css-in-js library with focus in performance
+# Vindur
 
-COMING SOON!
+A compile-time CSS-in-JS library focused on performance.
 
-# Features
+## Overview
 
-beta 1
+Vindur is a CSS-in-JS library that compiles your styles at build time, generating optimized CSS and injecting class names directly into your JSX. No runtime overhead, no flash of unstyled content, just fast and efficient styling.
 
-- css function
-- styled.\* functions
-- interpolate string and number vars
-- mixins/functions
-- no intermediate component generation, classes are injected in the jsx directly
-- extend styles `style(Button)`
-- reference styled components inside another styled component
+## Performance
 
-```tsx
-const Container = styled.div`
-  background-color: red;
-`
+### Compile-Time Optimization
 
-const Button = styled.div`
-  ${Container}:hover {
-    background-color: blue;
-  }
-`
+- ✅ **Zero runtime overhead** - all styles compiled at build time
+- ✅ **Optimized CSS output** - dead code elimination and minification
+- ✅ **Direct class injection** - no wrapper components or runtime style injection
+- ✅ **Efficient bundling** - only used styles are included in the output
+
+### Build Integration
+
+Vindur works with your existing build tools:
+
+- **Vite** - Built-in plugin support
+- More build tools coming soon
+
+## Installation
+
+```bash
+npm install vindur @vindur-css/vite
+# or
+pnpm add vindur @vindur-css/vite
+# or
+yarn add vindur @vindur-css/vite
 ```
 
-- interpolate css styles into styled components, if the interpolation is followed by `;` it will extend the styles
+## Quick Start
 
 ```tsx
-const baseStyles = css`
-  ...
+import { styled } from 'vindur'
+
+const Button = styled.button`
+  background: blue;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
 `
 
-const Button = styled.div`
-  ${baseStyles};
-
-  ...
-`
-
-const Component = () => {
-  return <Button />
+export default function App() {
+  return <Button>Click me</Button>
 }
 ```
 
-output:
+Compiles to:
 
 ```css
-.baseStyleClassHash {
-  ...
-}
-
-.ButtonClassHash {
-  ...
+/* Generated CSS */
+.vhash123-1 {
+  background: blue;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
 }
 ```
 
 ```tsx
-const Component = () => {
-  return <div className="baseStyleClassHash ButtonClassHash" />
+// Generated JSX, no runtime overhead!!
+export default function App() {
+  return <button className="vhash123-1">Click me</button>
 }
 ```
 
-- use css styles selectors in styled components
+## Core Features
+
+### CSS Function
+
+Create reusable CSS styles with the `css` function:
 
 ```tsx
-const baseStyles = css`
-  ...
+import { css } from 'vindur'
+
+const buttonBase = css`
+  padding: 12px 24px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
 `
 
-const Button = styled.div`
-  ${baseStyles} & {
-    ...
+// Use in className
+<button className={buttonBase}>Click me</button>
+```
+
+### Styled Components
+
+Create styled JSX components with any HTML element:
+
+```tsx
+import { styled } from 'vindur'
+
+const Title = styled.h1`
+  font-size: 24px;
+  color: #333;
+  margin-bottom: 16px;
+`
+
+const Card = styled.div`
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`
+
+const Container = styled.main`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+`
+```
+
+### Variable Interpolation
+
+Interpolate JavaScript variables into your styles:
+
+```tsx
+const primaryColor = '#007bff'
+const spacing = 16
+
+const Button = styled.button`
+  background: ${primaryColor};
+  padding: ${spacing}px ${spacing * 2}px;
+  margin: ${spacing / 2}px;
+`
+```
+
+### Style Extension
+
+Extend existing styled components using `styled()`:
+
+```tsx
+const BaseButton = styled.button`
+  padding: 12px 24px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+`
+
+const PrimaryButton = styled(BaseButton)`
+  background: #007bff;
+  color: white;
+`
+
+const SecondaryButton = styled(BaseButton)`
+  background: #6c757d;
+  color: white;
+`
+```
+
+### Nesting Styles
+
+Vindur supports CSS nesting using the native CSS nesting standard:
+
+```tsx
+const Card = styled.div`
+  background: white;
+  padding: 20px;
+
+  h3 {
+    color: #333;
+    margin-bottom: 16px;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+`
+
+const Navigation = styled.nav`
+  ul {
+    list-style: none;
+    display: flex;
+
+    li a {
+      color: #333;
+      text-decoration: none;
+
+      &:hover {
+        background: #f5f5f5;
+      }
+    }
   }
 `
 ```
 
-- global styles, via `createGlobalStyle`
-- media queries
-- css keyframes
-- theme/color utils
-- jsx `css` prop (like `styled-components`/`emotion`)
-- jsx `cx` prop (like `classnames`)
+**Output**: Native CSS nesting preserved as-is:
+
+```css
+.v1234567-1 {
+  background: white;
+  padding: 20px;
+
+  h3 {
+    color: #333;
+    margin-bottom: 16px;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+}
+```
+
+### Styled Component References
+
+Reference other styled components within CSS selectors using the `&` operator:
 
 ```tsx
+const Card = styled.div`
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+`
+
+const Button = styled.button`
+  background: #007bff;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+`
+
+const Container = styled.div`
+  ${Card}:hover & {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+
+  & ${Button}:hover {
+    background: #0056b3;
+  }
+`
+
+// Usage
+<Container>
+  <Card>
+    <h3>Card Title</h3>
+    <Button>Action</Button>
+  </Card>
+</Container>
+```
+
+Compiles to CSS using native CSS nesting:
+
+```css
+.v1560qbr-1 {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.v1560qbr-2 {
+  background: #007bff;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+}
+
+.v1560qbr-3 {
+  .v1560qbr-1:hover & {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  & .v1560qbr-2:hover {
+    background: #0056b3;
+  }
+}
+```
+
+**Native CSS Nesting**: The `&` selector is preserved as-is, leveraging the CSS Nesting standard supported by modern browsers. No additional transformation needed!
+
+### CSS Style Extension
+
+Extend CSS styles from `css` function into styled components using semicolon extension:
+
+```tsx
+import { css, styled } from 'vindur'
+
+const baseStyles = css`
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+`
+
+const Card = styled.div`
+  ${baseStyles};
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`
+
+const PrimaryCard = styled.div`
+  ${baseStyles};
+  background: #007bff;
+  color: white;
+  border-color: #0056b3;
+`
+
+// extend css styles from css function is supported too
+const styleWithCss = css`
+  ${baseStyles};
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`
+
 const Component = () => {
   return (
-    <div
-      cx={{
-        active: true,
-        disabled: false,
-      }}
-    />
+    <div>
+      <Card>Hello</Card>
+      <PrimaryCard>Hello</PrimaryCard>
+      <div className={styleWithCss}>Hello</div>
+    </div>
   )
 }
 ```
 
-- dynamic css variables
-- style flags props
+Compiles to:
 
-```tsx
-const StyledWithModifier = styled.div<{
-  active: boolean
-  disabled: boolean
-}>`
-  ...
+```css
+.vhash-1-baseStyles {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
 
-  &.active {
-    ...
-  }
+.vhash-2-Card {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
 
-  &.disabled {
-    ...
-  }
-`
+.vhash-3-PrimaryCard {
+  background: #007bff;
+  color: white;
+  border-color: #0056b3;
+}
 
-const Component = () => {
-  return <StyledWithModifier active disabled={false} />
+.vhash-4-styleWithCss {
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 ```
 
-- stable ids, via `stableId` function, it will just generate a hash id for that variable, just like ` const id = css`` `
+```tsx
+const Component = () => {
+  return (
+    <div>
+      <div className="vhash-1-baseStyles vhash-2-Card">Hello</div>
+      <div className="vhash-1-baseStyles vhash-3-PrimaryCard">Hello</div>
+      <div className="vhash-1-baseStyles vhash-4-styleWithCss">Hello</div>
+    </div>
+  )
+}
+```
 
-- withComponent
+### CSS Selector Usage
 
-- scoped classes and css variables, will be compiled to hash to avoid collisions
-  - scoped jsx modifier classes (used in `cx` prop or `className` prop, or `style flags` props)
-    - not scoped classes must start with `_`, e.g. `_active`
-  - scoped css variables `---var`, vars starting with `---` are scoped and replaced with a hash
+Use CSS styles as selectors within styled components using the `&` operator:
 
-- styled.div.attrs support
+```tsx
+import { css, styled } from 'vindur'
 
-beta 2
+const highlightedStyle = css`
+  background: yellow;
+  border: 2px solid orange;
+`
 
-- interpolate variables from another files
-- css layers to avoid conflicts
-- light/dark mode
-- atomic styles
-- cache generated css
+const interactiveStyle = css`
+  cursor: pointer;
+  transition: all 0.2s;
+`
 
-# devtools
+const Container = styled.div`
+  padding: 20px;
 
-- stylelint plugin
+  ${highlightedStyle} & {
+    transform: scale(1.05);
+  }
 
-# edge cases
+  & ${interactiveStyle}:hover {
+    opacity: 0.8;
+  }
+`
 
-- handle spreading in css component prop
+// Usage
+<Container>
+  <div className={highlightedStyle}>Highlighted content</div>
+  <button className={interactiveStyle}>Interactive button</button>
+</Container>
+```
+
+Compiles to CSS using native CSS nesting:
+
+```css
+.vhash-1-highlightedStyle {
+  background: yellow;
+  border: 2px solid orange;
+}
+
+.vhash-2-interactiveStyle {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vhash-3-Container {
+  padding: 20px;
+
+  .vhash-1-highlightedStyle & {
+    transform: scale(1.05);
+  }
+
+  & .vhash-2-interactiveStyle:hover {
+    opacity: 0.8;
+  }
+}
+```
+
+### Mixins and Functions
+
+Create reusable style functions with `vindurFn`:
+
+```tsx
+// utils/styles.ts
+import { vindurFn } from 'vindur'
+
+export const flexCenter = vindurFn(
+  () => `
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+)
+
+export const buttonSize = vindurFn((size: 'sm' | 'md' | 'lg') =>
+  size === 'sm'
+    ? 'padding: 6px 12px; font-size: 14px;'
+    : size === 'md'
+      ? 'padding: 8px 16px; font-size: 16px;'
+      : 'padding: 12px 24px; font-size: 18px;'
+)
+
+// components/Button.tsx
+import { styled } from 'vindur'
+import { flexCenter, buttonSize } from '../utils/styles'
+
+const Button = styled.button`
+  ${flexCenter()};
+  ${buttonSize('md')};
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+`
+```
+
+## Roadmap
+
+See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
+
+## License
+
+MIT

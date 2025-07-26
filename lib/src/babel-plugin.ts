@@ -14,6 +14,8 @@ import { parseFunction } from './function-parser';
 import type { TransformFS } from './transform';
 import type { CompiledFunction, FunctionArg } from './types';
 
+const STYLED_TAG_NAME = 'styled';
+
 export type DebugLogger = { log: (message: string) => void };
 
 export type FunctionCache = {
@@ -520,10 +522,12 @@ export function createVindurPlugin(
           );
 
           // Generate class name based on dev mode
-          const className =
-            dev ?
-              `${fileHash}-${classIndex}-${varName}`
-            : `${fileHash}-${classIndex}`;
+          const className = generateClassName(
+            dev,
+            fileHash,
+            classIndex,
+            varName,
+          );
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
@@ -562,10 +566,12 @@ export function createVindurPlugin(
           );
 
           // Generate class name based on dev mode
-          const className =
-            dev ?
-              `${fileHash}-${classIndex}-${varName}`
-            : `${fileHash}-${classIndex}`;
+          const className = generateClassName(
+            dev,
+            fileHash,
+            classIndex,
+            varName,
+          );
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
@@ -611,16 +617,18 @@ export function createVindurPlugin(
             importedFunctions,
             varName,
             usedFunctions,
-            `styled(${extendedName})`,
+            `${STYLED_TAG_NAME}(${extendedName})`,
             state,
             debug,
           );
 
           // Generate class name based on dev mode
-          const className =
-            dev ?
-              `${fileHash}-${classIndex}-${varName}`
-            : `${fileHash}-${classIndex}`;
+          const className = generateClassName(
+            dev,
+            fileHash,
+            classIndex,
+            varName,
+          );
           classIndex++;
 
           // Clean up CSS content and store the CSS rule
@@ -714,8 +722,9 @@ export function createVindurPlugin(
 
             // Check for spread attributes
             const attributes = path.node.openingElement.attributes;
-            const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute => 
-              t.isJSXSpreadAttribute(attr)
+            const spreadAttrs = attributes.filter(
+              (attr): attr is t.JSXSpreadAttribute =>
+                t.isJSXSpreadAttribute(attr),
             );
 
             // Validate spread expressions - only allow simple identifiers
@@ -723,7 +732,7 @@ export function createVindurPlugin(
               if (!t.isIdentifier(attr.argument)) {
                 const expressionCode = generate(attr.argument).code;
                 throw new Error(
-                  `Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`
+                  `Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`,
                 );
               }
             }
@@ -733,28 +742,40 @@ export function createVindurPlugin(
                 && t.isJSXIdentifier(attr.name)
                 && attr.name.name === 'className',
             );
-            const existingClassNameAttr = classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
+            const existingClassNameAttr =
+              classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
 
             if (spreadAttrs.length > 0) {
               // Find the last spread index
-              const lastSpreadIndex = Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr)));
-              
+              const lastSpreadIndex = Math.max(
+                ...spreadAttrs.map((attr) => attributes.indexOf(attr)),
+              );
+
               // Only apply mergeWithSpread logic to the final className attribute
               if (existingClassNameAttr) {
-                const finalClassNameIndex = attributes.indexOf(existingClassNameAttr);
-                const hasSpreadsBeforeFinalClassName = lastSpreadIndex < finalClassNameIndex;
+                const finalClassNameIndex = attributes.indexOf(
+                  existingClassNameAttr,
+                );
+                const hasSpreadsBeforeFinalClassName =
+                  lastSpreadIndex < finalClassNameIndex;
                 const hasMultipleClassNames = classNameAttrs.length > 1;
-                
-                if (hasSpreadsBeforeFinalClassName && !hasMultipleClassNames && t.isStringLiteral(existingClassNameAttr.value)) {
+
+                if (
+                  hasSpreadsBeforeFinalClassName
+                  && !hasMultipleClassNames
+                  && t.isStringLiteral(existingClassNameAttr.value)
+                ) {
                   // Single className comes after spreads - static merge, no mergeWithSpread needed
                   existingClassNameAttr.value.value = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
                 } else {
                   // Multiple classNames OR final className comes before/among spreads - needs mergeWithSpread
                   state.vindurImports.add('mergeWithSpread');
-                  
+
                   // Build the spread props array
-                  const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
-                  
+                  const spreadPropsArray = spreadAttrs.map(
+                    (attr) => attr.argument,
+                  );
+
                   // Include the final className value in the base
                   let baseClassName = styledInfo.className;
                   if (t.isStringLiteral(existingClassNameAttr.value)) {
@@ -766,24 +787,27 @@ export function createVindurPlugin(
                     t.identifier('mergeWithSpread'),
                     [
                       t.arrayExpression(spreadPropsArray),
-                      t.stringLiteral(baseClassName)
-                    ]
+                      t.stringLiteral(baseClassName),
+                    ],
                   );
 
                   // Replace the final className with merge call
-                  existingClassNameAttr.value = t.jsxExpressionContainer(mergeCall);
+                  existingClassNameAttr.value =
+                    t.jsxExpressionContainer(mergeCall);
                 }
               } else {
                 // No existing className - add one with mergeWithSpread
                 state.vindurImports.add('mergeWithSpread');
-                
-                const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
+
+                const spreadPropsArray = spreadAttrs.map(
+                  (attr) => attr.argument,
+                );
                 const mergeCall = t.callExpression(
                   t.identifier('mergeWithSpread'),
                   [
                     t.arrayExpression(spreadPropsArray),
-                    t.stringLiteral(styledInfo.className)
-                  ]
+                    t.stringLiteral(styledInfo.className),
+                  ],
                 );
 
                 attributes.push(
@@ -859,7 +883,7 @@ export function createVindurPlugin(
               // Handle vindur imports - keep only mergeWithSpread if it's used
               const specifiersToKeep: t.ImportSpecifier[] = [];
               let hasMergeWithSpread = false;
-              
+
               for (const specifier of path.node.specifiers) {
                 if (
                   t.isImportSpecifier(specifier)
@@ -872,17 +896,20 @@ export function createVindurPlugin(
                   }
                 }
               }
-              
+
               // Add mergeWithSpread import if needed but not already present
-              if (state.vindurImports.has('mergeWithSpread') && !hasMergeWithSpread) {
+              if (
+                state.vindurImports.has('mergeWithSpread')
+                && !hasMergeWithSpread
+              ) {
                 specifiersToKeep.push(
                   t.importSpecifier(
                     t.identifier('mergeWithSpread'),
-                    t.identifier('mergeWithSpread')
-                  )
+                    t.identifier('mergeWithSpread'),
+                  ),
                 );
               }
-              
+
               if (specifiersToKeep.length > 0) {
                 // Keep the import but only with the needed specifiers
                 path.node.specifiers = specifiersToKeep;
@@ -894,7 +921,10 @@ export function createVindurPlugin(
               // Check if this is a relative import or an alias import that was resolved
               const isRelativeImport =
                 source.startsWith('./') || source.startsWith('../');
-              const resolvedPath = resolveImportPath(source, importAliasesArray);
+              const resolvedPath = resolveImportPath(
+                source,
+                importAliasesArray,
+              );
               const isResolvedAliasImport = resolvedPath !== null;
 
               if (isRelativeImport || isResolvedAliasImport) {
@@ -950,4 +980,15 @@ function cleanCss(css: string) {
   }
 
   return cleaned;
+}
+
+function generateClassName(
+  dev: boolean,
+  fileHash: string,
+  classIndex: number,
+  varName?: string,
+) {
+  return dev ?
+      `${fileHash}-${classIndex}-${varName}`
+    : `${fileHash}-${classIndex}`;
 }
