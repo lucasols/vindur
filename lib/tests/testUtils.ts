@@ -1,4 +1,5 @@
-import type { TransformFS } from '../src/transform';
+import { format } from 'prettier';
+import { transform, type TransformFS } from '../src/transform';
 
 type FileTree = { [key: string]: string | FileTree };
 
@@ -36,4 +37,26 @@ export function createFsMock(files: FileTree): TransformFS {
       return file;
     },
   };
+}
+
+export async function formatCode(code: string) {
+  return await format(code, { parser: 'typescript' });
+}
+
+export async function transformWithFormat({
+  source,
+  fileAbsPath = '/test.tsx',
+  fs = createFsMock({}),
+  importAliases = { '#/': '/' },
+  dev = false,
+}: {
+  source: string;
+  fileAbsPath?: string;
+  fs?: TransformFS;
+  dev?: boolean;
+  importAliases?: Record<string, string>;
+}) {
+  const result = transform({ fileAbsPath, fs, importAliases, source, dev });
+
+  return { ...result, code: await formatCode(result.code) };
 }

@@ -627,6 +627,7 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/invalid.ts',
       fs: emptyFs,
+      importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
