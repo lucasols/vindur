@@ -22,7 +22,6 @@ describe('styled components - basic functionality', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/test.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -69,7 +68,6 @@ describe('styled components - basic functionality', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/components.ts',
       dev: true,
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
@@ -119,7 +117,6 @@ describe('styled components - basic functionality', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/styled-button.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -163,7 +160,6 @@ describe('styled components - basic functionality', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/elements.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -218,7 +214,6 @@ describe('styled components - basic functionality', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/direct.ts',
         overrideDefaultFs: emptyFs,
         overrideDefaultImportAliases: importAliases,
       });

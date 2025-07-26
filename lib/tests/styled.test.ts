@@ -27,7 +27,7 @@ describe('styled components', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vmcre00-1 {
+      ".v1560qbr-1 {
         background-color: red;
         padding: 10px;
       }"
@@ -35,8 +35,9 @@ describe('styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div className="vmcre00-1" />;
-      };"
+        return <div className="v1560qbr-1" />;
+      };
+      "
     `);
   });
 
@@ -67,20 +68,19 @@ describe('styled components', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/components.ts',
       dev: true,
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vcixwtu-1-Button {
+      ".v1560qbr-1-Button {
         padding: 8px 16px;
         background: blue;
         color: white;
       }
 
-      .vcixwtu-2-Header {
+      .v1560qbr-2-Header {
         font-size: 24px;
         font-weight: bold;
       }"
@@ -88,11 +88,14 @@ describe('styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div>
-            <button className="vcixwtu-1-Button">Click me</button>
-            <h1 className="vcixwtu-2-Header">Title</h1>
-          </div>;
-      };"
+        return (
+          <div>
+            <button className="v1560qbr-1-Button">Click me</button>
+            <h1 className="v1560qbr-2-Header">Title</h1>
+          </div>
+        );
+      };
+      "
     `);
   });
 
@@ -114,13 +117,12 @@ describe('styled components', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/styled-button.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vi3fon9-1 {
+      ".v1560qbr-1 {
         background-color: blue;
         padding: 12px;
         border: 1px solid gray;
@@ -128,9 +130,10 @@ describe('styled components', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = 'blue';
+      "const primaryColor = "blue";
       const padding = 12;
-      const App = () => <button className="vi3fon9-1">Click</button>;"
+      const App = () => <button className="v1560qbr-1">Click</button>;
+      "
     `);
   });
 
@@ -157,41 +160,43 @@ describe('styled components', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/elements.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1012akl-1 {
+      ".v1560qbr-1 {
         color: red;
       }
 
-      .v1012akl-2 {
+      .v1560qbr-2 {
         color: blue;
       }
 
-      .v1012akl-3 {
+      .v1560qbr-3 {
         color: green;
       }
 
-      .v1012akl-4 {
+      .v1560qbr-4 {
         color: purple;
       }
 
-      .v1012akl-5 {
+      .v1560qbr-5 {
         color: orange;
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => <div>
-          <div className="v1012akl-1">div</div>
-          <span className="v1012akl-2">span</span>
-          <p className="v1012akl-3">p</p>
-          <button className="v1012akl-4">button</button>
-          <input className="v1012akl-5" />
-        </div>;"
+      "const Component = () => (
+        <div>
+          <div className="v1560qbr-1">div</div>
+          <span className="v1560qbr-2">span</span>
+          <p className="v1560qbr-3">p</p>
+          <button className="v1560qbr-4">button</button>
+          <input className="v1560qbr-5" />
+        </div>
+      );
+      "
     `);
   });
 
@@ -209,12 +214,11 @@ describe('styled components', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/direct.ts',
         overrideDefaultFs: emptyFs,
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/direct.ts: Inline styled component usage is not supported. Please assign styled components to a variable first.]`,
+      `[Error: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.]`,
     );
   });
 });
@@ -237,22 +241,22 @@ describe('styled components interpolation', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/debug.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vhqnxci-1 {
+      ".v1560qbr-1 {
         color: blue;
         font-size: 16px;
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = 'blue';
+      "const primaryColor = "blue";
       const fontSize = 16;
-      const App = () => <p className="vhqnxci-1">Hello</p>;"
+      const App = () => <p className="v1560qbr-1">Hello</p>;
+      "
     `);
   });
 
@@ -272,21 +276,21 @@ describe('styled components interpolation', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/nested.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vmgoafb-1 {
+      ".v1560qbr-1 {
         content: "my-value";
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const prefix = 'my';
-      const suffix = 'value';
-      const App = () => <div className="vmgoafb-1" />;"
+      "const prefix = "my";
+      const suffix = "value";
+      const App = () => <div className="v1560qbr-1" />;
+      "
     `);
   });
 });
@@ -305,12 +309,11 @@ describe('styled components error handling', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/object.ts',
         overrideDefaultFs: emptyFs,
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/object.ts: Invalid interpolation used at \`... StyledDiv = styled\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -326,12 +329,11 @@ describe('styled components error handling', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/undefined.ts',
         overrideDefaultFs: emptyFs,
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/undefined.ts: Invalid interpolation used at \`... StyledDiv = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[Error: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 });
@@ -348,7 +350,6 @@ describe('styled components corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/empty.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -356,7 +357,8 @@ describe('styled components corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1v2q6wl-1" />;"
+      "const App = () => <div className="v1560qbr-1" />;
+      "
     `);
   });
 
@@ -375,13 +377,12 @@ describe('styled components corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/special.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".viwoa2i-1 {
+      ".v1560qbr-1 {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif;
@@ -389,7 +390,8 @@ describe('styled components corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="viwoa2i-1">Content</div>;"
+      "const App = () => <div className="v1560qbr-1">Content</div>;
+      "
     `);
   });
 
@@ -412,23 +414,29 @@ describe('styled components corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/merge-class.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vylwivr-1 {
+      ".v1560qbr-1 {
         background: blue;
         color: white;
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div>
-          <button className="vylwivr-1 extra-class">Click me</button>
-          <button className={\`vylwivr-1 \${\`dynamic-\${true ? 'active' : 'inactive'}\`}\`}>Dynamic</button>
-        </div>;"
+      "const App = () => (
+        <div>
+          <button className="v1560qbr-1 extra-class">Click me</button>
+          <button
+            className={\`v1560qbr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
+          >
+            Dynamic
+          </button>
+        </div>
+      );
+      "
     `);
   });
 });
@@ -458,28 +466,30 @@ describe('styled component extension', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/extend.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v4nysp2-1 {
+      ".v1560qbr-1 {
         padding: 10px;
         background: blue;
       }
 
-      .v4nysp2-2 {
+      .v1560qbr-2 {
         background: red;
         color: white;
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div>
-          <button className="v4nysp2-1">Blue</button>
-          <button className="v4nysp2-1 v4nysp2-2">Red</button>
-        </div>;"
+      "const App = () => (
+        <div>
+          <button className="v1560qbr-1">Blue</button>
+          <button className="v1560qbr-1 v1560qbr-2">Red</button>
+        </div>
+      );
+      "
     `);
   });
 
@@ -496,12 +506,11 @@ describe('styled component extension', () => {
     await expect(async () => {
       await transformWithFormat({
         source,
-        fileAbsPath: '/src/invalid-extend.ts',
         overrideDefaultFs: emptyFs,
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/invalid-extend.ts: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
+      `[Error: /test.tsx: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
     );
   });
 });
@@ -524,20 +533,20 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/spread-props.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vh89gjz-1 {
+      ".v1560qbr-1 {
         background: blue;
         color: white;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "const App = () => {
+      "import { mergeWithSpread } from "vindur";
+      const App = () => {
         const buttonProps = {
           onClick: () => {},
           disabled: false,
@@ -545,12 +554,13 @@ describe('handle spread props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeClassNameWithSpreadProps([buttonProps], 'vh89gjz-1')}
+            className={mergeWithSpread([buttonProps], "v1560qbr-1")}
           >
             Click me
           </button>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -578,38 +588,33 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/spread-individual.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vm54pe-1 {
+      ".v1560qbr-1 {
         border: 1px solid gray;
         padding: 8px;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNameWithSpreadProps } from 'vindur';
-
-      const App = () => {
+      "const App = () => {
         const inputProps = {
-          type: 'text',
-          placeholder: 'Enter text',
+          type: "text",
+          placeholder: "Enter text",
         };
         return (
           <input
             {...inputProps}
             value="test"
             onChange={() => {}}
-            className={mergeClassNameWithSpreadProps(
-              [inputProps],
-              'vm54pe-1 extra-class',
-            )}
+            className="v1560qbr-1 extra-class"
           />
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -639,25 +644,23 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/multiple-spread.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vbmwn6t-1 {
+      ".v1560qbr-1 {
         display: flex;
         gap: 16px;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNameWithSpreadProps } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const styleProps = {
           style: {
-            margin: '10px',
+            margin: "10px",
           },
         };
         const eventProps = {
@@ -669,15 +672,13 @@ describe('handle spread props', () => {
             {...styleProps}
             {...eventProps}
             id="container"
-            className={mergeClassNameWithSpreadProps(
-              [styleProps, eventProps],
-              'vbmwn6t-1',
-            )}
+            className={mergeWithSpread([styleProps, eventProps], "v1560qbr-1")}
           >
             Content
           </div>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -710,44 +711,40 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/extended-spread.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vnzhx1v-1 {
+      ".v1560qbr-1 {
         padding: 8px 16px;
         border: none;
       }
 
-      .vnzhx1v-2 {
+      .v1560qbr-2 {
         background: blue;
         color: white;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNameWithSpreadProps } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const buttonProps = {
-          type: 'submit',
-          form: 'myForm',
+          type: "submit",
+          form: "myForm",
         };
         return (
           <button
             {...buttonProps}
-            onClick={() => console.log('clicked')}
-            className={mergeClassNameWithSpreadProps(
-              [buttonProps],
-              'vnzhx1v-1 vnzhx1v-2',
-            )}
+            onClick={() => console.log("clicked")}
+            className={mergeWithSpread([buttonProps], "v1560qbr-1 v1560qbr-2")}
           >
             Submit
           </button>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -778,36 +775,35 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/spread-classname.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1swlzlr-1 {
+      ".v1560qbr-1 {
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNameWithSpreadProps } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const cardProps = {
-          className: 'animated-card fade-in',
-          'data-testid': 'card-component',
+          className: "animated-card fade-in",
+          "data-testid": "card-component",
         };
         return (
           <div
             {...cardProps}
             role="article"
-            className={mergeClassNameWithSpreadProps([cardProps], 'v1swlzlr-1')}
+            className={mergeWithSpread([cardProps], "v1560qbr-1")}
           >
             Card content
           </div>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -837,41 +833,37 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/spread-order.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwpl064-1 {
+      ".v1560qbr-1 {
         background: gray;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNameWithSpreadProps } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const props1 = {
-          className: 'first',
+          className: "first",
         };
         const props2 = {
-          className: 'second',
+          className: "second",
         };
         return (
           <div
             className="before"
             {...props1}
             {...props2}
-            className={mergeClassNameWithSpreadProps(
-              [props1, props2],
-              'vwpl064-1 after',
-            )}
+            className={mergeWithSpread([props1, props2], "v1560qbr-1 after")}
           >
             Content
           </div>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -899,7 +891,6 @@ describe('handle spread props', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/conditional-spread.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });

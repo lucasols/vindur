@@ -17,41 +17,10 @@ A compile-time CSS-in-JS library focused on performance.
 - [x] Style extension (`styled(Button)`)
 - [x] Styled component references with `&` selector
 
-```tsx
-const Container = styled.div`
-  background-color: red;
-`
-
-const Button = styled.div`
-  ${Container}:hover & {
-    background-color: blue;
-  }
-`
-```
-
 ### 🚧 **CSS Extension**
 
 - [x] CSS style interpolation with semicolon extension
-
-  ```tsx
-  const baseStyles = css`...`
-  const Button = styled.div`
-    ${baseStyles};
-    ...
-  `
-  ```
-
 - [x] CSS selector usage in styled components used as a selector
-
-  ```tsx
-  const baseStyles = css`...`
-
-  const Button = styled.div`
-    ${baseStyles} & {
-      ...
-    }
-  `
-  ```
 
 ### 🚧 **Advanced Styling**
 
@@ -71,6 +40,7 @@ const Button = styled.div`
 
 - [ ] Dynamic CSS variables
 - [ ] Style flags props
+
   ```tsx
   const StyledWithModifier = styled.div<{
     active: boolean
@@ -79,6 +49,17 @@ const Button = styled.div`
     &.active { ... }
     &.disabled { ... }
   `
+
+  <StyledWithModifier active={true} disabled={false} />
+  ```
+
+  in output the Variable will be replaced with the following and used as a normal JSX component, no css injection in jsx in this case:
+
+  ```tsx
+  const StyledWithModifier = vComponentWithModifiers(
+    ['active', 'disabled'],
+    'vHash-1' // generated css will be injected here
+  )
   ```
 
 ### 🚧 **Utility Features**

@@ -145,7 +145,7 @@ describe('forward references', () => {
   });
 
   test('should throw error for undefined forward reference', async () => {
-    expect(async () => {
+    await expect(async () => {
       await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur'
@@ -165,7 +165,7 @@ describe('forward references', () => {
   });
 
   test('should throw error for invalid arrow function syntax', async () => {
-    expect(async () => {
+    await expect(async () => {
       await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur'

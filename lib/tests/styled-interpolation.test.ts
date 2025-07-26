@@ -28,7 +28,7 @@ describe('styled components - interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vhqnxci-1 {
+      ".v1560qbr-1 {
         color: blue;
         font-size: 16px;
       }"
@@ -37,7 +37,7 @@ describe('styled components - interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
       const fontSize = 16;
-      const App = () => <p className="vhqnxci-1">Hello</p>;
+      const App = () => <p className="v1560qbr-1">Hello</p>;
       "
     `);
   });
@@ -63,7 +63,7 @@ describe('styled components - interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vmgoafb-1 {
+      ".v1560qbr-1 {
         content: "my-value";
       }"
     `);
@@ -71,7 +71,7 @@ describe('styled components - interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const prefix = "my";
       const suffix = "value";
-      const App = () => <div className="vmgoafb-1" />;
+      const App = () => <div className="v1560qbr-1" />;
       "
     `);
   });

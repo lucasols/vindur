@@ -35,12 +35,12 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v4nysp2-1 {
+      ".v1560qbr-1 {
         padding: 10px;
         background: blue;
       }
 
-      .v4nysp2-2 {
+      .v1560qbr-2 {
         background: red;
         color: white;
       }"
@@ -49,8 +49,8 @@ describe('styled component extension', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="v4nysp2-1">Blue</button>
-          <button className="v4nysp2-1 v4nysp2-2">Red</button>
+          <button className="v1560qbr-1">Blue</button>
+          <button className="v1560qbr-1 v1560qbr-2">Red</button>
         </div>
       );
       "
@@ -74,7 +74,7 @@ describe('styled component extension', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/invalid-extend.ts: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
+      `[Error: /test.tsx: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
     );
   });
 
@@ -107,17 +107,17 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1496h10-1 {
+      ".v1560qbr-1 {
         padding: 8px;
         border: none;
       }
 
-      .v1496h10-2 {
+      .v1560qbr-2 {
         background: blue;
         color: white;
       }
 
-      .v1496h10-3 {
+      .v1560qbr-3 {
         font-size: 18px;
         padding: 12px;
       }"
@@ -125,7 +125,7 @@ describe('styled component extension', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
-        <button className="v1496h10-1 v1496h10-2 v1496h10-3">Click me</button>
+        <button className="v1560qbr-1 v1560qbr-2 v1560qbr-3">Click me</button>
       );
       "
     `);

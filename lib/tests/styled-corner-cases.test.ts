@@ -17,7 +17,6 @@ describe('styled components - corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/empty.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -25,7 +24,7 @@ describe('styled components - corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1v2q6wl-1" />;
+      "const App = () => <div className="v1560qbr-1" />;
       "
     `);
   });
@@ -45,13 +44,12 @@ describe('styled components - corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/special.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".viwoa2i-1 {
+      ".v1560qbr-1 {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif;
@@ -59,7 +57,7 @@ describe('styled components - corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="viwoa2i-1">Content</div>;
+      "const App = () => <div className="v1560qbr-1">Content</div>;
       "
     `);
   });
@@ -83,13 +81,12 @@ describe('styled components - corner cases', () => {
 
     const result = await transformWithFormat({
       source,
-      fileAbsPath: '/src/merge-class.ts',
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vylwivr-1 {
+      ".v1560qbr-1 {
         background: blue;
         color: white;
       }"
@@ -98,9 +95,9 @@ describe('styled components - corner cases', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="vylwivr-1 extra-class">Click me</button>
+          <button className="v1560qbr-1 extra-class">Click me</button>
           <button
-            className={\`vylwivr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
+            className={\`v1560qbr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
           >
             Dynamic
           </button>
