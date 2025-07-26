@@ -483,11 +483,7 @@ describe('corner cases', () => {
       importAliases,
     });
 
-    expect(result.css).toMatchInlineSnapshot(`
-      ".v1v2q6wl-1 {
-        
-      }"
-    `);
+    expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "v1v2q6wl-1";"`);
   });
@@ -509,11 +505,7 @@ describe('corner cases', () => {
       importAliases,
     });
 
-    expect(result.css).toMatchInlineSnapshot(`
-      ".vngi9r6-1 {
-        
-      }"
-    `);
+    expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`"const style = "vngi9r6-1";"`);
   });

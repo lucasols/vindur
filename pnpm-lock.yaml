@@ -62,6 +62,9 @@ importers:
       '@types/node':
         specifier: ^24.1.0
         version: 24.1.0
+      '@types/react':
+        specifier: ^18.2.25
+        version: 18.3.23
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.38.0
         version: 8.38.0(@typescript-eslint/parser@8.38.0(eslint@9.31.0)(typescript@5.8.3))(eslint@9.31.0)(typescript@5.8.3)

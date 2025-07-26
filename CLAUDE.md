@@ -21,9 +21,11 @@ cd lib
 pnpm lint          # Run TypeScript check + ESLint
 pnpm tsc           # TypeScript compilation check
 pnpm eslint        # ESLint only
-pnpm build         # Full build with linting
-pnpm build:no-test # Build without linting (tsup)
 ```
+
+Running ts code
+
+The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
 
 ### Test Application (app-test/)
 
@@ -63,6 +65,10 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 ## Code Style Guidelines
 
 - Use types instead of interfaces
+
+## Plugin error handling
+
+- The plugin should be strict about errors, it should either be 100% successful or fail if a error or unexpected behavior, or unhandled case occurs, no fallback values or partial results should be returned
 
 ## Typesafety
 

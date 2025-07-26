@@ -36,6 +36,7 @@ export type VindurPluginOptions = {
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
+  styledComponents: Map<string, { element: string; className: string }>;
 };
 
 function processInterpolationExpression(
@@ -46,6 +47,7 @@ function processInterpolationExpression(
   importedFunctions: ImportedFunctions,
   variableName: string | undefined,
   usedFunctions: Set<string>,
+  tagType: 'css' | 'styled',
   debug?: DebugLogger,
 ): string {
   if (t.isIdentifier(expression)) {
@@ -53,7 +55,8 @@ function processInterpolationExpression(
     if (resolvedValue !== null) {
       return resolvedValue;
     } else {
-      const varContext = variableName ? `... ${variableName} = css` : 'css';
+      const varContext =
+        variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new Error(
         `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
       );
@@ -70,6 +73,7 @@ function processInterpolationExpression(
       importedFunctions,
       variableName,
       usedFunctions,
+      tagType,
       debug,
     );
     return nested.cssContent;
@@ -87,14 +91,16 @@ function processInterpolationExpression(
       return resolved;
     } else {
       const expressionSource = generate(expression).code;
-      const varContext = variableName ? `... ${variableName} = css` : 'css';
+      const varContext =
+        variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new Error(
         `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
       );
     }
   } else {
     const expressionSource = generate(expression).code;
-    const varContext = variableName ? `... ${variableName} = css` : 'css';
+    const varContext =
+      variableName ? `... ${variableName} = ${tagType}` : tagType;
     const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
     throw new Error(errorMessage);
   }
@@ -108,6 +114,7 @@ function processTemplateWithInterpolation(
   importedFunctions: ImportedFunctions,
   variableName: string | undefined,
   usedFunctions: Set<string>,
+  tagType: string,
   debug?: DebugLogger,
 ) {
   let cssContent = '';
@@ -129,6 +136,7 @@ function processTemplateWithInterpolation(
           importedFunctions,
           variableName,
           usedFunctions,
+          tagType.includes('styled') ? 'styled' : 'css',
           debug,
         );
         cssContent += resolvedExpression;
@@ -412,8 +420,8 @@ export function createVindurPlugin(
               state.vindurImports.add(specifier.imported.name);
             }
           }
-          // Remove the import statement since we're processing the css at build time
-          path.remove();
+          // Don't remove the import statement immediately - we'll handle it in post()
+          path.skip();
         } else {
           // Track imports from other files (for functions)
           const source = path.node.source.value;
@@ -495,6 +503,7 @@ export function createVindurPlugin(
             importedFunctions,
             varName,
             usedFunctions,
+            'css',
             debug,
           );
 
@@ -507,10 +516,126 @@ export function createVindurPlugin(
 
           // Clean up CSS content and store the CSS rule
           const cleanedCss = cleanCss(cssContent);
-          state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          // Only add CSS rule if there's actual content
+          if (cleanedCss.trim()) {
+            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          }
 
           // Replace the tagged template with the class name string
           path.node.init = t.stringLiteral(className);
+        } else if (
+          state.vindurImports.has('styled')
+          && path.node.init
+          && t.isTaggedTemplateExpression(path.node.init)
+          && t.isMemberExpression(path.node.init.tag)
+          && t.isIdentifier(path.node.init.tag.object)
+          && path.node.init.tag.object.name === 'styled'
+          && t.isIdentifier(path.node.init.tag.property)
+          && t.isIdentifier(path.node.id)
+        ) {
+          // Handle styled.div`` variable assignments
+          const varName = path.node.id.name;
+          const tagName = path.node.init.tag.property.name;
+          const { cssContent } = processTemplateWithInterpolation(
+            path.node.init.quasi,
+            path,
+            fs,
+            transformFunctionCache,
+            importedFunctions,
+            varName,
+            usedFunctions,
+            `styled.${tagName}`,
+            debug,
+          );
+
+          // Generate class name based on dev mode
+          const className =
+            dev ?
+              `${fileHash}-${classIndex}-${varName}`
+            : `${fileHash}-${classIndex}`;
+          classIndex++;
+
+          // Clean up CSS content and store the CSS rule
+          const cleanedCss = cleanCss(cssContent);
+          // Only add CSS rule if there's actual content
+          if (cleanedCss.trim()) {
+            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          }
+
+          // Store the styled component mapping
+          state.styledComponents.set(varName, { element: tagName, className });
+
+          // Remove the styled component declaration
+          path.remove();
+        } else if (
+          state.vindurImports.has('styled')
+          && path.node.init
+          && t.isTaggedTemplateExpression(path.node.init)
+          && t.isCallExpression(path.node.init.tag)
+          && t.isIdentifier(path.node.init.tag.callee)
+          && path.node.init.tag.callee.name === 'styled'
+          && path.node.init.tag.arguments.length === 1
+          && t.isIdentifier(path.node.id)
+        ) {
+          // Handle styled(Component)`` variable assignments
+          const varName = path.node.id.name;
+          const extendedArg = path.node.init.tag.arguments[0];
+
+          if (!t.isIdentifier(extendedArg)) {
+            throw new Error(
+              'styled() can only extend identifiers (components or css variables)',
+            );
+          }
+
+          const extendedName = extendedArg.name;
+
+          // Process the CSS content
+          const { cssContent } = processTemplateWithInterpolation(
+            path.node.init.quasi,
+            path,
+            fs,
+            transformFunctionCache,
+            importedFunctions,
+            varName,
+            usedFunctions,
+            `styled(${extendedName})`,
+            debug,
+          );
+
+          // Generate class name based on dev mode
+          const className =
+            dev ?
+              `${fileHash}-${classIndex}-${varName}`
+            : `${fileHash}-${classIndex}`;
+          classIndex++;
+
+          // Clean up CSS content and store the CSS rule
+          const cleanedCss = cleanCss(cssContent);
+          // Only add CSS rule if there's actual content
+          if (cleanedCss.trim()) {
+            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          }
+
+          // Check if extending a styled component
+          const extendedInfo = state.styledComponents.get(extendedName);
+
+          if (!extendedInfo) {
+            throw new Error(
+              `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
+            );
+          }
+
+          // Extending a styled component - inherit the element and merge classes
+          state.styledComponents.set(varName, {
+            element: extendedInfo.element,
+            className:
+              cleanedCss.trim() ?
+                `${extendedInfo.className} ${className}`
+              : extendedInfo.className,
+          });
+
+          // Remove the styled component declaration
+          path.remove();
         }
       },
       TaggedTemplateExpression(path) {
@@ -527,6 +652,7 @@ export function createVindurPlugin(
             importedFunctions,
             undefined,
             usedFunctions,
+            'css',
             debug,
           );
 
@@ -536,62 +662,213 @@ export function createVindurPlugin(
 
           // Clean up CSS content and store the CSS rule
           const cleanedCss = cleanCss(cssContent);
-          state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          // Only add CSS rule if there's actual content
+          if (cleanedCss.trim()) {
+            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+          }
 
           // Replace the tagged template with the class name string
           path.replaceWith(t.stringLiteral(className));
+        } else if (
+          state.vindurImports.has('styled')
+          && t.isMemberExpression(path.node.tag)
+          && t.isIdentifier(path.node.tag.object)
+          && path.node.tag.object.name === 'styled'
+          && t.isIdentifier(path.node.tag.property)
+        ) {
+          // For inline styled usage, we can't directly map it
+          // So we keep it as an error or handle it differently
+          throw new Error(
+            'Inline styled component usage is not supported. Please assign styled components to a variable first.',
+          );
+        }
+      },
+      JSXElement(path) {
+        if (t.isJSXIdentifier(path.node.openingElement.name)) {
+          const elementName = path.node.openingElement.name.name;
+          const styledInfo = state.styledComponents.get(elementName);
+
+          if (styledInfo) {
+            // Replace the styled component with the actual HTML element
+            path.node.openingElement.name = t.jsxIdentifier(styledInfo.element);
+            if (path.node.closingElement) {
+              path.node.closingElement.name = t.jsxIdentifier(
+                styledInfo.element,
+              );
+            }
+
+            // Check for spread attributes
+            const attributes = path.node.openingElement.attributes;
+            const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute => 
+              t.isJSXSpreadAttribute(attr)
+            );
+            const existingClassNameAttr = attributes.find(
+              (attr): attr is t.JSXAttribute =>
+                t.isJSXAttribute(attr)
+                && t.isJSXIdentifier(attr.name)
+                && attr.name.name === 'className',
+            );
+
+            if (spreadAttrs.length > 0) {
+              // Handle spread props with mergeClassNameWithSpreadProps
+              state.vindurImports.add('mergeClassNameWithSpreadProps');
+              
+              // Build the spread props array
+              const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
+              
+              // Determine the base className to merge
+              let baseClassName = styledInfo.className;
+              if (existingClassNameAttr && t.isStringLiteral(existingClassNameAttr.value)) {
+                baseClassName = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
+              }
+
+              // Create the mergeClassNameWithSpreadProps call
+              const mergeCall = t.callExpression(
+                t.identifier('mergeClassNameWithSpreadProps'),
+                [
+                  spreadPropsArray.length === 1 ? 
+                    t.arrayExpression([spreadPropsArray[0]]) :
+                    t.arrayExpression(spreadPropsArray),
+                  t.stringLiteral(baseClassName)
+                ]
+              );
+
+              if (existingClassNameAttr) {
+                // Replace existing className with merge call
+                existingClassNameAttr.value = t.jsxExpressionContainer(mergeCall);
+              } else {
+                // Add new className attribute with merge call
+                attributes.push(
+                  t.jsxAttribute(
+                    t.jsxIdentifier('className'),
+                    t.jsxExpressionContainer(mergeCall),
+                  ),
+                );
+              }
+            } else {
+              // Handle normal className merging (no spread props)
+              if (existingClassNameAttr) {
+                // Merge with existing className
+                if (t.isStringLiteral(existingClassNameAttr.value)) {
+                  // If it's a string literal, concatenate
+                  existingClassNameAttr.value.value = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
+                } else if (
+                  t.isJSXExpressionContainer(existingClassNameAttr.value)
+                ) {
+                  // If it's an expression, create a template literal
+                  existingClassNameAttr.value = t.jsxExpressionContainer(
+                    t.templateLiteral(
+                      [
+                        t.templateElement(
+                          {
+                            cooked: `${styledInfo.className} `,
+                            raw: `${styledInfo.className} `,
+                          },
+                          false,
+                        ),
+                        t.templateElement({ cooked: '', raw: '' }, true),
+                      ],
+                      [
+                        (
+                          t.isJSXEmptyExpression(
+                            existingClassNameAttr.value.expression,
+                          )
+                        ) ?
+                          t.stringLiteral('')
+                        : existingClassNameAttr.value.expression,
+                      ],
+                    ),
+                  );
+                }
+              } else {
+                // Add new className attribute
+                attributes.push(
+                  t.jsxAttribute(
+                    t.jsxIdentifier('className'),
+                    t.stringLiteral(styledInfo.className),
+                  ),
+                );
+              }
+            }
+          }
         }
       },
     },
     pre() {
       state.cssRules.length = 0;
       state.vindurImports.clear();
+      state.styledComponents.clear();
       classIndex = 1;
       usedFunctions.clear();
     },
     post(file) {
-      // Remove unused function imports
+      // Handle vindur imports and remove unused function imports
       file.path.traverse({
         ImportDeclaration(path) {
           const source = path.node.source.value;
           if (typeof source === 'string') {
-            // Check if this is a relative import or an alias import that was resolved
-            const isRelativeImport = source.startsWith('./') || source.startsWith('../');
-            const resolvedPath = resolveImportPath(source, importAliasesArray);
-            const isResolvedAliasImport = resolvedPath !== null;
-
-            if (isRelativeImport || isResolvedAliasImport) {
-              // Filter out unused function imports
-              const unusedSpecifiers: t.ImportSpecifier[] = [];
-              const usedSpecifiers: t.ImportSpecifier[] = [];
-
+            if (source === 'vindur') {
+              // Handle vindur imports - keep only mergeClassNameWithSpreadProps if it's used
+              const specifiersToKeep: t.ImportSpecifier[] = [];
+              
               for (const specifier of path.node.specifiers) {
                 if (
                   t.isImportSpecifier(specifier)
                   && t.isIdentifier(specifier.imported)
+                  && specifier.imported.name === 'mergeClassNameWithSpreadProps'
+                  && state.vindurImports.has('mergeClassNameWithSpreadProps')
                 ) {
-                  const functionName = specifier.imported.name;
-                  // Remove functions that were used during CSS processing (they're compiled away)
-                  if (
-                    importedFunctions.has(functionName)
-                    && usedFunctions.has(functionName)
-                  ) {
-                    unusedSpecifiers.push(specifier);
-                  } else {
-                    usedSpecifiers.push(specifier);
-                  }
-                } else if (t.isImportSpecifier(specifier)) {
-                  usedSpecifiers.push(specifier);
+                  specifiersToKeep.push(specifier);
                 }
               }
+              
+              if (specifiersToKeep.length > 0) {
+                // Keep the import but only with the needed specifiers
+                path.node.specifiers = specifiersToKeep;
+              } else {
+                // Remove the entire vindur import if nothing is needed
+                path.remove();
+              }
+            } else {
+              // Check if this is a relative import or an alias import that was resolved
+              const isRelativeImport =
+                source.startsWith('./') || source.startsWith('../');
+              const resolvedPath = resolveImportPath(source, importAliasesArray);
+              const isResolvedAliasImport = resolvedPath !== null;
 
-              if (unusedSpecifiers.length > 0) {
-                if (usedSpecifiers.length === 0) {
-                  // Remove the entire import statement if no functions are used
-                  path.remove();
-                } else {
-                  // Remove only unused specifiers
-                  path.node.specifiers = usedSpecifiers;
+              if (isRelativeImport || isResolvedAliasImport) {
+                // Filter out unused function imports
+                const unusedSpecifiers: t.ImportSpecifier[] = [];
+                const usedSpecifiers: t.ImportSpecifier[] = [];
+
+                for (const specifier of path.node.specifiers) {
+                  if (
+                    t.isImportSpecifier(specifier)
+                    && t.isIdentifier(specifier.imported)
+                  ) {
+                    const functionName = specifier.imported.name;
+                    // Remove functions that were used during CSS processing (they're compiled away)
+                    if (
+                      importedFunctions.has(functionName)
+                      && usedFunctions.has(functionName)
+                    ) {
+                      unusedSpecifiers.push(specifier);
+                    } else {
+                      usedSpecifiers.push(specifier);
+                    }
+                  } else if (t.isImportSpecifier(specifier)) {
+                    usedSpecifiers.push(specifier);
+                  }
+                }
+
+                if (unusedSpecifiers.length > 0) {
+                  if (usedSpecifiers.length === 0) {
+                    // Remove the entire import statement if no functions are used
+                    path.remove();
+                  } else {
+                    // Remove only unused specifiers
+                    path.node.specifiers = usedSpecifiers;
+                  }
                 }
               }
             }

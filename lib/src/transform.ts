@@ -34,6 +34,7 @@ export function transform({
   const pluginState: VindurPluginState = {
     cssRules: [],
     vindurImports: new Set<string>(),
+    styledComponents: new Map(),
   };
 
   if (!fileAbsPath.includes('/')) {
