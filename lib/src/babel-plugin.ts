@@ -1,28 +1,26 @@
-import type { NodePath, PluginObj } from '@babel/core';
+import type { PluginObj } from '@babel/core';
 import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import { murmur2 } from '@ls-stack/utils/hash';
-import {
-  extractArgumentValue,
-  extractLiteralValue,
-  isLiteralExpression,
-} from './ast-utils';
-import { evaluateOutput } from './evaluation';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { parseFunction } from './function-parser';
-import type { TransformFS } from './transform';
-import type { CompiledFunction, FunctionArg } from './types';
-
-const STYLED_TAG_NAME = 'styled';
-
-function isExtensionResult(
-  result: string | { type: 'extension'; className: string },
-): result is { type: 'extension'; className: string } {
-  return typeof result === 'object' && 'type' in result;
-}
+import type { CompiledFunction } from './types';
+import {
+  type CssProcessingContext,
+  processStyledTemplate,
+  processStyledExtension,
+  processGlobalStyle,
+} from './css-processing';
 
 export type DebugLogger = { log: (message: string) => void };
+
+export type VindurPluginState = {
+  cssRules: string[];
+  vindurImports: Set<string>;
+  styledComponents: Map<string, { element: string; className: string }>;
+  cssVariables: Map<string, string>; // Track css tagged template variables
+};
 
 export type FunctionCache = {
   [filePath: string]: { [functionName: string]: CompiledFunction };
@@ -40,351 +38,6 @@ export type VindurPluginOptions = {
   transformFunctionCache: FunctionCache;
   importAliases: Record<string, string>;
 };
-
-export type VindurPluginState = {
-  cssRules: string[];
-  vindurImports: Set<string>;
-  styledComponents: Map<string, { element: string; className: string }>;
-  cssVariables: Map<string, string>; // Track css tagged template variables
-};
-
-function processInterpolationExpression(
-  expression: t.Expression,
-  path: NodePath,
-  fs: TransformFS,
-  compiledFunctions: FunctionCache,
-  importedFunctions: ImportedFunctions,
-  variableName: string | undefined,
-  usedFunctions: Set<string>,
-  tagType: string,
-  state: VindurPluginState,
-  context: {
-    isExtension?: boolean; // true if followed by semicolon
-  } = {},
-  debug?: DebugLogger,
-): string | { type: 'extension'; className: string } {
-  if (t.isIdentifier(expression)) {
-    // Check if this identifier refers to a styled component
-    const styledComponent = state.styledComponents.get(expression.name);
-    if (styledComponent) {
-      // Return the className with a dot prefix for CSS selector usage
-      return `.${styledComponent.className}`;
-    }
-
-    // Check if this identifier refers to a CSS variable
-    const cssVariable = state.cssVariables.get(expression.name);
-    if (cssVariable) {
-      if (context.isExtension) {
-        // For extension syntax (${baseStyles};), return extension object
-        return { type: 'extension', className: cssVariable };
-      } else {
-        // For CSS variables, always return with dot prefix for selector usage
-        return `.${cssVariable}`;
-      }
-    }
-
-    const resolvedValue = resolveVariable(expression.name, path);
-    if (resolvedValue !== null) {
-      return resolvedValue;
-    } else {
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
-      );
-    }
-  } else if (t.isArrowFunctionExpression(expression)) {
-    // Handle forward references: ${() => Component}
-    if (
-      expression.params.length === 0 &&
-      t.isIdentifier(expression.body) &&
-      !expression.async
-    ) {
-      const componentName = expression.body.name;
-      // For forward references, we'll defer the resolution by storing a placeholder
-      // The actual resolution will happen during post-processing when all components are defined
-      return `__FORWARD_REF__${componentName}__`;
-    } else {
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
-      );
-    }
-  } else if (isLiteralExpression(expression)) {
-    const value = extractLiteralValue(expression);
-    return String(value);
-  } else if (t.isTemplateLiteral(expression)) {
-    const nested = processTemplateWithInterpolation(
-      expression,
-      path,
-      fs,
-      compiledFunctions,
-      importedFunctions,
-      variableName,
-      usedFunctions,
-      tagType,
-      state,
-      debug,
-    );
-    return nested.cssContent;
-  } else if (t.isCallExpression(expression)) {
-    const resolved = resolveFunctionCall(
-      expression,
-      compiledFunctions,
-      importedFunctions,
-      fs,
-      usedFunctions,
-      path,
-      debug,
-    );
-    if (resolved !== null) {
-      return resolved;
-    } else {
-      const expressionSource = generate(expression).code;
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
-      );
-    }
-  } else {
-    const expressionSource = generate(expression).code;
-    const varContext =
-      variableName ? `... ${variableName} = ${tagType}` : tagType;
-    const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
-    throw new Error(errorMessage);
-  }
-}
-
-function processTemplateWithInterpolation(
-  quasi: t.TemplateLiteral,
-  path: NodePath,
-  fs: TransformFS,
-  compiledFunctions: FunctionCache,
-  importedFunctions: ImportedFunctions,
-  variableName: string | undefined,
-  usedFunctions: Set<string>,
-  tagType: string,
-  state: VindurPluginState,
-  debug?: DebugLogger,
-) {
-  let cssContent = '';
-  const extensions: string[] = [];
-
-  // Process template literal with interpolations
-  for (let i = 0; i < quasi.quasis.length; i++) {
-    // Add the static string part - use cooked value to preserve formatting
-    const staticPart = quasi.quasis[i]?.value.cooked ?? '';
-    cssContent += staticPart;
-
-    // Add the interpolated expression if it exists
-    if (i < quasi.expressions.length) {
-      const expression = quasi.expressions[i];
-      if (expression && t.isExpression(expression)) {
-        // Check context around interpolation
-        const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
-        const isExtension = nextPart.trimStart().startsWith(';');
-
-        const resolvedExpression = processInterpolationExpression(
-          expression,
-          path,
-          fs,
-          compiledFunctions,
-          importedFunctions,
-          variableName,
-          usedFunctions,
-          tagType.includes('styled') ? 'styled' : 'css',
-          state,
-          { isExtension },
-          debug,
-        );
-
-        if (typeof resolvedExpression === 'string') {
-          cssContent += resolvedExpression;
-        } else if (isExtensionResult(resolvedExpression)) {
-          // Handle extension - store for later class combination
-          extensions.push(resolvedExpression.className);
-        }
-      }
-    }
-  }
-
-  return { cssContent, extensions };
-}
-
-function resolveVariable(variableName: string, path: NodePath): string | null {
-  // Find the variable declaration in the current scope or parent scopes
-  const binding = path.scope.getBinding(variableName);
-
-  if (!binding?.path) {
-    return null;
-  }
-
-  const declarationPath = binding.path;
-
-  // Handle variable declarations
-  if (declarationPath.isVariableDeclarator() && declarationPath.node.init) {
-    const init = declarationPath.node.init;
-
-    const literalValue = extractLiteralValue(init);
-    if (literalValue !== null) {
-      return String(literalValue);
-    } else if (t.isBinaryExpression(init)) {
-      // Try to resolve simple binary expressions like `margin * 2`
-      const resolved = resolveBinaryExpression(init, path);
-      return resolved;
-    }
-  }
-
-  return null;
-}
-
-function resolveBinaryExpression(
-  expr: t.BinaryExpression,
-  path: NodePath,
-): string | null {
-  const { left, right, operator } = expr;
-
-  let leftValue: number | null = null;
-  let rightValue: number | null = null;
-
-  // Resolve left operand
-  const leftLiteral = extractLiteralValue(left);
-  if (typeof leftLiteral === 'number') {
-    leftValue = leftLiteral;
-  } else if (t.isIdentifier(left)) {
-    const resolved = resolveVariable(left.name, path);
-    if (resolved !== null && !isNaN(Number(resolved))) {
-      leftValue = Number(resolved);
-    }
-  }
-
-  // Resolve right operand
-  const rightLiteral = extractLiteralValue(right);
-  if (typeof rightLiteral === 'number') {
-    rightValue = rightLiteral;
-  } else if (t.isIdentifier(right)) {
-    const resolved = resolveVariable(right.name, path);
-    if (resolved !== null && !isNaN(Number(resolved))) {
-      rightValue = Number(resolved);
-    }
-  }
-
-  // Perform the operation if both operands are resolved
-  if (leftValue !== null && rightValue !== null) {
-    switch (operator) {
-      case '+':
-        return (leftValue + rightValue).toString();
-      case '-':
-        return (leftValue - rightValue).toString();
-      case '*':
-        return (leftValue * rightValue).toString();
-      case '/':
-        return (leftValue / rightValue).toString();
-      default:
-        return null;
-    }
-  }
-
-  return null;
-}
-
-function resolveFunctionCall(
-  callExpr: t.CallExpression,
-  compiledFunctions: FunctionCache,
-  importedFunctions: ImportedFunctions, // Maps function name to file path
-  fs: PluginFS,
-  usedFunctions: Set<string>,
-  path: NodePath,
-  debug?: DebugLogger,
-): string | null {
-  if (!t.isIdentifier(callExpr.callee)) return null;
-
-  const functionName = callExpr.callee.name;
-  const functionFilePath = importedFunctions.get(functionName);
-
-  if (!functionFilePath) return null;
-
-  // Load the function (validation happens here, throws on error)
-  const compiledFn = loadExternalFunction(
-    fs,
-    functionFilePath,
-    functionName,
-    compiledFunctions,
-    debug,
-  );
-  const args = callExpr.arguments;
-
-  // Mark this function as used
-  usedFunctions.add(functionName);
-
-  // TypeScript will handle argument count validation, so we don't need runtime checks
-
-  if (compiledFn.type === 'positional') {
-    // Handle positional arguments - need to map to parameter names
-    const argValues: Record<string, string | number | boolean | undefined> = {};
-
-    // Get parameter names from the compiled function
-    const paramNames = getParameterNames(compiledFn);
-
-    // Initialize all parameters to undefined first
-    for (const [index] of compiledFn.args.entries()) {
-      const paramName = paramNames[index];
-      if (paramName) {
-        argValues[paramName] = undefined;
-      }
-    }
-
-    // Then set the provided arguments
-    for (const [index, arg] of args.entries()) {
-      const paramName = paramNames[index];
-      if (paramName && t.isExpression(arg)) {
-        const { value, resolved } = extractArgumentValue(arg, path);
-        if (resolved && value !== null) {
-          argValues[paramName] = value;
-        }
-      }
-    }
-
-    return evaluateOutput(compiledFn.output, argValues);
-  } else {
-    // Handle destructured object arguments
-    if (args.length === 1 && t.isObjectExpression(args[0])) {
-      const argValues: Record<string, string | number | boolean | undefined> =
-        {};
-
-      // Add default values first
-      for (const [name, argDef] of Object.entries(compiledFn.args)) {
-        if (argDef.defaultValue !== undefined) {
-          argValues[name] = argDef.defaultValue;
-        }
-      }
-
-      // Override with provided values
-      for (const prop of args[0].properties) {
-        if (t.isObjectProperty(prop) && t.isIdentifier(prop.key)) {
-          const key = prop.key.name;
-          const value = extractLiteralValue(prop.value);
-          if (value !== null) {
-            argValues[key] = value;
-          }
-        }
-      }
-
-      return evaluateOutput(compiledFn.output, argValues);
-    }
-  }
-
-  return null;
-}
-
-function getParameterNames(compiledFn: {
-  type: 'positional';
-  args: FunctionArg[];
-}): string[] {
-  return compiledFn.args.map((arg) => arg.name ?? 'unknown');
-}
 
 function resolveImportPath(
   source: string,
@@ -444,6 +97,8 @@ function loadExternalFunction(
 
   return compiledFn;
 }
+
+
 
 export function createVindurPlugin(
   options: VindurPluginOptions,
@@ -551,6 +206,18 @@ export function createVindurPlugin(
         }
       },
       VariableDeclarator(path) {
+        // Create processing context
+        const context: CssProcessingContext = {
+          fs,
+          compiledFunctions: transformFunctionCache,
+          importedFunctions,
+          usedFunctions,
+          state,
+          path,
+          debug,
+          loadExternalFunction,
+        };
+
         // Check if this is a css tagged template assignment
         if (
           state.vindurImports.has('css')
@@ -561,46 +228,22 @@ export function createVindurPlugin(
           && t.isIdentifier(path.node.id)
         ) {
           const varName = path.node.id.name;
-          const { cssContent, extensions } = processTemplateWithInterpolation(
+          const result = processStyledTemplate(
             path.node.init.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
+            context,
             varName,
-            usedFunctions,
             'css',
-            state,
-            debug,
-          );
-
-          // Generate class name based on dev mode
-          const className = generateClassName(
             dev,
             fileHash,
             classIndex,
-            varName,
           );
           classIndex++;
 
-          // Clean up CSS content and store the CSS rule
-          const cleanedCss = cleanCss(cssContent);
-          // Only add CSS rule if there's actual content
-          if (cleanedCss.trim()) {
-            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
-          }
-
-          // Handle extensions - combine class names like styled(Component)
-          let finalClassName = className;
-          if (extensions.length > 0) {
-            finalClassName = `${extensions.join(' ')} ${className}`;
-          }
-
           // Track the CSS variable for future reference
-          state.cssVariables.set(varName, finalClassName);
+          state.cssVariables.set(varName, result.finalClassName);
 
           // Replace the tagged template with the class name string
-          path.node.init = t.stringLiteral(finalClassName);
+          path.node.init = t.stringLiteral(result.finalClassName);
         } else if (
           state.vindurImports.has('styled')
           && path.node.init
@@ -614,45 +257,21 @@ export function createVindurPlugin(
           // Handle styled.div`` variable assignments
           const varName = path.node.id.name;
           const tagName = path.node.init.tag.property.name;
-          const { cssContent, extensions } = processTemplateWithInterpolation(
+          const result = processStyledTemplate(
             path.node.init.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
+            context,
             varName,
-            usedFunctions,
             `styled.${tagName}`,
-            state,
-            debug,
-          );
-
-          // Generate class name based on dev mode
-          const className = generateClassName(
             dev,
             fileHash,
             classIndex,
-            varName,
           );
           classIndex++;
-
-          // Clean up CSS content and store the CSS rule
-          const cleanedCss = cleanCss(cssContent);
-          // Only add CSS rule if there's actual content
-          if (cleanedCss.trim()) {
-            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
-          }
-
-          // Handle extensions - combine class names like styled(Component)
-          let finalClassName = className;
-          if (extensions.length > 0) {
-            finalClassName = `${extensions.join(' ')} ${className}`;
-          }
 
           // Store the styled component mapping
           state.styledComponents.set(varName, {
             element: tagName,
-            className: finalClassName,
+            className: result.finalClassName,
           });
 
           // Remove the styled component declaration
@@ -678,59 +297,29 @@ export function createVindurPlugin(
           }
 
           const extendedName = extendedArg.name;
-
-          // Process the CSS content
-          const { cssContent, extensions } = processTemplateWithInterpolation(
+          const result = processStyledExtension(
             path.node.init.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
+            context,
             varName,
-            usedFunctions,
-            `${STYLED_TAG_NAME}(${extendedName})`,
-            state,
-            debug,
-          );
-
-          // Generate class name based on dev mode
-          const className = generateClassName(
+            extendedName,
             dev,
             fileHash,
             classIndex,
-            varName,
           );
           classIndex++;
 
-          // Clean up CSS content and store the CSS rule
-          const cleanedCss = cleanCss(cssContent);
-          // Only add CSS rule if there's actual content
-          if (cleanedCss.trim()) {
-            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
-          }
-
-          // Check if extending a styled component
+          // Get the extended component info for element inheritance
           const extendedInfo = state.styledComponents.get(extendedName);
-
           if (!extendedInfo) {
             throw new Error(
               `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
             );
           }
 
-          // Handle extensions first
-          let finalClassName = className;
-          if (extensions.length > 0) {
-            finalClassName = `${extensions.join(' ')} ${className}`;
-          }
-
-          // Extending a styled component - inherit the element and merge classes
+          // Store the extended styled component mapping
           state.styledComponents.set(varName, {
             element: extendedInfo.element,
-            className:
-              cleanedCss.trim() ?
-                `${extendedInfo.className} ${finalClassName}`
-              : extendedInfo.className,
+            className: result.finalClassName,
           });
 
           // Remove the styled component declaration
@@ -742,90 +331,49 @@ export function createVindurPlugin(
           && t.isIdentifier(path.node.init.tag)
           && path.node.init.tag.name === 'createGlobalStyle'
         ) {
-          const { cssContent } = processTemplateWithInterpolation(
-            path.node.init.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
-            undefined,
-            usedFunctions,
-            'createGlobalStyle',
-            state,
-            debug,
-          );
-
-          // Clean up CSS content and add to global styles (no class wrapper)
-          const cleanedCss = cleanCss(cssContent);
-          if (cleanedCss.trim()) {
-            state.cssRules.push(cleanedCss);
-          }
+          processGlobalStyle(path.node.init.quasi, context);
 
           // Remove the createGlobalStyle declaration since it doesn't produce a value
           path.remove();
         }
       },
       TaggedTemplateExpression(path) {
+        // Create processing context
+        const context: CssProcessingContext = {
+          fs,
+          compiledFunctions: transformFunctionCache,
+          importedFunctions,
+          usedFunctions,
+          state,
+          path,
+          debug,
+          loadExternalFunction,
+        };
+
         if (
           state.vindurImports.has('css')
           && t.isIdentifier(path.node.tag)
           && path.node.tag.name === 'css'
         ) {
-          const { cssContent, extensions } = processTemplateWithInterpolation(
+          const result = processStyledTemplate(
             path.node.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
+            context,
             undefined,
-            usedFunctions,
             'css',
-            state,
-            debug,
+            dev,
+            fileHash,
+            classIndex,
           );
-
-          // Generate class name with hash and index (no varName for direct usage)
-          const className = `${fileHash}-${classIndex}`;
           classIndex++;
 
-          // Clean up CSS content and store the CSS rule
-          const cleanedCss = cleanCss(cssContent);
-          // Only add CSS rule if there's actual content
-          if (cleanedCss.trim()) {
-            state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
-          }
-
-          // Handle extensions - combine class names like styled(Component)
-          let finalClassName = className;
-          if (extensions.length > 0) {
-            finalClassName = `${extensions.join(' ')} ${className}`;
-          }
-
           // Replace the tagged template with the class name string
-          path.replaceWith(t.stringLiteral(finalClassName));
+          path.replaceWith(t.stringLiteral(result.finalClassName));
         } else if (
           state.vindurImports.has('createGlobalStyle')
           && t.isIdentifier(path.node.tag)
           && path.node.tag.name === 'createGlobalStyle'
         ) {
-          const { cssContent } = processTemplateWithInterpolation(
-            path.node.quasi,
-            path,
-            fs,
-            transformFunctionCache,
-            importedFunctions,
-            undefined,
-            usedFunctions,
-            'createGlobalStyle',
-            state,
-            debug,
-          );
-
-          // Clean up CSS content and add to global styles (no class wrapper)
-          const cleanedCss = cleanCss(cssContent);
-          if (cleanedCss.trim()) {
-            state.cssRules.push(cleanedCss);
-          }
+          processGlobalStyle(path.node.quasi, context);
 
           // Remove createGlobalStyle expression since it produces no output
           if (t.isExpressionStatement(path.parent)) {
@@ -1139,27 +687,4 @@ export function createVindurPlugin(
       });
     },
   };
-}
-
-const doubleSemicolonRegex = /;\s*;/g;
-
-function cleanCss(css: string) {
-  let cleaned = css.trim().replace(doubleSemicolonRegex, ';'); // Remove double semicolons
-
-  if (cleaned.startsWith(';')) {
-    cleaned = cleaned.slice(1).trim();
-  }
-
-  return cleaned;
-}
-
-function generateClassName(
-  dev: boolean,
-  fileHash: string,
-  classIndex: number,
-  varName?: string,
-) {
-  return dev ?
-      `${fileHash}-${classIndex}-${varName}`
-    : `${fileHash}-${classIndex}`;
 }
