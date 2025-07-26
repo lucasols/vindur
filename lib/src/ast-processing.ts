@@ -7,32 +7,10 @@ import {
   isLiteralExpression,
 } from './ast-utils';
 import { evaluateOutput } from './evaluation';
-import type { CompiledFunction, FunctionArg } from './types';
+import type { FunctionArg } from './types';
 import * as babel from '@babel/core';
 import { createVindurPlugin } from './babel-plugin';
-
-export type CssProcessingContext = {
-  fs: { readFile: (path: string) => string };
-  compiledFunctions: Record<string, Record<string, CompiledFunction>>;
-  importedFunctions: Map<string, string>;
-  usedFunctions: Set<string>;
-  state: {
-    cssRules: string[];
-    vindurImports: Set<string>;
-    styledComponents: Map<string, { element: string; className: string }>;
-    cssVariables: Map<string, string>;
-    keyframes: Map<string, string>;
-  };
-  path: NodePath;
-  debug?: { log: (message: string) => void };
-  loadExternalFunction: (
-    fs: { readFile: (path: string) => string },
-    filePath: string,
-    functionName: string,
-    compiledFunctions: Record<string, Record<string, CompiledFunction>>,
-    debug?: { log: (message: string) => void },
-  ) => CompiledFunction;
-};
+import type { CssProcessingContext } from './css-processing';
 
 function isExtensionResult(
   result: string | { type: 'extension'; className: string },
@@ -80,6 +58,30 @@ export function processInterpolationExpression(
     const importedKeyframes = resolveImportedKeyframes(expression.name, context);
     if (importedKeyframes !== null) {
       return importedKeyframes;
+    }
+
+    // Check if this identifier refers to an imported CSS variable
+    const importedCss = resolveImportedCss(expression.name, context);
+    if (importedCss !== null) {
+      if (interpolationContext.isExtension) {
+        // For extension syntax (${baseStyles};), return extension object
+        return { type: 'extension', className: importedCss };
+      } else {
+        // For CSS variables, always return with dot prefix for selector usage
+        return `.${importedCss}`;
+      }
+    }
+
+    // Check if this identifier refers to an imported constant (string or number)
+    const importedConstant = resolveImportedConstant(expression.name, context);
+    if (importedConstant !== null) {
+      return String(importedConstant);
+    }
+
+    // If we have an imported function but it wasn't found in any resolver, throw an error
+    const importedFilePath = context.importedFunctions.get(expression.name);
+    if (importedFilePath) {
+      throw new Error(`Function "${expression.name}" not found in ${importedFilePath}`);
     }
 
     const resolvedValue = resolveVariable(expression.name, context.path);
@@ -134,6 +136,18 @@ export function processInterpolationExpression(
         variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new Error(
         `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
+      );
+    }
+  } else if (t.isBinaryExpression(expression)) {
+    const resolved = resolveBinaryExpression(expression, context.path, context);
+    if (resolved !== null) {
+      return resolved;
+    } else {
+      const expressionSource = generate(expression).code;
+      const varContext =
+        variableName ? `... ${variableName} = ${tagType}` : tagType;
+      throw new Error(
+        `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
       );
     }
   } else {
@@ -219,6 +233,7 @@ export function resolveVariable(variableName: string, path: NodePath): string | 
 export function resolveBinaryExpression(
   expr: t.BinaryExpression,
   path: NodePath,
+  context?: CssProcessingContext,
 ): string | null {
   const { left, right, operator } = expr;
 
@@ -230,9 +245,20 @@ export function resolveBinaryExpression(
   if (typeof leftLiteral === 'number') {
     leftValue = leftLiteral;
   } else if (t.isIdentifier(left)) {
-    const resolved = resolveVariable(left.name, path);
-    if (resolved !== null && !isNaN(Number(resolved))) {
-      leftValue = Number(resolved);
+    // Try to resolve as imported constant first if context is available
+    if (context) {
+      const importedConstant = resolveImportedConstant(left.name, context);
+      if (importedConstant !== null && typeof importedConstant === 'number') {
+        leftValue = importedConstant;
+      }
+    }
+    
+    // Fall back to local variable resolution
+    if (leftValue === null) {
+      const resolved = resolveVariable(left.name, path);
+      if (resolved !== null && !isNaN(Number(resolved))) {
+        leftValue = Number(resolved);
+      }
     }
   }
 
@@ -241,9 +267,20 @@ export function resolveBinaryExpression(
   if (typeof rightLiteral === 'number') {
     rightValue = rightLiteral;
   } else if (t.isIdentifier(right)) {
-    const resolved = resolveVariable(right.name, path);
-    if (resolved !== null && !isNaN(Number(resolved))) {
-      rightValue = Number(resolved);
+    // Try to resolve as imported constant first if context is available
+    if (context) {
+      const importedConstant = resolveImportedConstant(right.name, context);
+      if (importedConstant !== null && typeof importedConstant === 'number') {
+        rightValue = importedConstant;
+      }
+    }
+    
+    // Fall back to local variable resolution
+    if (rightValue === null) {
+      const resolved = resolveVariable(right.name, path);
+      if (resolved !== null && !isNaN(Number(resolved))) {
+        rightValue = Number(resolved);
+      }
     }
   }
 
@@ -368,20 +405,18 @@ function resolveImportedKeyframes(
 
   // Load and process the external file to extract keyframes
   try {
-    const fileContent = context.fs.readFile(keyframesFilePath);
-    
-    // Parse the external file to extract keyframes variables
-    const externalKeyframes = extractKeyframesFromSource(fileContent, keyframesFilePath, context);
+    const extractedData = getOrExtractFileData(keyframesFilePath, context);
     
     // Look for the specific keyframes in the external file
-    const keyframesAnimationName = externalKeyframes.get(keyframesName);
+    const keyframesAnimationName = extractedData.keyframes.get(keyframesName);
     if (keyframesAnimationName) {
       // Mark this keyframes as used (for import cleanup)
       context.usedFunctions.add(keyframesName);
       return keyframesAnimationName;
     }
     
-    throw new Error(`Function "${keyframesName}" not found in ${keyframesFilePath}`);
+    // Return null if not found (allow other resolvers to try)
+    return null;
   } catch (error) {
     if (error instanceof Error) {
       throw error;
@@ -390,24 +425,109 @@ function resolveImportedKeyframes(
   }
 }
 
-function extractKeyframesFromSource(
-  source: string,
+
+function resolveImportedCss(
+  cssName: string,
+  context: CssProcessingContext,
+): string | null {
+  // Check if this CSS is imported from another file
+  const cssFilePath = context.importedFunctions.get(cssName);
+  
+  if (!cssFilePath) return null;
+
+  // Load and process the external file to extract CSS variables
+  try {
+    const extractedData = getOrExtractFileData(cssFilePath, context);
+    
+    // Look for the specific CSS variable in the external file
+    const cssClassName = extractedData.cssVariables.get(cssName);
+    if (cssClassName) {
+      // Mark this CSS as used (for import cleanup)
+      context.usedFunctions.add(cssName);
+      return cssClassName;
+    }
+    
+    // Return null if not found (allow other resolvers to try)
+    return null;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to load CSS "${cssName}" from ${cssFilePath}`);
+  }
+}
+
+function resolveImportedConstant(
+  constantName: string,
+  context: CssProcessingContext,
+): string | number | null {
+  // Check if this constant is imported from another file
+  const constantFilePath = context.importedFunctions.get(constantName);
+  
+  if (!constantFilePath) return null;
+
+  // Load and process the external file to extract constants
+  try {
+    const extractedData = getOrExtractFileData(constantFilePath, context);
+    
+    // Look for the specific constant in the external file
+    const constantValue = extractedData.constants.get(constantName);
+    if (constantValue !== undefined) {
+      // Mark this constant as used (for import cleanup)
+      context.usedFunctions.add(constantName);
+      return constantValue;
+    }
+    
+    // Return null if not found (allow other resolvers to try)
+    return null;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(`Failed to load constant "${constantName}" from ${constantFilePath}`);
+  }
+}
+
+
+function getOrExtractFileData(
   filePath: string,
   context: CssProcessingContext,
-): Map<string, string> {
-  // This will store the keyframes found in the external file
-  const keyframesMap = new Map<string, string>();
+): { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number> } {
+  // Check cache first
+  const cached = context.extractedFiles.get(filePath);
+  if (cached) {
+    return cached;
+  }
+
+  // Load and extract data from file
+  const fileContent = context.fs.readFile(filePath);
   
-  // Create a temporary state to capture keyframes from external file
+  // Create a temporary state to capture both CSS variables and keyframes from external file
   const tempState = {
     cssRules: [],
     vindurImports: new Set<string>(),
     styledComponents: new Map(),
-    cssVariables: new Map(),
+    cssVariables: new Map<string, string>(),
     keyframes: new Map<string, string>(),
   };
   
-  // Create the plugin with the same context but temporary state
+  // Parse the file to get the AST
+  const parseResult = babel.parseSync(fileContent, {
+    sourceType: 'module',
+    parserOpts: {
+      plugins: ['typescript', 'jsx'],
+    },
+    filename: filePath,
+  });
+
+  if (!parseResult) {
+    throw new Error(`Failed to parse AST for ${filePath}`);
+  }
+
+  // Extract constants from the parsed AST (without transformation)
+  const constants = extractConstantsFromAST(parseResult, fileContent);
+
+  // Now transform the file to extract CSS variables and keyframes
   const plugin = createVindurPlugin(
     {
       filePath,
@@ -419,20 +539,145 @@ function extractKeyframesFromSource(
     tempState,
   );
   
-  // Parse the external file
-  babel.transformSync(source, {
+  // Transform the external file to extract CSS and keyframes
+  babel.transformSync(fileContent, {
     plugins: [plugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
     filename: filePath,
   });
   
-  // Copy the keyframes from temp state and add CSS rules to main state
-  for (const [name, animationName] of tempState.keyframes) {
-    keyframesMap.set(name, animationName);
+  // Debug: log extracted constants
+  if (context.debug) {
+    context.debug.log(`Extracted constants from ${filePath}: ${JSON.stringify(Array.from(constants.entries()))}`);
   }
+  
+  // Create the result object
+  const result = {
+    cssVariables: new Map(tempState.cssVariables),
+    keyframes: new Map(tempState.keyframes),
+    constants,
+  };
+  
+  // Cache the result
+  context.extractedFiles.set(filePath, result);
   
   // Add the CSS rules from the external file to the main CSS output
   context.state.cssRules.push(...tempState.cssRules);
   
-  return keyframesMap;
+  return result;
+}
+
+function extractConstantsFromAST(
+  ast: t.File,
+  _sourceCode: string,
+): Map<string, string | number> {
+  const constants = new Map<string, string | number>();
+  const allConstants = new Map<string, string | number>();
+
+  // First pass: collect all const declarations
+  babel.traverse(ast, {
+    VariableDeclaration(path) {
+      if (path.node.kind === 'const') {
+        for (const declarator of path.node.declarations) {
+          if (t.isIdentifier(declarator.id) && declarator.init) {
+            const variableName = declarator.id.name;
+            const value = extractLiteralValue(declarator.init);
+            
+            if (value !== null && (typeof value === 'string' || typeof value === 'number')) {
+              allConstants.set(variableName, value);
+            }
+          }
+        }
+      }
+    },
+  });
+
+  // Second pass: resolve template literals now that all literals are collected
+  babel.traverse(ast, {
+    VariableDeclaration(path) {
+      if (path.node.kind === 'const') {
+        for (const declarator of path.node.declarations) {
+          if (t.isIdentifier(declarator.id) && declarator.init && t.isTemplateLiteral(declarator.init)) {
+            const variableName = declarator.id.name;
+            // Try to resolve template literal with the constants we've collected
+            const resolvedValue = resolveTemplateLiteralWithConstants(declarator.init, allConstants);
+            if (resolvedValue !== null) {
+              allConstants.set(variableName, resolvedValue);
+            }
+          }
+        }
+      }
+    },
+  });
+
+  // Third pass: find exported constants
+  babel.traverse(ast, {
+    ExportNamedDeclaration(path) {
+      const declaration = path.node.declaration;
+      
+      if (t.isVariableDeclaration(declaration)) {
+        // Handle: export const name = value
+        for (const declarator of declaration.declarations) {
+          if (t.isIdentifier(declarator.id)) {
+            const variableName = declarator.id.name;
+            
+            // Try to get the value directly from the declarator
+            if (declarator.init) {
+              const value = extractLiteralValue(declarator.init);
+              if (value !== null && (typeof value === 'string' || typeof value === 'number')) {
+                constants.set(variableName, value);
+              } else if (t.isTemplateLiteral(declarator.init)) {
+                // Handle template literals in export declarations
+                const resolvedValue = resolveTemplateLiteralWithConstants(declarator.init, allConstants);
+                if (resolvedValue !== null) {
+                  constants.set(variableName, resolvedValue);
+                }
+              }
+            } else {
+              // Look for it in allConstants if it was declared separately
+              const value = allConstants.get(variableName);
+              if (value !== undefined) {
+                constants.set(variableName, value);
+              }
+            }
+          }
+        }
+      }
+    },
+  });
+
+  return constants;
+}
+
+function resolveTemplateLiteralWithConstants(
+  templateLiteral: t.TemplateLiteral,
+  constants: Map<string, string | number>,
+): string | null {
+  // Try to resolve the template literal
+  let result = '';
+  
+  for (let i = 0; i < templateLiteral.quasis.length; i++) {
+    const quasi = templateLiteral.quasis[i];
+    if (!quasi) continue;
+    result += quasi.value.cooked || quasi.value.raw;
+    
+    if (i < templateLiteral.expressions.length) {
+      const expression = templateLiteral.expressions[i];
+      
+      if (t.isIdentifier(expression)) {
+        const constantValue = constants.get(expression.name);
+        if (constantValue !== undefined) {
+          result += String(constantValue);
+        } else {
+          // Can't resolve this expression
+          return null;
+        }
+      } else {
+        // Can't resolve non-identifier expressions
+        return null;
+      }
+    }
+  }
+  
+  return result;
 }

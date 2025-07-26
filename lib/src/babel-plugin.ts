@@ -153,6 +153,7 @@ export function createVindurPlugin(
           state,
           path,
           debug,
+          extractedFiles: new Map(),
           loadExternalFunction,
         };
 
@@ -195,6 +196,7 @@ export function createVindurPlugin(
           state,
           path,
           debug,
+          extractedFiles: new Map(),
           loadExternalFunction,
         };
 

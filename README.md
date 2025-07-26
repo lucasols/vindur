@@ -408,6 +408,20 @@ const Component = () => {
 }
 ```
 
+Css extension will also work from imports:
+
+```tsx
+import { css } from 'vindur'
+import { baseStyles } from './styles'
+
+const styles = css`
+  ${baseStyles};
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 500;
+`
+```
+
 ### CSS as Selectors
 
 Use CSS styles as selectors within styled components using the `&` operator:

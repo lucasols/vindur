@@ -17,6 +17,8 @@ export type CssProcessingContext = {
   state: VindurPluginState;
   path: NodePath;
   debug?: DebugLogger;
+  // Cache for external file extractions to prevent duplicate processing  
+  extractedFiles: Map<string, { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number> }>;
   loadExternalFunction: (
     fs: { readFile: (path: string) => string },
     filePath: string,

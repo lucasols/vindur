@@ -1,6 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
 import { transformWithFormat } from './testUtils';
+import { createFsMock } from './testUtils';
 
 describe('keyframes cross-file imports', () => {
   test('should handle keyframes imported from another file', async () => {
@@ -15,27 +16,22 @@ describe('keyframes cross-file imports', () => {
         \`
       `,
       dev: true,
-      overrideDefaultFs: {
-        readFile: (path: string) => {
-          if (path === '/animations.ts') {
-            return dedent`
-              import { keyframes } from 'vindur'
+      overrideDefaultFs: createFsMock({
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
 
-              export const fadeIn = keyframes\`
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              \`
-            `;
-          }
-          throw new Error(`File not found: ${path}`);
-        },
-      },
+          export const fadeIn = keyframes\`
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          \`
+        `,
+      }),
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -77,42 +73,27 @@ describe('keyframes cross-file imports', () => {
         \`
       `,
       dev: true,
-      overrideDefaultFs: {
-        readFile: (path: string) => {
-          if (path === '/animations.ts') {
-            return dedent`
-              import { keyframes } from 'vindur'
+      overrideDefaultFs: createFsMock({
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
 
-              export const fadeIn = keyframes\`
-                from { opacity: 0; }
-                to { opacity: 1; }
-              \`
+          export const fadeIn = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
 
-              export const slideUp = keyframes\`
-                from { transform: translateY(10px); }
-                to { transform: translateY(0); }
-              \`
-            `;
-          }
-          throw new Error(`File not found: ${path}`);
-        },
-      },
+          export const slideUp = keyframes\`
+            from { transform: translateY(10px); }
+            to { transform: translateY(0); }
+          \`
+        `,
+      }),
     });
 
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
       "@keyframes v1gz5uqy-1 {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-
-      @keyframes v1gz5uqy-2 {
-        from { transform: translateY(10px); }
-        to { transform: translateY(0); }
-      }
-
-      @keyframes v1gz5uqy-1 {
         from { opacity: 0; }
         to { opacity: 1; }
       }
@@ -143,33 +124,28 @@ describe('keyframes cross-file imports', () => {
           background: #f0f0f0;
         \`
       `,
-      overrideDefaultFs: {
-        readFile: (path: string) => {
-          if (path === '/animations.ts') {
-            return dedent`
-              import { keyframes } from 'vindur'
+      overrideDefaultFs: createFsMock({
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
 
-              export const bounceIn = keyframes\`
-                0% {
-                  transform: scale(0.3);
-                  opacity: 0;
-                }
-                50% {
-                  transform: scale(1.05);
-                }
-                70% {
-                  transform: scale(0.9);
-                }
-                100% {
-                  transform: scale(1);
-                  opacity: 1;
-                }
-              \`
-            `;
-          }
-          throw new Error(`File not found: ${path}`);
-        },
-      },
+          export const bounceIn = keyframes\`
+            0% {
+              transform: scale(0.3);
+              opacity: 0;
+            }
+            50% {
+              transform: scale(1.05);
+            }
+            70% {
+              transform: scale(0.9);
+            }
+            100% {
+              transform: scale(1);
+              opacity: 1;
+            }
+          \`
+        `,
+      }),
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -212,27 +188,22 @@ describe('keyframes cross-file imports', () => {
           animation: \${customSlide} 1s ease-in-out;
         \`
       `,
-      overrideDefaultFs: {
-        readFile: (path: string) => {
-          if (path === '/animations.ts') {
-            return dedent`
-              import { keyframes } from 'vindur'
+      overrideDefaultFs: createFsMock({
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
 
-              const distance = '200px'
+          const distance = '200px'
 
-              export const customSlide = keyframes\`
-                from {
-                  transform: translateX(-\${distance});
-                }
-                to {
-                  transform: translateX(0);
-                }
-              \`
-            `;
-          }
-          throw new Error(`File not found: ${path}`);
-        },
-      },
+          export const customSlide = keyframes\`
+            from {
+              transform: translateX(-\${distance});
+            }
+            to {
+              transform: translateX(0);
+            }
+          \`
+        `,
+      }),
     });
 
     expect(result.code).toMatchInlineSnapshot(`""`);
@@ -268,21 +239,16 @@ describe('keyframes cross-file imports', () => {
           animation: \${fadeIn} 0.3s ease-in, \${localBounce} 0.6s ease-in-out infinite;
         \`
       `,
-      overrideDefaultFs: {
-        readFile: (path: string) => {
-          if (path === '/animations.ts') {
-            return dedent`
-              import { keyframes } from 'vindur'
+      overrideDefaultFs: createFsMock({
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
 
-              export const fadeIn = keyframes\`
-                from { opacity: 0; }
-                to { opacity: 1; }
-              \`
-            `;
-          }
-          throw new Error(`File not found: ${path}`);
-        },
-      },
+          export const fadeIn = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
+        `,
+      }),
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -318,21 +284,16 @@ describe('keyframes cross-file imports', () => {
             animation: \${unknownAnimation} 1s ease;
           \`
         `,
-        overrideDefaultFs: {
-          readFile: (path: string) => {
-            if (path === '/animations.ts') {
-              return dedent`
-                import { keyframes } from 'vindur'
+        overrideDefaultFs: createFsMock({
+          'animations.ts': dedent`
+            import { keyframes } from 'vindur'
 
-                export const fadeIn = keyframes\`
-                  from { opacity: 0; }
-                  to { opacity: 1; }
-                \`
-              `;
-            }
-            throw new Error(`File not found: ${path}`);
-          },
-        },
+            export const fadeIn = keyframes\`
+              from { opacity: 0; }
+              to { opacity: 1; }
+            \`
+          `,
+        }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `[Error: /test.tsx: Function "unknownAnimation" not found in /animations.ts]`,
