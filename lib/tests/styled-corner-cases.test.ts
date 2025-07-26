@@ -25,7 +25,8 @@ describe('styled components - corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1v2q6wl-1" />;"
+      "const App = () => <div className="v1v2q6wl-1" />;
+      "
     `);
   });
 
@@ -58,7 +59,8 @@ describe('styled components - corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="viwoa2i-1">Content</div>;"
+      "const App = () => <div className="viwoa2i-1">Content</div>;
+      "
     `);
   });
 
@@ -94,10 +96,17 @@ describe('styled components - corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div>
+      "const App = () => (
+        <div>
           <button className="vylwivr-1 extra-class">Click me</button>
-          <button className={\`vylwivr-1 \${\`dynamic-\${true ? 'active' : 'inactive'}\`}\`}>Dynamic</button>
-        </div>;"
+          <button
+            className={\`vylwivr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
+          >
+            Dynamic
+          </button>
+        </div>
+      );
+      "
     `);
   });
 });

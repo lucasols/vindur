@@ -702,42 +702,75 @@ export function createVindurPlugin(
             const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute => 
               t.isJSXSpreadAttribute(attr)
             );
-            const existingClassNameAttr = attributes.find(
+
+            // Validate spread expressions - only allow simple identifiers
+            for (const attr of spreadAttrs) {
+              if (!t.isIdentifier(attr.argument)) {
+                const expressionCode = generate(attr.argument).code;
+                throw new Error(
+                  `${path.hub.file.opts.filename || '/test.tsx'}: Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`
+                );
+              }
+            }
+            const classNameAttrs = attributes.filter(
               (attr): attr is t.JSXAttribute =>
                 t.isJSXAttribute(attr)
                 && t.isJSXIdentifier(attr.name)
                 && attr.name.name === 'className',
             );
+            const existingClassNameAttr = classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
 
             if (spreadAttrs.length > 0) {
-              // Handle spread props with mergeClassNameWithSpreadProps
-              state.vindurImports.add('mergeClassNameWithSpreadProps');
+              // Find the last spread index
+              const lastSpreadIndex = Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr)));
               
-              // Build the spread props array
-              const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
-              
-              // Determine the base className to merge
-              let baseClassName = styledInfo.className;
-              if (existingClassNameAttr && t.isStringLiteral(existingClassNameAttr.value)) {
-                baseClassName = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
-              }
-
-              // Create the mergeClassNameWithSpreadProps call
-              const mergeCall = t.callExpression(
-                t.identifier('mergeClassNameWithSpreadProps'),
-                [
-                  spreadPropsArray.length === 1 ? 
-                    t.arrayExpression([spreadPropsArray[0]]) :
-                    t.arrayExpression(spreadPropsArray),
-                  t.stringLiteral(baseClassName)
-                ]
-              );
-
+              // Only apply mergeWithSpread logic to the final className attribute
               if (existingClassNameAttr) {
-                // Replace existing className with merge call
-                existingClassNameAttr.value = t.jsxExpressionContainer(mergeCall);
+                const finalClassNameIndex = attributes.indexOf(existingClassNameAttr);
+                const hasSpreadsBeforeFinalClassName = lastSpreadIndex < finalClassNameIndex;
+                const hasMultipleClassNames = classNameAttrs.length > 1;
+                
+                if (hasSpreadsBeforeFinalClassName && !hasMultipleClassNames && t.isStringLiteral(existingClassNameAttr.value)) {
+                  // Single className comes after spreads - static merge, no mergeWithSpread needed
+                  existingClassNameAttr.value.value = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
+                } else {
+                  // Multiple classNames OR final className comes before/among spreads - needs mergeWithSpread
+                  state.vindurImports.add('mergeWithSpread');
+                  
+                  // Build the spread props array
+                  const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
+                  
+                  // Include the final className value in the base
+                  let baseClassName = styledInfo.className;
+                  if (t.isStringLiteral(existingClassNameAttr.value)) {
+                    baseClassName = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
+                  }
+
+                  // Create the mergeWithSpread call
+                  const mergeCall = t.callExpression(
+                    t.identifier('mergeWithSpread'),
+                    [
+                      t.arrayExpression(spreadPropsArray),
+                      t.stringLiteral(baseClassName)
+                    ]
+                  );
+
+                  // Replace the final className with merge call
+                  existingClassNameAttr.value = t.jsxExpressionContainer(mergeCall);
+                }
               } else {
-                // Add new className attribute with merge call
+                // No existing className - add one with mergeWithSpread
+                state.vindurImports.add('mergeWithSpread');
+                
+                const spreadPropsArray = spreadAttrs.map(attr => attr.argument);
+                const mergeCall = t.callExpression(
+                  t.identifier('mergeWithSpread'),
+                  [
+                    t.arrayExpression(spreadPropsArray),
+                    t.stringLiteral(styledInfo.className)
+                  ]
+                );
+
                 attributes.push(
                   t.jsxAttribute(
                     t.jsxIdentifier('className'),
@@ -808,18 +841,31 @@ export function createVindurPlugin(
           const source = path.node.source.value;
           if (typeof source === 'string') {
             if (source === 'vindur') {
-              // Handle vindur imports - keep only mergeClassNameWithSpreadProps if it's used
+              // Handle vindur imports - keep only mergeWithSpread if it's used
               const specifiersToKeep: t.ImportSpecifier[] = [];
+              let hasMergeWithSpread = false;
               
               for (const specifier of path.node.specifiers) {
                 if (
                   t.isImportSpecifier(specifier)
                   && t.isIdentifier(specifier.imported)
-                  && specifier.imported.name === 'mergeClassNameWithSpreadProps'
-                  && state.vindurImports.has('mergeClassNameWithSpreadProps')
+                  && specifier.imported.name === 'mergeWithSpread'
                 ) {
-                  specifiersToKeep.push(specifier);
+                  hasMergeWithSpread = true;
+                  if (state.vindurImports.has('mergeWithSpread')) {
+                    specifiersToKeep.push(specifier);
+                  }
                 }
+              }
+              
+              // Add mergeWithSpread import if needed but not already present
+              if (state.vindurImports.has('mergeWithSpread') && !hasMergeWithSpread) {
+                specifiersToKeep.push(
+                  t.importSpecifier(
+                    t.identifier('mergeWithSpread'),
+                    t.identifier('mergeWithSpread')
+                  )
+                );
               }
               
               if (specifiersToKeep.length > 0) {

@@ -36,9 +36,10 @@ describe('styled components - interpolation', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = 'blue';
+      "const primaryColor = "blue";
       const fontSize = 16;
-      const App = () => <p className="vhqnxci-1">Hello</p>;"
+      const App = () => <p className="vhqnxci-1">Hello</p>;
+      "
     `);
   });
 
@@ -70,9 +71,10 @@ describe('styled components - interpolation', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const prefix = 'my';
-      const suffix = 'value';
-      const App = () => <div className="vmgoafb-1" />;"
+      "const prefix = "my";
+      const suffix = "value";
+      const App = () => <div className="vmgoafb-1" />;
+      "
     `);
   });
 });

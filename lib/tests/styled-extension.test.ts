@@ -48,10 +48,13 @@ describe('styled component extension', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div>
+      "const App = () => (
+        <div>
           <button className="v4nysp2-1">Blue</button>
           <button className="v4nysp2-1 v4nysp2-2">Red</button>
-        </div>;"
+        </div>
+      );
+      "
     `);
   });
 
@@ -107,24 +110,27 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1mfqpog-1 {
+      ".v1496h10-1 {
         padding: 8px;
         border: none;
       }
 
-      .v1mfqpog-2 {
+      .v1496h10-2 {
         background: blue;
         color: white;
       }
 
-      .v1mfqpog-3 {
+      .v1496h10-3 {
         font-size: 18px;
         padding: 12px;
       }"
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <button className="v1mfqpog-1 v1mfqpog-2 v1mfqpog-3">Click me</button>;"
+      "const App = () => (
+        <button className="v1496h10-1 v1496h10-2 v1496h10-3">Click me</button>
+      );
+      "
     `);
   });
 });

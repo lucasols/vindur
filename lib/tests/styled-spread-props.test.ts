@@ -21,14 +21,15 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vh89gjz-1 {
+      ".v1560qbr-1 {
         background: blue;
         color: white;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "const App = () => {
+      "import { mergeWithSpread } from "vindur";
+      const App = () => {
         const buttonProps = {
           onClick: () => {},
           disabled: false,
@@ -36,12 +37,13 @@ describe('handle spread props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeWithSpread([buttonProps], 'vh89gjz-1')}
+            className={mergeWithSpread([buttonProps], "v1560qbr-1")}
           >
             Click me
           </button>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -70,26 +72,25 @@ describe('handle spread props', () => {
     });
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from 'vindur';
-
-      const App = () => {
+      "const App = () => {
         const inputProps = {
-          type: 'text',
-          placeholder: 'Enter text',
+          type: "text",
+          placeholder: "Enter text",
         };
         return (
           <input
             {...inputProps}
             value="test"
             onChange={() => {}}
-            className="vm54pe-1 extra-class"
+            className="v1560qbr-1 extra-class"
           />
         );
-      };"
+      };
+      "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vm54pe-1 {
+      ".v1560qbr-1 {
         border: 1px solid gray;
         padding: 8px;
       }"
@@ -123,19 +124,18 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vbmwn6t-1 {
+      ".v1560qbr-1 {
         display: flex;
         gap: 16px;
       }"
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const styleProps = {
           style: {
-            margin: '10px',
+            margin: "10px",
           },
         };
         const eventProps = {
@@ -147,15 +147,13 @@ describe('handle spread props', () => {
             {...styleProps}
             {...eventProps}
             id="container"
-            className={mergeWithSpread(
-              [styleProps, eventProps],
-              'vbmwn6t-1',
-            )}
+            className={mergeWithSpread([styleProps, eventProps], "v1560qbr-1")}
           >
             Content
           </div>
         );
-      };"
+      };
+      "
     `);
   });
 
@@ -189,35 +187,32 @@ describe('handle spread props', () => {
     });
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const buttonProps = {
-          type: 'submit',
-          form: 'myForm',
+          type: "submit",
+          form: "myForm",
         };
         return (
           <button
             {...buttonProps}
-            onClick={() => console.log('clicked')}
-            className={mergeWithSpread(
-              [buttonProps],
-              'vnzhx1v-1 vnzhx1v-2',
-            )}
+            onClick={() => console.log("clicked")}
+            className={mergeWithSpread([buttonProps], "v1560qbr-1 v1560qbr-2")}
           >
             Submit
           </button>
         );
-      };"
+      };
+      "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vnzhx1v-1 {
+      ".v1560qbr-1 {
         padding: 8px 16px;
         border: none;
       }
 
-      .vnzhx1v-2 {
+      .v1560qbr-2 {
         background: blue;
         color: white;
       }"
@@ -252,27 +247,27 @@ describe('handle spread props', () => {
     });
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const cardProps = {
-          className: 'animated-card fade-in',
-          'data-testid': 'card-component',
+          className: "animated-card fade-in",
+          "data-testid": "card-component",
         };
         return (
           <div
             {...cardProps}
             role="article"
-            className={mergeWithSpread([cardProps], 'v1swlzlr-1')}
+            className={mergeWithSpread([cardProps], "v1560qbr-1")}
           >
             Card content
           </div>
         );
-      };"
+      };
+      "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1swlzlr-1 {
+      ".v1560qbr-1 {
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
@@ -306,33 +301,30 @@ describe('handle spread props', () => {
     });
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from 'vindur';
-
+      "import { mergeWithSpread } from "vindur";
       const App = () => {
         const props1 = {
-          className: 'first',
+          className: "first",
         };
         const props2 = {
-          className: 'second',
+          className: "second",
         };
         return (
           <div
             className="before"
             {...props1}
             {...props2}
-            className={mergeWithSpread(
-              [props1, props2],
-              'vwpl064-1 after',
-            )}
+            className={mergeWithSpread([props1, props2], "v1560qbr-1 after")}
           >
             Content
           </div>
         );
-      };"
+      };
+      "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwpl064-1 {
+      ".v1560qbr-1 {
         background: gray;
       }"
     `);
@@ -363,7 +355,9 @@ describe('handle spread props', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Unsupported spread expression "isDisabled && { disabled: true }" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.]
+      [Error: /test.tsx: /test.tsx: Unsupported spread expression "isDisabled && {
+        disabled: true
+      }" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.]
     `);
   });
 });

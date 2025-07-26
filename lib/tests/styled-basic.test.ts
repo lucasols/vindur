@@ -37,7 +37,8 @@ describe('styled components - basic functionality', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
         return <div className="vmcre00-1" />;
-      };"
+      };
+      "
     `);
   });
 
@@ -89,11 +90,14 @@ describe('styled components - basic functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div>
+        return (
+          <div>
             <button className="vcixwtu-1-Button">Click me</button>
             <h1 className="vcixwtu-2-Header">Title</h1>
-          </div>;
-      };"
+          </div>
+        );
+      };
+      "
     `);
   });
 
@@ -129,9 +133,10 @@ describe('styled components - basic functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = 'blue';
+      "const primaryColor = "blue";
       const padding = 12;
-      const App = () => <button className="vi3fon9-1">Click</button>;"
+      const App = () => <button className="vi3fon9-1">Click</button>;
+      "
     `);
   });
 
@@ -186,13 +191,16 @@ describe('styled components - basic functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => <div>
+      "const Component = () => (
+        <div>
           <div className="v1012akl-1">div</div>
           <span className="v1012akl-2">span</span>
           <p className="v1012akl-3">p</p>
           <button className="v1012akl-4">button</button>
           <input className="v1012akl-5" />
-        </div>;"
+        </div>
+      );
+      "
     `);
   });
 
