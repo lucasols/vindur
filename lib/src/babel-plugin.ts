@@ -12,6 +12,7 @@ import {
   handleGlobalStyleTaggedTemplate,
   handleGlobalStyleVariableAssignment,
   handleInlineStyledError,
+  handleJsxCssProp,
   handleJsxStyledComponent,
   handleKeyframesTaggedTemplate,
   handleKeyframesVariableAssignment,
@@ -224,7 +225,27 @@ export function createVindurPlugin(
         }
       },
       JSXElement(path) {
+        // Handle styled components first (transforms element name)
         handleJsxStyledComponent(path, { state });
+        
+        // Then handle css prop
+        handleJsxCssProp(path, {
+          state,
+          dev,
+          fileHash,
+          classIndex: () => idIndex++,
+          cssProcessingContext: () => ({
+            fs,
+            compiledFunctions: transformFunctionCache,
+            importedFunctions,
+            usedFunctions,
+            state,
+            path,
+            debug,
+            extractedFiles: new Map(),
+            loadExternalFunction,
+          }),
+        });
       },
     },
     pre() {

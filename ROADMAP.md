@@ -30,7 +30,7 @@ A compile-time CSS-in-JS library focused on performance.
 
 ### 🚧 **JSX Props**
 
-- [ ] JSX `css` prop (styled-components/emotion style)
+- [x] JSX `css` prop (styled-components/emotion style) ✅
 - [ ] JSX `cx` prop (classnames style)
   ```tsx
   <div cx={{ active: true, disabled: false }} />

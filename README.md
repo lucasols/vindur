@@ -653,6 +653,68 @@ const Button = styled.button`
 `
 ```
 
+### JSX CSS Prop
+
+Apply styles directly to JSX elements using the `css` prop, similar to styled-components and emotion:
+
+```tsx
+import { css } from 'vindur'
+
+const App = () => (
+  <div css={`
+    background: blue;
+    padding: 20px;
+    color: white;
+  `}>
+    Hello World
+  </div>
+)
+```
+
+The `css` prop works with native DOM elements and styled components:
+
+```tsx
+const Card = styled.div`
+  background: white;
+  padding: 20px;
+`
+
+const App = () => (
+  <Card css={`border: 1px solid red;`}>
+    Card with additional styling
+  </Card>
+)
+```
+
+You can also use CSS function references:
+
+```tsx
+const buttonStyles = css`
+  background: #007bff;
+  color: white;
+  padding: 8px 16px;
+`
+
+const Button = ({ children }) => (
+  <button css={buttonStyles}>
+    {children}
+  </button>
+)
+```
+
+The `css` prop automatically merges with existing `className` attributes:
+
+```tsx
+<div 
+  className="existing-class"
+  css={`color: green; font-weight: bold;`}
+>
+  Styled content
+</div>
+```
+
+**Note**: The `css` prop only works with native DOM elements (like `div`, `span`, `button`) and styled components. It does not work with custom React components.
+
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
