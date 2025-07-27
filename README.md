@@ -759,6 +759,66 @@ The `css` prop automatically merges with existing `className` attributes:
 
 **Note**: The `css` prop only works with native DOM elements (like `div`, `span`, `button`) and styled components. It does not work with custom React components.
 
+### JSX CX Prop
+
+Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
+
+Classes used in `cx` prop will be compiled to bundle size optimized hashs by default. Use `$` prefix to prevent hashing.
+
+```tsx
+const Container = styled.div`
+  background: red;
+
+  &.active {
+    background: blue;
+  }
+
+  &.disabled {
+    background: green;
+  }
+`;
+
+const App = ({ isActive, isDisabled }) => (
+  <Container cx={{ active: isActive, disabled: isDisabled, $noHash: true }}>
+    Content with conditional classes
+  </Container>
+);
+
+// is compiled to:
+const Compiled = ({ isActive, isDisabled }) => (
+  <Container
+    className={cx({
+      vhash_3: isActive,
+      vhash_4: isDisabled,
+      // the $ prefix will be removed from the class name and its value preserved
+      noHash: true,
+    })}
+  >
+    Content with conditional classes
+  </Container>
+);
+```
+
+`cx` integrates seamlessly with the `css`, `className`, `dynamicColor` and other vindur features.
+
+```tsx
+const App = ({ isActive, isDisabled }) => (
+  <Container
+    cx={{ active: isActive, disabled: isDisabled }}
+    // cx can be used along with className, the className will be merged with the cx class results
+    className="base-style"
+    // cx can be used with the css prop too
+    css={`
+      background: red;
+    `}
+    // cx can be used with the dynamicColor
+    dynamicColor={dynamicColor}
+  >
+    Content with conditional classes
+  </Container>
+);
+```
+
 ## Theme Colors
 
 Create type-safe theme color systems with `createStaticThemeColors`:
