@@ -80,6 +80,7 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 ## Code Organization
 
 - Abstract redundant types into a single type
+- Split up large files (+600 lines) into smaller files
 
 ## Testing
 
@@ -88,6 +89,7 @@ Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directo
 ```bash
 cd lib
 pnpm test         # Run tests
+pnpm test tests/filename.test.ts       # Run tests for a specific file
 ```
 
 - Prefer using `toMatchInlineSnapshot` when possible
@@ -165,3 +167,4 @@ When implementing features:
 ## Test Utility Memories
 
 - `overrideDefaultFs` should use `createFsMock`
+- do not use `overrideDefaultFs` and `overrideDefaultImportAliases` when using the default values

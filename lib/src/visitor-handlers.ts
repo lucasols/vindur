@@ -16,6 +16,24 @@ import {
 } from './css-processing';
 import type { CssProcessingContext } from './css-processing';
 
+// Helper function to validate hex colors without alpha
+function isValidHexColorWithoutAlpha(color: string): boolean {
+  // Must start with #
+  if (!color.startsWith('#')) {
+    return false;
+  }
+  
+  const hex = color.slice(1);
+  
+  // Must be either 3 or 6 characters (no alpha channel)
+  if (hex.length !== 3 && hex.length !== 6) {
+    return false;
+  }
+  
+  // Must contain only valid hex characters
+  return /^[0-9a-fA-F]+$/.test(hex);
+}
+
 type ImportHandlerContext = {
   state: VindurPluginState;
   importedFunctions: ImportedFunctions;
@@ -338,6 +356,63 @@ export function handleKeyframesVariableAssignment(
 
   // Replace the keyframes call with animation name string
   path.node.init = t.stringLiteral(result.finalClassName);
+  
+  return true;
+}
+
+export function handleStaticThemeColorsAssignment(
+  path: NodePath<t.VariableDeclarator>,
+  handlerContext: VariableHandlerContext,
+): boolean {
+  const { context } = handlerContext;
+  
+  if (
+    !context.state.vindurImports.has('createStaticThemeColors')
+    || !path.node.init
+    || !t.isCallExpression(path.node.init)
+    || !t.isIdentifier(path.node.init.callee)
+    || path.node.init.callee.name !== 'createStaticThemeColors'
+    || path.node.init.arguments.length !== 1
+    || !t.isIdentifier(path.node.id)
+  ) {
+    return false;
+  }
+
+  const varName = path.node.id.name;
+  const argument = path.node.init.arguments[0];
+  
+  if (!t.isObjectExpression(argument)) {
+    throw new Error('createStaticThemeColors must be called with an object literal');
+  }
+  
+  // Extract the color definitions
+  const colors: Record<string, string> = {};
+  for (const prop of argument.properties) {
+    if (t.isObjectProperty(prop) && t.isIdentifier(prop.key) && t.isStringLiteral(prop.value)) {
+      const colorName = prop.key.name;
+      const colorValue = prop.value.value;
+      
+      // Validate that the color is a valid hex color without alpha
+      if (!isValidHexColorWithoutAlpha(colorValue)) {
+        throw new Error(`Invalid color "${colorValue}" for "${colorName}". Theme colors must be valid hex colors without alpha (e.g., "#ff0000" or "#f00")`);
+      }
+      
+      colors[colorName] = colorValue;
+    } else {
+      throw new Error('createStaticThemeColors object must only contain string properties');
+    }
+  }
+  
+  // Store the theme colors for future reference
+  context.state.themeColors ??= new Map();
+  context.state.themeColors.set(varName, colors);
+  
+  // Replace the function call with the raw color object
+  path.node.init = t.objectExpression(
+    Object.entries(colors).map(([key, value]) =>
+      t.objectProperty(t.identifier(key), t.stringLiteral(value))
+    )
+  );
   
   return true;
 }

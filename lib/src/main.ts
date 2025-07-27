@@ -92,5 +92,9 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 ): {
   [K in keyof C]: StaticColor<C[K]>;
 } {
-  return colors;
+  // At runtime, this function should never be called as it gets replaced during compilation
+  // But we need to provide a valid runtime implementation for TypeScript
+  return colors as unknown as {
+    [K in keyof C]: StaticColor<C[K]>;
+  };
 }

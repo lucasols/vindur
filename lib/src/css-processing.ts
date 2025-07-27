@@ -18,7 +18,7 @@ export type CssProcessingContext = {
   path: NodePath;
   debug?: DebugLogger;
   // Cache for external file extractions to prevent duplicate processing  
-  extractedFiles: Map<string, { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number> }>;
+  extractedFiles: Map<string, { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number>; themeColors: Map<string, Record<string, string>> }>;
   loadExternalFunction: (
     fs: { readFile: (path: string) => string },
     filePath: string,
@@ -41,12 +41,14 @@ export function processCssTemplate(
   context: CssProcessingContext,
   variableName: string | undefined,
   tagType: string,
+  dev: boolean = false,
 ): { cssContent: string; extensions: string[] } {
   return processTemplateWithInterpolation(
     quasi,
     context,
     variableName,
     tagType,
+    dev,
   );
 }
 
@@ -83,6 +85,7 @@ export function processStyledTemplate(
     context,
     variableName,
     tagType,
+    dev,
   );
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
@@ -110,6 +113,7 @@ export function processStyledExtension(
     context,
     variableName,
     `${STYLED_TAG_NAME}(${extendedName})`,
+    dev,
   );
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
@@ -156,6 +160,7 @@ export function processGlobalStyle(
     context,
     undefined,
     'createGlobalStyle',
+    false, // Global styles don't need dev mode
   );
 
   // Clean up CSS content and add to global styles (no class wrapper)
@@ -178,6 +183,7 @@ export function processKeyframes(
     context,
     variableName,
     'keyframes',
+    dev,
   );
 
   const animationName = generateClassName(

@@ -16,6 +16,7 @@ import {
   handleJsxStyledComponent,
   handleKeyframesTaggedTemplate,
   handleKeyframesVariableAssignment,
+  handleStaticThemeColorsAssignment,
   handleStyledElementAssignment,
   handleStyledExtensionAssignment,
   handleVindurFnExport,
@@ -30,6 +31,7 @@ export type VindurPluginState = {
   styledComponents: Map<string, { element: string; className: string; isExported: boolean }>;
   cssVariables: Map<string, string>; // Track css tagged template variables
   keyframes: Map<string, string>; // Track keyframes animation names
+  themeColors?: Map<string, Record<string, string>>; // Track createStaticThemeColors variables
 };
 
 export type FunctionCache = {
@@ -181,6 +183,10 @@ export function createVindurPlugin(
           handleKeyframesVariableAssignment(path, variableHandlerContext)
         ) {
           idIndex = idIndexRef.current;
+        } else if (
+          handleStaticThemeColorsAssignment(path, variableHandlerContext)
+        ) {
+          // No classIndex increment for theme colors
         } else if (
           handleGlobalStyleVariableAssignment(path, variableHandlerContext)
         ) {
