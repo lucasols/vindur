@@ -372,6 +372,19 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
  * Utility for conditionally joining classNames together.
  * Check {@link https://github.com/JedWatson/classnames} for api reference
  */
+export function stableId(): string {
+  console.error('stableId cannot be called at runtime');
+  return '';
+}
+
+export function createClassName(id?: string): { selector: string; value: string } {
+  if (id) {
+    return { selector: `.${id}`, value: id };
+  }
+  console.error('createClassName cannot be called at runtime');
+  return { selector: '', value: '' };
+}
+
 export function cx(
   ...args: (string | false | undefined | null | Record<string, unknown>)[]
 ) {

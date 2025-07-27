@@ -337,46 +337,76 @@ describe('stable ID utilities in CSS context', () => {
     `);
   });
 
-  test('should throw error when using createClassName properties in css template', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { css, createClassName } from 'vindur';
+  test('should use createClassName properties in css template', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, createClassName } from 'vindur';
 
-          export const className = createClassName();
-          export const style = css\`
-            \${className.selector} {
-              background: blue;
-            }
-          \`;
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+        export const className = createClassName();
+        export const style = css\`
+          \${className.selector} {
+            background: blue;
+          }
+          .\${className.value} {
+            border: 1px solid black;
+          }
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const className = createClassName("v1560qbr-1");
+      export const style = "v1560qbr-2";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        .v1560qbr-1 {
+          background: blue;
+        }
+        .v1560qbr-1 {
+          border: 1px solid black;
+        }
+      }"
+    `);
   });
 
-  test('should throw error when mixing stableId and createClassName properties in css template', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { css, stableId, createClassName } from 'vindur';
+  test('should use both stableId and createClassName properties in css template', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, stableId, createClassName } from 'vindur';
 
-          export const id = stableId();
-          export const className = createClassName();
-          export const style = css\`
-            #\${id} {
-              color: red;
-            }
-            \${className.selector} {
-              background: blue;
-            }
-          \`;
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+        export const id = stableId();
+        export const className = createClassName();
+        export const style = css\`
+          #\${id} {
+            color: red;
+          }
+          \${className.selector} {
+            background: blue;
+          }
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const id = "v1560qbr-1";
+      export const className = createClassName("v1560qbr-2");
+      export const style = "v1560qbr-3";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-3 {
+        #v1560qbr-1 {
+          color: red;
+        }
+        .v1560qbr-2 {
+          background: blue;
+        }
+      }"
+    `);
   });
 });
 
@@ -417,46 +447,84 @@ describe('stable ID utilities in styled components', () => {
     `);
   });
 
-  test('should throw error when using createClassName properties in styled component', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { styled, createClassName } from 'vindur';
+  test('should use createClassName properties in styled component', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, createClassName } from 'vindur';
 
-          export const className = createClassName();
-          export const Container = styled.div\`
-            \${className.selector} {
-              padding: 16px;
-            }
-          \`;
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... Container = styled\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+        export const className = createClassName();
+        export const Container = styled.div\`
+          \${className.selector} {
+            padding: 16px;
+          }
+          &.\${className.value} {
+            margin: 8px;
+          }
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { styledComponent } from "vindur";
+      export const className = createClassName("v1560qbr-1");
+      export const Container = styledComponent("div", "v1560qbr-2");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        .v1560qbr-1 {
+          padding: 16px;
+        }
+        &.v1560qbr-1 {
+          margin: 8px;
+        }
+      }"
+    `);
   });
 
-  test('should throw error when mixing stable utilities with createClassName properties in styled component', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { styled, stableId, createClassName } from 'vindur';
+  test('should use both stable utilities with createClassName properties in styled component', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, stableId, createClassName } from 'vindur';
 
-          export const id = stableId();
-          export const className = createClassName();
-          export const Card = styled.article\`
-            #\${id} {
-              font-size: 16px;
-            }
-            \${className.selector} {
-              border: 1px solid gray;
-            }
-          \`;
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... Card = styled\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+        export const id = stableId();
+        export const className = createClassName();
+        export const Card = styled.article\`
+          #\${id} {
+            font-size: 16px;
+          }
+          \${className.selector} {
+            border: 1px solid gray;
+          }
+          &[data-id="\${id}"].\${className.value} {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { styledComponent } from "vindur";
+      export const id = "v1560qbr-1";
+      export const className = createClassName("v1560qbr-2");
+      export const Card = styledComponent("article", "v1560qbr-3");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-3 {
+        #v1560qbr-1 {
+          font-size: 16px;
+        }
+        .v1560qbr-2 {
+          border: 1px solid gray;
+        }
+        &[data-id="v1560qbr-1"].v1560qbr-2 {
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+      }"
+    `);
   });
 });
 
@@ -501,89 +569,155 @@ describe('stable ID utilities in CSS prop', () => {
     `);
   });
 
-  test('should throw error when using createClassName properties in css prop', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { createClassName } from 'vindur';
+  test('should use createClassName properties in css prop', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createClassName } from 'vindur';
 
-          export const className = createClassName();
+        export const className = createClassName();
 
-          export const Component = () => (
-            <div css={\`
-              \${className.selector} {
-                padding: 16px;
-              }
-            \`}>
-              Content
-            </div>
-          );
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... css-prop-2 = css\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+        export const Component = () => (
+          <div css={\`
+            \${className.selector} {
+              padding: 16px;
+            }
+            &.\${className.value} {
+              margin: 8px;
+            }
+          \`}>
+            Content
+          </div>
+        );
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const className = createClassName("v1560qbr-1");
+      export const Component = () => <div className="v1560qbr-2">Content</div>;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        .v1560qbr-1 {
+            padding: 16px;
+          }
+          &.v1560qbr-1 {
+            margin: 8px;
+          }
+      }"
+    `);
   });
 
-  test('should throw error when mixing stable utilities with createClassName properties in css prop', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { stableId, createClassName } from 'vindur';
+  test('should use both stable utilities with createClassName properties in css prop', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { stableId, createClassName } from 'vindur';
 
-          export const id = stableId();
-          export const className = createClassName();
+        export const id = stableId();
+        export const className = createClassName();
 
-          export const Component = () => (
-            <section css={\`
+        export const Component = () => (
+          <section css={\`
+            #\${id} {
+              font-size: 18px;
+            }
+            \${className.selector} {
+              border: 2px solid navy;
+            }
+            &[data-id="\${id}"].\${className.value} {
+              box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+          \`}>
+            Content
+          </section>
+        );
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const id = "v1560qbr-1";
+      export const className = createClassName("v1560qbr-2");
+      export const Component = () => (
+        <section className="v1560qbr-3">Content</section>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-3 {
+        #v1560qbr-1 {
+            font-size: 18px;
+          }
+          .v1560qbr-2 {
+            border: 2px solid navy;
+          }
+          &[data-id="v1560qbr-1"].v1560qbr-2 {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+          }
+      }"
+    `);
+  });
+
+  test('should use createClassName properties across multiple css props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { stableId, createClassName } from 'vindur';
+
+        export const id = stableId();
+        export const className = createClassName();
+
+        export const Component = () => (
+          <div>
+            <header css={\`
               #\${id} {
-                font-size: 18px;
-              }
-              \${className.selector} {
-                border: 2px solid navy;
+                height: 60px;
               }
             \`}>
-              Content
-            </section>
-          );
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... css-prop-3 = css\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
-  });
+              Header
+            </header>
+            <main css={\`
+              \${className.selector} {
+                min-height: 400px;
+              }
+              &.\${className.value} {
+                padding: 20px;
+              }
+            \`}>
+              Main content
+            </main>
+          </div>
+        );
+      `,
+    });
 
-  test('should throw error when using createClassName properties across multiple css props', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { stableId, createClassName } from 'vindur';
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const id = "v1560qbr-1";
+      export const className = createClassName("v1560qbr-2");
+      export const Component = () => (
+        <div>
+          <header className="v1560qbr-3">Header</header>
+          <main className="v1560qbr-4">Main content</main>
+        </div>
+      );
+      "
+    `);
 
-          export const id = stableId();
-          export const className = createClassName();
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-3 {
+        #v1560qbr-1 {
+              height: 60px;
+            }
+      }
 
-          export const Component = () => (
-            <div>
-              <header css={\`
-                #\${id} {
-                  height: 60px;
-                }
-              \`}>
-                Header
-              </header>
-              <main css={\`
-                \${className.selector} {
-                  min-height: 400px;
-                }
-              \`}>
-                Main content
-              </main>
-            </div>
-          );
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... css-prop-4 = css\` ... \${className.selector}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
-    );
+      .v1560qbr-4 {
+        .v1560qbr-2 {
+              min-height: 400px;
+            }
+            &.v1560qbr-2 {
+              padding: 20px;
+            }
+      }"
+    `);
   });
 });

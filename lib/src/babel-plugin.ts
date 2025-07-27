@@ -18,6 +18,8 @@ import {
   handleKeyframesVariableAssignment,
   handleStaticThemeColorsAssignment,
   handleGlobalStyleVariableAssignment,
+  handleStableIdCall,
+  handleCreateClassNameCall,
 } from './visitor-handlers/variable-handlers';
 import {
   handleCssTaggedTemplate,
@@ -267,6 +269,18 @@ export function createVindurPlugin(
         
         // Handle styled components last (transforms element name)
         handleJsxStyledComponent(path, { state });
+      },
+      CallExpression(path) {
+        const callExpressionContext = {
+          state,
+          dev,
+          fileHash,
+          classIndex: () => idIndex++,
+        };
+
+        if (!handleStableIdCall(path, callExpressionContext)) {
+          handleCreateClassNameCall(path, callExpressionContext);
+        }
       },
     },
     pre() {

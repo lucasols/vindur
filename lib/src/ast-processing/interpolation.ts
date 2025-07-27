@@ -161,6 +161,55 @@ function processBinaryExpression(
   }
 }
 
+function resolveCreateClassNameMemberExpression(
+  expression: t.MemberExpression,
+  context: CssProcessingContext,
+): string | null {
+  // Check if this is a createClassName(...).selector or createClassName(...).value
+  if (
+    t.isCallExpression(expression.object)
+    && t.isIdentifier(expression.object.callee)
+    && expression.object.callee.name === 'createClassName'
+    && t.isIdentifier(expression.property)
+    && (expression.property.name === 'selector' || expression.property.name === 'value')
+    && expression.object.arguments.length === 1
+    && t.isStringLiteral(expression.object.arguments[0])
+  ) {
+    const hash = expression.object.arguments[0].value;
+    if (expression.property.name === 'selector') return `.${hash}`;
+    return hash;
+  }
+  
+  // Check if this is an identifier.selector or identifier.value where identifier was assigned createClassName()
+  if (
+    t.isIdentifier(expression.object)
+    && t.isIdentifier(expression.property)
+    && (expression.property.name === 'selector' || expression.property.name === 'value')
+  ) {
+    // Find the variable binding for the identifier
+    const binding = context.path.scope.getBinding(expression.object.name);
+    
+    if (binding?.path && binding.path.isVariableDeclarator() && binding.path.node.init) {
+      const init = binding.path.node.init;
+      
+      // Check if the initialization is a createClassName() call
+      if (
+        t.isCallExpression(init)
+        && t.isIdentifier(init.callee)
+        && init.callee.name === 'createClassName'
+        && init.arguments.length === 1
+        && t.isStringLiteral(init.arguments[0])
+      ) {
+        const hash = init.arguments[0].value;
+        if (expression.property.name === 'selector') return `.${hash}`;
+        return hash;
+      }
+    }
+  }
+  
+  return null;
+}
+
 function processMemberExpression(
   expression: t.MemberExpression,
   context: CssProcessingContext,
@@ -175,6 +224,10 @@ function processMemberExpression(
   // Try dynamic colors
   const dynamicResolved = resolveDynamicColorExpression(expression, context);
   if (dynamicResolved !== null) return dynamicResolved;
+  
+  // Try createClassName member expressions
+  const createClassNameResolved = resolveCreateClassNameMemberExpression(expression, context);
+  if (createClassNameResolved !== null) return createClassNameResolved;
   
   const expressionSource = generate(expression).code;
   const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
