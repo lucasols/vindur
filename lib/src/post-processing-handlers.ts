@@ -42,9 +42,7 @@ export function handleVindurImportCleanup(
   state: VindurPluginState,
 ): boolean {
   const source = path.node.source.value;
-  if (source !== 'vindur') {
-    return false;
-  }
+  if (source !== 'vindur') return false;
 
   // Handle vindur imports - keep only runtime functions if they're used
   const specifiersToKeep: t.ImportSpecifier[] = [];
@@ -137,9 +135,7 @@ export function handleFunctionImportCleanup(
   context: PostProcessingContext,
 ): boolean {
   const source = path.node.source.value;
-  if (typeof source !== 'string') {
-    return false;
-  }
+  if (typeof source !== 'string') return false;
 
   // Check if this is a relative import or an alias import that was resolved
   const isRelativeImport = source.startsWith('./') || source.startsWith('../');

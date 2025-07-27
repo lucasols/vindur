@@ -59,9 +59,7 @@ export function processInterpolationExpression(
 
     // Check if this identifier refers to an imported keyframes
     const importedKeyframes = resolveImportedKeyframes(expression.name, context);
-    if (importedKeyframes !== null) {
-      return importedKeyframes;
-    }
+    if (importedKeyframes !== null) return importedKeyframes;
 
     // Check if this identifier refers to an imported CSS variable
     const importedCss = resolveImportedCss(expression.name, context);
@@ -134,15 +132,11 @@ export function processInterpolationExpression(
       context,
       interpolationContext.dev || false,
     );
-    if (functionResolved !== null) {
-      return functionResolved;
-    }
+    if (functionResolved !== null) return functionResolved;
     
     // Try dynamic color function calls
     const dynamicResolved = resolveDynamicColorCallExpression(expression, context);
-    if (dynamicResolved !== null) {
-      return dynamicResolved;
-    }
+    if (dynamicResolved !== null) return dynamicResolved;
     
     const expressionSource = generate(expression).code;
     const varContext =
@@ -165,15 +159,11 @@ export function processInterpolationExpression(
   } else if (t.isMemberExpression(expression)) {
     // Try theme colors first
     const themeResolved = resolveThemeColorExpression(expression, context, interpolationContext.dev || false);
-    if (themeResolved !== null) {
-      return themeResolved;
-    }
+    if (themeResolved !== null) return themeResolved;
     
     // Try dynamic colors
     const dynamicResolved = resolveDynamicColorExpression(expression, context);
-    if (dynamicResolved !== null) {
-      return dynamicResolved;
-    }
+    if (dynamicResolved !== null) return dynamicResolved;
     
     const expressionSource = generate(expression).code;
     const varContext =

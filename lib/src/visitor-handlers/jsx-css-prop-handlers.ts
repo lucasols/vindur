@@ -57,9 +57,7 @@ export function handleJsxCssProp(
       && attr.name.name === 'css',
   );
 
-  if (!cssAttr) {
-    return false;
-  }
+  if (!cssAttr) return false;
 
   // Remove the css attribute
   const cssAttrIndex = attributes.indexOf(cssAttr);

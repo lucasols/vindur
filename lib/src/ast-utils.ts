@@ -75,9 +75,7 @@ function resolveVariable(variableName: string, path: NodePath): string | null {
   // Find the variable declaration in the current scope or parent scopes
   const binding = path.scope.getBinding(variableName);
 
-  if (!binding?.path) {
-    return null;
-  }
+  if (!binding?.path) return null;
 
   const declarationPath = binding.path;
 

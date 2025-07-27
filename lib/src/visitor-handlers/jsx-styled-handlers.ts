@@ -15,14 +15,10 @@ export function handleJsxStyledComponent(
   const elementName = path.node.openingElement.name.name;
   const styledInfo = context.state.styledComponents.get(elementName);
 
-  if (!styledInfo) {
-    return false;
-  }
+  if (!styledInfo) return false;
 
   // Skip transformation for exported styled components - they remain as component references
-  if (styledInfo.isExported) {
-    return false;
-  }
+  if (styledInfo.isExported) return false;
 
   // Check if this element has already been transformed (by CSS prop handler)
   // If the element name is not the styled component name anymore, it was already processed
@@ -138,9 +134,7 @@ function handleClassNameWithSpreads(
   });
 
   // If there's already a setProps with className, don't modify anything
-  if (hasDynamicColorSetPropsWithClassName) {
-    return;
-  }
+  if (hasDynamicColorSetPropsWithClassName) return;
   // Find the last spread index
   const lastSpreadIndex = Math.max(
     ...spreadAttrs.map((attr) => attributes.indexOf(attr)),

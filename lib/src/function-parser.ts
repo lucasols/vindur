@@ -414,9 +414,7 @@ function parseBinaryExpression(
   const { left, right, operator } = expr;
   
   // Only support basic arithmetic operators
-  if (!['+', '-', '*', '/'].includes(operator)) {
-    return null;
-  }
+  if (!['+', '-', '*', '/'].includes(operator)) return null;
   
   // Ensure operands are expressions
   if (!t.isExpression(left) || !t.isExpression(right)) {

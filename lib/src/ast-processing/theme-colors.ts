@@ -28,9 +28,7 @@ export function resolveThemeColorExpression(
     
     // Check if the object is a theme colors variable
     const themeColors = context.state.themeColors?.get(objectName);
-    if (!themeColors) {
-      return null;
-    }
+    if (!themeColors) return null;
     
     // Handle colors.primary.var access
     if (propertyName === 'var') {
@@ -69,9 +67,7 @@ export function resolveThemeColorExpression(
         themeColors = resolveImportedThemeColors(themeName, context) || undefined;
       }
       
-      if (!themeColors?.[colorName]) {
-        return null;
-      }
+      if (!themeColors?.[colorName]) return null;
       
       const colorHex = themeColors[colorName];
       
@@ -127,9 +123,7 @@ export function resolveThemeColorCallExpression(
   context: CssProcessingContext,
   dev: boolean = false,
 ): string | null {
-  if (!t.isMemberExpression(callExpr.callee)) {
-    return null;
-  }
+  if (!t.isMemberExpression(callExpr.callee)) return null;
   
   // Handle colors.primary.alpha(0.5), colors.primary.darker(0.1), etc.
   const memberExpr = callExpr.callee;
@@ -154,9 +148,7 @@ export function resolveThemeColorCallExpression(
       themeColors = resolveImportedThemeColors(themeName, context) || undefined;
     }
     
-    if (!themeColors?.[colorName]) {
-      return null;
-    }
+    if (!themeColors?.[colorName]) return null;
     
     const colorHex = themeColors[colorName];
     const args = callExpr.arguments;

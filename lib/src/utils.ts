@@ -18,9 +18,7 @@ export function findWithNarrowing<T, R>(
 ): R | undefined {
   for (const item of array) {
     const value = predicate(item);
-    if (value !== false) {
-      return value;
-    }
+    if (value !== false) return value;
   }
   return undefined;
 }

@@ -12,9 +12,7 @@ export function getOrExtractFileData(
 ): { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number>; themeColors: Map<string, Record<string, string>> } {
   // Check cache first
   const cached = context.extractedFiles.get(filePath);
-  if (cached) {
-    return cached;
-  }
+  if (cached) return cached;
 
   // Load and extract data from file
   const fileContent = context.fs.readFile(filePath);

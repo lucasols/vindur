@@ -16,9 +16,7 @@ export function handleJsxDynamicColorProp(
       && attr.name.name === 'dynamicColor',
   );
 
-  if (!dynamicColorAttr) {
-    return false;
-  }
+  if (!dynamicColorAttr) return false;
 
   // Store the dynamicColor position before removing it
   const dynamicColorAttrIndex = attributes.indexOf(dynamicColorAttr);
@@ -440,9 +438,7 @@ export function handleJsxDynamicColorProp(
     // Build from right to left, creating nested calls
     for (let i = colorElements.length - 1; i >= 0; i--) {
       const colorIdentifier = colorElements[i];
-      if (!colorIdentifier) {
-        continue;
-      }
+      if (!colorIdentifier) continue;
       const setPropsArgs: t.Expression[] = [t.stringLiteral('#ff6b6b')]; // Default color
 
       if (i === colorElements.length - 1) {

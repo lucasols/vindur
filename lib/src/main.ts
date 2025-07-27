@@ -246,9 +246,7 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
     type: 'self' | 'container',
     condition: (typeof selfConditions)[number],
   ): string {
-    if (devMode) {
-      return `${hashId}-${type}-${condition}`;
-    }
+    if (devMode) return `${hashId}-${type}-${condition}`;
 
     const index = selfConditions.indexOf(condition);
     const shortType = type === 'self' ? 's' : 'c';

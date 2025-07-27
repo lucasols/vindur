@@ -14,9 +14,7 @@ export function resolveVariable(variableName: string, path: NodePath): string | 
   // Find the variable declaration in the current scope or parent scopes
   const binding = path.scope.getBinding(variableName);
 
-  if (!binding?.path) {
-    return null;
-  }
+  if (!binding?.path) return null;
 
   const declarationPath = binding.path;
 
@@ -117,9 +115,7 @@ export function resolveFunctionCall(
 ): string | null {
   // First try to resolve theme color call expressions
   const themeColorResult = resolveThemeColorCallExpression(callExpr, context, dev);
-  if (themeColorResult !== null) {
-    return themeColorResult;
-  }
+  if (themeColorResult !== null) return themeColorResult;
   
   if (!t.isIdentifier(callExpr.callee)) return null;
 

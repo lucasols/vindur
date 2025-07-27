@@ -11,9 +11,7 @@ import type { CssProcessingContext } from '../css-processing';
 // Helper function to validate hex colors without alpha
 function isValidHexColorWithoutAlpha(color: string): boolean {
   // Must start with #
-  if (!color.startsWith('#')) {
-    return false;
-  }
+  if (!color.startsWith('#')) return false;
   
   const hex = color.slice(1);
   
@@ -400,9 +398,7 @@ function isVariableExported(
   const program = currentPath;
 
   // Look for export statements that export this variable
-  if (!t.isProgram(program.node)) {
-    return false;
-  }
+  if (!t.isProgram(program.node)) return false;
   
   for (const statement of program.node.body) {
     if (t.isExportNamedDeclaration(statement) && !statement.declaration) {

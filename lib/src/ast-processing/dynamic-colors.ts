@@ -9,20 +9,14 @@ export function resolveDynamicColorExpression(
   
   // Check if this is a dynamic color variable
   const rootIdentifier = getRootIdentifier(memberExpr);
-  if (!rootIdentifier) {
-    return null;
-  }
+  if (!rootIdentifier) return null;
   
   const dynamicColorId = context.state.dynamicColors?.get(rootIdentifier);
-  if (!dynamicColorId) {
-    return null;
-  }
+  if (!dynamicColorId) return null;
   
   // Parse the property chain
   const propertyChain = getPropertyChain(memberExpr);
-  if (!propertyChain) {
-    return null;
-  }
+  if (!propertyChain) return null;
   
   // Handle different dynamic color properties
   if (propertyChain.length === 1) {
@@ -91,24 +85,16 @@ export function resolveDynamicColorCallExpression(
 ): string | null {
   // Handle dynamic color method calls like dynamicColor.alpha(0.5), dynamicColor.darker(0.1), etc.
   
-  if (!t.isMemberExpression(callExpr.callee)) {
-    return null;
-  }
+  if (!t.isMemberExpression(callExpr.callee)) return null;
   
   const rootIdentifier = getRootIdentifier(callExpr.callee);
-  if (!rootIdentifier) {
-    return null;
-  }
+  if (!rootIdentifier) return null;
   
   const dynamicColorId = context.state.dynamicColors?.get(rootIdentifier);
-  if (!dynamicColorId) {
-    return null;
-  }
+  if (!dynamicColorId) return null;
   
   const propertyChain = getPropertyChain(callExpr.callee);
-  if (!propertyChain) {
-    return null;
-  }
+  if (!propertyChain) return null;
   
   // Get the first argument (optional for some functions like optimal())
   const firstArg = callExpr.arguments[0];
@@ -121,9 +107,7 @@ export function resolveDynamicColorCallExpression(
   if (propertyChain.length === 1) {
     const method = propertyChain[0];
     
-    if (!method) {
-      return null;
-    }
+    if (!method) return null;
     
     switch (method) {
       case 'alpha':
