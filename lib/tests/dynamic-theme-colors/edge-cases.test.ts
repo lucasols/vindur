@@ -30,7 +30,7 @@ describe('Dynamic Colors - Edge Cases', () => {
       \`
 
       const Component = () => {
-        return <Button dynamicColor={themeColor}>Import test</Button>;
+        return <Button dynamicColor={themeColor.set('#ff6b6b')}>Import test</Button>;
       }
     `;
 
@@ -43,9 +43,7 @@ describe('Dynamic Colors - Edge Cases', () => {
       "const Component = () => {
         return (
           <button
-            {...themeColor.setProps("#ff6b6b", {
-              className: "v1560qbr-1",
-            })}
+            {...themeColor._sp("#ff6b6b", { className: "v1560qbr-1" })}
           >
             Import test
           </button>
@@ -67,6 +65,231 @@ describe('Dynamic Colors - Edge Cases', () => {
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
       }"
+    `);
+  });
+
+  test('should handle conditional set inside the set function', async () => {
+    const source = dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const StyledButton = styled.button\`
+        background: \${color.var};
+        color: \${color.contrast.var};
+      \`
+
+      const Component = ({ condition }) => {
+        return (
+          <StyledButton dynamicColor={color.set(condition ? '#ff6b6b' : null)}>
+            Conditional Color
+          </StyledButton>
+        );
+      }
+    `;
+
+    const result = await transformWithFormat({
+      source,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
+      const Component = ({ condition }) => {
+        return (
+          <button
+            {...color._sp(condition ? "#ff6b6b" : null, {
+              className: "v1560qbr-2",
+            })}
+          >
+            Conditional Color
+          </button>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        background: var(--v1560qbr-1);
+        color: var(--v1560qbr-1-c);
+      }"
+    `);
+  });
+
+  test('should handle conditional set with undefined', async () => {
+    const source = dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const StyledButton = styled.button\`
+        background: \${color.var};
+        color: \${color.contrast.var};
+      \`
+
+      const Component = ({ themeColor }) => {
+        return (
+          <StyledButton dynamicColor={color.set(themeColor || undefined)}>
+            Maybe Color
+          </StyledButton>
+        );
+      }
+    `;
+
+    const result = await transformWithFormat({
+      source,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
+      const Component = ({ themeColor }) => {
+        return (
+          <button
+            {...color._sp(themeColor || undefined, {
+              className: "v1560qbr-2",
+            })}
+          >
+            Maybe Color
+          </button>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        background: var(--v1560qbr-1);
+        color: var(--v1560qbr-1-c);
+      }"
+    `);
+  });
+
+  test('should handle conditional set with false', async () => {
+    const source = dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const StyledButton = styled.button\`
+        background: \${color.var};
+        color: \${color.contrast.var};
+      \`
+
+      const Component = ({ isActive }) => {
+        return (
+          <StyledButton dynamicColor={color.set(isActive ? '#00ff00' : false)}>
+            Active Color
+          </StyledButton>
+        );
+      }
+    `;
+
+    const result = await transformWithFormat({
+      source,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
+      const Component = ({ isActive }) => {
+        return (
+          <button
+            {...color._sp(isActive ? "#00ff00" : false, {
+              className: "v1560qbr-2",
+            })}
+          >
+            Active Color
+          </button>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2 {
+        background: var(--v1560qbr-1);
+        color: var(--v1560qbr-1-c);
+      }"
+    `);
+  });
+
+  test('should throw error when using condition outside the set function', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const StyledButton = styled.button\`
+            background: \${color.var};
+          \`
+
+          const Component = ({ condition }) => {
+            return (
+              <StyledButton dynamicColor={condition ? color.set('#ff6b6b') : null}>
+                This should throw an error
+              </StyledButton>
+            );
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(condition ? '#ff6b6b' : null)]
+    `);
+  });
+
+  test('should throw error when using condition outside the set function with undefined', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const StyledButton = styled.button\`
+            background: \${color.var};
+          \`
+
+          const Component = ({ hasColor }) => {
+            return (
+              <StyledButton dynamicColor={hasColor ? color.set('#ff6b6b') : undefined}>
+                This should also throw an error
+              </StyledButton>
+            );
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(hasColor ? '#ff6b6b' : undefined)]
+    `);
+  });
+
+  test('should throw error when using logical AND with condition', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const StyledButton = styled.button\`
+            background: \${color.var};
+          \`
+
+          const Component = ({ shouldApplyColor }) => {
+            return (
+              <StyledButton dynamicColor={shouldApplyColor && color.set('#ff6b6b')}>
+                Logical AND should throw
+              </StyledButton>
+            );
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(shouldApplyColor ? '#ff6b6b' : null)]
     `);
   });
 });

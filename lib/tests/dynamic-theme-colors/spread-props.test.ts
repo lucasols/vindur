@@ -35,8 +35,10 @@ describe('Dynamic Colors - Spread Props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeClassNames([buttonProps], \`\${color.__scn("#ff6b6b")} v1560qbr-2\`)}
-            style={{ ...mergeStyles([buttonProps]), ...color.__st("#ff6b6b") }}
+            {...color._sp("#ff6b6b", {
+              className: mergeClassNames([buttonProps], "v1560qbr-2"),
+              style: mergeStyles([buttonProps]),
+            })}
           >
             Click me
           </button>
@@ -102,8 +104,10 @@ describe('Dynamic Colors - Spread Props', () => {
             {...styleProps}
             {...eventProps}
             id="card"
-            className={mergeClassNames([styleProps, eventProps], \`\${color.__scn("#ff6b6b")} v1560qbr-2\`)}
-            style={{ ...mergeStyles([styleProps, eventProps]), ...color.__st("#ff6b6b") }}
+            {...color._sp("#ff6b6b", {
+              className: mergeClassNames([styleProps, eventProps], "v1560qbr-2"),
+              style: mergeStyles([styleProps, eventProps]),
+            })}
           >
             Content
           </div>
@@ -158,8 +162,7 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...boxProps}
             {...dataProps}
-            className={\`\${color.__scn("#ff6b6b")} v1560qbr-2 final-class\`}
-            style={{ ...mergeStyles([boxProps, dataProps]), ...color.__st("#ff6b6b") }}
+            {...color._sp("#ff6b6b", { className: "final-class" })}
           >
             Box content
           </div>
@@ -217,12 +220,10 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...styleProps}
             {...otherProps}
-            className={\`\${color.__scn("#ff6b6b")} v1560qbr-2\`}
-            style={{
-              padding: "30px",
-              fontSize: "14px",
-              ...color.__st("#ff6b6b"),
-            }}
+            {...color._sp("#ff6b6b", {
+              className: "v1560qbr-2",
+              style: { padding: "30px", fontSize: "14px" },
+            })}
           >
             Content with overridden styles
           </div>
@@ -295,11 +296,10 @@ describe('Dynamic Colors - Spread Props', () => {
             {...eventHandlers}
             {...accessibilityProps}
             type="button"
-            className={mergeClassNames(
-              [eventHandlers, accessibilityProps],
-              \`\${color.__scn("#ff6b6b")} v1560qbr-2\`,
-            )}
-            style={{ ...mergeStyles([eventHandlers, accessibilityProps]), ...color.__st("#ff6b6b") }}
+            {...color._sp("#ff6b6b", {
+              className: mergeClassNames([eventHandlers, accessibilityProps], "v1560qbr-2"),
+              style: mergeStyles([eventHandlers, accessibilityProps]),
+            })}
           >
             Interactive Button
           </button>

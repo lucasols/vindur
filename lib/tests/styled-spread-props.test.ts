@@ -219,6 +219,56 @@ describe('handle spread props', () => {
     `);
   });
 
+  test('className before spread should use mergeClassNames', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const StyledButton = styled.button\`
+          background: blue;
+          color: white;
+        \`
+
+        const App = () => {
+          const props = { onClick: () => {} }
+          return (
+            <StyledButton
+              className="before"
+              {...props}
+            >
+              Content
+            </StyledButton>
+          )
+        }
+      `,
+    });
+
+    expect(await formatCode(result.code)).toMatchInlineSnapshot(`
+      "import { mergeClassNames } from "vindur";
+      const App = () => {
+        const props = {
+          onClick: () => {},
+        };
+        return (
+          <button
+            {...props}
+            className={mergeClassNames(["before", props], "v1560qbr-1")}
+          >
+            Content
+          </button>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        background: blue;
+        color: white;
+      }"
+    `);
+  });
+
   test('spread props contain className', async () => {
     const result = await transformWithFormat({
       source: dedent`
@@ -274,27 +324,26 @@ describe('handle spread props', () => {
     `);
   });
 
-  test('final className prop overrides everything', async () => {
+  test('multiple spreads with final className', async () => {
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur'
 
-        const Box = styled.div\`
-          background: gray;
+        const StyledButton = styled.button\`
+          background: blue;
         \`
 
         const App = () => {
-          const props1 = { className: 'first' }
-          const props2 = { className: 'second' }
+          const props1 = { onClick: () => {} }
+          const props2 = { disabled: false }
           return (
-            <Box 
-              className="before"
+            <StyledButton
               {...props1}
               {...props2}
-              className="after"
+              className="final"
             >
               Content
-            </Box>
+            </StyledButton>
           )
         }
       `,
@@ -303,15 +352,19 @@ describe('handle spread props', () => {
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
       "const App = () => {
         const props1 = {
-          className: "first",
+          onClick: () => {},
         };
         const props2 = {
-          className: "second",
+          disabled: false,
         };
         return (
-          <div {...props1} {...props2} className="v1560qbr-1 after">
+          <button
+            {...props1}
+            {...props2}
+            className="v1560qbr-1 final"
+          >
             Content
-          </div>
+          </button>
         );
       };
       "
@@ -319,7 +372,60 @@ describe('handle spread props', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1 {
-        background: gray;
+        background: blue;
+      }"
+    `);
+  });
+
+  test('multiple spreads without final className', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const StyledButton = styled.button\`
+          background: blue;
+        \`
+
+        const App = () => {
+          const props1 = { onClick: () => {} }
+          const props2 = { disabled: false }
+          return (
+            <StyledButton
+              {...props1}
+              {...props2}
+            >
+              Content
+            </StyledButton>
+          )
+        }
+      `,
+    });
+
+    expect(await formatCode(result.code)).toMatchInlineSnapshot(`
+      "import { mergeClassNames } from "vindur";
+      const App = () => {
+        const props1 = {
+          onClick: () => {},
+        };
+        const props2 = {
+          disabled: false,
+        };
+        return (
+          <button
+            {...props1}
+            {...props2}
+            className={mergeClassNames([props1, props2], "v1560qbr-1")}
+          >
+            Content
+          </button>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        background: blue;
       }"
     `);
   });

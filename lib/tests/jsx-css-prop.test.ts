@@ -460,6 +460,116 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
   });
 
+  test('should handle css prop with spread props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const StyledCard = styled.div\`
+          padding: 20px;
+        \`
+
+        const App = () => {
+          const props = { onClick: () => {} }
+          return (
+            <StyledCard
+              css={\`
+                border: 1px solid red;
+              \`}
+              {...props}
+            >
+              Content
+            </StyledCard>
+          )
+        }
+      `,
+      dev: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { mergeClassNames } from "vindur";
+      const App = () => {
+        const props = {
+          onClick: () => {},
+        };
+        return (
+          <div
+            {...props}
+            className={mergeClassNames([props], "v1560qbr-1-Card v1560qbr-2-css-prop-2")}
+          >
+            Content
+          </div>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        padding: 20px;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        border: 1px solid red;
+      }"
+    `);
+  });
+
+  test('should handle css prop after spread props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const StyledCard = styled.div\`
+          padding: 20px;
+        \`
+
+        const App = () => {
+          const props = { onClick: () => {} }
+          return (
+            <StyledCard
+              {...props}
+              css={\`
+                border: 1px solid red;
+              \`}
+            >
+              Content
+            </StyledCard>
+          )
+        }
+      `,
+      dev: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { mergeClassNames } from "vindur";
+      const App = () => {
+        const props = {
+          onClick: () => {},
+        };
+        return (
+          <div
+            {...props}
+            className={mergeClassNames([props], "v1560qbr-1-Card v1560qbr-2-css-prop-2")}
+          >
+            Content
+          </div>
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        padding: 20px;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        border: 1px solid red;
+      }"
+    `);
+  });
+
   test('should throw error for invalid css prop value', async () => {
     await expect(async () => {
       await transformWithFormat({
