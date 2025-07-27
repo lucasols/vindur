@@ -35,7 +35,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const color2 = createDynamicCssColor("v1560qbr-2");
       const Component = () => {
         return (
-          <div {...color1.setProps("#ff6b6b", color2.setProps("#ff6b6b"))}>
+          <div {...color1._sp("#ff6b6b", color2._sp("#ff6b6b"))}>
             <div className="v1560qbr-3">Card with multiple colors</div>
           </div>
         );
