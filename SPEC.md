@@ -18,7 +18,7 @@ If there is a className after the spread, it will override the spread className.
 
 ```tsx
 const before = (
-  <button
+  <StyledButton
     {...props}
     className="final"
   />
@@ -38,7 +38,7 @@ If the className comes before the spread, it may or not be override by the sprea
 
 ```tsx
 const before = (
-  <button
+  <StyledButton
     className="before"
     {...props}
   />
@@ -54,9 +54,11 @@ const compiled = (
 
 ## Transform Logic with multiple spreads
 
+### Multiple spreads with final className
+
 ```tsx
 const before = (
-  <button
+  <StyledButton
     {...props1}
     {...props2}
     className="final"
@@ -67,8 +69,108 @@ const compiled = (
   <button
     {...props1}
     {...props2}
-    className={mergeClassNames([props1, props2], 'vHash-1 final')}
+    className="vHash-1 final"
   />
+);
+```
+
+### Multiple spreads without final className
+
+```tsx
+const before = (
+  <StyledButton
+    {...props1}
+    {...props2}
+  />
+);
+
+const compiled = (
+  <button
+    {...props1}
+    {...props2}
+    className={mergeClassNames([props1, props2], 'vHash-1')}
+  />
+);
+```
+
+# Transform Logic with css prop
+
+## Detection and Validation
+
+1. **Only allow on DOM elements and styled components** - throw error for custom components
+2. **Remove css prop** from JSX (it's not a real DOM attribute)
+
+## Template Literal css prop
+
+```tsx
+// Direct template literal
+const before = (
+  <div
+    css={`
+      background: blue;
+      padding: 20px;
+    `}
+  >
+    Content
+  </div>
+);
+
+const compiled = <div className="vHash-1">Content</div>;
+```
+
+## With Existing className
+
+```tsx
+// Merges with existing className
+const before = (
+  <div
+    className="existing"
+    css={`
+      color: green;
+    `}
+  >
+    Content
+  </div>
+);
+
+const compiled = <div className="existing vHash-css-prop-1">Content</div>;
+```
+
+## On Styled Components
+
+```tsx
+// Works with styled components
+const before = (
+  <StyledCard
+    css={`
+      border: 1px solid red;
+    `}
+  >
+    Content
+  </StyledCard>
+);
+
+const compiled = <div className="vHash-Card vHash-css-prop-1">Content</div>;
+```
+
+## With spread props
+
+```tsx
+const before = (
+  <StyledCard
+    css={`
+      border: 1px solid red;
+    `}
+    {...props}
+  >
+    Content
+  </StyledCard>
+);
+
+const compiled = (
+  <div className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
+    Content
+  </div>
 );
 ```
 
@@ -86,15 +188,15 @@ const compiled = (
 
 When using dynamicColor:
 
-- The `color.__scn` (set class name) will be added as a spread attribute to add the className to the button
-- The `color.__st` (set style) will be added as a spread attribute to add the style to the button
+- The `color.__scn` (set class name) will be added as a className attribute
+- The `color.__st` (set style) will be added as a style attribute
 
 ```tsx
-const before = <Button dynamicColor={color} />;
+const before = <StyledButton dynamicColor={color} />;
 
 const compiled = (
   <button
-    className={color.__scn('#ff6b6b')}
+    className={`${color.__scn('#ff6b6b')} vHash-1`}
     style={color.__st('#ff6b6b')}
   />
 );
@@ -104,14 +206,14 @@ const compiled = (
 
 ```tsx
 const before = (
-  <button
+  <StyledButton
     dynamicColor={color}
     className="base-class"
   />
 );
 
 const compiled = (
-  <button className={`${color.__scn('#ff6b6b')} base-class vHash-1`} />
+  <button className={`${color.__scn('#ff6b6b')} vHash-1 base-class`} />
 );
 ```
 
@@ -119,7 +221,7 @@ const compiled = (
 
 ```tsx
 const before = (
-  <button
+  <StyledButton
     dynamicColor={color}
     style={{ backgroundColor: 'red' }}
   />
@@ -127,7 +229,7 @@ const before = (
 
 const compiled = (
   <button
-    className={color.__scn('#ff6b6b')}
+    className={`${color.__scn('#ff6b6b')} vHash-1`}
     style={{ backgroundColor: 'red', ...color.__st('#ff6b6b') }}
   />
 );
@@ -136,7 +238,7 @@ const compiled = (
 ### Multiple Dynamic Colors
 
 ```tsx
-const before = <button dynamicColor={[color1, color2]} />;
+const before = <StyledButton dynamicColor={[color1, color2]} />;
 
 const compiled = (
   <button
@@ -149,11 +251,11 @@ const compiled = (
 ### With spread props
 
 When spread props are used with dynamicColor, the potential className and style from the spread should be merged with the dynamicColor props.
-This will be done with a merge util specific to this case (mergeClassNamesWithDynamicColor and mergeStyles)
+This will be done with the class merge util and a style merge util.
 
 ```tsx
 const input = (
-  <button
+  <StyledButton
     dynamicColor={color}
     {...props}
   />
@@ -163,10 +265,8 @@ const input = (
 const compiled = (
   <button
     {...props}
-    className={mergeClassNamesWithDynamicColor([props], 'vHash-1', [
-      color.__scn('#ff6b6b'),
-    ])}
-    style={mergeStyles([props, color.__st('#ff6b6b')])}
+    className={mergeClassNames([props], `${color.__scn('#ff6b6b')} vHash-1`)}
+    style={{ ...mergeStyles([props]), ...color.__st('#ff6b6b') }}
   />
 );
 ```
@@ -175,7 +275,7 @@ const compiled = (
 
 ```tsx
 const input = (
-  <button
+  <StyledButton
     dynamicColor={color}
     {...props1}
     {...props2}
@@ -186,10 +286,11 @@ const compiled = (
   <button
     {...props1}
     {...props2}
-    className={mergeClassNamesWithDynamicColor([props1, props2], 'vHash-1', [
-      color.__scn('#ff6b6b'),
-    ])}
-    style={mergeStyles([props1, props2, color.__st('#ff6b6b')])}
+    className={mergeClassNames(
+      [props1, props2],
+      `${color.__scn('#ff6b6b')} vHash-1`,
+    )}
+    style={{ ...mergeStyles([props1, props2]), ...color.__st('#ff6b6b') }}
   />
 );
 ```
@@ -200,7 +301,7 @@ If the className is after the spread, it will override the spread className. So 
 
 ```tsx
 const input = (
-  <button
+  <StyledButton
     dynamicColor={color}
     {...props}
     className="final"
@@ -219,7 +320,7 @@ The same logic applies for style.
 
 ```tsx
 const input = (
-  <button
+  <StyledButton
     dynamicColor={color}
     {...props}
     style={{ backgroundColor: 'red' }}
