@@ -28,7 +28,11 @@ describe('Dynamic Colors - Basic Usage', () => {
       const dynamicColor = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div {...dynamicColor._sp("#ff6b6b", { className: "v1560qbr-2" })}>
+          <div
+            {...dynamicColor._sp("#ff6b6b", {
+              className: "v1560qbr-2",
+            })}
+          >
             Hello World
           </div>
         );
@@ -79,11 +83,13 @@ describe('Dynamic Colors - Basic Usage', () => {
       const Component = () => {
         return (
           <div
+            onClick={() => console.log("clicked")}
             {...color._sp("#ff6b6b", {
               className: "v1560qbr-2 custom-card",
-              style: { padding: "20px" },
+              style: {
+                padding: "20px",
+              },
             })}
-            onClick={() => console.log("clicked")}
           >
             Card with dynamic color and additional props
           </div>

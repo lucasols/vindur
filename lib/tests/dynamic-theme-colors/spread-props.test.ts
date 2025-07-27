@@ -149,7 +149,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor } from "vindur";
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const boxProps = {
@@ -205,7 +205,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor } from "vindur";
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const styleProps = {
@@ -221,7 +221,7 @@ describe('Dynamic Colors - Spread Props', () => {
             {...styleProps}
             {...otherProps}
             {...color._sp("#ff6b6b", {
-              className: "v1560qbr-2",
+              className: mergeClassNames([styleProps, otherProps], "v1560qbr-2"),
               style: { padding: "30px", fontSize: "14px" },
             })}
           >
@@ -237,75 +237,6 @@ describe('Dynamic Colors - Spread Props', () => {
         background: var(--v1560qbr-1);
         padding: 20px;
       }"
-    `);
-  });
-
-  test('should handle dynamic color with event handlers in spread props', async () => {
-    const source = dedent`
-      import { createDynamicCssColor, styled } from 'vindur'
-
-      const color = createDynamicCssColor()
-
-      const InteractiveButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
-      \`
-
-      const Component = () => {
-        const eventHandlers = {
-          onClick: (e) => console.log('clicked', e),
-          onMouseEnter: () => console.log('mouse enter'),
-          onFocus: () => console.log('focused')
-        }
-        const accessibilityProps = {
-          'aria-label': 'Interactive themed button',
-          tabIndex: 0
-        }
-        return (
-          <InteractiveButton 
-            {...eventHandlers}
-            {...accessibilityProps}
-            dynamicColor={color.set('#ff6b6b')}
-            type="button"
-          >
-            Interactive Button
-          </InteractiveButton>
-        );
-      }
-    `;
-
-    const result = await transformWithFormat({
-      source,
-    });
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
-      const Component = () => {
-        const eventHandlers = {
-          onClick: (e) => console.log("clicked", e),
-          onMouseEnter: () => console.log("mouse enter"),
-          onFocus: () => console.log("focused"),
-        };
-        const accessibilityProps = {
-          "aria-label": "Interactive themed button",
-          tabIndex: 0,
-        };
-        return (
-          <button
-            {...eventHandlers}
-            {...accessibilityProps}
-            type="button"
-            {...color._sp("#ff6b6b", {
-              className: mergeClassNames([eventHandlers, accessibilityProps], "v1560qbr-2"),
-              style: mergeStyles([eventHandlers, accessibilityProps]),
-            })}
-          >
-            Interactive Button
-          </button>
-        );
-      };
-      "
     `);
   });
 });

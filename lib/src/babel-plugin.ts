@@ -238,13 +238,8 @@ export function createVindurPlugin(
         }
       },
       JSXElement(path) {
-        // Handle dynamic color prop first (before styled component transformation)
-        handleJsxDynamicColorProp(path, { state });
-        
-        // Handle styled components (transforms element name)
-        handleJsxStyledComponent(path, { state });
-        
-        // Then handle css prop
+        // Handle css prop first (before styled component transformation)
+        // so it can access styled component information
         handleJsxCssProp(path, {
           state,
           dev,
@@ -262,6 +257,12 @@ export function createVindurPlugin(
             loadExternalFunction,
           }),
         });
+        
+        // Handle dynamic color prop (before styled component transformation)
+        handleJsxDynamicColorProp(path, { state });
+        
+        // Handle styled components last (transforms element name)
+        handleJsxStyledComponent(path, { state });
       },
     },
     pre() {

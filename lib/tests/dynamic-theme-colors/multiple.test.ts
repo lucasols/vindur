@@ -148,7 +148,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      "import { createDynamicCssColor, mergeClassNames } from "vindur";
       const primaryColor = createDynamicCssColor("v1560qbr-1");
       const secondaryColor = createDynamicCssColor("v1560qbr-2");
       const Component = () => {

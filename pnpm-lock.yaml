@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.1.0
+        version: 24.1.0
 
   app-test:
     dependencies:

@@ -124,6 +124,18 @@ type DynamicCssColor = {
       setColorScheme?: { fallback: 'light' | 'dark' };
     },
   ) => { className: string; style: CSSProperties };
+  // Transform-time methods
+  set: (color: string | null | false | undefined) => DynamicColorSet;
+  _sp: (
+    color: string | null | false | undefined,
+    mergeWith: {
+      className?: string;
+      style?: Record<string, unknown>;
+    },
+  ) => {
+    className?: string;
+    style?: Record<string, unknown>;
+  };
   // selectors to be used in the component that is setting the color
   self: {
     isDark: string;
@@ -146,6 +158,11 @@ type DynamicCssColor = {
     isVeryLight: string;
     isNotVeryLight: string;
   };
+};
+
+type DynamicColorSet = {
+  __color: string | null | false | undefined;
+  __dynamicColorId: string;
 };
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
@@ -329,6 +346,25 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
       isVeryLight: `.${getClassName('container', 'is-very-light')} &`,
       isNotVeryLight: `.${getClassName('container', 'is-not-very-light')} &`,
     },
+
+    set: (colorValue: string | null | false | undefined) => {
+      console.error('color.set() should not be called at runtime');
+      return {
+        __color: colorValue,
+        __dynamicColorId: hashId,
+      };
+    },
+
+    _sp: (
+      colorValue: string | null | false | undefined,
+      mergeWith: {
+        className?: string;
+        style?: Record<string, unknown>;
+      },
+    ) => {
+      console.error('color._sp() should not be called at runtime');
+      return mergeWith;
+    },
   };
 
   return color;
@@ -360,4 +396,51 @@ export function cx(
   }
 
   return classNames.join(' ');
+}
+
+/**
+ * Merge classNames from spread props with vindur-generated classNames
+ */
+export function mergeClassNames(
+  spreadProps: (Record<string, unknown> | string)[],
+  vindurClassName: string,
+): string {
+  const classNames: string[] = [];
+
+  // Extract className from spread props
+  for (const prop of spreadProps) {
+    if (typeof prop === 'string') {
+      classNames.push(prop);
+    } else if (prop && typeof prop === 'object' && 'className' in prop) {
+      const className = prop.className;
+      if (typeof className === 'string') {
+        classNames.push(className);
+      }
+    }
+  }
+
+  // Add vindur className
+  classNames.push(vindurClassName);
+
+  return classNames.join(' ');
+}
+
+/**
+ * Merge styles from spread props
+ */
+export function mergeStyles(
+  spreadProps: Record<string, unknown>[],
+): Record<string, unknown> {
+  const mergedStyle: Record<string, unknown> = {};
+
+  for (const prop of spreadProps) {
+    if (prop && typeof prop === 'object' && 'style' in prop) {
+      const style = prop.style;
+      if (style && typeof style === 'object') {
+        Object.assign(mergedStyle, style);
+      }
+    }
+  }
+
+  return mergedStyle;
 }

@@ -358,11 +358,7 @@ describe('handle spread props', () => {
           disabled: false,
         };
         return (
-          <button
-            {...props1}
-            {...props2}
-            className="v1560qbr-1 final"
-          >
+          <button {...props1} {...props2} className="v1560qbr-1 final">
             Content
           </button>
         );

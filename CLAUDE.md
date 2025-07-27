@@ -94,16 +94,15 @@ pnpm test tests/filename.test.ts       # Run tests for a specific file
 
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
-- If test failures are due to minor snapshot changes or coding formatting, just ignore them, i will update them manually
 
 # transform tests
 
 Tests for transform function should follow this structure:
 
 ```tsx
-import { describe, expect, test } from 'vitest'
-import { dedent } from '@ls-stack/utils/dedent'
-import { transformWithFormat } from './testUtils'
+import { describe, expect, test } from 'vitest';
+import { dedent } from '@ls-stack/utils/dedent';
+import { transformWithFormat } from './testUtils';
 // ...
 
 test('should handle ...', async () => {
@@ -113,17 +112,17 @@ test('should handle ...', async () => {
       // ...
     `,
     // prefer using default props for `fs` and `importAliases` unless the test requires it
-  })
+  });
 
   // code assertion should come first, then css assertion
   expect(result.code).toMatchInlineSnapshot(`
     // ...
-  `)
+  `);
 
   expect(result.css).toMatchInlineSnapshot(`
     // ...
-  `)
-})
+  `);
+});
 ```
 
 ## Documentation Guidelines

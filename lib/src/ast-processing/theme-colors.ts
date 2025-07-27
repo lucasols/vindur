@@ -69,7 +69,7 @@ export function resolveThemeColorExpression(
         themeColors = resolveImportedThemeColors(themeName, context) || undefined;
       }
       
-      if (!themeColors || !themeColors[colorName]) {
+      if (!themeColors?.[colorName]) {
         return null;
       }
       
@@ -105,7 +105,7 @@ export function resolveThemeColorExpression(
         themeColors = resolveImportedThemeColors(themeName, context) || undefined;
       }
       
-      if (!themeColors || !themeColors[colorName] || contrastProp !== 'contrast') {
+      if (!themeColors?.[colorName] || contrastProp !== 'contrast') {
         return null;
       }
       
@@ -154,7 +154,7 @@ export function resolveThemeColorCallExpression(
       themeColors = resolveImportedThemeColors(themeName, context) || undefined;
     }
     
-    if (!themeColors || !themeColors[colorName]) {
+    if (!themeColors?.[colorName]) {
       return null;
     }
     
@@ -210,7 +210,7 @@ export function resolveThemeColorCallExpression(
       themeColors = resolveImportedThemeColors(themeName, context) || undefined;
     }
     
-    if (!themeColors || !themeColors[colorName] || contrastProp !== 'contrast') {
+    if (!themeColors?.[colorName] || contrastProp !== 'contrast') {
       return null;
     }
     

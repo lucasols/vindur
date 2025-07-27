@@ -38,6 +38,10 @@ export function resolveDynamicColorExpression(
   if (propertyChain.length === 2) {
     const [category, method] = propertyChain;
     
+    if (!category || !method) {
+      return null;
+    }
+    
     if (category === 'contrast') {
       switch (method) {
         case 'var':
@@ -116,6 +120,10 @@ export function resolveDynamicColorCallExpression(
   
   if (propertyChain.length === 1) {
     const method = propertyChain[0];
+    
+    if (!method) {
+      return null;
+    }
     
     // Methods that require a value parameter
     if (value === undefined && ['alpha', 'darker', 'lighter', 'saturatedDarker'].includes(method)) {

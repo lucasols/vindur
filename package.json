@@ -11,5 +11,9 @@
     "lib:test": "pnpm --filter vindur run test",
     "lib:test:ui": "pnpm --filter vindur run test:ui"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^24.1.0"
+  }
 }

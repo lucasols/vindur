@@ -43,7 +43,9 @@ describe('Dynamic Colors - Edge Cases', () => {
       "const Component = () => {
         return (
           <button
-            {...themeColor._sp("#ff6b6b", { className: "v1560qbr-1" })}
+            {...themeColor._sp("#ff6b6b", {
+              className: "v1560qbr-1",
+            })}
           >
             Import test
           </button>

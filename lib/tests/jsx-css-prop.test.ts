@@ -495,7 +495,10 @@ describe('JSX css prop', () => {
         return (
           <div
             {...props}
-            className={mergeClassNames([props], "v1560qbr-1-Card v1560qbr-2-css-prop-2")}
+            className={mergeClassNames(
+              [props],
+              "v1560qbr-1-StyledCard v1560qbr-2-css-prop-2",
+            )}
           >
             Content
           </div>
@@ -505,7 +508,7 @@ describe('JSX css prop', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1-Card {
+      ".v1560qbr-1-StyledCard {
         padding: 20px;
       }
 
@@ -550,7 +553,10 @@ describe('JSX css prop', () => {
         return (
           <div
             {...props}
-            className={mergeClassNames([props], "v1560qbr-1-Card v1560qbr-2-css-prop-2")}
+            className={mergeClassNames(
+              [props],
+              "v1560qbr-1-StyledCard v1560qbr-2-css-prop-2",
+            )}
           >
             Content
           </div>
@@ -560,7 +566,7 @@ describe('JSX css prop', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1-Card {
+      ".v1560qbr-1-StyledCard {
         padding: 20px;
       }
 

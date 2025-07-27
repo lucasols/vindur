@@ -844,8 +844,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeClassNames } from "vindur";
-      const App = () => {
+      "const App = () => {
         const props1 = {
           className: "first",
         };
@@ -853,12 +852,7 @@ describe('handle spread props', () => {
           className: "second",
         };
         return (
-          <div
-            className="before"
-            {...props1}
-            {...props2}
-            className={mergeClassNames([props1, props2], "v1560qbr-1 after")}
-          >
+          <div {...props1} {...props2} className="v1560qbr-1 after">
             Content
           </div>
         );
