@@ -27,7 +27,7 @@ export type DebugLogger = { log: (message: string) => void };
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
-  styledComponents: Map<string, { element: string; className: string }>;
+  styledComponents: Map<string, { element: string; className: string; isExported: boolean }>;
   cssVariables: Map<string, string>; // Track css tagged template variables
   keyframes: Map<string, string>; // Track keyframes animation names
 };
@@ -220,8 +220,8 @@ export function createVindurPlugin(
           handleGlobalStyleTaggedTemplate(path, taggedTemplateHandlerContext)
         ) {
           // No classIndex increment for global styles
-        } else if (handleInlineStyledError(path, { state })) {
-          // Error handler - throws exception
+        } else if (handleInlineStyledError(path, taggedTemplateHandlerContext)) {
+          idIndex = classIndexRef.current;
         }
       },
       JSXElement(path) {

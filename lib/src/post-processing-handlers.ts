@@ -49,19 +49,28 @@ export function handleVindurImportCleanup(
     return false;
   }
 
-  // Handle vindur imports - keep only mergeWithSpread if it's used
+  // Handle vindur imports - keep only runtime functions if they're used
   const specifiersToKeep: t.ImportSpecifier[] = [];
   let hasMergeWithSpread = false;
+  let hasStyledComponent = false;
 
   for (const specifier of path.node.specifiers) {
     if (
       t.isImportSpecifier(specifier)
       && t.isIdentifier(specifier.imported)
-      && specifier.imported.name === 'mergeWithSpread'
     ) {
-      hasMergeWithSpread = true;
-      if (state.vindurImports.has('mergeWithSpread')) {
-        specifiersToKeep.push(specifier);
+      const importedName = specifier.imported.name;
+      
+      if (importedName === 'mergeWithSpread') {
+        hasMergeWithSpread = true;
+        if (state.vindurImports.has('mergeWithSpread')) {
+          specifiersToKeep.push(specifier);
+        }
+      } else if (importedName === 'styledComponent') {
+        hasStyledComponent = true;
+        if (state.vindurImports.has('styledComponent')) {
+          specifiersToKeep.push(specifier);
+        }
       }
     }
   }
@@ -75,6 +84,19 @@ export function handleVindurImportCleanup(
       t.importSpecifier(
         t.identifier('mergeWithSpread'),
         t.identifier('mergeWithSpread'),
+      ),
+    );
+  }
+
+  // Add styledComponent import if needed but not already present
+  if (
+    state.vindurImports.has('styledComponent')
+    && !hasStyledComponent
+  ) {
+    specifiersToKeep.push(
+      t.importSpecifier(
+        t.identifier('styledComponent'),
+        t.identifier('styledComponent'),
       ),
     );
   }

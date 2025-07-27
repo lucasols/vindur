@@ -201,13 +201,28 @@ export function handleStyledElementAssignment(
   classIndex.current++;
 
   // Store the styled component mapping
+  const isExported = isVariableExported(varName, path);
   context.state.styledComponents.set(varName, {
     element: tagName,
     className: result.finalClassName,
+    isExported,
   });
 
-  // Remove the styled component declaration
-  path.remove();
+  // Check if the styled component is exported
+  if (isExported) {
+    // Transform to styledComponent function call
+    context.state.vindurImports.add('styledComponent');
+    path.node.init = t.callExpression(
+      t.identifier('styledComponent'),
+      [
+        t.stringLiteral(tagName),
+        t.stringLiteral(result.finalClassName),
+      ],
+    );
+  } else {
+    // Remove the styled component declaration for local components
+    path.remove();
+  }
   
   return true;
 }
@@ -262,13 +277,28 @@ export function handleStyledExtensionAssignment(
   }
 
   // Store the extended styled component mapping
+  const isExported = isVariableExported(varName, path);
   context.state.styledComponents.set(varName, {
     element: extendedInfo.element,
     className: result.finalClassName,
+    isExported,
   });
 
-  // Remove the styled component declaration
-  path.remove();
+  // Check if the styled component is exported
+  if (isExported) {
+    // Transform to styledComponent function call
+    context.state.vindurImports.add('styledComponent');
+    path.node.init = t.callExpression(
+      t.identifier('styledComponent'),
+      [
+        t.stringLiteral(extendedInfo.element),
+        t.stringLiteral(result.finalClassName),
+      ],
+    );
+  } else {
+    // Remove the styled component declaration for local components
+    path.remove();
+  }
   
   return true;
 }
@@ -427,8 +457,10 @@ export function handleGlobalStyleTaggedTemplate(
 
 export function handleInlineStyledError(
   path: NodePath<t.TaggedTemplateExpression>,
-  context: { state: VindurPluginState },
+  handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
+  const { context, dev, fileHash, classIndex } = handlerContext;
+  
   if (
     !context.state.vindurImports.has('styled')
     || !t.isMemberExpression(path.node.tag)
@@ -439,8 +471,38 @@ export function handleInlineStyledError(
     return false;
   }
 
-  // For inline styled usage, we can't directly map it
-  // So we keep it as an error or handle it differently
+  // Check if this is a direct default export
+  const parent = path.parent;
+  if (t.isExportDefaultDeclaration(parent)) {
+    // Handle export default styled.div`...`
+    const tagName = path.node.tag.property.name;
+    
+    const result = processStyledTemplate(
+      path.node.quasi,
+      context,
+      '', // Use empty string for default export instead of undefined
+      `styled.${tagName}`,
+      dev,
+      fileHash,
+      classIndex.current,
+    );
+    classIndex.current++;
+
+    // Transform to styledComponent function call
+    context.state.vindurImports.add('styledComponent');
+    path.replaceWith(
+      t.callExpression(
+        t.identifier('styledComponent'),
+        [
+          t.stringLiteral(tagName),
+          t.stringLiteral(result.finalClassName),
+        ],
+      ),
+    );
+    return true;
+  }
+
+  // For other inline styled usage, we keep it as an error
   throw new Error(
     'Inline styled component usage is not supported. Please assign styled components to a variable first.',
   );
@@ -461,6 +523,11 @@ export function handleJsxStyledComponent(
     return false;
   }
 
+  // Skip transformation for exported styled components - they remain as component references
+  if (styledInfo.isExported) {
+    return false;
+  }
+
   // Replace the styled component with the actual HTML element
   path.node.openingElement.name = t.jsxIdentifier(styledInfo.element);
   if (path.node.closingElement) {
@@ -474,7 +541,7 @@ export function handleJsxStyledComponent(
 
 function handleJsxClassNameMerging(
   path: NodePath<t.JSXElement>,
-  styledInfo: { element: string; className: string },
+  styledInfo: { element: string; className: string; isExported: boolean },
   context: { state: VindurPluginState },
 ): void {
   // Check for spread attributes
@@ -525,7 +592,7 @@ function handleClassNameWithSpreads(
   spreadAttrs: t.JSXSpreadAttribute[],
   existingClassNameAttr: t.JSXAttribute | undefined,
   classNameAttrs: t.JSXAttribute[],
-  styledInfo: { element: string; className: string },
+  styledInfo: { element: string; className: string; isExported: boolean },
   context: { state: VindurPluginState },
 ): void {
   // Find the last spread index
@@ -570,7 +637,7 @@ function handleClassNameWithSpreads(
 function handleClassNameWithoutSpreads(
   attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[],
   existingClassNameAttr: t.JSXAttribute | undefined,
-  styledInfo: { element: string; className: string },
+  styledInfo: { element: string; className: string; isExported: boolean },
 ): void {
   if (existingClassNameAttr) {
     // Merge with existing className
@@ -613,7 +680,7 @@ function handleClassNameWithoutSpreads(
 function createMergeWithSpreadCall(
   existingClassNameAttr: t.JSXAttribute | undefined,
   spreadAttrs: t.JSXSpreadAttribute[],
-  styledInfo: { element: string; className: string },
+  styledInfo: { element: string; className: string; isExported: boolean },
   context: { state: VindurPluginState },
   attributes?: (t.JSXAttribute | t.JSXSpreadAttribute)[],
 ): void {
@@ -674,6 +741,66 @@ function resolveImportPath(
 
   // Return as-is for all other imports (relative, absolute, or package imports)
   return null;
+}
+
+// Helper function to check if a variable is exported
+function isVariableExported(
+  variableName: string,
+  path: NodePath<t.VariableDeclarator>,
+): boolean {
+  // Check if the variable is part of an export declaration
+  const parentPath = path.parentPath;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (!parentPath || !t.isVariableDeclaration(parentPath.node)) {
+    return false;
+  }
+
+  const grandParentPath = parentPath.parentPath;
+  if (grandParentPath && t.isExportNamedDeclaration(grandParentPath.node)) {
+    return true;
+  }
+
+  // Check if the variable is exported later with export { name }
+  let currentPath: NodePath | null = path;
+  while (currentPath?.node && !t.isProgram(currentPath.node)) {
+    currentPath = currentPath.parentPath;
+  }
+  
+  if (!currentPath || !t.isProgram(currentPath.node)) {
+    return false;
+  }
+  
+  const program = currentPath;
+
+  // Look for export statements that export this variable
+  if (!t.isProgram(program.node)) {
+    return false;
+  }
+  
+  for (const statement of program.node.body) {
+    if (t.isExportNamedDeclaration(statement) && !statement.declaration) {
+      // This is an export { ... } statement
+      for (const specifier of statement.specifiers) {
+        if (
+          t.isExportSpecifier(specifier) &&
+          t.isIdentifier(specifier.local) &&
+          specifier.local.name === variableName
+        ) {
+          return true;
+        }
+      }
+    } else if (t.isExportDefaultDeclaration(statement)) {
+      // Check if it's the default export
+      if (
+        t.isIdentifier(statement.declaration) &&
+        statement.declaration.name === variableName
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function handleJsxCssProp(

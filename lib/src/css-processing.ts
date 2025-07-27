@@ -226,7 +226,7 @@ function generateClassName(
   classIndex: number,
   varName?: string,
 ) {
-  return dev ?
+  return dev && varName ?
       `${fileHash}-${classIndex}-${varName}`
     : `${fileHash}-${classIndex}`;
 }
