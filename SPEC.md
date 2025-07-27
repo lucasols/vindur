@@ -27,7 +27,7 @@ const before = (
 const compiled = (
   <button
     {...props}
-    className="v-hash-1 final"
+    className="vHash-1 final"
   />
 );
 ```
@@ -47,7 +47,7 @@ const before = (
 const compiled = (
   <button
     {...props}
-    className={mergeClassNames(['before', props], 'v-hash-1')}
+    className={mergeClassNames(['before', props], 'vHash-1')}
   />
 );
 ```
@@ -67,7 +67,7 @@ const compiled = (
   <button
     {...props1}
     {...props2}
-    className={mergeClassNames([props1, props2], 'v-hash-1 final')}
+    className={mergeClassNames([props1, props2], 'vHash-1 final')}
   />
 );
 ```
@@ -110,7 +110,9 @@ const before = (
   />
 );
 
-const compiled = <button className={`${color.__scn('#ff6b6b')} base-class`} />;
+const compiled = (
+  <button className={`${color.__scn('#ff6b6b')} base-class vHash-1`} />
+);
 ```
 
 ### With already existing style
@@ -138,8 +140,96 @@ const before = <button dynamicColor={[color1, color2]} />;
 
 const compiled = (
   <button
-    className={`${color1.__scn('#ff6b6b')} ${color2.__scn('#ff6b6b')}`}
+    className={`${color1.__scn('#ff6b6b')} ${color2.__scn('#ff6b6b')} vHash-1`}
     style={{ ...color1.__st('#ff6b6b'), ...color2.__st('#ff6b6b') }}
+  />
+);
+```
+
+### With spread props
+
+When spread props are used with dynamicColor, the potential className and style from the spread should be merged with the dynamicColor props.
+This will be done with a merge util specific to this case (mergeClassNamesWithDynamicColor and mergeStyles)
+
+```tsx
+const input = (
+  <button
+    dynamicColor={color}
+    {...props}
+  />
+);
+
+// className and style must be added as the last props as they cannot be overridden by other props
+const compiled = (
+  <button
+    {...props}
+    className={mergeClassNamesWithDynamicColor([props], 'vHash-1', [
+      color.__scn('#ff6b6b'),
+    ])}
+    style={mergeStyles([props, color.__st('#ff6b6b')])}
+  />
+);
+```
+
+### Multiple spread props
+
+```tsx
+const input = (
+  <button
+    dynamicColor={color}
+    {...props1}
+    {...props2}
+  />
+);
+
+const compiled = (
+  <button
+    {...props1}
+    {...props2}
+    className={mergeClassNamesWithDynamicColor([props1, props2], 'vHash-1', [
+      color.__scn('#ff6b6b'),
+    ])}
+    style={mergeStyles([props1, props2, color.__st('#ff6b6b')])}
+  />
+);
+```
+
+### className or style after spread
+
+If the className is after the spread, it will override the spread className. So in this case the spread will be ignored in final className
+
+```tsx
+const input = (
+  <button
+    dynamicColor={color}
+    {...props}
+    className="final"
+  />
+);
+
+const compiled = (
+  <button
+    {...props}
+    className={`${color.__scn('#ff6b6b')} vHash-1 final`}
+  />
+);
+```
+
+The same logic applies for style.
+
+```tsx
+const input = (
+  <button
+    dynamicColor={color}
+    {...props}
+    style={{ backgroundColor: 'red' }}
+  />
+);
+
+const compiled = (
+  <button
+    {...props}
+    style={{ backgroundColor: 'red', ...color.__st('#ff6b6b') }}
   />
 );
 ```
