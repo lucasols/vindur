@@ -1,9 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import type { 
-  VindurPluginState, 
-  ImportedFunctions 
-} from './babel-plugin';
+import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
 
 type PostProcessingContext = {
   state: VindurPluginState;
@@ -13,7 +10,7 @@ type PostProcessingContext = {
 };
 
 export function resolveForwardReferences(state: VindurPluginState): void {
-  state.cssRules = state.cssRules.map(cssRule => {
+  state.cssRules = state.cssRules.map((cssRule) => {
     let resolvedRule = cssRule;
     // Find all forward reference placeholders
     const forwardRefRegex = /__FORWARD_REF__(\w+)__/g;
@@ -27,12 +24,12 @@ export function resolveForwardReferences(state: VindurPluginState): void {
       if (styledComponent) {
         // Replace the placeholder with the actual class name
         resolvedRule = resolvedRule.replace(
-          match[0], 
-          `.${styledComponent.className}`
+          match[0],
+          `.${styledComponent.className}`,
         );
       } else {
         throw new Error(
-          `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`
+          `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`,
         );
       }
     }
@@ -55,15 +52,12 @@ export function handleVindurImportCleanup(
   let hasStyledComponent = false;
 
   for (const specifier of path.node.specifiers) {
-    if (
-      t.isImportSpecifier(specifier)
-      && t.isIdentifier(specifier.imported)
-    ) {
+    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       const importedName = specifier.imported.name;
-      
-      if (importedName === 'mergeWithSpread') {
+
+      if (importedName === 'mergeClassNames') {
         hasMergeWithSpread = true;
-        if (state.vindurImports.has('mergeWithSpread')) {
+        if (state.vindurImports.has('mergeClassNames')) {
           specifiersToKeep.push(specifier);
         }
       } else if (importedName === 'styledComponent') {
@@ -75,24 +69,18 @@ export function handleVindurImportCleanup(
     }
   }
 
-  // Add mergeWithSpread import if needed but not already present
-  if (
-    state.vindurImports.has('mergeWithSpread')
-    && !hasMergeWithSpread
-  ) {
+  // Add mergeClassNames import if needed but not already present
+  if (state.vindurImports.has('mergeClassNames') && !hasMergeWithSpread) {
     specifiersToKeep.push(
       t.importSpecifier(
-        t.identifier('mergeWithSpread'),
-        t.identifier('mergeWithSpread'),
+        t.identifier('mergeClassNames'),
+        t.identifier('mergeClassNames'),
       ),
     );
   }
 
   // Add styledComponent import if needed but not already present
-  if (
-    state.vindurImports.has('styledComponent')
-    && !hasStyledComponent
-  ) {
+  if (state.vindurImports.has('styledComponent') && !hasStyledComponent) {
     specifiersToKeep.push(
       t.importSpecifier(
         t.identifier('styledComponent'),
@@ -135,10 +123,7 @@ export function handleFunctionImportCleanup(
   const usedSpecifiers: t.ImportSpecifier[] = [];
 
   for (const specifier of path.node.specifiers) {
-    if (
-      t.isImportSpecifier(specifier)
-      && t.isIdentifier(specifier.imported)
-    ) {
+    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       const functionName = specifier.imported.name;
       // Remove functions that were used during CSS processing (they're compiled away)
       if (
@@ -179,7 +164,7 @@ export function cleanupImports(
         if (handleVindurImportCleanup(path, context.state)) {
           return;
         }
-        
+
         // Then try function imports
         handleFunctionImportCleanup(path, context);
       }
@@ -193,7 +178,7 @@ export function performPostProcessing(
 ): void {
   // Step 1: Resolve forward references in CSS rules
   resolveForwardReferences(context.state);
-  
+
   // Step 2: Clean up imports
   cleanupImports(file, context);
 }

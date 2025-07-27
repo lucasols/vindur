@@ -545,7 +545,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from "vindur";
+      "import { mergeClassNames } from "vindur";
       const App = () => {
         const buttonProps = {
           onClick: () => {},
@@ -554,7 +554,7 @@ describe('handle spread props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeWithSpread([buttonProps], "v1560qbr-1")}
+            className={mergeClassNames([buttonProps], "v1560qbr-1")}
           >
             Click me
           </button>
@@ -656,7 +656,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from "vindur";
+      "import { mergeClassNames } from "vindur";
       const App = () => {
         const styleProps = {
           style: {
@@ -672,7 +672,7 @@ describe('handle spread props', () => {
             {...styleProps}
             {...eventProps}
             id="container"
-            className={mergeWithSpread([styleProps, eventProps], "v1560qbr-1")}
+            className={mergeClassNames([styleProps, eventProps], "v1560qbr-1")}
           >
             Content
           </div>
@@ -728,7 +728,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from "vindur";
+      "import { mergeClassNames } from "vindur";
       const App = () => {
         const buttonProps = {
           type: "submit",
@@ -738,7 +738,7 @@ describe('handle spread props', () => {
           <button
             {...buttonProps}
             onClick={() => console.log("clicked")}
-            className={mergeWithSpread([buttonProps], "v1560qbr-1 v1560qbr-2")}
+            className={mergeClassNames([buttonProps], "v1560qbr-1 v1560qbr-2")}
           >
             Submit
           </button>
@@ -787,7 +787,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from "vindur";
+      "import { mergeClassNames } from "vindur";
       const App = () => {
         const cardProps = {
           className: "animated-card fade-in",
@@ -797,7 +797,7 @@ describe('handle spread props', () => {
           <div
             {...cardProps}
             role="article"
-            className={mergeWithSpread([cardProps], "v1560qbr-1")}
+            className={mergeClassNames([cardProps], "v1560qbr-1")}
           >
             Card content
           </div>
@@ -844,7 +844,7 @@ describe('handle spread props', () => {
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
-      "import { mergeWithSpread } from "vindur";
+      "import { mergeClassNames } from "vindur";
       const App = () => {
         const props1 = {
           className: "first",
@@ -857,7 +857,7 @@ describe('handle spread props', () => {
             className="before"
             {...props1}
             {...props2}
-            className={mergeWithSpread([props1, props2], "v1560qbr-1 after")}
+            className={mergeClassNames([props1, props2], "v1560qbr-1 after")}
           >
             Content
           </div>
