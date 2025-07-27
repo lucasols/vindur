@@ -23,23 +23,25 @@ export function handleJsxDynamicColorProp(
   // Store the dynamicColor position before removing it
   const dynamicColorAttrIndex = attributes.indexOf(dynamicColorAttr);
 
-  // Detect override attributes before any modifications
-  const classNameAfterDynamicColor = findWithNarrowing(
-    attributes.slice(dynamicColorAttrIndex + 1),
+  // Detect override attributes from all attributes (not just after dynamicColor)
+  const classNameOverride = findWithNarrowing(
+    attributes,
     (attr) =>
       t.isJSXAttribute(attr)
       && t.isJSXIdentifier(attr.name)
       && attr.name.name === 'className'
+      && attr !== dynamicColorAttr
         ? attr
         : false,
   );
 
-  const styleAfterDynamicColor = findWithNarrowing(
-    attributes.slice(dynamicColorAttrIndex + 1),
+  const styleOverride = findWithNarrowing(
+    attributes,
     (attr) =>
       t.isJSXAttribute(attr)
       && t.isJSXIdentifier(attr.name)
       && attr.name.name === 'style'
+      && attr !== dynamicColorAttr
         ? attr
         : false,
   );
@@ -105,7 +107,7 @@ export function handleJsxDynamicColorProp(
         path,
         colorName,
         colorArg,
-        { classNameAfterDynamicColor, styleAfterDynamicColor },
+        { classNameOverride, styleOverride },
         context,
       );
       return true;
