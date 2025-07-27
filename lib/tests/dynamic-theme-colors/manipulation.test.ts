@@ -63,4 +63,94 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }"
     `);
   });
+
+  test('should throw error when alpha() called without argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Button = styled.button\`
+            background: \${color.alpha()};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Method alpha requires a numeric argument]
+    `);
+  });
+
+  test('should throw error when darker() called without argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Button = styled.button\`
+            background: \${color.darker()};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Method darker requires a numeric argument]
+    `);
+  });
+
+  test('should throw error when lighter() called without argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Button = styled.button\`
+            background: \${color.lighter()};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Method lighter requires a numeric argument]
+    `);
+  });
+
+  test('should throw error when saturatedDarker() called without argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Button = styled.button\`
+            background: \${color.saturatedDarker()};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Method saturatedDarker requires a numeric argument]
+    `);
+  });
+
+  test('should throw error when contrast.alpha() called without argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Button = styled.button\`
+            color: \${color.contrast.alpha()};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [Error: /test.tsx: Unresolved function call at \`... Button = styled\` ... \${color.contrast.alpha()}, function must be statically analyzable and correctly imported with the configured aliases]
+    `);
+  });
 });
