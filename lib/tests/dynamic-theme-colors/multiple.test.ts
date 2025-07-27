@@ -162,14 +162,14 @@ describe('Dynamic Colors - Multiple Colors', () => {
           <div
             {...cardProps}
             {...styleProps}
-            {...primaryColor.setProps(
+            onClick={() => console.log("clicked")}
+            {...primaryColor._sp(
               "#ff6b6b",
-              secondaryColor.setProps("#ff6b6b", {
+              secondaryColor._sp("#ff6b6b", {
                 className: mergeClassNames([cardProps, styleProps], "v1560qbr-3"),
                 style: mergeStyles([cardProps, styleProps]),
               }),
             )}
-            onClick={() => console.log("clicked")}
           >
             Multi-color card
           </div>
