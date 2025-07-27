@@ -320,14 +320,14 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
     },
 
     container: {
-      isDark: devMode ? `.${getClassName('container', 'is-dark')}` : `.${getClassName('container', 'is-dark')} &`,
-      isLight: devMode ? `.${getClassName('container', 'is-light')}` : `.${getClassName('container', 'is-light')} &`,
-      isDefined: devMode ? `.${getClassName('container', 'is-defined')}` : `.${getClassName('container', 'is-defined')} &`,
-      isNotDefined: devMode ? `.${getClassName('container', 'is-not-defined')}` : `.${getClassName('container', 'is-not-defined')} &`,
-      isVeryDark: devMode ? `.${getClassName('container', 'is-very-dark')}` : `.${getClassName('container', 'is-very-dark')} &`,
-      isNotVeryDark: devMode ? `.${getClassName('container', 'is-not-very-dark')}` : `.${getClassName('container', 'is-not-very-dark')} &`,
-      isVeryLight: devMode ? `.${getClassName('container', 'is-very-light')}` : `.${getClassName('container', 'is-very-light')} &`,
-      isNotVeryLight: devMode ? `.${getClassName('container', 'is-not-very-light')}` : `.${getClassName('container', 'is-not-very-light')} &`,
+      isDark: `.${getClassName('container', 'is-dark')} &`,
+      isLight: `.${getClassName('container', 'is-light')} &`,
+      isDefined: `.${getClassName('container', 'is-defined')} &`,
+      isNotDefined: `.${getClassName('container', 'is-not-defined')} &`,
+      isVeryDark: `.${getClassName('container', 'is-very-dark')} &`,
+      isNotVeryDark: `.${getClassName('container', 'is-not-very-dark')} &`,
+      isVeryLight: `.${getClassName('container', 'is-very-light')} &`,
+      isNotVeryLight: `.${getClassName('container', 'is-not-very-light')} &`,
     },
   };
 

@@ -108,13 +108,13 @@ describe('Dynamic Colors - CSS Function Usage', () => {
         };
         return (
           <div
+            {...divProps}
             {...color.setProps("#ff6b6b", {
               className: cardStyles,
               style: {
                 padding: "10px",
               },
             })}
-            {...divProps}
           >
             Styled with CSS
           </div>

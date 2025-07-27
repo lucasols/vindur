@@ -337,12 +337,19 @@ export function handleJsxDynamicColorProp(
 
     // Handle className (for both styled components and regular elements)
     if (targetClassName || classNameAttr) {
-      if (spreadAttrs.length > 0) {
-        // Will potentially use mergeClassNames when there are spread props
+      // Check if className comes before any spread props (needs merging)
+      const classNameIndex = classNameAttr ? attributes.indexOf(classNameAttr) : -1;
+      const firstSpreadIndex = spreadAttrs.length > 0 ? attributes.indexOf(spreadAttrs[0]) : -1;
+      const needsMerging = spreadAttrs.length > 0 && classNameIndex !== -1 && classNameIndex < firstSpreadIndex;
+      
+      if (needsMerging) {
+        // Use mergeClassNames when className comes before spread props
         
         let finalClassName = targetClassName || '';
         if (classNameAttr) {
-          if (t.isJSXExpressionContainer(classNameAttr.value) && classNameAttr.value.expression) {
+          if (t.isJSXExpressionContainer(classNameAttr.value) && 
+              classNameAttr.value.expression && 
+              !t.isJSXEmptyExpression(classNameAttr.value.expression)) {
             // Handle dynamic className with spread props
             const classNameExpr = classNameAttr.value.expression;
             let mergeArgs = [...spreadAttrs.map(attr => attr.argument)];
@@ -395,7 +402,9 @@ export function handleJsxDynamicColorProp(
         // Simple className handling when no spread props
         let finalClassName = targetClassName || '';
         if (classNameAttr) {
-          if (t.isJSXExpressionContainer(classNameAttr.value) && classNameAttr.value.expression) {
+          if (t.isJSXExpressionContainer(classNameAttr.value) && 
+              classNameAttr.value.expression && 
+              !t.isJSXEmptyExpression(classNameAttr.value.expression)) {
             // Handle dynamic className
             if (targetClassName) {
               // Combine styled className with dynamic className
@@ -439,12 +448,19 @@ export function handleJsxDynamicColorProp(
     // Handle style - don't merge with spread props by default
     if (styleAttr) {
       // Keep existing style
+      let styleValue;
+      if (t.isJSXExpressionContainer(styleAttr.value) && 
+          styleAttr.value.expression && 
+          !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+        styleValue = styleAttr.value.expression;
+      } else if (t.isStringLiteral(styleAttr.value)) {
+        styleValue = styleAttr.value;
+      } else {
+        styleValue = t.objectExpression([]);
+      }
+      
       objectProperties.push(
-        t.objectProperty(t.identifier('style'), 
-          t.isJSXExpressionContainer(styleAttr.value) ? 
-            styleAttr.value.expression :
-            styleAttr.value || t.objectExpression([])
-        )
+        t.objectProperty(t.identifier('style'), styleValue)
       );
       
       // Remove the style attribute since we're handling it
