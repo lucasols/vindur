@@ -74,40 +74,23 @@ export function styledComponent(
   return Component;
 }
 
-type Color<D extends string> = {
+type StaticColor<D extends string> = {
   var: string;
   defaultHex: D;
   alpha: (alpha: number) => string;
-  darken: (amount: number) => string;
-  lighten: (amount: number) => string;
-  saturate: (amount: number) => string;
-  desaturate: (amount: number) => string;
-  mix: (color: string, amount: number) => string;
+  darker: (amount: number) => string;
+  lighter: (amount: number) => string;
   contrast: {
     var: string;
+    optimal: (options?: { saturation?: number; alpha?: number }) => string;
     alpha: (alpha: number) => string;
   };
 };
 
-export function createThemeColors<const C extends Record<string, string>>(
+export function createStaticThemeColors<const C extends Record<string, string>>(
   colors: C,
 ): {
-  colors: {
-    [K in keyof C]: Color<C[K]>;
-  };
-  overrideComponentTheme: (newColors: Partial<C>) => void;
+  [K in keyof C]: StaticColor<C[K]>;
 } {
-  return {
-    colors,
-    overrideComponentTheme: (newColors: Partial<C>) => {
-      // ...
-    },
-  };
+  return colors;
 }
-
-const { colors, overrideComponentTheme } = createThemeColors({
-  primary: '#000',
-  secondary: '#fff8f8f8',
-});
-
-console.log(colors.secondary.var);

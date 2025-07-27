@@ -661,11 +661,13 @@ Apply styles directly to JSX elements using the `css` prop, similar to styled-co
 import { css } from 'vindur'
 
 const App = () => (
-  <div css={`
-    background: blue;
-    padding: 20px;
-    color: white;
-  `}>
+  <div
+    css={`
+      background: blue;
+      padding: 20px;
+      color: white;
+    `}
+  >
     Hello World
   </div>
 )
@@ -680,7 +682,11 @@ const Card = styled.div`
 `
 
 const App = () => (
-  <Card css={`border: 1px solid red;`}>
+  <Card
+    css={`
+      border: 1px solid red;
+    `}
+  >
     Card with additional styling
   </Card>
 )
@@ -695,25 +701,102 @@ const buttonStyles = css`
   padding: 8px 16px;
 `
 
-const Button = ({ children }) => (
-  <button css={buttonStyles}>
-    {children}
-  </button>
-)
+const Button = ({ children }) => <button css={buttonStyles}>{children}</button>
 ```
 
 The `css` prop automatically merges with existing `className` attributes:
 
 ```tsx
-<div 
+<div
   className="existing-class"
-  css={`color: green; font-weight: bold;`}
+  css={`
+    color: green;
+    font-weight: bold;
+  `}
 >
   Styled content
 </div>
 ```
 
 **Note**: The `css` prop only works with native DOM elements (like `div`, `span`, `button`) and styled components. It does not work with custom React components.
+
+## Theme Colors
+
+Create type-safe theme color systems with `createStaticThemeColors`:
+
+```tsx
+import { createStaticThemeColors } from 'vindur'
+
+const colors = createStaticThemeColors({
+  primary: '#007bff',
+  secondary: '#6c757d',
+  success: '#28a745',
+  danger: '#dc3545',
+  warning: '#ffc107',
+  info: '#17a2b8',
+})
+
+// Each color provides a complete theming API
+const Button = styled.button`
+  background: ${colors.primary.var};
+  color: ${colors.primary.contrast.var};
+
+  &:hover {
+    background: ${colors.primary.darker(0.1)};
+  }
+
+  &:active {
+    background: ${colors.primary.alpha(0.8)};
+  }
+`
+```
+
+The generated css will be optimized with the values of the colors:
+
+```css
+.v1560qbr-1-Button {
+  background: #007bff;
+  color: #fff;
+
+  &:hover {
+    background: #0056b3;
+  }
+
+  &:active {
+    background: #0056b380;
+  }
+}
+```
+
+In dev mode, the output will show the color name for easier debugging:
+
+```css
+.v1560qbr-1-Button {
+  background: var(--stc-primary-var, #007bff);
+  color: var(--stc-primary-contrast-var, #fff);
+
+  &:hover {
+    background: var(--stc-primary-darker-0\.1, #0056b3);
+  }
+
+  &:active {
+    background: var(--stc-primary-alpha-0\.8, #0056b380);
+  }
+}
+```
+
+### Color API
+
+Each color in your theme provides:
+
+- **`var`**: CSS variable reference for the color
+- **`defaultHex`**: The original hex value passed in
+- **`alpha(amount)`**: Creates an alpha variant of the color
+- **`darker(amount)`**: Creates a darker variant (0-1 scale)
+- **`lighter(amount)`**: Creates a lighter variant (0-1 scale)
+- **`contrast.var`**: CSS variable for optimal contrast color
+- **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
+- **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
 ## Roadmap
 
