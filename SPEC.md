@@ -258,18 +258,25 @@ const compiled = (
 
 When using dynamicColor:
 
-- The `color.__scn` (set class name) will be added as a className attribute
-- The `color.__st` (set style) will be added as a style attribute
+- The `color._sp` (set props) function will be added to set className and style attribute
 
 ```tsx
-const before = <StyledButton dynamicColor={color} />;
+type _sp = (
+  color: string | null | false | undefined,
+  mergeWith: {
+    className: string;
+    style: Record<string, unknown>;
+  },
+) => {
+  className: string;
+  style?: Record<string, unknown>;
+};
+```
 
-const compiled = (
-  <button
-    className={`${color.__scn('#ff6b6b')} vHash-1`}
-    style={color.__st('#ff6b6b')}
-  />
-);
+```tsx
+const before = <StyledButton dynamicColor={color.set('#ff6b6b')} />;
+
+const compiled = <button {...color._sp('#ff6b6b', { className: 'vHash-1' })} />;
 ```
 
 ### With already existing className
@@ -277,13 +284,13 @@ const compiled = (
 ```tsx
 const before = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     className="base-class"
   />
 );
 
 const compiled = (
-  <button className={`${color.__scn('#ff6b6b')} vHash-1 base-class`} />
+  <button {...color._sp('#ff6b6b', { className: 'vHash-1 base-class' })} />
 );
 ```
 
@@ -292,28 +299,33 @@ const compiled = (
 ```tsx
 const before = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     style={{ backgroundColor: 'red' }}
   />
 );
 
 const compiled = (
   <button
-    className={`${color.__scn('#ff6b6b')} vHash-1`}
-    style={{ backgroundColor: 'red', ...color.__st('#ff6b6b') }}
+    {...color._sp('#ff6b6b', {
+      className: 'vHash-1',
+      style: { backgroundColor: 'red' },
+    })}
   />
 );
 ```
 
 ### Multiple Dynamic Colors
 
+Multiple dynamic colors require combining their outputs with the `_sp` merge argument. Only the last `_sp` call will merge the className and style.
+
 ```tsx
-const before = <StyledButton dynamicColor={[color1, color2]} />;
+const before = (
+  <StyledButton dynamicColor={[color1.set('#ff6b6b'), color2.set('#ff6b6b')]} />
+);
 
 const compiled = (
   <button
-    className={`${color1.__scn('#ff6b6b')} ${color2.__scn('#ff6b6b')} vHash-1`}
-    style={{ ...color1.__st('#ff6b6b'), ...color2.__st('#ff6b6b') }}
+    {...color1._sp('#ff6b6b', color2._sp('#ff6b6b', { className: 'vHash-1' }))}
   />
 );
 ```
@@ -321,22 +333,23 @@ const compiled = (
 ### With spread props
 
 When spread props are used with dynamicColor, the potential className and style from the spread should be merged with the dynamicColor props.
-This will be done with the class merge util and a style merge util.
 
 ```tsx
 const input = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     {...props}
   />
 );
 
-// className and style must be added as the last props as they cannot be overridden by other props
+// The _sp method handles merging with spread props
 const compiled = (
   <button
     {...props}
-    className={mergeClassNames([props], `${color.__scn('#ff6b6b')} vHash-1`)}
-    style={{ ...mergeStyles([props]), ...color.__st('#ff6b6b') }}
+    {...color._sp('#ff6b6b', {
+      className: mergeClassNames([props], 'vHash-1'),
+      style: mergeStyles([props]),
+    })}
   />
 );
 ```
@@ -346,7 +359,7 @@ const compiled = (
 ```tsx
 const input = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     {...props1}
     {...props2}
   />
@@ -356,11 +369,10 @@ const compiled = (
   <button
     {...props1}
     {...props2}
-    className={mergeClassNames(
-      [props1, props2],
-      `${color.__scn('#ff6b6b')} vHash-1`,
-    )}
-    style={{ ...mergeStyles([props1, props2]), ...color.__st('#ff6b6b') }}
+    {...color._sp('#ff6b6b', {
+      className: mergeClassNames([props1, props2], 'vHash-1'),
+      style: mergeStyles([props1, props2]),
+    })}
   />
 );
 ```
@@ -372,7 +384,7 @@ If the className is after the spread, it will override the spread className. So 
 ```tsx
 const input = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     {...props}
     className="final"
   />
@@ -381,7 +393,7 @@ const input = (
 const compiled = (
   <button
     {...props}
-    className={`${color.__scn('#ff6b6b')} vHash-1 final`}
+    {...color._sp('#ff6b6b', { className: 'final' })}
   />
 );
 ```
@@ -391,7 +403,7 @@ The same logic applies for style.
 ```tsx
 const input = (
   <StyledButton
-    dynamicColor={color}
+    dynamicColor={color.set('#ff6b6b')}
     {...props}
     style={{ backgroundColor: 'red' }}
   />
@@ -400,7 +412,37 @@ const input = (
 const compiled = (
   <button
     {...props}
-    style={{ backgroundColor: 'red', ...color.__st('#ff6b6b') }}
+    {...color._sp('#ff6b6b', {
+      className: 'vHash-1',
+      style: { backgroundColor: 'red' },
+    })}
   />
+);
+```
+
+## Conditional set
+
+Condition should be handled inside the set function.
+
+```tsx
+const input = (
+  <StyledButton dynamicColor={color.set(condition ? '#ff6b6b' : null)} />
+);
+
+const compiled = (
+  <button
+    {...color._sp(condition ? '#ff6b6b' : null, {
+      className: 'vHash-1',
+    })}
+  />
+);
+```
+
+Using condition outside the set function will throw an error.
+
+```tsx
+const input = (
+  // This will throw an error
+  <StyledButton dynamicColor={condition ? color.set('#ff6b6b') : null} />
 );
 ```

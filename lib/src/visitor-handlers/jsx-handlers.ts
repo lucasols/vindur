@@ -152,13 +152,22 @@ function handleClassNameWithSpreads(
 
     if (
       hasSpreadsBeforeFinalClassName
-      && !hasMultipleClassNames
       && t.isStringLiteral(existingClassNameAttr.value)
     ) {
-      // Single className comes after spreads - static merge, no mergeClassNames needed
+      // className comes after spreads - static merge, no mergeClassNames needed
+      // Remove any previous className attributes since the final one overrides
+      if (hasMultipleClassNames) {
+        const previousClassNameAttrs = classNameAttrs.slice(0, -1); // All except the last one
+        for (const prevAttr of previousClassNameAttrs) {
+          const index = attributes.indexOf(prevAttr);
+          if (index !== -1) {
+            attributes.splice(index, 1);
+          }
+        }
+      }
       existingClassNameAttr.value.value = `${styledInfo.className} ${existingClassNameAttr.value.value}`;
     } else {
-      // Multiple classNames OR final className comes before/among spreads - needs mergeClassNames
+      // final className comes before/among spreads - needs mergeClassNames
       createMergeWithSpreadCall(
         existingClassNameAttr,
         spreadAttrs,
@@ -335,15 +344,18 @@ export function handleJsxDynamicColorProp(
     const setPropsArgs = [t.stringLiteral('#ff6b6b')]; // Default color
     const objectProperties: t.ObjectProperty[] = [];
 
+    // Calculate spread indices for use throughout the function
+    const firstSpreadIndex = spreadAttrs.length > 0 ? attributes.indexOf(spreadAttrs[0]) : -1;
+
     // Handle className (for both styled components and regular elements)
     if (targetClassName || classNameAttr) {
       // Check if className comes before any spread props (needs merging)
       const classNameIndex = classNameAttr ? attributes.indexOf(classNameAttr) : -1;
-      const firstSpreadIndex = spreadAttrs.length > 0 ? attributes.indexOf(spreadAttrs[0]) : -1;
+      const lastSpreadIndex = spreadAttrs.length > 0 ? Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr))) : -1;
       const needsMerging = spreadAttrs.length > 0 && (
-        // Explicit className comes before spread props
-        (classNameIndex !== -1 && classNameIndex < firstSpreadIndex) ||
-        // Styled component with spread props (always needs merging)
+        // Explicit className comes before or among spread props
+        (classNameIndex !== -1 && classNameIndex <= lastSpreadIndex) ||
+        // Styled component with spread props but no explicit className
         (targetClassName && classNameIndex === -1)
       );
       

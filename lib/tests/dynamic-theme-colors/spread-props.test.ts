@@ -35,10 +35,8 @@ describe('Dynamic Colors - Spread Props', () => {
         return (
           <button
             {...buttonProps}
-            {...color.setProps("#ff6b6b", {
-              className: mergeClassNames([buttonProps], "v1560qbr-2"),
-              style: mergeStyles([buttonProps]),
-            })}
+            className={mergeClassNames([buttonProps], \`\${color.__scn("#ff6b6b")} v1560qbr-2\`)}
+            style={{ ...mergeStyles([buttonProps]), ...color.__st("#ff6b6b") }}
           >
             Click me
           </button>
@@ -73,7 +71,7 @@ describe('Dynamic Colors - Spread Props', () => {
           <Card 
             {...styleProps}
             {...eventProps}
-            dynamicColor={color}
+            dynamicColor={color.set('#ff6b6b')}
             id="card"
           >
             Content
@@ -103,11 +101,9 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...styleProps}
             {...eventProps}
-            {...color.setProps("#ff6b6b", {
-              className: mergeClassNames([styleProps, eventProps], "v1560qbr-2"),
-              style: mergeStyles([styleProps, eventProps]),
-            })}
             id="card"
+            className={mergeClassNames([styleProps, eventProps], \`\${color.__scn("#ff6b6b")} v1560qbr-2\`)}
+            style={{ ...mergeStyles([styleProps, eventProps]), ...color.__st("#ff6b6b") }}
           >
             Content
           </div>
@@ -135,7 +131,7 @@ describe('Dynamic Colors - Spread Props', () => {
             className="initial-class"
             {...boxProps}
             {...dataProps}
-            dynamicColor={color}
+            dynamicColor={color.set('#ff6b6b')}
             className="final-class"
           >
             Box content
@@ -149,7 +145,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      "import { createDynamicCssColor } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const boxProps = {
@@ -160,13 +156,10 @@ describe('Dynamic Colors - Spread Props', () => {
         };
         return (
           <div
-            className="initial-class"
             {...boxProps}
             {...dataProps}
-            {...color.setProps("#ff6b6b", {
-              className: "v1560qbr-2 final-class",
-              style: mergeStyles([boxProps, dataProps]),
-            })}
+            className={\`\${color.__scn("#ff6b6b")} v1560qbr-2 final-class\`}
+            style={{ ...mergeStyles([boxProps, dataProps]), ...color.__st("#ff6b6b") }}
           >
             Box content
           </div>
@@ -195,12 +188,13 @@ describe('Dynamic Colors - Spread Props', () => {
             style={{ borderRadius: '4px' }}
             {...styleProps}
             {...otherProps}
-            dynamicColor={color}
+            dynamicColor={color.set('#ff6b6b')}
             style={{ padding: '30px', fontSize: '14px' }}
           >
             Content with overridden styles
           </Card>
         );
+      }
     `;
 
     const result = await transformWithFormat({
@@ -208,7 +202,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      "import { createDynamicCssColor } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const styleProps = {
@@ -223,13 +217,12 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...styleProps}
             {...otherProps}
-            {...color.setProps("#ff6b6b", {
-              className: mergeClassNames([styleProps, otherProps], "v1560qbr-2"),
-              style: {
-                padding: "30px",
-                fontSize: "14px",
-              },
-            })}
+            className={\`\${color.__scn("#ff6b6b")} v1560qbr-2\`}
+            style={{
+              padding: "30px",
+              fontSize: "14px",
+              ...color.__st("#ff6b6b"),
+            }}
           >
             Content with overridden styles
           </div>
@@ -271,7 +264,7 @@ describe('Dynamic Colors - Spread Props', () => {
           <InteractiveButton 
             {...eventHandlers}
             {...accessibilityProps}
-            dynamicColor={color}
+            dynamicColor={color.set('#ff6b6b')}
             type="button"
           >
             Interactive Button
@@ -301,14 +294,12 @@ describe('Dynamic Colors - Spread Props', () => {
           <button
             {...eventHandlers}
             {...accessibilityProps}
-            {...color.setProps("#ff6b6b", {
-              className: mergeClassNames(
-                [eventHandlers, accessibilityProps],
-                "v1560qbr-2",
-              ),
-              style: mergeStyles([eventHandlers, accessibilityProps]),
-            })}
             type="button"
+            className={mergeClassNames(
+              [eventHandlers, accessibilityProps],
+              \`\${color.__scn("#ff6b6b")} v1560qbr-2\`,
+            )}
+            style={{ ...mergeStyles([eventHandlers, accessibilityProps]), ...color.__st("#ff6b6b") }}
           >
             Interactive Button
           </button>
