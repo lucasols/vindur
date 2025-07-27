@@ -80,7 +80,7 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 ## Code Organization
 
 - Abstract redundant types into a single type
-- Split up large files (+600 lines) into smaller files
+- Split up large files (+500 lines) into smaller files
 - Do not use barrel files
 - Do not add re-exports
 
