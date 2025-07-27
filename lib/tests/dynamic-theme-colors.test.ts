@@ -24,13 +24,18 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      import { createDynamicCssColor } from 'vindur'
-
-      "const dynamicColor = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const dynamicColor = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
-        return <div {...dynamicColor.setProps("#ff6b6b", {
-          className: "v1560qbr-2",
-        })}>Hello World</div>;
+        return (
+          <div
+            {...dynamicColor.setProps("#ff6b6b", {
+              className: "v1560qbr-2",
+            })}
+          >
+            Hello World
+          </div>
+        );
       };
       "
     `);
@@ -77,10 +82,11 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const dynamicColor = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const dynamicColor = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div {...dynamicColor.setProps("#ff6b6b", {})}>
+          <div {...dynamicColor.setProps("#ff6b6b")}>
             <div className="v1560qbr-2-Container">Dev mode content</div>
           </div>
         );
@@ -93,11 +99,11 @@ describe('createDynamicCssColor', () => {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
 
-        &.v1560qbr-1-self-is-dark {
+        &.v1560qbr-1-s0 {
           border: 2px solid white;
         }
 
-        &.v1560qbr-1-self-is-light {
+        &.v1560qbr-1-s1 {
           border: 2px solid black;
         }
       }"
@@ -133,11 +139,18 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
-        return <button {...color.setProps("#ff6b6b", {
-          className: "v1560qbr-2",
-        })}>Click me</button>;
+        return (
+          <button
+            {...color.setProps("#ff6b6b", {
+              className: "v1560qbr-2",
+            })}
+          >
+            Click me
+          </button>
+        );
       };
       "
     `);
@@ -199,7 +212,8 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
           <div {...color.setProps("#ff6b6b")}>
@@ -261,12 +275,19 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const cardStyles = "v1560qbr-2";
       const Component = () => {
-        return <div {...color.setProps("#ff6b6b", {
-          className: cardStyles
-        })}>Styled with CSS</div>;
+        return (
+          <div
+            {...color.setProps("#ff6b6b", {
+              className: cardStyles,
+            })}
+          >
+            Styled with CSS
+          </div>
+        );
       };
       "
     `);
@@ -315,13 +336,16 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div 
+          <div
             {...color.setProps("#ff6b6b", {
-              style: { padding: "20px" },
-              className: "custom-card v1560qbr-2"
+              className: "v1560qbr-2 custom-card",
+              style: {
+                padding: "20px",
+              },
             })}
             onClick={() => console.log("clicked")}
           >
@@ -366,7 +390,8 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
           <div
@@ -415,7 +440,8 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color1 = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color1 = createDynamicCssColor("v1560qbr-1");
       const color2 = createDynamicCssColor("v1560qbr-2");
       const Component = () => {
         return (
@@ -474,9 +500,15 @@ describe('createDynamicCssColor', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <button {...themeColor.setProps("#ff6b6b", {
-          className: "v1560qbr-1",
-        })}>Import test</button>;
+        return (
+          <button
+            {...themeColor.setProps("#ff6b6b", {
+              className: "v1560qbr-1",
+            })}
+          >
+            Import test
+          </button>
+        );
       };
       "
     `);
@@ -486,12 +518,12 @@ describe('createDynamicCssColor', () => {
         background: var(--v1560qbr-2);
         color: var(--v1560qbr-2-c);
 
-        &.v1560qbr-2-s-dark {
+        &.v1560qbr-2-s0 {
           border: 1px solid white;
         }
 
-        .v1560qbr-2-c-light & {
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        .v1560qbr-2-c1 & {
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
       }"
     `);
@@ -549,11 +581,18 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
-        return <div {...color.setProps("#ff6b6b", {
-          className: "v1560qbr-2",
-        })}>All selectors test</div>;
+        return (
+          <div
+            {...color.setProps("#ff6b6b", {
+              className: "v1560qbr-2",
+            })}
+          >
+            All selectors test
+          </div>
+        );
       };
       "
     `);
@@ -648,7 +687,8 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const color = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
           <div {...color.setProps("#ff6b6b")}>
@@ -726,11 +766,14 @@ describe('createDynamicCssColor', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = createDynamicCssColor("v1560qbr-1");
+      "import { createDynamicCssColor } from "vindur";
+      const primaryColor = createDynamicCssColor("v1560qbr-1");
       const secondaryColor = createDynamicCssColor("v1560qbr-2");
       const Component = () => {
         return (
-          <div {...primaryColor.setProps("#ff6b6b", secondaryColor.setProps("#ff6b6b"))}>
+          <div
+            {...primaryColor.setProps("#ff6b6b", secondaryColor.setProps("#ff6b6b"))}
+          >
             <div className="v1560qbr-3">Multiple colors with cross-references</div>
           </div>
         );
@@ -796,7 +839,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const Component = () => {
           const buttonProps = {
@@ -857,7 +900,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames, mergeStyles } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const Component = () => {
           const styleProps = {
@@ -874,11 +917,7 @@ describe('createDynamicCssColor', () => {
               {...styleProps}
               {...eventProps}
               {...color.setProps("#ff6b6b", {
-                className: mergeClassNames(
-                  [styleProps, eventProps],
-                  "v1560qbr-2",
-                ),
-                style: mergeStyles([styleProps, eventProps]),
+                className: mergeClassNames([styleProps, eventProps], "v1560qbr-2"),
               })}
               id="card"
             >
@@ -923,7 +962,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const Component = () => {
           const propsWithClass = {
@@ -982,7 +1021,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const Component = () => {
           const boxProps = {
@@ -997,7 +1036,7 @@ describe('createDynamicCssColor', () => {
               {...boxProps}
               {...dataProps}
               {...color.setProps("#ff6b6b", {
-                className: mergeClassNames([boxProps, dataProps], "v1560qbr-2 final-class"),
+                className: "v1560qbr-2 final-class",
               })}
             >
               Box content
@@ -1041,7 +1080,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
         const primaryColor = createDynamicCssColor("v1560qbr-1");
         const secondaryColor = createDynamicCssColor("v1560qbr-2");
         const Component = () => {
@@ -1110,7 +1149,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeStyles } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const cardStyles = "v1560qbr-2";
         const Component = () => {
@@ -1180,7 +1219,7 @@ describe('createDynamicCssColor', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { mergeClassNames } from "vindur";
+        "import { createDynamicCssColor, mergeClassNames } from "vindur";
         const color = createDynamicCssColor("v1560qbr-1");
         const Component = () => {
           const eventHandlers = {

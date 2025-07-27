@@ -51,6 +51,7 @@ export function handleVindurImportCleanup(
   let hasMergeClassNames = false;
   let hasMergeStyles = false;
   let hasStyledComponent = false;
+  let hasCreateDynamicCssColor = false;
 
   for (const specifier of path.node.specifiers) {
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
@@ -69,6 +70,11 @@ export function handleVindurImportCleanup(
       } else if (importedName === 'styledComponent') {
         hasStyledComponent = true;
         if (state.vindurImports.has('styledComponent')) {
+          specifiersToKeep.push(specifier);
+        }
+      } else if (importedName === 'createDynamicCssColor') {
+        hasCreateDynamicCssColor = true;
+        if (state.vindurImports.has('createDynamicCssColor')) {
           specifiersToKeep.push(specifier);
         }
       }
@@ -101,6 +107,16 @@ export function handleVindurImportCleanup(
       t.importSpecifier(
         t.identifier('styledComponent'),
         t.identifier('styledComponent'),
+      ),
+    );
+  }
+
+  // Add createDynamicCssColor import if needed but not already present
+  if (state.vindurImports.has('createDynamicCssColor') && !hasCreateDynamicCssColor) {
+    specifiersToKeep.push(
+      t.importSpecifier(
+        t.identifier('createDynamicCssColor'),
+        t.identifier('createDynamicCssColor'),
       ),
     );
   }
