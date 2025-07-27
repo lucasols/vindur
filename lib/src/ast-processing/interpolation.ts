@@ -21,99 +21,182 @@ function isExtensionResult(
   return typeof result === 'object' && 'type' in result;
 }
 
+function processIdentifierExpression(
+  expression: t.Identifier,
+  context: CssProcessingContext,
+  interpolationContext: {
+    isExtension?: boolean;
+    dev?: boolean;
+  },
+  variableName: string | undefined,
+  tagType: string,
+): string | { type: 'extension'; className: string } {
+  // Check if this identifier refers to a styled component
+  const styledComponent = context.state.styledComponents.get(expression.name);
+  if (styledComponent) return `.${styledComponent.className}`;
+
+  // Check if this identifier refers to a CSS variable
+  const cssVariable = context.state.cssVariables.get(expression.name);
+  if (cssVariable) {
+    if (interpolationContext.isExtension) {
+      return { type: 'extension', className: cssVariable };
+    } else {
+      return `.${cssVariable}`;
+    }
+  }
+
+  // Check if this identifier refers to a keyframes animation
+  const keyframesAnimation = context.state.keyframes.get(expression.name);
+  if (keyframesAnimation) return keyframesAnimation;
+
+  // Check imported items
+  const importedResult = resolveImportedIdentifier(expression.name, context, interpolationContext);
+  if (importedResult !== null) return importedResult;
+
+  // Try local variable resolution
+  const resolvedValue = resolveVariable(expression.name, context.path);
+  if (resolvedValue !== null) return resolvedValue;
+
+  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  throw new Error(
+    `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
+  );
+}
+
+function resolveImportedIdentifier(
+  name: string,
+  context: CssProcessingContext,
+  interpolationContext: { isExtension?: boolean; dev?: boolean },
+): string | { type: 'extension'; className: string } | null {
+  // Check if this identifier refers to an imported keyframes
+  const importedKeyframes = resolveImportedKeyframes(name, context);
+  if (importedKeyframes !== null) return importedKeyframes;
+
+  // Check if this identifier refers to an imported CSS variable
+  const importedCss = resolveImportedCss(name, context);
+  if (importedCss !== null) {
+    if (interpolationContext.isExtension) {
+      return { type: 'extension', className: importedCss };
+    } else {
+      return `.${importedCss}`;
+    }
+  }
+
+  // Check if this identifier refers to an imported constant
+  const importedConstant = resolveImportedConstantLocal(name, context);
+  if (importedConstant !== null) {
+    return String(importedConstant);
+  }
+
+  // If we have an imported function but it wasn't found in any resolver, throw an error
+  const importedFilePath = context.importedFunctions.get(name);
+  if (importedFilePath) {
+    throw new Error(`Function "${name}" not found in ${importedFilePath}`);
+  }
+
+  return null;
+}
+
+function processArrowFunctionExpression(
+  expression: t.ArrowFunctionExpression,
+  variableName: string | undefined,
+  tagType: string,
+): string {
+  if (
+    expression.params.length === 0 &&
+    t.isIdentifier(expression.body) &&
+    !expression.async
+  ) {
+    const componentName = expression.body.name;
+    return `__FORWARD_REF__${componentName}__`;
+  } else {
+    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+    throw new Error(
+      `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
+    );
+  }
+}
+
+function processCallExpression(
+  expression: t.CallExpression,
+  context: CssProcessingContext,
+  interpolationContext: { dev?: boolean },
+  variableName: string | undefined,
+  tagType: string,
+): string {
+  // Try regular function calls first
+  const functionResolved = resolveFunctionCall(
+    expression,
+    context,
+    interpolationContext.dev || false,
+  );
+  if (functionResolved !== null) return functionResolved;
+  
+  // Try dynamic color function calls
+  const dynamicResolved = resolveDynamicColorCallExpression(expression, context);
+  if (dynamicResolved !== null) return dynamicResolved;
+  
+  const expressionSource = generate(expression).code;
+  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  throw new Error(
+    `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
+  );
+}
+
+function processBinaryExpression(
+  expression: t.BinaryExpression,
+  context: CssProcessingContext,
+  variableName: string | undefined,
+  tagType: string,
+): string {
+  const resolved = resolveBinaryExpression(expression, context.path, context);
+  if (resolved !== null) {
+    return resolved;
+  } else {
+    const expressionSource = generate(expression).code;
+    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+    throw new Error(
+      `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
+    );
+  }
+}
+
+function processMemberExpression(
+  expression: t.MemberExpression,
+  context: CssProcessingContext,
+  interpolationContext: { dev?: boolean },
+  variableName: string | undefined,
+  tagType: string,
+): string {
+  // Try theme colors first
+  const themeResolved = resolveThemeColorExpression(expression, context, interpolationContext.dev || false);
+  if (themeResolved !== null) return themeResolved;
+  
+  // Try dynamic colors
+  const dynamicResolved = resolveDynamicColorExpression(expression, context);
+  if (dynamicResolved !== null) return dynamicResolved;
+  
+  const expressionSource = generate(expression).code;
+  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  throw new Error(
+    `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+  );
+}
+
 export function processInterpolationExpression(
   expression: t.Expression,
   context: CssProcessingContext,
   variableName: string | undefined,
   tagType: string,
   interpolationContext: {
-    isExtension?: boolean; // true if followed by semicolon
+    isExtension?: boolean;
     dev?: boolean;
   } = {},
 ): string | { type: 'extension'; className: string } {
   if (t.isIdentifier(expression)) {
-    // Check if this identifier refers to a styled component
-    const styledComponent = context.state.styledComponents.get(expression.name);
-    if (styledComponent) {
-      // Return the className with a dot prefix for CSS selector usage
-      return `.${styledComponent.className}`;
-    }
-
-    // Check if this identifier refers to a CSS variable
-    const cssVariable = context.state.cssVariables.get(expression.name);
-    if (cssVariable) {
-      if (interpolationContext.isExtension) {
-        // For extension syntax (${baseStyles};), return extension object
-        return { type: 'extension', className: cssVariable };
-      } else {
-        // For CSS variables, always return with dot prefix for selector usage
-        return `.${cssVariable}`;
-      }
-    }
-
-    // Check if this identifier refers to a keyframes animation
-    const keyframesAnimation = context.state.keyframes.get(expression.name);
-    if (keyframesAnimation) {
-      // For keyframes, return the animation name without prefix
-      return keyframesAnimation;
-    }
-
-    // Check if this identifier refers to an imported keyframes
-    const importedKeyframes = resolveImportedKeyframes(expression.name, context);
-    if (importedKeyframes !== null) return importedKeyframes;
-
-    // Check if this identifier refers to an imported CSS variable
-    const importedCss = resolveImportedCss(expression.name, context);
-    if (importedCss !== null) {
-      if (interpolationContext.isExtension) {
-        // For extension syntax (${baseStyles};), return extension object
-        return { type: 'extension', className: importedCss };
-      } else {
-        // For CSS variables, always return with dot prefix for selector usage
-        return `.${importedCss}`;
-      }
-    }
-
-    // Check if this identifier refers to an imported constant (string or number)
-    const importedConstant = resolveImportedConstantLocal(expression.name, context);
-    if (importedConstant !== null) {
-      return String(importedConstant);
-    }
-
-    // If we have an imported function but it wasn't found in any resolver, throw an error
-    const importedFilePath = context.importedFunctions.get(expression.name);
-    if (importedFilePath) {
-      throw new Error(`Function "${expression.name}" not found in ${importedFilePath}`);
-    }
-
-    const resolvedValue = resolveVariable(expression.name, context.path);
-    if (resolvedValue !== null) {
-      return resolvedValue;
-    } else {
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
-      );
-    }
+    return processIdentifierExpression(expression, context, interpolationContext, variableName, tagType);
   } else if (t.isArrowFunctionExpression(expression)) {
-    // Handle forward references: ${() => Component}
-    if (
-      expression.params.length === 0 &&
-      t.isIdentifier(expression.body) &&
-      !expression.async
-    ) {
-      const componentName = expression.body.name;
-      // For forward references, we'll defer the resolution by storing a placeholder
-      // The actual resolution will happen during post-processing when all components are defined
-      return `__FORWARD_REF__${componentName}__`;
-    } else {
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
-      );
-    }
+    return processArrowFunctionExpression(expression, variableName, tagType);
   } else if (isLiteralExpression(expression)) {
     const value = extractLiteralValue(expression);
     return String(value);
@@ -127,57 +210,17 @@ export function processInterpolationExpression(
     );
     return nested.cssContent;
   } else if (t.isCallExpression(expression)) {
-    // Try regular function calls first
-    const functionResolved = resolveFunctionCall(
-      expression,
-      context,
-      interpolationContext.dev || false,
-    );
-    if (functionResolved !== null) return functionResolved;
-    
-    // Try dynamic color function calls
-    const dynamicResolved = resolveDynamicColorCallExpression(expression, context);
-    if (dynamicResolved !== null) return dynamicResolved;
-    
-    const expressionSource = generate(expression).code;
-    const varContext =
-      variableName ? `... ${variableName} = ${tagType}` : tagType;
-    throw new Error(
-      `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
-    );
+    return processCallExpression(expression, context, interpolationContext, variableName, tagType);
   } else if (t.isBinaryExpression(expression)) {
-    const resolved = resolveBinaryExpression(expression, context.path, context);
-    if (resolved !== null) {
-      return resolved;
-    } else {
-      const expressionSource = generate(expression).code;
-      const varContext =
-        variableName ? `... ${variableName} = ${tagType}` : tagType;
-      throw new Error(
-        `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
-      );
-    }
+    return processBinaryExpression(expression, context, variableName, tagType);
   } else if (t.isMemberExpression(expression)) {
-    // Try theme colors first
-    const themeResolved = resolveThemeColorExpression(expression, context, interpolationContext.dev || false);
-    if (themeResolved !== null) return themeResolved;
-    
-    // Try dynamic colors
-    const dynamicResolved = resolveDynamicColorExpression(expression, context);
-    if (dynamicResolved !== null) return dynamicResolved;
-    
+    return processMemberExpression(expression, context, interpolationContext, variableName, tagType);
+  } else {
     const expressionSource = generate(expression).code;
-    const varContext =
-      variableName ? `... ${variableName} = ${tagType}` : tagType;
+    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new Error(
       `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
     );
-  } else {
-    const expressionSource = generate(expression).code;
-    const varContext =
-      variableName ? `... ${variableName} = ${tagType}` : tagType;
-    const errorMessage = `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`;
-    throw new Error(errorMessage);
   }
 }
 

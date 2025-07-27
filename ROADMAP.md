@@ -59,8 +59,8 @@ A compile-time CSS-in-JS library focused on performance.
   ```tsx
   const StyledWithModifier = vComponentWithModifiers(
     ['active', 'disabled'],
-    'vHash-1' // generated css will be injected here
-  )
+    'vHash-1', // generated css will be injected here
+  );
   ```
 
 ### 🚧 **Utility Features**
@@ -73,7 +73,6 @@ A compile-time CSS-in-JS library focused on performance.
 
 - [ ] Scoped JSX modifier classes (prefix with `_`)
 - [ ] Scoped CSS variables (`---var` syntax)
-- [ ] Hash-based collision avoidance
 
 ## Beta 2 - Advanced Features
 

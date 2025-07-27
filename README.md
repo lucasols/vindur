@@ -35,7 +35,7 @@ yarn add vindur @vindur-css/vite
 ## Quick Start
 
 ```tsx
-import { styled } from 'vindur'
+import { styled } from 'vindur';
 
 const Button = styled.button`
   background: blue;
@@ -44,10 +44,10 @@ const Button = styled.button`
   border-radius: 4px;
   border: none;
   cursor: pointer;
-`
+`;
 
 export default function App() {
-  return <Button>Click me</Button>
+  return <Button>Click me</Button>;
 }
 ```
 
@@ -68,7 +68,7 @@ Compiles to:
 ```tsx
 // Generated JSX, no runtime overhead!!
 export default function App() {
-  return <button className="vhash123-1">Click me</button>
+  return <button className="vhash123-1">Click me</button>;
 }
 ```
 
@@ -97,26 +97,26 @@ const buttonBase = css`
 Create styled JSX components with any HTML element:
 
 ```tsx
-import { styled } from 'vindur'
+import { styled } from 'vindur';
 
 const Title = styled.h1`
   font-size: 24px;
   color: #333;
   margin-bottom: 16px;
-`
+`;
 
 const Card = styled.div`
   background: white;
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`
+`;
 
 const Container = styled.main`
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-`
+`;
 ```
 
 ### Variable Interpolation
@@ -124,14 +124,14 @@ const Container = styled.main`
 Interpolate JavaScript variables into your styles:
 
 ```tsx
-const primaryColor = '#007bff'
-const spacing = 16
+const primaryColor = '#007bff';
+const spacing = 16;
 
 const Button = styled.button`
   background: ${primaryColor};
   padding: ${spacing}px ${spacing * 2}px;
   margin: ${spacing / 2}px;
-`
+`;
 ```
 
 ### Style Extension
@@ -144,17 +144,17 @@ const BaseButton = styled.button`
   border-radius: 4px;
   border: none;
   cursor: pointer;
-`
+`;
 
 const PrimaryButton = styled(BaseButton)`
   background: #007bff;
   color: white;
-`
+`;
 
 const SecondaryButton = styled(BaseButton)`
   background: #6c757d;
   color: white;
-`
+`;
 ```
 
 ### Nesting Styles
@@ -178,7 +178,7 @@ const Card = styled.div`
   @media (max-width: 768px) {
     padding: 16px;
   }
-`
+`;
 
 const Navigation = styled.nav`
   ul {
@@ -194,7 +194,7 @@ const Navigation = styled.nav`
       }
     }
   }
-`
+`;
 ```
 
 **Output**: Native CSS nesting preserved as-is:
@@ -296,14 +296,14 @@ const Card = styled.div`
   ${baseStyles};
   background: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`
+`;
 
 const styleWithCss = css`
   ${baseStyles}:hover & {
     background: #007bff;
     color: white;
   }
-`
+`;
 ```
 
 Components defined after the styled components are also supported by using `${() => Component}` syntax to avoid used before defined error:
@@ -317,13 +317,13 @@ const Card = styled.div`
     background: #007bff;
     color: white;
   }
-`
+`;
 
 const Container = styled.div`
   background: #007bff;
   color: white;
   border-color: #0056b3;
-`
+`;
 ```
 
 ### CSS Style Extension
@@ -331,33 +331,33 @@ const Container = styled.div`
 Extend CSS styles from `css` function into styled components using semicolon extension:
 
 ```tsx
-import { css, styled } from 'vindur'
+import { css, styled } from 'vindur';
 
 const baseStyles = css`
   padding: 16px;
   border-radius: 8px;
   border: 1px solid #ddd;
-`
+`;
 
 const Card = styled.div`
   ${baseStyles};
   background: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`
+`;
 
 const PrimaryCard = styled.div`
   ${baseStyles};
   background: #007bff;
   color: white;
   border-color: #0056b3;
-`
+`;
 
 // extend css styles from css function is supported too
 const styleWithCss = css`
   ${baseStyles};
   background: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`
+`;
 
 const Component = () => {
   return (
@@ -366,8 +366,8 @@ const Component = () => {
       <PrimaryCard>Hello</PrimaryCard>
       <div className={styleWithCss}>Hello</div>
     </div>
-  )
-}
+  );
+};
 ```
 
 Compiles to:
@@ -404,22 +404,22 @@ const Component = () => {
       <div className="vhash-1-baseStyles vhash-3-PrimaryCard">Hello</div>
       <div className="vhash-1-baseStyles vhash-4-styleWithCss">Hello</div>
     </div>
-  )
-}
+  );
+};
 ```
 
 Css extension will also work from imports:
 
 ```tsx
-import { css } from 'vindur'
-import { baseStyles } from './styles'
+import { css } from 'vindur';
+import { baseStyles } from './styles';
 
 const styles = css`
   ${baseStyles};
   padding: 12px 24px;
   border-radius: 4px;
   font-weight: 500;
-`
+`;
 ```
 
 ### CSS as Selectors
@@ -484,7 +484,7 @@ Compiles to CSS using native CSS nesting:
 Create CSS animations using the `keyframes` function:
 
 ```tsx
-import { keyframes, styled } from 'vindur'
+import { keyframes, styled } from 'vindur';
 
 const fadeIn = keyframes`
   from {
@@ -495,7 +495,7 @@ const fadeIn = keyframes`
     opacity: 1;
     transform: translateY(0);
   }
-`
+`;
 
 const slideIn = keyframes`
   0% {
@@ -507,7 +507,7 @@ const slideIn = keyframes`
   100% {
     transform: translateX(0);
   }
-`
+`;
 
 const AnimatedCard = styled.div`
   background: white;
@@ -517,14 +517,14 @@ const AnimatedCard = styled.div`
   &:hover {
     animation: ${slideIn} 0.5s ease-in-out;
   }
-`
+`;
 ```
 
 Keyframes support variable interpolation just like other CSS functions:
 
 ```tsx
-const startPosition = '-100%'
-const endPosition = '0'
+const startPosition = '-100%';
+const endPosition = '0';
 
 const slideAnimation = keyframes`
   from {
@@ -533,7 +533,48 @@ const slideAnimation = keyframes`
   to {
     transform: translateX(${endPosition});
   }
-`
+`;
+```
+
+### Stable IDs
+
+Generate deterministic, stable IDs with `stableId` or `createClassName` function, for using in styled components, CSS functions, and any other place where you may need stable IDs. The IDs will be compiled at build time.
+
+```tsx
+import { css, styled, generateClassName, stableId } from 'vindur';
+
+// stableId marker creates stable class names based on variable name
+export const elementClassName = createClassName();
+export const genericPurposeId = stableId();
+
+// is compiled to:
+export const elementClassName = { selector: '.vhash-1', value: 'vhash-1' };
+export const genericPurposeId = 'vhash-2';
+```
+
+You can then use it in styled components:
+
+```tsx
+import { elementClassName, genericPurposeId } from './styles';
+
+const Element = styled.div`
+  ${elementClassName.selector} {
+    background: red;
+    --value: ${genericPurposeId};
+  }
+`;
+```
+
+Or any other place where you may need a stable ID:
+
+```tsx
+const Component = () => {
+  return (
+    <div className={elementClassName.value}>
+      <div id={genericPurposeId}>Hello</div>
+    </div>
+  );
+};
 ```
 
 ### Global Styles
@@ -541,7 +582,7 @@ const slideAnimation = keyframes`
 Create global CSS styles that apply to the entire document using `createGlobalStyle`:
 
 ```tsx
-import { createGlobalStyle } from 'vindur'
+import { createGlobalStyle } from 'vindur';
 
 // Global styles are applied directly without class wrappers
 createGlobalStyle`
@@ -573,14 +614,14 @@ createGlobalStyle`
       transition-duration: 0.01ms !important;
     }
   }
-`
+`;
 ```
 
 Global styles support variable interpolation just like regular styles:
 
 ```tsx
-const primaryColor = '#007bff'
-const fontFamily = 'Inter, system-ui, sans-serif'
+const primaryColor = '#007bff';
+const fontFamily = 'Inter, system-ui, sans-serif';
 
 createGlobalStyle`
   :root {
@@ -596,7 +637,7 @@ createGlobalStyle`
   .highlight {
     color: ${primaryColor};
   }
-`
+`;
 ```
 
 And also references to styled components are supported:
@@ -604,14 +645,14 @@ And also references to styled components are supported:
 ```tsx
 const Button = styled.button`
   padding: 12px 24px;
-`
+`;
 
 createGlobalStyle`
   ${Button} {
     background: #007bff;
     color: white;
   }
-`
+`;
 ```
 
 ### Mixins and Functions
@@ -620,27 +661,25 @@ Create reusable style functions with `vindurFn`:
 
 ```tsx
 // utils/styles.ts
-import { vindurFn } from 'vindur'
+import { vindurFn } from 'vindur';
 
 export const flexCenter = vindurFn(
   () => `
   display: flex;
   align-items: center;
   justify-content: center;
-`
-)
+`,
+);
 
 export const buttonSize = vindurFn((size: 'sm' | 'md' | 'lg') =>
-  size === 'sm'
-    ? 'padding: 6px 12px; font-size: 14px;'
-    : size === 'md'
-      ? 'padding: 8px 16px; font-size: 16px;'
-      : 'padding: 12px 24px; font-size: 18px;'
-)
+  size === 'sm' ? 'padding: 6px 12px; font-size: 14px;'
+  : size === 'md' ? 'padding: 8px 16px; font-size: 16px;'
+  : 'padding: 12px 24px; font-size: 18px;',
+);
 
 // components/Button.tsx
-import { styled } from 'vindur'
-import { flexCenter, buttonSize } from '../utils/styles'
+import { styled } from 'vindur';
+import { flexCenter, buttonSize } from '../utils/styles';
 
 const Button = styled.button`
   ${flexCenter()};
@@ -650,7 +689,7 @@ const Button = styled.button`
   border: none;
   border-radius: 4px;
   cursor: pointer;
-`
+`;
 ```
 
 ### JSX CSS Prop
@@ -658,7 +697,7 @@ const Button = styled.button`
 Apply styles directly to JSX elements using the `css` prop, similar to styled-components and emotion:
 
 ```tsx
-import { css } from 'vindur'
+import { css } from 'vindur';
 
 const App = () => (
   <div
@@ -670,7 +709,7 @@ const App = () => (
   >
     Hello World
   </div>
-)
+);
 ```
 
 The `css` prop works with native DOM elements and styled components:
@@ -679,7 +718,7 @@ The `css` prop works with native DOM elements and styled components:
 const Card = styled.div`
   background: white;
   padding: 20px;
-`
+`;
 
 const App = () => (
   <Card
@@ -689,7 +728,7 @@ const App = () => (
   >
     Card with additional styling
   </Card>
-)
+);
 ```
 
 You can also use CSS function references:
@@ -699,9 +738,9 @@ const buttonStyles = css`
   background: #007bff;
   color: white;
   padding: 8px 16px;
-`
+`;
 
-const Button = ({ children }) => <button css={buttonStyles}>{children}</button>
+const Button = ({ children }) => <button css={buttonStyles}>{children}</button>;
 ```
 
 The `css` prop automatically merges with existing `className` attributes:
@@ -725,7 +764,7 @@ The `css` prop automatically merges with existing `className` attributes:
 Create type-safe theme color systems with `createStaticThemeColors`:
 
 ```tsx
-import { createStaticThemeColors } from 'vindur'
+import { createStaticThemeColors } from 'vindur';
 
 const colors = createStaticThemeColors({
   primary: '#007bff',
@@ -734,7 +773,7 @@ const colors = createStaticThemeColors({
   danger: '#dc3545',
   warning: '#ffc107',
   info: '#17a2b8',
-})
+});
 
 // Each color provides a complete theming API
 const Button = styled.button`
@@ -748,7 +787,7 @@ const Button = styled.button`
   &:active {
     background: ${colors.primary.alpha(0.8)};
   }
-`
+`;
 ```
 
 The generated css will be optimized with the values of the colors:
@@ -803,9 +842,9 @@ Each color in your theme provides:
 Create dynamic color systems that can be customized at runtime with `createDynamicCssColor`:
 
 ```tsx
-import { createDynamicCssColor } from 'vindur'
+import { createDynamicCssColor } from 'vindur';
 
-const dynamicColor = createDynamicCssColor()
+const dynamicColor = createDynamicCssColor();
 
 const Container = styled.div`
   background: ${dynamicColor.var};
@@ -815,7 +854,7 @@ const Container = styled.div`
   ${dynamicColor.self.isDark} {
     border: 2px solid white;
   }
-`
+`;
 
 const Card = styled.div`
   background: ${dynamicColor.var};
@@ -829,12 +868,12 @@ const Card = styled.div`
   ${dynamicColor.container.isLight} {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
-`
+`;
 
 const ChildElement = styled.div`
   background: ${dynamicColor.var};
   color: ${dynamicColor.contrast.var};
-`
+`;
 
 // for dom elements, and styled components you can use the dynamicColors prop to set the color
 const MyComponent = () => {
@@ -842,8 +881,8 @@ const MyComponent = () => {
     <div dynamicColor={dynamicColor}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
-  )
-}
+  );
+};
 
 // for custom components, you can use the color.setProps to set the color
 const MyComponent = () => {
@@ -851,8 +890,8 @@ const MyComponent = () => {
     <div {...dynamicColor.setProps('#ff6b6b')}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
-  )
-}
+  );
+};
 
 // multiple colors can be passed to dynamicColor prop
 const MyComponent = () => {
@@ -860,8 +899,8 @@ const MyComponent = () => {
     <div dynamicColor={[dynamicColor1, dynamicColor2]}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
-  )
-}
+  );
+};
 ```
 
 ### Dynamic Color API
@@ -900,7 +939,7 @@ const { className, style } = dynamicColor.setInComponent('#007bff', {
   style: { padding: '20px' },
   className: 'custom-card',
   setColorScheme: { fallback: 'dark' },
-})
+});
 
 // Conditional styling based on color properties
 const AdaptiveButton = styled.button`
@@ -920,7 +959,7 @@ const AdaptiveButton = styled.button`
   ${dynamicColor.container.isDefined} & {
     transition: all 0.2s ease;
   }
-`
+`;
 ```
 
 ## Roadmap
