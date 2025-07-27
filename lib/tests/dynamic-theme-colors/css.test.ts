@@ -36,7 +36,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
       const Component = () => {
         return (
           <div
-            {...color.setProps("#ff6b6b", {
+            {...color._sp("#ff6b6b", {
               className: cardStyles,
             })}
           >
@@ -109,7 +109,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
         return (
           <div
             {...divProps}
-            {...color.setProps("#ff6b6b", {
+            {...color._sp("#ff6b6b", {
               className: cardStyles,
               style: {
                 padding: "10px",

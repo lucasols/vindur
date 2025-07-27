@@ -41,7 +41,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const dynamicColor = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div {...dynamicColor.setProps("#ff6b6b")}>
+          <div {...dynamicColor._sp("#ff6b6b")}>
             <div className="v1560qbr-2-Container">Dev mode content</div>
           </div>
         );
@@ -110,7 +110,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div {...color.setProps("#ff6b6b")}>
+          <div {...color._sp("#ff6b6b")}>
             <div className="v1560qbr-2">Card content</div>
           </div>
         );
@@ -199,7 +199,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const Component = () => {
         return (
           <div
-            {...color.setProps("#ff6b6b", {
+            {...color._sp("#ff6b6b", {
               className: "v1560qbr-2",
             })}
           >
@@ -304,7 +304,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         return (
-          <div {...color.setProps("#ff6b6b")}>
+          <div {...color._sp("#ff6b6b")}>
             <div className="v1560qbr-2">
               <div className="title">Title</div>
               <div className="content">Content</div>

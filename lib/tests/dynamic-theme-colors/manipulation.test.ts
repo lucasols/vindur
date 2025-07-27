@@ -37,7 +37,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       const Component = () => {
         return (
           <button
-            {...color.setProps("#ff6b6b", {
+            {...color._sp("#ff6b6b", {
               className: "v1560qbr-2",
             })}
           >
