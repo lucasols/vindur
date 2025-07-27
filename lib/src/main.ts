@@ -309,27 +309,103 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
     },
 
     self: {
-      isDark: devMode ? `.${getClassName('self', 'is-dark')}` : `&.${getClassName('self', 'is-dark')}`,
-      isLight: devMode ? `.${getClassName('self', 'is-light')}` : `&.${getClassName('self', 'is-light')}`,
-      isDefined: devMode ? `.${getClassName('self', 'is-defined')}` : `&.${getClassName('self', 'is-defined')}`,
-      isNotDefined: devMode ? `.${getClassName('self', 'is-not-defined')}` : `&.${getClassName('self', 'is-not-defined')}`,
-      isVeryDark: devMode ? `.${getClassName('self', 'is-very-dark')}` : `&.${getClassName('self', 'is-very-dark')}`,
-      isNotVeryDark: devMode ? `.${getClassName('self', 'is-not-very-dark')}` : `&.${getClassName('self', 'is-not-very-dark')}`,
-      isVeryLight: devMode ? `.${getClassName('self', 'is-very-light')}` : `&.${getClassName('self', 'is-very-light')}`,
-      isNotVeryLight: devMode ? `.${getClassName('self', 'is-not-very-light')}` : `&.${getClassName('self', 'is-not-very-light')}`,
+      isDark:
+        devMode ?
+          `.${getClassName('self', 'is-dark')}`
+        : `&.${getClassName('self', 'is-dark')}`,
+      isLight:
+        devMode ?
+          `.${getClassName('self', 'is-light')}`
+        : `&.${getClassName('self', 'is-light')}`,
+      isDefined:
+        devMode ?
+          `.${getClassName('self', 'is-defined')}`
+        : `&.${getClassName('self', 'is-defined')}`,
+      isNotDefined:
+        devMode ?
+          `.${getClassName('self', 'is-not-defined')}`
+        : `&.${getClassName('self', 'is-not-defined')}`,
+      isVeryDark:
+        devMode ?
+          `.${getClassName('self', 'is-very-dark')}`
+        : `&.${getClassName('self', 'is-very-dark')}`,
+      isNotVeryDark:
+        devMode ?
+          `.${getClassName('self', 'is-not-very-dark')}`
+        : `&.${getClassName('self', 'is-not-very-dark')}`,
+      isVeryLight:
+        devMode ?
+          `.${getClassName('self', 'is-very-light')}`
+        : `&.${getClassName('self', 'is-very-light')}`,
+      isNotVeryLight:
+        devMode ?
+          `.${getClassName('self', 'is-not-very-light')}`
+        : `&.${getClassName('self', 'is-not-very-light')}`,
     },
 
     container: {
-      isDark: devMode ? `.${getClassName('container', 'is-dark')}` : `.${getClassName('container', 'is-dark')} &`,
-      isLight: devMode ? `.${getClassName('container', 'is-light')}` : `.${getClassName('container', 'is-light')} &`,
-      isDefined: devMode ? `.${getClassName('container', 'is-defined')}` : `.${getClassName('container', 'is-defined')} &`,
-      isNotDefined: devMode ? `.${getClassName('container', 'is-not-defined')}` : `.${getClassName('container', 'is-not-defined')} &`,
-      isVeryDark: devMode ? `.${getClassName('container', 'is-very-dark')}` : `.${getClassName('container', 'is-very-dark')} &`,
-      isNotVeryDark: devMode ? `.${getClassName('container', 'is-not-very-dark')}` : `.${getClassName('container', 'is-not-very-dark')} &`,
-      isVeryLight: devMode ? `.${getClassName('container', 'is-very-light')}` : `.${getClassName('container', 'is-very-light')} &`,
-      isNotVeryLight: devMode ? `.${getClassName('container', 'is-not-very-light')}` : `.${getClassName('container', 'is-not-very-light')} &`,
+      isDark:
+        devMode ?
+          `.${getClassName('container', 'is-dark')}`
+        : `.${getClassName('container', 'is-dark')} &`,
+      isLight:
+        devMode ?
+          `.${getClassName('container', 'is-light')}`
+        : `.${getClassName('container', 'is-light')} &`,
+      isDefined:
+        devMode ?
+          `.${getClassName('container', 'is-defined')}`
+        : `.${getClassName('container', 'is-defined')} &`,
+      isNotDefined:
+        devMode ?
+          `.${getClassName('container', 'is-not-defined')}`
+        : `.${getClassName('container', 'is-not-defined')} &`,
+      isVeryDark:
+        devMode ?
+          `.${getClassName('container', 'is-very-dark')}`
+        : `.${getClassName('container', 'is-very-dark')} &`,
+      isNotVeryDark:
+        devMode ?
+          `.${getClassName('container', 'is-not-very-dark')}`
+        : `.${getClassName('container', 'is-not-very-dark')} &`,
+      isVeryLight:
+        devMode ?
+          `.${getClassName('container', 'is-very-light')}`
+        : `.${getClassName('container', 'is-very-light')} &`,
+      isNotVeryLight:
+        devMode ?
+          `.${getClassName('container', 'is-not-very-light')}`
+        : `.${getClassName('container', 'is-not-very-light')} &`,
     },
   };
 
   return color;
+}
+
+/**
+ * Utility for conditionally joining classNames together.
+ * Check {@link https://github.com/JedWatson/classnames} for api reference
+ */
+export function cx(
+  ...args: (string | false | undefined | null | Record<string, unknown>)[]
+) {
+  const classNames = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg) continue;
+
+    if (typeof arg === 'string' || typeof arg === 'number') {
+      classNames.push(arg);
+    } else if (typeof arg === 'object') {
+      for (let i2 = 0, keys = Object.keys(arg); i2 < keys.length; i2++) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we know for 100% that the key is there
+        if (arg[keys[i2]!]) {
+          classNames.push(keys[i2]);
+        }
+      }
+    }
+  }
+
+  return classNames.join(' ');
 }

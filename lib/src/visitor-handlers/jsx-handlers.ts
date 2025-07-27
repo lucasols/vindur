@@ -233,6 +233,17 @@ function createMergeWithSpreadCall(
   // Build the spread props array
   const spreadPropsArray = spreadAttrs.map((attr) => attr.argument);
 
+  // Check if we need mergeStyles by examining spread props for style property
+  const needsMergeStyles = spreadAttrs.some((attr) => {
+    // For now, assume we need mergeStyles if there are spread props
+    // In a more sophisticated implementation, we'd analyze the spread objects
+    return true;
+  });
+
+  if (needsMergeStyles) {
+    context.state.vindurImports.add('mergeStyles');
+  }
+
   if (existingClassNameAttr) {
     // Include the final className value in the base
     let baseClassName = styledInfo.className;
@@ -310,21 +321,102 @@ export function handleJsxDynamicColorProp(
       }
     }
 
+    // Check for spread attributes (excluding the dynamicColor prop we just removed)
+    const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
+      t.isJSXSpreadAttribute(attr)
+    );
+
+    // Collect remaining non-spread attributes to check for className and style
+    const remainingAttrs = attributes.filter((attr): attr is t.JSXAttribute =>
+      t.isJSXAttribute(attr)
+    );
+    
+    const classNameAttr = remainingAttrs.find(attr => 
+      t.isJSXIdentifier(attr.name) && attr.name.name === 'className'
+    );
+    
+    const styleAttr = remainingAttrs.find(attr => 
+      t.isJSXIdentifier(attr.name) && attr.name.name === 'style'
+    );
+
     // Create the setProps arguments
     const setPropsArgs = [t.stringLiteral('#ff6b6b')]; // Default color
+    const objectProperties: t.ObjectProperty[] = [];
 
     if (targetClassName) {
-      // Include className in second argument
-      setPropsArgs.push(
-        t.objectExpression([
+      if (spreadAttrs.length > 0) {
+        // Use mergeClassNames when there are spread props
+        context.state.vindurImports.add('mergeClassNames');
+        
+        let finalClassName = targetClassName;
+        if (classNameAttr && t.isStringLiteral(classNameAttr.value)) {
+          finalClassName = `${targetClassName} ${classNameAttr.value.value}`;
+          // Remove the className attribute since we're handling it
+          const classNameIndex = attributes.indexOf(classNameAttr);
+          attributes.splice(classNameIndex, 1);
+        }
+        
+        const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
+          t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+          t.stringLiteral(finalClassName),
+        ]);
+        
+        objectProperties.push(
+          t.objectProperty(t.identifier('className'), mergeCall)
+        );
+      } else {
+        // Simple className when no spread props
+        let finalClassName = targetClassName;
+        if (classNameAttr && t.isStringLiteral(classNameAttr.value)) {
+          finalClassName = `${targetClassName} ${classNameAttr.value.value}`;
+          // Remove the className attribute since we're handling it
+          const classNameIndex = attributes.indexOf(classNameAttr);
+          attributes.splice(classNameIndex, 1);
+        }
+        
+        objectProperties.push(
           t.objectProperty(
             t.identifier('className'),
-            t.stringLiteral(targetClassName),
-          ),
-        ]),
-      );
+            t.stringLiteral(finalClassName),
+          )
+        );
+      }
     }
-    // Don't add empty object if no targetClassName
+
+    // Handle style merging if there are spread props and a style attribute
+    if (spreadAttrs.length > 0 && styleAttr) {
+      context.state.vindurImports.add('mergeStyles');
+      
+      const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+        t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+      ]);
+      
+      objectProperties.push(
+        t.objectProperty(t.identifier('style'), mergeStylesCall)
+      );
+      
+      // Remove the style attribute since we're handling it  
+      const styleIndex = attributes.indexOf(styleAttr);
+      attributes.splice(styleIndex, 1);
+    } else if (styleAttr) {
+      // Keep existing style if no merging needed
+      objectProperties.push(
+        t.objectProperty(t.identifier('style'), 
+          t.isJSXExpressionContainer(styleAttr.value) ? 
+            styleAttr.value.expression :
+            styleAttr.value || t.objectExpression([])
+        )
+      );
+      
+      // Remove the style attribute since we're handling it
+      const styleIndex = attributes.indexOf(styleAttr);
+      attributes.splice(styleIndex, 1);
+    }
+
+    // Only add object properties if there are any
+    if (objectProperties.length > 0) {
+      setPropsArgs.push(t.objectExpression(objectProperties));
+    }
 
     // Transform to spread setProps
     const setPropsCall = t.callExpression(
@@ -339,13 +431,67 @@ export function handleJsxDynamicColorProp(
     attributes.unshift(t.jsxSpreadAttribute(setPropsCall));
   } else if (t.isArrayExpression(expression)) {
     // Multiple dynamic colors: dynamicColor={[color1, color2]}
-    // For now, just add the array as a dynamicColor prop - this would need more complex handling
-    attributes.push(
-      t.jsxAttribute(
-        t.jsxIdentifier('dynamicColor'),
-        t.jsxExpressionContainer(expression),
-      ),
+    // Transform to nested setProps calls
+    const colorElements = expression.elements.filter((el): el is t.Identifier => 
+      t.isIdentifier(el)
     );
+    
+    if (colorElements.length === 0) {
+      throw new Error('dynamicColor array must contain at least one color identifier');
+    }
+    
+    // Validate all colors are known dynamic colors
+    for (const colorEl of colorElements) {
+      const dynamicColorId = context.state.dynamicColors?.get(colorEl.name);
+      if (!dynamicColorId) {
+        throw new Error(`Unknown dynamic color variable "${colorEl.name}"`);
+      }
+    }
+    
+    // Get the element name to check if it's a styled component
+    let targetClassName: string | undefined;
+    if (t.isJSXIdentifier(path.node.openingElement.name)) {
+      const elementName = path.node.openingElement.name.name;
+      const styledInfo = context.state.styledComponents.get(elementName);
+      if (styledInfo) {
+        targetClassName = styledInfo.className;
+      }
+    }
+    
+    // Create nested setProps calls - start from the innermost (last color)
+    let nestedSetProps: t.Expression = colorElements[colorElements.length - 1];
+    
+    // Build from right to left, creating nested calls
+    for (let i = colorElements.length - 1; i >= 0; i--) {
+      const colorIdentifier = colorElements[i];
+      const setPropsArgs = [t.stringLiteral('#ff6b6b')]; // Default color
+      
+      if (i === colorElements.length - 1 && targetClassName) {
+        // Only the innermost call gets the className
+        setPropsArgs.push(
+          t.objectExpression([
+            t.objectProperty(
+              t.identifier('className'),
+              t.stringLiteral(targetClassName),
+            ),
+          ]),
+        );
+      } else if (i < colorElements.length - 1) {
+        // Intermediate calls pass the nested setProps as second argument
+        setPropsArgs.push(nestedSetProps);
+      }
+      
+      nestedSetProps = t.callExpression(
+        t.memberExpression(
+          colorIdentifier,
+          t.identifier('setProps'),
+        ),
+        setPropsArgs,
+      );
+    }
+    
+    // Add the outermost spread attribute
+    attributes.unshift(t.jsxSpreadAttribute(nestedSetProps));
   } else {
     throw new Error(
       'dynamicColor prop must be a single identifier or array of identifiers',

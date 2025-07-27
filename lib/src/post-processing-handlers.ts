@@ -48,7 +48,8 @@ export function handleVindurImportCleanup(
 
   // Handle vindur imports - keep only runtime functions if they're used
   const specifiersToKeep: t.ImportSpecifier[] = [];
-  let hasMergeWithSpread = false;
+  let hasMergeClassNames = false;
+  let hasMergeStyles = false;
   let hasStyledComponent = false;
 
   for (const specifier of path.node.specifiers) {
@@ -56,8 +57,13 @@ export function handleVindurImportCleanup(
       const importedName = specifier.imported.name;
 
       if (importedName === 'mergeClassNames') {
-        hasMergeWithSpread = true;
+        hasMergeClassNames = true;
         if (state.vindurImports.has('mergeClassNames')) {
+          specifiersToKeep.push(specifier);
+        }
+      } else if (importedName === 'mergeStyles') {
+        hasMergeStyles = true;
+        if (state.vindurImports.has('mergeStyles')) {
           specifiersToKeep.push(specifier);
         }
       } else if (importedName === 'styledComponent') {
@@ -70,11 +76,21 @@ export function handleVindurImportCleanup(
   }
 
   // Add mergeClassNames import if needed but not already present
-  if (state.vindurImports.has('mergeClassNames') && !hasMergeWithSpread) {
+  if (state.vindurImports.has('mergeClassNames') && !hasMergeClassNames) {
     specifiersToKeep.push(
       t.importSpecifier(
         t.identifier('mergeClassNames'),
         t.identifier('mergeClassNames'),
+      ),
+    );
+  }
+
+  // Add mergeStyles import if needed but not already present
+  if (state.vindurImports.has('mergeStyles') && !hasMergeStyles) {
+    specifiersToKeep.push(
+      t.importSpecifier(
+        t.identifier('mergeStyles'),
+        t.identifier('mergeStyles'),
       ),
     );
   }
@@ -118,18 +134,24 @@ export function handleFunctionImportCleanup(
     return false;
   }
 
-  // Filter out unused function imports
+  // Filter out unused function imports and dynamic color imports
   const unusedSpecifiers: t.ImportSpecifier[] = [];
   const usedSpecifiers: t.ImportSpecifier[] = [];
 
   for (const specifier of path.node.specifiers) {
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
-      const functionName = specifier.imported.name;
+      const importedName = specifier.imported.name;
+      const localName = specifier.local.name;
+      
       // Remove functions that were used during CSS processing (they're compiled away)
       if (
-        context.importedFunctions.has(functionName)
-        && context.usedFunctions.has(functionName)
+        context.importedFunctions.has(importedName)
+        && context.usedFunctions.has(importedName)
       ) {
+        unusedSpecifiers.push(specifier);
+      }
+      // Remove dynamic colors that were imported and used (they're compiled away)
+      else if (context.state.dynamicColors?.has(localName)) {
         unusedSpecifiers.push(specifier);
       } else {
         usedSpecifiers.push(specifier);

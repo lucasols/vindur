@@ -68,8 +68,9 @@ export function resolveDynamicColorExpression(
         if (category === 'self') {
           return `&.${dynamicColorId}-${shortType}${conditionIndex}`;
         } else {
-          // Container selectors should be `.class &`
-          return `.${dynamicColorId}-${shortType}${conditionIndex} &`;
+          // Container selectors should just be the class name
+          // The template literal will provide the ` &` part
+          return `.${dynamicColorId}-${shortType}${conditionIndex}`;
         }
       }
     }

@@ -28,7 +28,6 @@ A compile-time CSS-in-JS library focused on performance.
 - [x] CSS keyframes via `keyframes` function (like `styled-components`) ✅
 - [x] Theme/color utilities ✅
   - [x] Static colors ✅
-  - [ ] Static variables ✅
 
 ### 🚧 **JSX Props**
 
@@ -40,7 +39,7 @@ A compile-time CSS-in-JS library focused on performance.
 
 ### 🚧 **Dynamic Features**
 
-- [ ] Dynamic CSS variables
+- [x] Dynamic CSS colors
 - [ ] Style flags props
 
   ```tsx
