@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from './testUtils';
+import { transformWithFormat } from '../testUtils';
 
 describe('JSX dynamic color transform', () => {
   describe('prop order independence', () => {
