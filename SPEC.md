@@ -1,3 +1,5 @@
+> Hash values are just examples, they not represent the actual hash values.
+
 # Spread Props Compilation With Class Name Injection
 
 ## Validation
@@ -122,7 +124,9 @@ const compiled = <div className="vHash-css-prop-1">Content</div>;
 
 ```tsx
 // Reference to css variable
-const styles = css`background: red;`; // → "vHash-styles"
+const styles = css`
+  background: red;
+`; // → "vHash-styles"
 
 const before = <div css={styles}>Content</div>;
 
@@ -168,18 +172,24 @@ const compiled = <div className="vHash-Card vHash-css-prop-1">Content</div>;
 
 ```tsx
 // Can extend other css variables
-const baseStyles = css`padding: 16px;`; // → "vHash-baseStyles"
+const baseStyles = css`
+  padding: 16px;
+`; // → "vHash-baseStyles"
 
 const before = (
-  <div css={`
-    ${baseStyles};
-    background: white;
-  `}>
+  <div
+    css={`
+      ${baseStyles};
+      background: white;
+    `}
+  >
     Content
   </div>
 );
 
-const compiled = <div className="vHash-baseStyles vHash-css-prop-1">Content</div>;
+const compiled = (
+  <div className="vHash-baseStyles vHash-css-prop-1">Content</div>
+);
 ```
 
 ## With spread props
@@ -199,7 +209,10 @@ const before = (
 );
 
 const compiled = (
-  <div {...props} className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
+  <div
+    {...props}
+    className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}
+  >
     Content
   </div>
 );
@@ -213,14 +226,19 @@ Order doesn't matter - css prop is always merged with spread props using mergeCl
 const before = (
   <StyledCard
     {...props}
-    css={`border: 1px solid red;`}
+    css={`
+      border: 1px solid red;
+    `}
   >
     Content
   </StyledCard>
 );
 
 const compiled = (
-  <div {...props} className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
+  <div
+    {...props}
+    className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}
+  >
     Content
   </div>
 );
