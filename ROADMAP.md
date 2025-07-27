@@ -70,8 +70,6 @@ A compile-time CSS-in-JS library focused on performance.
 ### 🚧 **Utility Features**
 
 - [x] Stable IDs via `stableId` function
-- [ ] `withComponent` API
-- [ ] `styled.div.attrs` support
 
 ### 🚧 **Scoping System**
 
@@ -80,6 +78,8 @@ A compile-time CSS-in-JS library focused on performance.
 
 ## Beta 2 - Advanced Features
 
+- [ ] `withComponent` or something similar to change styled component tags
+- [ ] `styled.div.attrs` support or something similar to create components with predefined props
 - [x] Variable interpolation from external files
 - [ ] Cross-module styled component references
 - [ ] CSS layers for conflict resolution
