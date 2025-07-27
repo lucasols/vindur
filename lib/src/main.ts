@@ -34,3 +34,10 @@ const styledHandler = {
 };
 
 export const styled = new Proxy({}, styledHandler);
+
+export function styledComponent(
+  tagOrComponent: string | ComponentType<unknown>,
+  className: string,
+): ComponentType<unknown> {
+  // ...
+}
