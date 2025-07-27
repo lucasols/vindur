@@ -798,6 +798,131 @@ Each color in your theme provides:
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
+## Dynamic Theme Colors
+
+Create dynamic color systems that can be customized at runtime with `createDynamicCssColor`:
+
+```tsx
+import { createDynamicCssColor } from 'vindur'
+
+const dynamicColor = createDynamicCssColor()
+
+const Container = styled.div`
+  background: ${dynamicColor.var};
+  color: ${dynamicColor.contrast.var};
+
+  /* use self selectors to conditionally style the component that is setting the color */
+  ${dynamicColor.self.isDark} {
+    border: 2px solid white;
+  }
+`
+
+const Card = styled.div`
+  background: ${dynamicColor.var};
+  color: ${dynamicColor.contrast.var};
+
+  &:hover {
+    background: ${dynamicColor.darker(0.1)};
+  }
+
+  /* use container selectors to conditionally style child components */
+  ${dynamicColor.container.isLight} {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+`
+
+const ChildElement = styled.div`
+  background: ${dynamicColor.var};
+  color: ${dynamicColor.contrast.var};
+`
+
+// for dom elements, and styled components you can use the dynamicColors prop to set the color
+const MyComponent = () => {
+  return (
+    <div dynamicColor={dynamicColor}>
+      <Card>This card adapts to the dynamic color</Card>
+    </div>
+  )
+}
+
+// for custom components, you can use the color.setProps to set the color
+const MyComponent = () => {
+  return (
+    <div {...dynamicColor.setProps('#ff6b6b')}>
+      <Card>This card adapts to the dynamic color</Card>
+    </div>
+  )
+}
+
+// multiple colors can be passed to dynamicColor prop
+const MyComponent = () => {
+  return (
+    <div dynamicColor={[dynamicColor1, dynamicColor2]}>
+      <Card>This card adapts to the dynamic color</Card>
+    </div>
+  )
+}
+```
+
+### Dynamic Color API
+
+Dynamic colors provide the same color manipulation functions as static colors, plus:
+
+#### Color Setting
+
+- **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
+  - `hexColor`: The color to set
+  - `options.style?`: Additional CSS properties to merge
+  - `options.className?`: Additional class names to merge
+  - `options.setColorScheme?`: Configure color scheme detection with fallback
+
+#### Conditional Selectors
+
+- **`self.*`**: Selectors for the component that sets the color
+- **`container.*`**: Selectors for child components
+
+Available conditional selectors:
+
+- **`isDark`**: When the set color is considered dark
+- **`isLight`**: When the set color is considered light
+- **`isDefined`**: When a color has been set
+- **`isNotDefined`**: When no color has been set
+- **`isVeryDark`**: When the color is very dark (high contrast needed)
+- **`isNotVeryDark`**: When the color is not very dark
+- **`isVeryLight`**: When the color is very light (high contrast needed)
+- **`isNotVeryLight`**: When the color is not very light
+
+### Usage Examples
+
+```tsx
+// Color setting with additional styles
+const { className, style } = dynamicColor.setInComponent('#007bff', {
+  style: { padding: '20px' },
+  className: 'custom-card',
+  setColorScheme: { fallback: 'dark' },
+})
+
+// Conditional styling based on color properties
+const AdaptiveButton = styled.button`
+  background: ${dynamicColor.var};
+  color: ${dynamicColor.contrast.var};
+
+  /* Different styles for dark vs light colors */
+  &${dynamicColor.self.isDark} {
+    border: 1px solid ${dynamicColor.lighter(0.2)};
+  }
+
+  &${dynamicColor.self.isLight} {
+    border: 1px solid ${dynamicColor.darker(0.2)};
+  }
+
+  /* Conditional styles in parent containers */
+  ${dynamicColor.container.isDefined} & {
+    transition: all 0.2s ease;
+  }
+`
+```
+
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.

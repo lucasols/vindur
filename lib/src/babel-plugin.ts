@@ -8,11 +8,13 @@ import type { CompiledFunction } from './types';
 import {
   handleCssTaggedTemplate,
   handleCssVariableAssignment,
+  handleDynamicCssColorAssignment,
   handleFunctionImports,
   handleGlobalStyleTaggedTemplate,
   handleGlobalStyleVariableAssignment,
   handleInlineStyledError,
   handleJsxCssProp,
+  handleJsxDynamicColorProp,
   handleJsxStyledComponent,
   handleKeyframesTaggedTemplate,
   handleKeyframesVariableAssignment,
@@ -32,6 +34,7 @@ export type VindurPluginState = {
   cssVariables: Map<string, string>; // Track css tagged template variables
   keyframes: Map<string, string>; // Track keyframes animation names
   themeColors?: Map<string, Record<string, string>>; // Track createStaticThemeColors variables
+  dynamicColors?: Map<string, string>; // Track createDynamicCssColor variables
 };
 
 export type FunctionCache = {
@@ -188,6 +191,10 @@ export function createVindurPlugin(
         ) {
           // No classIndex increment for theme colors
         } else if (
+          handleDynamicCssColorAssignment(path, variableHandlerContext)
+        ) {
+          idIndex = idIndexRef.current;
+        } else if (
           handleGlobalStyleVariableAssignment(path, variableHandlerContext)
         ) {
           // No classIndex increment for global styles
@@ -231,7 +238,10 @@ export function createVindurPlugin(
         }
       },
       JSXElement(path) {
-        // Handle styled components first (transforms element name)
+        // Handle dynamic color prop first (before styled component transformation)
+        handleJsxDynamicColorProp(path, { state });
+        
+        // Handle styled components (transforms element name)
         handleJsxStyledComponent(path, { state });
         
         // Then handle css prop
