@@ -309,73 +309,25 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
     },
 
     self: {
-      isDark:
-        devMode ?
-          `.${getClassName('self', 'is-dark')}`
-        : `&.${getClassName('self', 'is-dark')}`,
-      isLight:
-        devMode ?
-          `.${getClassName('self', 'is-light')}`
-        : `&.${getClassName('self', 'is-light')}`,
-      isDefined:
-        devMode ?
-          `.${getClassName('self', 'is-defined')}`
-        : `&.${getClassName('self', 'is-defined')}`,
-      isNotDefined:
-        devMode ?
-          `.${getClassName('self', 'is-not-defined')}`
-        : `&.${getClassName('self', 'is-not-defined')}`,
-      isVeryDark:
-        devMode ?
-          `.${getClassName('self', 'is-very-dark')}`
-        : `&.${getClassName('self', 'is-very-dark')}`,
-      isNotVeryDark:
-        devMode ?
-          `.${getClassName('self', 'is-not-very-dark')}`
-        : `&.${getClassName('self', 'is-not-very-dark')}`,
-      isVeryLight:
-        devMode ?
-          `.${getClassName('self', 'is-very-light')}`
-        : `&.${getClassName('self', 'is-very-light')}`,
-      isNotVeryLight:
-        devMode ?
-          `.${getClassName('self', 'is-not-very-light')}`
-        : `&.${getClassName('self', 'is-not-very-light')}`,
+      isDark: `&.${getClassName('self', 'is-dark')}`,
+      isLight: `&.${getClassName('self', 'is-light')}`,
+      isDefined: `&.${getClassName('self', 'is-defined')}`,
+      isNotDefined: `&.${getClassName('self', 'is-not-defined')}`,
+      isVeryDark: `&.${getClassName('self', 'is-very-dark')}`,
+      isNotVeryDark: `&.${getClassName('self', 'is-not-very-dark')}`,
+      isVeryLight: `&.${getClassName('self', 'is-very-light')}`,
+      isNotVeryLight: `&.${getClassName('self', 'is-not-very-light')}`,
     },
 
     container: {
-      isDark:
-        devMode ?
-          `.${getClassName('container', 'is-dark')}`
-        : `.${getClassName('container', 'is-dark')} &`,
-      isLight:
-        devMode ?
-          `.${getClassName('container', 'is-light')}`
-        : `.${getClassName('container', 'is-light')} &`,
-      isDefined:
-        devMode ?
-          `.${getClassName('container', 'is-defined')}`
-        : `.${getClassName('container', 'is-defined')} &`,
-      isNotDefined:
-        devMode ?
-          `.${getClassName('container', 'is-not-defined')}`
-        : `.${getClassName('container', 'is-not-defined')} &`,
-      isVeryDark:
-        devMode ?
-          `.${getClassName('container', 'is-very-dark')}`
-        : `.${getClassName('container', 'is-very-dark')} &`,
-      isNotVeryDark:
-        devMode ?
-          `.${getClassName('container', 'is-not-very-dark')}`
-        : `.${getClassName('container', 'is-not-very-dark')} &`,
-      isVeryLight:
-        devMode ?
-          `.${getClassName('container', 'is-very-light')}`
-        : `.${getClassName('container', 'is-very-light')} &`,
-      isNotVeryLight:
-        devMode ?
-          `.${getClassName('container', 'is-not-very-light')}`
-        : `.${getClassName('container', 'is-not-very-light')} &`,
+      isDark: devMode ? `.${getClassName('container', 'is-dark')}` : `.${getClassName('container', 'is-dark')} &`,
+      isLight: devMode ? `.${getClassName('container', 'is-light')}` : `.${getClassName('container', 'is-light')} &`,
+      isDefined: devMode ? `.${getClassName('container', 'is-defined')}` : `.${getClassName('container', 'is-defined')} &`,
+      isNotDefined: devMode ? `.${getClassName('container', 'is-not-defined')}` : `.${getClassName('container', 'is-not-defined')} &`,
+      isVeryDark: devMode ? `.${getClassName('container', 'is-very-dark')}` : `.${getClassName('container', 'is-very-dark')} &`,
+      isNotVeryDark: devMode ? `.${getClassName('container', 'is-not-very-dark')}` : `.${getClassName('container', 'is-not-very-dark')} &`,
+      isVeryLight: devMode ? `.${getClassName('container', 'is-very-light')}` : `.${getClassName('container', 'is-very-light')} &`,
+      isNotVeryLight: devMode ? `.${getClassName('container', 'is-not-very-light')}` : `.${getClassName('container', 'is-not-very-light')} &`,
     },
   };
 

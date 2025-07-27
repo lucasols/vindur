@@ -64,30 +64,32 @@ describe('createDynamicCssColor runtime', () => {
   test('should generate dev mode selector classes', () => {
     const color = createDynamicCssColor('hash-456', true);
 
-    expect(color.self.isDark).toBe('.hash-456-self-is-dark');
-    expect(color.self.isLight).toBe('.hash-456-self-is-light');
-    expect(color.self.isDefined).toBe('.hash-456-self-is-defined');
-    expect(color.self.isNotDefined).toBe('.hash-456-self-is-not-defined');
-    expect(color.self.isVeryDark).toBe('.hash-456-self-is-very-dark');
-    expect(color.self.isNotVeryDark).toBe('.hash-456-self-is-not-very-dark');
-    expect(color.self.isVeryLight).toBe('.hash-456-self-is-very-light');
-    expect(color.self.isNotVeryLight).toBe('.hash-456-self-is-not-very-light');
+    expect(color.self.isDark).toBe('&.hash-456-self-is-dark');
+    expect(color.self.isLight).toBe('&.hash-456-self-is-light');
+    expect(color.self.isDefined).toBe('&.hash-456-self-is-defined');
+    expect(color.self.isNotDefined).toBe('&.hash-456-self-is-not-defined');
+    expect(color.self.isVeryDark).toBe('&.hash-456-self-is-very-dark');
+    expect(color.self.isNotVeryDark).toBe('&.hash-456-self-is-not-very-dark');
+    expect(color.self.isVeryLight).toBe('&.hash-456-self-is-very-light');
+    expect(color.self.isNotVeryLight).toBe('&.hash-456-self-is-not-very-light');
 
-    expect(color.container.isDark).toBe('.hash-456-container-is-dark');
-    expect(color.container.isLight).toBe('.hash-456-container-is-light');
-    expect(color.container.isDefined).toBe('.hash-456-container-is-defined');
+    expect(color.container.isDark).toBe('.hash-456-container-is-dark &');
+    expect(color.container.isLight).toBe('.hash-456-container-is-light &');
+    expect(color.container.isDefined).toBe('.hash-456-container-is-defined &');
     expect(color.container.isNotDefined).toBe(
-      '.hash-456-container-is-not-defined',
+      '.hash-456-container-is-not-defined &',
     );
-    expect(color.container.isVeryDark).toBe('.hash-456-container-is-very-dark');
+    expect(color.container.isVeryDark).toBe(
+      '.hash-456-container-is-very-dark &',
+    );
     expect(color.container.isNotVeryDark).toBe(
-      '.hash-456-container-is-not-very-dark',
+      '.hash-456-container-is-not-very-dark &',
     );
     expect(color.container.isVeryLight).toBe(
-      '.hash-456-container-is-very-light',
+      '.hash-456-container-is-very-light &',
     );
     expect(color.container.isNotVeryLight).toBe(
-      '.hash-456-container-is-not-very-light',
+      '.hash-456-container-is-not-very-light &',
     );
   });
 
