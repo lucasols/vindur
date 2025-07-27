@@ -149,7 +149,7 @@ export function resolveDynamicColorCallExpression(
     if (category === 'contrast') {
       switch (method) {
         case 'alpha':
-          if (value === undefined) return null;
+          if (value === undefined) throw new Error(`Method ${method} requires a numeric argument`);
           return `color-mix(in srgb, var(--${dynamicColorId}-c) ${value * 100}%, transparent)`;
         case 'optimal':
           // Handle optimal() with no arguments or optimal({ alpha: 0.6 })

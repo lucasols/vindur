@@ -150,7 +150,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Unresolved function call at \`... Button = styled\` ... \${color.contrast.alpha()}, function must be statically analyzable and correctly imported with the configured aliases]
+      [Error: /test.tsx: Method alpha requires a numeric argument]
     `);
   });
 });
