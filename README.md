@@ -548,11 +548,11 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
-export const elementClassName = { selector: '.vhash-1', value: 'vhash-1' };
+export const elementClassName = createClassName('vhash-1');
 export const genericPurposeId = 'vhash-2';
 ```
 
-You can then use it in styled components:
+You can then use it in styled components, css functions and css props:
 
 ```tsx
 import { elementClassName, genericPurposeId } from './styles';
@@ -563,6 +563,28 @@ const Element = styled.div`
     --value: ${genericPurposeId};
   }
 `;
+
+const style = css`
+  ${elementClassName.selector} {
+    background: red;
+    --value: ${genericPurposeId};
+  }
+`;
+
+const Component = () => {
+  return (
+    <div
+      css={`
+        ${elementClassName.selector} {
+          background: red;
+          --value: ${genericPurposeId};
+        }
+      `}
+    >
+      <div id={genericPurposeId}>Hello</div>
+    </div>
+  );
+};
 ```
 
 Or any other place where you may need a stable ID:

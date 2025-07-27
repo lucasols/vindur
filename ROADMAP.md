@@ -32,7 +32,7 @@ A compile-time CSS-in-JS library focused on performance.
 ### 🚧 **JSX Props**
 
 - [x] JSX `css` prop (styled-components/emotion style) ✅
-- [ ] JSX `cx` prop (classnames style)
+- [x] JSX `cx` prop (classnames style) ✅
   ```tsx
   <div cx={{ active: true, disabled: false }} />
   ```
@@ -63,9 +63,13 @@ A compile-time CSS-in-JS library focused on performance.
   );
   ```
 
+### DX
+
+- [ ] Stylelint plugin
+
 ### 🚧 **Utility Features**
 
-- [ ] Stable IDs via `stableId` function
+- [x] Stable IDs via `stableId` function
 - [ ] `withComponent` API
 - [ ] `styled.div.attrs` support
 
@@ -76,34 +80,15 @@ A compile-time CSS-in-JS library focused on performance.
 
 ## Beta 2 - Advanced Features
 
-### 🔮 **Cross-File Support**
-
-- [ ] Variable interpolation from external files
+- [x] Variable interpolation from external files
 - [ ] Cross-module styled component references
-
-### 🔮 **CSS Architecture**
-
 - [ ] CSS layers for conflict resolution
 - [ ] Atomic styles generation
 - [ ] CSS output caching
-
-### 🔮 **Theming**
-
 - [ ] Light/dark mode support
-- [ ] Advanced theme utilities
 
 ## Developer Experience
 
-### 🔮 **Tooling**
-
-- [ ] Stylelint plugin
-- [ ] TypeScript definitions
-- [ ] IDE extensions
-
-### 🔮 **Edge Cases**
-
-- [ ] Spread operator handling in CSS component props
-- [ ] Advanced interpolation patterns
 - [ ] Error handling improvements
 
 ---

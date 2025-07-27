@@ -84,6 +84,7 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Abstract redundant code into a single function
 - Split up large files (+500 lines) into smaller files
   - Comments and empty lines are not counted towards the line count
+- Split up large or complex functions into smaller functions
 - Do not use barrel files
 - NEVER use re-exports
 
