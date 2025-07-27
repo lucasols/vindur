@@ -15,7 +15,8 @@ function isDynamicColorSetPropsCall(
     && t.isMemberExpression(expr.callee)
     && t.isIdentifier(expr.callee.object)
     && t.isIdentifier(expr.callee.property)
-    && (expr.callee.property.name === 'setProps' || expr.callee.property.name === '_sp')
+    && (expr.callee.property.name === 'setProps'
+      || expr.callee.property.name === '_sp')
   ) {
     const objectName = expr.callee.object.name;
     return Boolean(context.state.dynamicColors?.has(objectName));
@@ -45,8 +46,10 @@ export function handleJsxStyledComponent(
 
   // Check if this element has already been transformed (by CSS prop handler)
   // If the element name is not the styled component name anymore, it was already processed
-  if (!t.isJSXIdentifier(path.node.openingElement.name) || 
-      elementName !== path.node.openingElement.name.name) {
+  if (
+    !t.isJSXIdentifier(path.node.openingElement.name)
+    || elementName !== path.node.openingElement.name.name
+  ) {
     return false;
   }
 
@@ -56,7 +59,20 @@ export function handleJsxStyledComponent(
     path.node.closingElement.name = t.jsxIdentifier(styledInfo.element);
   }
 
-  handleJsxClassNameMerging(path, styledInfo, context);
+  // Check if dynamic colors have already been processed by looking for _sp spread calls
+  const attributes = path.node.openingElement.attributes;
+  const hasDynamicColorSpread = attributes.some(attr => 
+    t.isJSXSpreadAttribute(attr) && 
+    t.isCallExpression(attr.argument) &&
+    t.isMemberExpression(attr.argument.callee) &&
+    t.isIdentifier(attr.argument.callee.property) &&
+    attr.argument.callee.property.name === '_sp'
+  );
+
+  // Only run className merging if dynamic colors haven't already handled it
+  if (!hasDynamicColorSpread) {
+    handleJsxClassNameMerging(path, styledInfo, context);
+  }
 
   return true;
 }
@@ -153,8 +169,7 @@ function handleClassNameWithSpreads(
   // Only apply mergeClassNames logic to the final className attribute
   if (existingClassNameAttr) {
     const finalClassNameIndex = attributes.indexOf(existingClassNameAttr);
-    const hasSpreadsAfterFinalClassName =
-      lastSpreadIndex > finalClassNameIndex;
+    const hasSpreadsAfterFinalClassName = lastSpreadIndex > finalClassNameIndex;
     const hasMultipleClassNames = classNameAttrs.length > 1;
 
     if (
@@ -254,14 +269,16 @@ function createMergeWithSpreadCall(
   if (existingClassNameAttr && attributes) {
     // For className before spreads case, we need to position it after spreads
     // but use mergeClassNames to handle potential conflicts
-    
+
     // Find the position of the last spread attribute
-    const lastSpreadIndex = Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr)));
-    
+    const lastSpreadIndex = Math.max(
+      ...spreadAttrs.map((attr) => attributes.indexOf(attr)),
+    );
+
     // Remove the existing className attribute
     const classNameIndex = attributes.indexOf(existingClassNameAttr);
     attributes.splice(classNameIndex, 1);
-    
+
     // Create the mergeClassNames call based on SPEC format
     let mergeCall: t.CallExpression;
     if (t.isStringLiteral(existingClassNameAttr.value)) {
@@ -275,13 +292,16 @@ function createMergeWithSpreadCall(
       ]);
     } else {
       // For expression className
-      const classNameExpr = t.isJSXExpressionContainer(existingClassNameAttr.value) 
-        ? existingClassNameAttr.value.expression 
+      const classNameExpr =
+        t.isJSXExpressionContainer(existingClassNameAttr.value) ?
+          existingClassNameAttr.value.expression
         : t.stringLiteral('');
-      
+
       mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
         t.arrayExpression([
-          t.isJSXEmptyExpression(classNameExpr) ? t.stringLiteral('') : classNameExpr,
+          t.isJSXEmptyExpression(classNameExpr) ?
+            t.stringLiteral('')
+          : classNameExpr,
           ...spreadPropsArray,
         ]),
         t.stringLiteral(styledInfo.className),
@@ -290,11 +310,16 @@ function createMergeWithSpreadCall(
 
     // Add the new className attribute after the last spread
     // Adjust the index if we removed a className before the last spread
-    const insertIndex = classNameIndex < lastSpreadIndex ? lastSpreadIndex : lastSpreadIndex + 1;
-    attributes.splice(insertIndex, 0, t.jsxAttribute(
-      t.jsxIdentifier('className'),
-      t.jsxExpressionContainer(mergeCall),
-    ));
+    const insertIndex =
+      classNameIndex < lastSpreadIndex ? lastSpreadIndex : lastSpreadIndex + 1;
+    attributes.splice(
+      insertIndex,
+      0,
+      t.jsxAttribute(
+        t.jsxIdentifier('className'),
+        t.jsxExpressionContainer(mergeCall),
+      ),
+    );
   } else if (existingClassNameAttr) {
     // Simple case - just replace the existing className
     let mergeCall: t.CallExpression;
@@ -307,19 +332,22 @@ function createMergeWithSpreadCall(
         t.stringLiteral(styledInfo.className),
       ]);
     } else {
-      const classNameExpr = t.isJSXExpressionContainer(existingClassNameAttr.value) 
-        ? existingClassNameAttr.value.expression 
+      const classNameExpr =
+        t.isJSXExpressionContainer(existingClassNameAttr.value) ?
+          existingClassNameAttr.value.expression
         : t.stringLiteral('');
-      
+
       mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
         t.arrayExpression([
-          t.isJSXEmptyExpression(classNameExpr) ? t.stringLiteral('') : classNameExpr,
+          t.isJSXEmptyExpression(classNameExpr) ?
+            t.stringLiteral('')
+          : classNameExpr,
           ...spreadPropsArray,
         ]),
         t.stringLiteral(styledInfo.className),
       ]);
     }
-    
+
     existingClassNameAttr.value = t.jsxExpressionContainer(mergeCall);
   } else if (attributes) {
     // No existing className - add one with mergeClassNames after spreads
@@ -353,8 +381,25 @@ export function handleJsxDynamicColorProp(
     return false;
   }
 
-  // Remove the dynamicColor attribute
+  // Store the dynamicColor position before removing it
   const dynamicColorAttrIndex = attributes.indexOf(dynamicColorAttr);
+  
+  // Detect override attributes before any modifications
+  const classNameAfterDynamicColor = attributes.find((attr, index): attr is t.JSXAttribute => 
+    index > dynamicColorAttrIndex &&
+    t.isJSXAttribute(attr) && 
+    t.isJSXIdentifier(attr.name) && 
+    attr.name.name === 'className'
+  );
+  
+  const styleAfterDynamicColor = attributes.find((attr, index): attr is t.JSXAttribute => 
+    index > dynamicColorAttrIndex &&
+    t.isJSXAttribute(attr) && 
+    t.isJSXIdentifier(attr.name) && 
+    attr.name.name === 'style'
+  );
+  
+  // Remove the dynamicColor attribute
   attributes.splice(dynamicColorAttrIndex, 1);
 
   if (
@@ -367,30 +412,36 @@ export function handleJsxDynamicColorProp(
   const expression = dynamicColorAttr.value.expression;
 
   // Check for conditional usage that should throw an error
-  if (t.isConditionalExpression(expression) || t.isLogicalExpression(expression)) {
+  if (
+    t.isConditionalExpression(expression)
+    || t.isLogicalExpression(expression)
+  ) {
     let suggestedFix = '';
     if (t.isConditionalExpression(expression)) {
       const test = generate(expression.test).code;
       const consequent = generate(expression.consequent).code;
       const alternate = generate(expression.alternate).code;
       suggestedFix = `color.set(${test} ? ${consequent.replace(/\.set\([^)]+\)/, '').replace(/color/, "'#ff6b6b'")} : ${alternate === 'null' || alternate === 'undefined' ? alternate : "'#ff6b6b'"})`;
-    } else if (t.isLogicalExpression(expression) && expression.operator === '&&') {
+    } else if (
+      t.isLogicalExpression(expression)
+      && expression.operator === '&&'
+    ) {
       const left = generate(expression.left).code;
       const right = generate(expression.right).code;
       suggestedFix = `color.set(${left} ? ${right.replace(/\.set\([^)]+\)/, '').replace(/color/, "'#ff6b6b'")} : null)`;
     }
     throw new Error(
-      `Conditional dynamicColor is not supported. Use condition inside the set function instead: ${suggestedFix}`
+      `Conditional dynamicColor is not supported. Use condition inside the set function instead: ${suggestedFix}`,
     );
   }
 
   if (t.isCallExpression(expression)) {
     // Handle color.set(condition ? '#ff6b6b' : null) calls
     if (
-      t.isMemberExpression(expression.callee) &&
-      t.isIdentifier(expression.callee.object) &&
-      t.isIdentifier(expression.callee.property) &&
-      expression.callee.property.name === 'set'
+      t.isMemberExpression(expression.callee)
+      && t.isIdentifier(expression.callee.object)
+      && t.isIdentifier(expression.callee.property)
+      && expression.callee.property.name === 'set'
     ) {
       const colorName = expression.callee.object.name;
       const dynamicColorId = context.state.dynamicColors?.get(colorName);
@@ -405,7 +456,7 @@ export function handleJsxDynamicColorProp(
       }
 
       // Handle the transformation using _sp method
-      handleDynamicColorSetCall(path, colorName, colorArg, context);
+      handleDynamicColorSetCall(path, colorName, colorArg, { classNameAfterDynamicColor, styleAfterDynamicColor }, context);
       return true;
     }
   }
@@ -428,21 +479,21 @@ export function handleJsxDynamicColorProp(
     }
 
     // Check for spread attributes (excluding the dynamicColor prop we just removed)
-    const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
-      t.isJSXSpreadAttribute(attr)
+    const spreadAttrs = attributes.filter(
+      (attr): attr is t.JSXSpreadAttribute => t.isJSXSpreadAttribute(attr),
     );
 
     // Collect remaining non-spread attributes to check for className and style
     const remainingAttrs = attributes.filter((attr): attr is t.JSXAttribute =>
-      t.isJSXAttribute(attr)
+      t.isJSXAttribute(attr),
     );
-    
-    const classNameAttr = remainingAttrs.find(attr => 
-      t.isJSXIdentifier(attr.name) && attr.name.name === 'className'
+
+    const classNameAttr = remainingAttrs.find(
+      (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'className',
     );
-    
-    const styleAttr = remainingAttrs.find(attr => 
-      t.isJSXIdentifier(attr.name) && attr.name.name === 'style'
+
+    const styleAttr = remainingAttrs.find(
+      (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'style',
     );
 
     // Create the setProps arguments
@@ -450,46 +501,56 @@ export function handleJsxDynamicColorProp(
     const objectProperties: t.ObjectProperty[] = [];
 
     // Calculate spread indices for use throughout the function
-    const firstSpreadIndex = spreadAttrs.length > 0 ? attributes.indexOf(spreadAttrs[0]!) : -1;
+    const firstSpreadIndex =
+      spreadAttrs.length > 0 && spreadAttrs[0] ? attributes.indexOf(spreadAttrs[0]) : -1;
 
     // Handle className (for both styled components and regular elements)
     if (targetClassName || classNameAttr) {
       // Check if className comes before any spread props (needs merging)
-      const classNameIndex = classNameAttr ? attributes.indexOf(classNameAttr) : -1;
-      const lastSpreadIndex = spreadAttrs.length > 0 ? Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr))) : -1;
-      const needsMerging = spreadAttrs.length > 0 && (
+      const classNameIndex =
+        classNameAttr ? attributes.indexOf(classNameAttr) : -1;
+      const lastSpreadIndex =
+        spreadAttrs.length > 0 ?
+          Math.max(...spreadAttrs.map((attr) => attributes.indexOf(attr)))
+        : -1;
+      const needsMerging =
+        spreadAttrs.length > 0
         // Explicit className comes before or among spread props
-        (classNameIndex !== -1 && classNameIndex <= lastSpreadIndex) ||
-        // Styled component with spread props but no explicit className
-        (targetClassName && classNameIndex === -1)
-      );
-      
+        && ((classNameIndex !== -1 && classNameIndex <= lastSpreadIndex)
+          // Styled component with spread props but no explicit className
+          || (targetClassName && classNameIndex === -1));
+
       if (needsMerging) {
         // Use mergeClassNames when className comes before spread props
-        
+
         let finalClassName = targetClassName || '';
         if (classNameAttr) {
-          if (t.isJSXExpressionContainer(classNameAttr.value) && 
-              classNameAttr.value.expression && 
-              !t.isJSXEmptyExpression(classNameAttr.value.expression)) {
+          if (
+            t.isJSXExpressionContainer(classNameAttr.value)
+            && classNameAttr.value.expression
+            && !t.isJSXEmptyExpression(classNameAttr.value.expression)
+          ) {
             // Handle dynamic className with spread props
             const classNameExpr = classNameAttr.value.expression;
-            const mergeArgs = [...spreadAttrs.map(attr => attr.argument)];
-            
+            const mergeArgs = [...spreadAttrs.map((attr) => attr.argument)];
+
             if (targetClassName) {
               mergeArgs.push(t.stringLiteral(targetClassName));
               mergeArgs.push(classNameExpr);
             } else {
               mergeArgs.push(classNameExpr);
             }
-            
+
             context.state.vindurImports.add('mergeClassNames');
-            const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-              t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
-              ...mergeArgs.slice(spreadAttrs.length)
-            ]);
+            const mergeCall = t.callExpression(
+              t.identifier('mergeClassNames'),
+              [
+                t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+                ...mergeArgs.slice(spreadAttrs.length),
+              ],
+            );
             objectProperties.push(
-              t.objectProperty(t.identifier('className'), mergeCall)
+              t.objectProperty(t.identifier('className'), mergeCall),
             );
           } else if (t.isStringLiteral(classNameAttr.value)) {
             // Handle static className with spread props
@@ -499,50 +560,61 @@ export function handleJsxDynamicColorProp(
               finalClassName = classNameAttr.value.value;
             }
             context.state.vindurImports.add('mergeClassNames');
-            const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-              t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
-              t.stringLiteral(finalClassName)
-            ]);
+            const mergeCall = t.callExpression(
+              t.identifier('mergeClassNames'),
+              [
+                t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+                t.stringLiteral(finalClassName),
+              ],
+            );
             objectProperties.push(
-              t.objectProperty(t.identifier('className'), mergeCall)
+              t.objectProperty(t.identifier('className'), mergeCall),
             );
           }
           // Remove the className attribute since we're handling it
-          const classNameIndex = attributes.indexOf(classNameAttr);
-          attributes.splice(classNameIndex, 1);
+          const currentClassNameIndex = attributes.indexOf(classNameAttr);
+          attributes.splice(currentClassNameIndex, 1);
         } else if (targetClassName) {
           context.state.vindurImports.add('mergeClassNames');
           const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-            t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
-            t.stringLiteral(targetClassName)
+            t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+            t.stringLiteral(targetClassName),
           ]);
           objectProperties.push(
-            t.objectProperty(t.identifier('className'), mergeCall)
+            t.objectProperty(t.identifier('className'), mergeCall),
           );
         }
       } else {
         // Simple className handling when no spread props
         let finalClassName = targetClassName || '';
         if (classNameAttr) {
-          if (t.isJSXExpressionContainer(classNameAttr.value) && 
-              classNameAttr.value.expression && 
-              !t.isJSXEmptyExpression(classNameAttr.value.expression)) {
+          if (
+            t.isJSXExpressionContainer(classNameAttr.value)
+            && classNameAttr.value.expression
+            && !t.isJSXEmptyExpression(classNameAttr.value.expression)
+          ) {
             // Handle dynamic className
             if (targetClassName) {
               // Combine styled className with dynamic className
               const combinedClassName = t.templateLiteral(
                 [
-                  t.templateElement({ raw: `${targetClassName  } `, cooked: `${targetClassName  } ` }),
-                  t.templateElement({ raw: '', cooked: '' }, true)
+                  t.templateElement({
+                    raw: `${targetClassName} `,
+                    cooked: `${targetClassName} `,
+                  }),
+                  t.templateElement({ raw: '', cooked: '' }, true),
                 ],
-                [classNameAttr.value.expression]
+                [classNameAttr.value.expression],
               );
               objectProperties.push(
-                t.objectProperty(t.identifier('className'), combinedClassName)
+                t.objectProperty(t.identifier('className'), combinedClassName),
               );
             } else {
               objectProperties.push(
-                t.objectProperty(t.identifier('className'), classNameAttr.value.expression)
+                t.objectProperty(
+                  t.identifier('className'),
+                  classNameAttr.value.expression,
+                ),
               );
             }
           } else if (t.isStringLiteral(classNameAttr.value)) {
@@ -553,15 +625,21 @@ export function handleJsxDynamicColorProp(
               finalClassName = classNameAttr.value.value;
             }
             objectProperties.push(
-              t.objectProperty(t.identifier('className'), t.stringLiteral(finalClassName))
+              t.objectProperty(
+                t.identifier('className'),
+                t.stringLiteral(finalClassName),
+              ),
             );
           }
           // Remove the className attribute since we're handling it
-          const classNameIndex = attributes.indexOf(classNameAttr);
-          attributes.splice(classNameIndex, 1);
+          const currentClassNameIndex = attributes.indexOf(classNameAttr);
+          attributes.splice(currentClassNameIndex, 1);
         } else if (targetClassName) {
           objectProperties.push(
-            t.objectProperty(t.identifier('className'), t.stringLiteral(targetClassName))
+            t.objectProperty(
+              t.identifier('className'),
+              t.stringLiteral(targetClassName),
+            ),
           );
         }
       }
@@ -572,57 +650,64 @@ export function handleJsxDynamicColorProp(
       // Add mergeStyles for spread props when no explicit style
       context.state.vindurImports.add('mergeStyles');
       const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
-        t.arrayExpression(spreadAttrs.map(attr => attr.argument))
+        t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
       ]);
       objectProperties.push(
-        t.objectProperty(t.identifier('style'), mergeStylesCall)
+        t.objectProperty(t.identifier('style'), mergeStylesCall),
       );
     } else if (styleAttr) {
       // Handle explicit style
       const styleIndex = styleAttr ? attributes.indexOf(styleAttr) : -1;
-      const styleNeedsMerging = spreadAttrs.length > 0 && styleIndex !== -1 && styleIndex < firstSpreadIndex;
-      
+      const styleNeedsMerging =
+        spreadAttrs.length > 0
+        && styleIndex !== -1
+        && styleIndex < firstSpreadIndex;
+
       if (styleNeedsMerging) {
         // Merge style with spread props
         context.state.vindurImports.add('mergeStyles');
         let styleValue;
-        if (t.isJSXExpressionContainer(styleAttr.value) && 
-            styleAttr.value.expression && 
-            !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+        if (
+          t.isJSXExpressionContainer(styleAttr.value)
+          && styleAttr.value.expression
+          && !t.isJSXEmptyExpression(styleAttr.value.expression)
+        ) {
           styleValue = styleAttr.value.expression;
         } else if (t.isStringLiteral(styleAttr.value)) {
           styleValue = styleAttr.value;
         } else {
           styleValue = t.objectExpression([]);
         }
-        
+
         const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
           t.arrayExpression([
-            ...spreadAttrs.map(attr => attr.argument),
-            styleValue
-          ])
+            ...spreadAttrs.map((attr) => attr.argument),
+            styleValue,
+          ]),
         ]);
         objectProperties.push(
-          t.objectProperty(t.identifier('style'), mergeStylesCall)
+          t.objectProperty(t.identifier('style'), mergeStylesCall),
         );
       } else {
         // Simple style handling
         let styleValue;
-        if (t.isJSXExpressionContainer(styleAttr.value) && 
-            styleAttr.value.expression && 
-            !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+        if (
+          t.isJSXExpressionContainer(styleAttr.value)
+          && styleAttr.value.expression
+          && !t.isJSXEmptyExpression(styleAttr.value.expression)
+        ) {
           styleValue = styleAttr.value.expression;
         } else if (t.isStringLiteral(styleAttr.value)) {
           styleValue = styleAttr.value;
         } else {
           styleValue = t.objectExpression([]);
         }
-        
+
         objectProperties.push(
-          t.objectProperty(t.identifier('style'), styleValue)
+          t.objectProperty(t.identifier('style'), styleValue),
         );
       }
-      
+
       // Remove the style attribute since we're handling it
       const currentStyleIndex = attributes.indexOf(styleAttr);
       attributes.splice(currentStyleIndex, 1);
@@ -640,25 +725,31 @@ export function handleJsxDynamicColorProp(
     const setPropsCall = t.callExpression(
       t.memberExpression(
         t.identifier(expression.name),
-        t.identifier('setProps'),
+        t.identifier('_sp'),
       ),
       setPropsArgs,
     );
 
     // Add spread attribute - put it after the dynamicColor attribute position
     const dynamicColorPosition = dynamicColorAttrIndex;
-    attributes.splice(dynamicColorPosition, 0, t.jsxSpreadAttribute(setPropsCall));
+    attributes.splice(
+      dynamicColorPosition,
+      0,
+      t.jsxSpreadAttribute(setPropsCall),
+    );
   } else if (t.isArrayExpression(expression)) {
     // Multiple dynamic colors: dynamicColor={[color1, color2]}
-    // Transform to nested setProps calls
-    const colorElements = expression.elements.filter((el): el is t.Identifier => 
-      t.isIdentifier(el)
+    // Transform to nested _sp calls
+    const colorElements = expression.elements.filter((el): el is t.Identifier =>
+      t.isIdentifier(el),
     );
-    
+
     if (colorElements.length === 0) {
-      throw new Error('dynamicColor array must contain at least one color identifier');
+      throw new Error(
+        'dynamicColor array must contain at least one color identifier',
+      );
     }
-    
+
     // Validate all colors are known dynamic colors
     for (const colorEl of colorElements) {
       const dynamicColorId = context.state.dynamicColors?.get(colorEl.name);
@@ -666,7 +757,21 @@ export function handleJsxDynamicColorProp(
         throw new Error(`Unknown dynamic color variable "${colorEl.name}"`);
       }
     }
+
+    // Check for spread props
+    const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
+      t.isJSXSpreadAttribute(attr),
+    );
+
+    // Get className and style attributes
+    const classNameAttr = attributes.find((attr): attr is t.JSXAttribute => 
+      t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'className'
+    );
     
+    const styleAttr = attributes.find((attr): attr is t.JSXAttribute => 
+      t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'style'
+    );
+
     // Get the element name to check if it's a styled component
     let targetClassName: string | undefined;
     if (t.isJSXIdentifier(path.node.openingElement.name)) {
@@ -676,41 +781,121 @@ export function handleJsxDynamicColorProp(
         targetClassName = styledInfo.className;
       }
     }
-    
-    // Create nested setProps calls - start from the innermost (last color)
-    let nestedSetProps: t.Expression = colorElements[colorElements.length - 1]!;
-    
+
+    // Create nested _sp calls - start from the innermost (last color)
+    const lastColorElement = colorElements[colorElements.length - 1];
+    if (!lastColorElement) {
+      throw new Error('No color elements found');
+    }
+    let nestedSetProps: t.Expression = lastColorElement;
+
     // Build from right to left, creating nested calls
     for (let i = colorElements.length - 1; i >= 0; i--) {
-      const colorIdentifier = colorElements[i]!;
+      const colorIdentifier = colorElements[i];
+      if (!colorIdentifier) {
+        continue;
+      }
       const setPropsArgs: t.Expression[] = [t.stringLiteral('#ff6b6b')]; // Default color
-      
-      if (i === colorElements.length - 1 && targetClassName) {
-        // Only the innermost call gets the className
-        setPropsArgs.push(
-          t.objectExpression([
-            t.objectProperty(
-              t.identifier('className'),
-              t.stringLiteral(targetClassName),
-            ),
-          ]),
-        );
+
+      if (i === colorElements.length - 1) {
+        // Only the innermost call gets the className/style
+        const objectProperties: t.ObjectProperty[] = [];
+
+        // Handle className (styled + explicit className + spread props)
+        if (targetClassName || classNameAttr || spreadAttrs.length > 0) {
+          let finalClassName = targetClassName || '';
+
+          if (classNameAttr) {
+            if (t.isStringLiteral(classNameAttr.value)) {
+              finalClassName = finalClassName ? `${finalClassName} ${classNameAttr.value.value}` : classNameAttr.value.value;
+            }
+            // Remove className attribute since we're handling it
+            const currentClassNameIdx = attributes.indexOf(classNameAttr);
+            attributes.splice(currentClassNameIdx, 1);
+          }
+
+          if (spreadAttrs.length > 0) {
+            // Use mergeClassNames with spread props
+            context.state.vindurImports.add('mergeClassNames');
+            const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
+              t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+              t.stringLiteral(finalClassName)
+            ]);
+            objectProperties.push(
+              t.objectProperty(t.identifier('className'), mergeCall)
+            );
+          } else if (finalClassName) {
+            objectProperties.push(
+              t.objectProperty(t.identifier('className'), t.stringLiteral(finalClassName))
+            );
+          }
+        }
+
+        // Handle style (explicit style + spread props)  
+        if (styleAttr || spreadAttrs.length > 0) {
+          if (spreadAttrs.length > 0) {
+            context.state.vindurImports.add('mergeStyles');
+            const styleArgs: t.Expression[] = [...spreadAttrs.map(attr => attr.argument)];
+
+            if (styleAttr) {
+              let styleValue;
+              if (t.isJSXExpressionContainer(styleAttr.value) && 
+                  styleAttr.value.expression && 
+                  !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+                styleValue = styleAttr.value.expression;
+              } else {
+                styleValue = t.objectExpression([]);
+              }
+              styleArgs.push(styleValue);
+              // Remove style attribute since we're handling it
+              const currentStyleIdx = attributes.indexOf(styleAttr);
+              attributes.splice(currentStyleIdx, 1);
+            }
+
+            const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+              t.arrayExpression(styleArgs)
+            ]);
+            objectProperties.push(
+              t.objectProperty(t.identifier('style'), mergeStylesCall)
+            );
+          } else if (styleAttr) {
+            // Handle style without spread props
+            let styleValue;
+            if (t.isJSXExpressionContainer(styleAttr.value) && 
+                styleAttr.value.expression && 
+                !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+              styleValue = styleAttr.value.expression;
+            } else {
+              styleValue = t.objectExpression([]);
+            }
+            objectProperties.push(
+              t.objectProperty(t.identifier('style'), styleValue)
+            );
+            // Remove style attribute since we're handling it
+            const currentStyleIdx = attributes.indexOf(styleAttr);
+            attributes.splice(currentStyleIdx, 1);
+          }
+        }
+
+        if (objectProperties.length > 0) {
+          setPropsArgs.push(t.objectExpression(objectProperties));
+        }
       } else if (i < colorElements.length - 1) {
-        // Intermediate calls pass the nested setProps as second argument
+        // Intermediate calls pass the nested _sp as second argument
         setPropsArgs.push(nestedSetProps);
       }
-      
+
       nestedSetProps = t.callExpression(
         t.memberExpression(
           colorIdentifier,
-          t.identifier('setProps'),
+          t.identifier('_sp'),
         ),
         setPropsArgs,
       );
     }
-    
-    // Add the outermost spread attribute
-    attributes.unshift(t.jsxSpreadAttribute(nestedSetProps));
+
+    // Add the outermost spread attribute at the position where dynamicColor was
+    attributes.splice(dynamicColorAttrIndex, 0, t.jsxSpreadAttribute(nestedSetProps));
   } else {
     throw new Error(
       'dynamicColor prop must be a single identifier or array of identifiers',
@@ -724,10 +909,14 @@ function handleDynamicColorSetCall(
   path: NodePath<t.JSXElement>,
   colorName: string,
   colorArg: t.Expression,
+  overrides: { 
+    classNameAfterDynamicColor?: t.JSXAttribute;
+    styleAfterDynamicColor?: t.JSXAttribute;
+  },
   context: { state: VindurPluginState },
 ): void {
   const attributes = path.node.openingElement.attributes;
-  
+
   // Check for spread attributes
   const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
     t.isJSXSpreadAttribute(attr),
@@ -737,13 +926,18 @@ function handleDynamicColorSetCall(
   const remainingAttrs = attributes.filter((attr): attr is t.JSXAttribute =>
     t.isJSXAttribute(attr),
   );
-  
-  const classNameAttr = remainingAttrs.find(attr => 
-    t.isJSXIdentifier(attr.name) && attr.name.name === 'className'
+
+  // Find className attributes
+  const classNameAttrs = remainingAttrs.filter(
+    (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'className',
   );
   
-  const styleAttr = remainingAttrs.find(attr => 
-    t.isJSXIdentifier(attr.name) && attr.name.name === 'style'
+  // Use override className if it exists, otherwise combine all className attributes
+  const classNameAttr = overrides.classNameAfterDynamicColor || classNameAttrs[0];
+
+  // Find all style attributes  
+  const styleAttrs = remainingAttrs.filter(
+    (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'style',
   );
 
   // Get styled component className if applicable
@@ -762,12 +956,15 @@ function handleDynamicColorSetCall(
 
   // Handle className merging logic based on SPEC
   const hasSpreadProps = spreadAttrs.length > 0;
-  const classNameIndex = classNameAttr ? attributes.indexOf(classNameAttr) : -1;
-  const lastSpreadIndex = hasSpreadProps ? Math.max(...spreadAttrs.map(attr => attributes.indexOf(attr))) : -1;
-  const classNameAfterSpreads = hasSpreadProps && classNameIndex > lastSpreadIndex;
+  const hasClassNameOverride = !!overrides.classNameAfterDynamicColor;
 
-  if (classNameAfterSpreads && classNameAttr && t.isStringLiteral(classNameAttr.value)) {
-    // className after spreads - no need for mergeClassNames
+  if (
+    hasClassNameOverride
+    && classNameAttr
+    && t.isStringLiteral(classNameAttr.value)
+  ) {
+    // className after dynamicColor - it overrides everything (no merging with spreads)
+    // Only use the styled component className + the override className
     let finalClassName = styledClassName || '';
     if (finalClassName && classNameAttr.value.value) {
       finalClassName = `${finalClassName} ${classNameAttr.value.value}`;
@@ -775,93 +972,209 @@ function handleDynamicColorSetCall(
       finalClassName = classNameAttr.value.value;
     }
     objectProperties.push(
-      t.objectProperty(t.identifier('className'), t.stringLiteral(finalClassName))
+      t.objectProperty(
+        t.identifier('className'),
+        t.stringLiteral(finalClassName),
+      ),
     );
-    // Remove the className attribute
-    const classNameIdx = attributes.indexOf(classNameAttr);
-    attributes.splice(classNameIdx, 1);
+    // Remove ALL className attributes (both before and after dynamicColor)
+    classNameAttrs.forEach(attr => {
+      const classNameIdx = attributes.indexOf(attr);
+      if (classNameIdx !== -1) {
+        attributes.splice(classNameIdx, 1);
+      }
+    });
+    // Also remove the override className attribute
+    if (overrides.classNameAfterDynamicColor) {
+      const overrideIdx = attributes.indexOf(overrides.classNameAfterDynamicColor);
+      if (overrideIdx !== -1) {
+        attributes.splice(overrideIdx, 1);
+      }
+    }
+    
+    // Handle style override
+    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+      // Use the override style directly in the _sp call
+      const expression = overrides.styleAfterDynamicColor.value.expression;
+      if (!t.isJSXEmptyExpression(expression)) {
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), expression),
+        );
+      }
+      // Remove ALL style attributes (both before and after dynamicColor)
+      styleAttrs.forEach(attr => {
+        const styleIdx = attributes.indexOf(attr);
+        if (styleIdx !== -1) {
+          attributes.splice(styleIdx, 1);
+        }
+      });
+      // Also remove the override style attribute
+      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      if (styleOverrideIdx !== -1) {
+        attributes.splice(styleOverrideIdx, 1);
+      }
+    } else if (hasSpreadProps) {
+      // For style, we still need mergeStyles if there are spread props and no override
+      context.state.vindurImports.add('mergeStyles');
+      const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+        t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+      ]);
+      objectProperties.push(
+        t.objectProperty(t.identifier('style'), mergeStylesCall),
+      );
+    }
   } else if (hasSpreadProps) {
     // Need to use mergeClassNames
     context.state.vindurImports.add('mergeClassNames');
-    context.state.vindurImports.add('mergeStyles');
-    
-    let baseClassName = styledClassName || '';
-    if (classNameAttr && t.isStringLiteral(classNameAttr.value)) {
-      if (baseClassName && classNameAttr.value.value) {
-        baseClassName = `${baseClassName} ${classNameAttr.value.value}`;
-      } else if (classNameAttr.value.value) {
-        baseClassName = classNameAttr.value.value;
-      }
-      // Remove the className attribute
-      const classNameIdx = attributes.indexOf(classNameAttr);
-      attributes.splice(classNameIdx, 1);
+    if (!overrides.styleAfterDynamicColor) {
+      context.state.vindurImports.add('mergeStyles');
     }
 
+    let baseClassName = styledClassName || '';
+    // Combine all className attributes (except override which is handled separately)
+    classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor).forEach(attr => {
+      if (t.isStringLiteral(attr.value)) {
+        if (baseClassName && attr.value.value) {
+          baseClassName = `${baseClassName} ${attr.value.value}`;
+        } else if (attr.value.value) {
+          baseClassName = attr.value.value;
+        }
+      }
+    });
+    
+    // Remove regular className attributes (override will be handled separately)
+    classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor).forEach(attr => {
+      const classNameIdx = attributes.indexOf(attr);
+      if (classNameIdx !== -1) {
+        attributes.splice(classNameIdx, 1);
+      }
+    });
+
     const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-      t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+      t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
       t.stringLiteral(baseClassName),
     ]);
     objectProperties.push(
-      t.objectProperty(t.identifier('className'), mergeCall)
+      t.objectProperty(t.identifier('className'), mergeCall),
     );
 
     // Handle style merging for spread props
-    const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
-      t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
-    ]);
-    objectProperties.push(
-      t.objectProperty(t.identifier('style'), mergeStylesCall)
-    );
+    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+      // Use the override style directly
+      const expression = overrides.styleAfterDynamicColor.value.expression;
+      if (!t.isJSXEmptyExpression(expression)) {
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), expression),
+        );
+      }
+      // Remove ALL style attributes (both before and after dynamicColor)
+      styleAttrs.forEach(attr => {
+        const styleIdx = attributes.indexOf(attr);
+        if (styleIdx !== -1) {
+          attributes.splice(styleIdx, 1);
+        }
+      });
+      // Also remove the override style attribute
+      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      if (styleOverrideIdx !== -1) {
+        attributes.splice(styleOverrideIdx, 1);
+      }
+    } else {
+      const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+        t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+      ]);
+      objectProperties.push(
+        t.objectProperty(t.identifier('style'), mergeStylesCall),
+      );
+    }
   } else {
     // No spread props - simple className handling
     let finalClassName = styledClassName || '';
-    if (classNameAttr && t.isStringLiteral(classNameAttr.value)) {
-      if (finalClassName && classNameAttr.value.value) {
-        finalClassName = `${finalClassName} ${classNameAttr.value.value}`;
-      } else if (classNameAttr.value.value) {
-        finalClassName = classNameAttr.value.value;
+    // Combine all className attributes (except override which is handled separately)
+    classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor).forEach(attr => {
+      if (t.isStringLiteral(attr.value)) {
+        if (finalClassName && attr.value.value) {
+          finalClassName = `${finalClassName} ${attr.value.value}`;
+        } else if (attr.value.value) {
+          finalClassName = attr.value.value;
+        }
       }
-      // Remove the className attribute
-      const classNameIdx = attributes.indexOf(classNameAttr);
-      attributes.splice(classNameIdx, 1);
-    }
+    });
+    
+    // Remove regular className attributes (override will be handled separately)
+    classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor).forEach(attr => {
+      const classNameIdx = attributes.indexOf(attr);
+      if (classNameIdx !== -1) {
+        attributes.splice(classNameIdx, 1);
+      }
+    });
     if (finalClassName) {
       objectProperties.push(
-        t.objectProperty(t.identifier('className'), t.stringLiteral(finalClassName))
+        t.objectProperty(
+          t.identifier('className'),
+          t.stringLiteral(finalClassName),
+        ),
       );
     }
 
     // Handle style if present
-    if (styleAttr) {
-      let styleValue;
-      if (t.isJSXExpressionContainer(styleAttr.value) && 
-          styleAttr.value.expression && 
-          !t.isJSXEmptyExpression(styleAttr.value.expression)) {
-        styleValue = styleAttr.value.expression;
-      } else if (t.isStringLiteral(styleAttr.value)) {
-        styleValue = styleAttr.value;
-      } else {
-        styleValue = t.objectExpression([]);
+    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+      // Use the override style directly
+      const expression = overrides.styleAfterDynamicColor.value.expression;
+      if (!t.isJSXEmptyExpression(expression)) {
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), expression),
+        );
       }
-      
-      objectProperties.push(
-        t.objectProperty(t.identifier('style'), styleValue)
-      );
-      
-      // Remove the style attribute
-      const styleIdx = attributes.indexOf(styleAttr);
-      attributes.splice(styleIdx, 1);
+      // Remove ALL style attributes
+      styleAttrs.forEach(attr => {
+        const styleIdx = attributes.indexOf(attr);
+        if (styleIdx !== -1) {
+          attributes.splice(styleIdx, 1);
+        }
+      });
+      // Also remove the override style attribute
+      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      if (styleOverrideIdx !== -1) {
+        attributes.splice(styleOverrideIdx, 1);
+      }
+    } else if (styleAttrs.length > 0) {
+      // Use the first style attribute (no spread props so no merging needed)
+      const styleAttr = styleAttrs[0];
+      if (styleAttr) {
+        let styleValue;
+        if (
+          t.isJSXExpressionContainer(styleAttr.value)
+          && styleAttr.value.expression
+          && !t.isJSXEmptyExpression(styleAttr.value.expression)
+        ) {
+          styleValue = styleAttr.value.expression;
+        } else if (t.isStringLiteral(styleAttr.value)) {
+          styleValue = styleAttr.value;
+        } else {
+          styleValue = t.objectExpression([]);
+        }
+
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), styleValue),
+        );
+
+        // Remove ALL style attributes
+        styleAttrs.forEach(attr => {
+          const styleIdx = attributes.indexOf(attr);
+          if (styleIdx !== -1) {
+            attributes.splice(styleIdx, 1);
+          }
+        });
+      }
     }
   }
 
   // Create the _sp call
   spArgs.push(t.objectExpression(objectProperties));
-  
+
   const spCall = t.callExpression(
-    t.memberExpression(
-      t.identifier(colorName),
-      t.identifier('_sp'),
-    ),
+    t.memberExpression(t.identifier(colorName), t.identifier('_sp')),
     spArgs,
   );
 
@@ -977,7 +1290,7 @@ export function handleJsxCssProp(
   // For styled components with css prop, we need to handle transformation here
   // to ensure both styled and css className are included
   let transformedStyledClassName: string | undefined;
-  
+
   if (isStyledComponent) {
     // Get styled component info and transform the element
     const styledInfo = context.state.styledComponents.get(elementName);
@@ -1004,7 +1317,7 @@ function addCssClassNameToJsx(
   context: { state: VindurPluginState },
 ): void {
   const attributes = path.node.openingElement.attributes;
-  
+
   // Check for spread attributes
   const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
     t.isJSXSpreadAttribute(attr),
@@ -1030,21 +1343,24 @@ function addCssClassNameToJsx(
   // Handle spread props scenario according to SPEC
   if (spreadAttrs.length > 0) {
     context.state.vindurImports.add('mergeClassNames');
-    
+
     let mergeCall: t.CallExpression;
     if (typeof cssClassName === 'string') {
       mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-        t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+        t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
         t.stringLiteral(finalCssClasses),
       ]);
     } else {
       // cssClassName is an expression, need to handle styled + css expression
       if (styledClassName) {
         mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-          t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+          t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
           t.templateLiteral(
             [
-              t.templateElement({ raw: `${styledClassName} `, cooked: `${styledClassName} ` }),
+              t.templateElement({
+                raw: `${styledClassName} `,
+                cooked: `${styledClassName} `,
+              }),
               t.templateElement({ raw: '', cooked: '' }, true),
             ],
             [cssClassName],
@@ -1052,7 +1368,7 @@ function addCssClassNameToJsx(
         ]);
       } else {
         mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
-          t.arrayExpression(spreadAttrs.map(attr => attr.argument)),
+          t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
           cssClassName,
         ]);
       }
@@ -1126,7 +1442,10 @@ function addCssClassNameToJsx(
           t.templateLiteral(
             [
               t.templateElement({ raw: '', cooked: '' }),
-              t.templateElement({ raw: middleTemplate, cooked: middleTemplate }),
+              t.templateElement({
+                raw: middleTemplate,
+                cooked: middleTemplate,
+              }),
               t.templateElement({ raw: '', cooked: '' }),
             ],
             [
@@ -1152,7 +1471,10 @@ function addCssClassNameToJsx(
       if (styledClassName) {
         classNameValue = t.templateLiteral(
           [
-            t.templateElement({ raw: `${styledClassName} `, cooked: `${styledClassName} ` }),
+            t.templateElement({
+              raw: `${styledClassName} `,
+              cooked: `${styledClassName} `,
+            }),
             t.templateElement({ raw: '', cooked: '' }, true),
           ],
           [cssClassName],
@@ -1160,7 +1482,7 @@ function addCssClassNameToJsx(
       } else {
         classNameValue = cssClassName;
       }
-      
+
       const newClassNameAttr = t.jsxAttribute(
         t.jsxIdentifier('className'),
         t.jsxExpressionContainer(classNameValue),
