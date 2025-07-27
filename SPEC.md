@@ -115,7 +115,18 @@ const before = (
   </div>
 );
 
-const compiled = <div className="vHash-1">Content</div>;
+const compiled = <div className="vHash-css-prop-1">Content</div>;
+```
+
+## css Function Reference
+
+```tsx
+// Reference to css variable
+const styles = css`background: red;`; // → "vHash-styles"
+
+const before = <div css={styles}>Content</div>;
+
+const compiled = <div className={styles}>Content</div>;
 ```
 
 ## With Existing className
@@ -153,7 +164,27 @@ const before = (
 const compiled = <div className="vHash-Card vHash-css-prop-1">Content</div>;
 ```
 
+## css Extension with Interpolation
+
+```tsx
+// Can extend other css variables
+const baseStyles = css`padding: 16px;`; // → "vHash-baseStyles"
+
+const before = (
+  <div css={`
+    ${baseStyles};
+    background: white;
+  `}>
+    Content
+  </div>
+);
+
+const compiled = <div className="vHash-baseStyles vHash-css-prop-1">Content</div>;
+```
+
 ## With spread props
+
+When css prop is combined with spread props, mergeClassNames is used to handle potential className conflicts:
 
 ```tsx
 const before = (
@@ -168,7 +199,28 @@ const before = (
 );
 
 const compiled = (
-  <div className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
+  <div {...props} className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
+    Content
+  </div>
+);
+```
+
+## css prop after spread props
+
+Order doesn't matter - css prop is always merged with spread props using mergeClassNames:
+
+```tsx
+const before = (
+  <StyledCard
+    {...props}
+    css={`border: 1px solid red;`}
+  >
+    Content
+  </StyledCard>
+);
+
+const compiled = (
+  <div {...props} className={mergeClassNames([props], 'vHash-Card vHash-css-prop-1')}>
     Content
   </div>
 );
