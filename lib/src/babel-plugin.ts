@@ -6,24 +6,28 @@ import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-p
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
 import {
-  handleCssTaggedTemplate,
+  handleVindurImports,
+  handleFunctionImports,
+  handleVindurFnExport,
+} from './visitor-handlers/import-export-handlers';
+import {
   handleCssVariableAssignment,
   handleDynamicCssColorAssignment,
-  handleFunctionImports,
-  handleGlobalStyleTaggedTemplate,
-  handleGlobalStyleVariableAssignment,
-  handleInlineStyledError,
-  handleJsxCssProp,
-  handleJsxDynamicColorProp,
-  handleJsxStyledComponent,
-  handleKeyframesTaggedTemplate,
-  handleKeyframesVariableAssignment,
-  handleStaticThemeColorsAssignment,
   handleStyledElementAssignment,
   handleStyledExtensionAssignment,
-  handleVindurFnExport,
-  handleVindurImports,
-} from './visitor-handlers';
+  handleKeyframesVariableAssignment,
+  handleStaticThemeColorsAssignment,
+  handleGlobalStyleVariableAssignment,
+} from './visitor-handlers/variable-handlers';
+import {
+  handleCssTaggedTemplate,
+  handleKeyframesTaggedTemplate,
+  handleGlobalStyleTaggedTemplate,
+  handleInlineStyledError,
+} from './visitor-handlers/template-handlers';
+import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
+import { handleJsxCssProp } from './visitor-handlers/jsx-css-prop-handlers';
+import { handleJsxDynamicColorProp } from './visitor-handlers/jsx-dynamic-color-handlers';
 
 export type DebugLogger = { log: (message: string) => void };
 
