@@ -149,7 +149,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      "import { createDynamicCssColor } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const boxProps = {
@@ -162,7 +162,9 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...boxProps}
             {...dataProps}
-            {...color._sp("#ff6b6b", { className: "final-class" })}
+            {...color._sp("#ff6b6b", {
+              className: "final-class",
+            })}
           >
             Box content
           </div>
