@@ -149,7 +149,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor } from "vindur";
+      "import { createDynamicCssColor, mergeStyles } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const boxProps = {
@@ -163,7 +163,8 @@ describe('Dynamic Colors - Spread Props', () => {
             {...boxProps}
             {...dataProps}
             {...color._sp("#ff6b6b", {
-              className: "final-class",
+              className: "v1560qbr-2 final-class",
+              style: mergeStyles([boxProps, dataProps]),
             })}
           >
             Box content
@@ -207,7 +208,7 @@ describe('Dynamic Colors - Spread Props', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      "import { createDynamicCssColor, mergeClassNames } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
       const Component = () => {
         const styleProps = {
@@ -224,7 +225,10 @@ describe('Dynamic Colors - Spread Props', () => {
             {...otherProps}
             {...color._sp("#ff6b6b", {
               className: mergeClassNames([styleProps, otherProps], "v1560qbr-2"),
-              style: { padding: "30px", fontSize: "14px" },
+              style: {
+                padding: "30px",
+                fontSize: "14px",
+              },
             })}
           >
             Content with overridden styles
