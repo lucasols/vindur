@@ -301,7 +301,7 @@ describe('createStaticThemeColors', () => {
 
         &.light {
           background: #f8f9fa;
-          color: #1a1a1a;
+          color: #000;
         }
       }"
     `);
@@ -669,7 +669,7 @@ describe('createStaticThemeColors', () => {
       expect(result.css).toMatchInlineSnapshot(`
         ".v1560qbr-1 {
           color: #fff;
-          background: #1a1a1a;
+          background: #000;
           border: 1px solid #fff3;
         }"
       `);
