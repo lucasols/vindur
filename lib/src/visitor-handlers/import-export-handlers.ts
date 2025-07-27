@@ -117,7 +117,7 @@ function loadExternalDynamicColors(
       debug?.log(`[vindur:dynamic-color] Detected dynamic color import: ${localName} -> ${hashId}`);
     }
   } catch (error) {
-    debug?.log(`[vindur:dynamic-color] Error loading external dynamic colors from ${filePath}: ${error}`);
+    debug?.log(`[vindur:dynamic-color] Error loading external dynamic colors from ${filePath}: ${String(error)}`);
   }
 }
 

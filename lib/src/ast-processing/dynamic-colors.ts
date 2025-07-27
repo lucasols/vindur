@@ -125,20 +125,19 @@ export function resolveDynamicColorCallExpression(
       return null;
     }
     
-    // Methods that require a value parameter
-    if (value === undefined && ['alpha', 'darker', 'lighter', 'saturatedDarker'].includes(method)) {
-      return null;
-    }
-    
     switch (method) {
       case 'alpha':
-        return `color-mix(in srgb, var(--${dynamicColorId}) ${value! * 100}%, transparent)`;
+        if (value === undefined) throw new Error(`Method ${method} requires a numeric argument`);
+        return `color-mix(in srgb, var(--${dynamicColorId}) ${value * 100}%, transparent)`;
       case 'darker':
-        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value!) * 100}%, #000)`;
+        if (value === undefined) throw new Error(`Method ${method} requires a numeric argument`);
+        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #000)`;
       case 'lighter':
-        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value!) * 100}%, #fff)`;
+        if (value === undefined) throw new Error(`Method ${method} requires a numeric argument`);
+        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #fff)`;
       case 'saturatedDarker':
-        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value!) * 100}%, hsl(from var(--${dynamicColorId}) h 100% 20%))`;
+        if (value === undefined) throw new Error(`Method ${method} requires a numeric argument`);
+        return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, hsl(from var(--${dynamicColorId}) h 100% 20%))`;
       default:
         return null;
     }

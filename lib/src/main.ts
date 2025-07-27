@@ -411,7 +411,7 @@ export function mergeClassNames(
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       classNames.push(prop);
-    } else if (prop && typeof prop === 'object' && 'className' in prop) {
+    } else if (typeof prop === 'object' && 'className' in prop) {
       const className = prop.className;
       if (typeof className === 'string') {
         classNames.push(className);
@@ -434,7 +434,7 @@ export function mergeStyles(
   const mergedStyle: Record<string, unknown> = {};
 
   for (const prop of spreadProps) {
-    if (prop && typeof prop === 'object' && 'style' in prop) {
+    if (typeof prop === 'object' && 'style' in prop) {
       const style = prop.style;
       if (style && typeof style === 'object') {
         Object.assign(mergedStyle, style);

@@ -1,8 +1,6 @@
-import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import {
-  extractArgumentValue,
   extractLiteralValue,
   isLiteralExpression,
 } from '../ast-utils';

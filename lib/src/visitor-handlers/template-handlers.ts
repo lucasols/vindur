@@ -6,7 +6,6 @@ import {
   processGlobalStyle,
 } from '../css-processing';
 import type { CssProcessingContext } from '../css-processing';
-import type { VindurPluginState } from '../babel-plugin';
 
 type TaggedTemplateHandlerContext = {
   context: CssProcessingContext;

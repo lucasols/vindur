@@ -7,7 +7,6 @@ import {
   processKeyframes,
 } from '../css-processing';
 import type { CssProcessingContext } from '../css-processing';
-import type { VindurPluginState } from '../babel-plugin';
 
 // Helper function to validate hex colors without alpha
 function isValidHexColorWithoutAlpha(color: string): boolean {

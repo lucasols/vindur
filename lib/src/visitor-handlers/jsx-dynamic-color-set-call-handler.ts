@@ -6,7 +6,7 @@ export function handleDynamicColorSetCall(
   path: NodePath<t.JSXElement>,
   colorName: string,
   colorArg: t.Expression,
-  overrides: { 
+  overrides: {
     classNameAfterDynamicColor?: t.JSXAttribute;
     styleAfterDynamicColor?: t.JSXAttribute;
   },
@@ -15,24 +15,21 @@ export function handleDynamicColorSetCall(
   const attributes = path.node.openingElement.attributes;
 
   // Check for spread attributes
-  const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
-    t.isJSXSpreadAttribute(attr),
-  );
+  const spreadAttrs = attributes.filter((attr) => t.isJSXSpreadAttribute(attr));
 
   // Collect remaining non-spread attributes to check for className and style
-  const remainingAttrs = attributes.filter((attr): attr is t.JSXAttribute =>
-    t.isJSXAttribute(attr),
-  );
+  const remainingAttrs = attributes.filter((attr) => t.isJSXAttribute(attr));
 
   // Find className attributes
   const classNameAttrs = remainingAttrs.filter(
     (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'className',
   );
-  
-  // Use override className if it exists, otherwise combine all className attributes
-  const classNameAttr = overrides.classNameAfterDynamicColor || classNameAttrs[0];
 
-  // Find all style attributes  
+  // Use override className if it exists, otherwise combine all className attributes
+  const classNameAttr =
+    overrides.classNameAfterDynamicColor || classNameAttrs[0];
+
+  // Find all style attributes
   const styleAttrs = remainingAttrs.filter(
     (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'style',
   );
@@ -83,14 +80,19 @@ export function handleDynamicColorSetCall(
     }
     // Also remove the override className attribute
     if (overrides.classNameAfterDynamicColor) {
-      const overrideIdx = attributes.indexOf(overrides.classNameAfterDynamicColor);
+      const overrideIdx = attributes.indexOf(
+        overrides.classNameAfterDynamicColor,
+      );
       if (overrideIdx !== -1) {
         attributes.splice(overrideIdx, 1);
       }
     }
-    
+
     // Handle style override
-    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+    if (
+      overrides.styleAfterDynamicColor
+      && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)
+    ) {
       // Use the override style directly in the _sp call
       const expression = overrides.styleAfterDynamicColor.value.expression;
       if (!t.isJSXEmptyExpression(expression)) {
@@ -106,7 +108,9 @@ export function handleDynamicColorSetCall(
         }
       }
       // Also remove the override style attribute
-      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      const styleOverrideIdx = attributes.indexOf(
+        overrides.styleAfterDynamicColor,
+      );
       if (styleOverrideIdx !== -1) {
         attributes.splice(styleOverrideIdx, 1);
       }
@@ -129,7 +133,9 @@ export function handleDynamicColorSetCall(
 
     let baseClassName = styledClassName || '';
     // Combine all className attributes (except override which is handled separately)
-    for (const attr of classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor)) {
+    for (const attr of classNameAttrs.filter(
+      (attr) => attr !== overrides.classNameAfterDynamicColor,
+    )) {
       if (t.isStringLiteral(attr.value)) {
         if (baseClassName && attr.value.value) {
           baseClassName = `${baseClassName} ${attr.value.value}`;
@@ -138,9 +144,11 @@ export function handleDynamicColorSetCall(
         }
       }
     }
-    
+
     // Remove regular className attributes (override will be handled separately)
-    for (const attr of classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor)) {
+    for (const attr of classNameAttrs.filter(
+      (attr) => attr !== overrides.classNameAfterDynamicColor,
+    )) {
       const classNameIdx = attributes.indexOf(attr);
       if (classNameIdx !== -1) {
         attributes.splice(classNameIdx, 1);
@@ -156,7 +164,10 @@ export function handleDynamicColorSetCall(
     );
 
     // Handle style merging for spread props
-    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+    if (
+      overrides.styleAfterDynamicColor
+      && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)
+    ) {
       // Use the override style directly
       const expression = overrides.styleAfterDynamicColor.value.expression;
       if (!t.isJSXEmptyExpression(expression)) {
@@ -172,7 +183,9 @@ export function handleDynamicColorSetCall(
         }
       }
       // Also remove the override style attribute
-      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      const styleOverrideIdx = attributes.indexOf(
+        overrides.styleAfterDynamicColor,
+      );
       if (styleOverrideIdx !== -1) {
         attributes.splice(styleOverrideIdx, 1);
       }
@@ -188,7 +201,9 @@ export function handleDynamicColorSetCall(
     // No spread props - simple className handling
     let finalClassName = styledClassName || '';
     // Combine all className attributes (except override which is handled separately)
-    for (const attr of classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor)) {
+    for (const attr of classNameAttrs.filter(
+      (attr) => attr !== overrides.classNameAfterDynamicColor,
+    )) {
       if (t.isStringLiteral(attr.value)) {
         if (finalClassName && attr.value.value) {
           finalClassName = `${finalClassName} ${attr.value.value}`;
@@ -197,9 +212,11 @@ export function handleDynamicColorSetCall(
         }
       }
     }
-    
+
     // Remove regular className attributes (override will be handled separately)
-    for (const attr of classNameAttrs.filter(attr => attr !== overrides.classNameAfterDynamicColor)) {
+    for (const attr of classNameAttrs.filter(
+      (attr) => attr !== overrides.classNameAfterDynamicColor,
+    )) {
       const classNameIdx = attributes.indexOf(attr);
       if (classNameIdx !== -1) {
         attributes.splice(classNameIdx, 1);
@@ -215,7 +232,10 @@ export function handleDynamicColorSetCall(
     }
 
     // Handle style if present
-    if (overrides.styleAfterDynamicColor && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)) {
+    if (
+      overrides.styleAfterDynamicColor
+      && t.isJSXExpressionContainer(overrides.styleAfterDynamicColor.value)
+    ) {
       // Use the override style directly
       const expression = overrides.styleAfterDynamicColor.value.expression;
       if (!t.isJSXEmptyExpression(expression)) {
@@ -231,7 +251,9 @@ export function handleDynamicColorSetCall(
         }
       }
       // Also remove the override style attribute
-      const styleOverrideIdx = attributes.indexOf(overrides.styleAfterDynamicColor);
+      const styleOverrideIdx = attributes.indexOf(
+        overrides.styleAfterDynamicColor,
+      );
       if (styleOverrideIdx !== -1) {
         attributes.splice(styleOverrideIdx, 1);
       }
@@ -242,7 +264,6 @@ export function handleDynamicColorSetCall(
         let styleValue;
         if (
           t.isJSXExpressionContainer(styleAttr.value)
-          && styleAttr.value.expression
           && !t.isJSXEmptyExpression(styleAttr.value.expression)
         ) {
           styleValue = styleAttr.value.expression;
