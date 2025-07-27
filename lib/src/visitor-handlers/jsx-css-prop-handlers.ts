@@ -3,7 +3,7 @@ import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
 import { processStyledTemplate } from '../css-processing';
-import { filterWithNarrowing } from '../utils';
+import { filterWithNarrowing, findWithNarrowing } from '../utils';
 
 export function handleJsxCssProp(
   path: NodePath<t.JSXElement>,
@@ -32,11 +32,12 @@ export function handleJsxCssProp(
 
   if (!isNativeDOMElement && !isStyledComponent) {
     // Check if this custom component has a css prop - if so, throw an error
-    const cssAttr = path.node.openingElement.attributes.find(
-      (attr): attr is t.JSXAttribute =>
-        t.isJSXAttribute(attr)
-        && t.isJSXIdentifier(attr.name)
-        && attr.name.name === 'css',
+    const cssAttr = findWithNarrowing(path.node.openingElement.attributes, (attr) =>
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'css'
+        ? attr
+        : false,
     );
 
     if (cssAttr) {
@@ -50,11 +51,12 @@ export function handleJsxCssProp(
   }
 
   const attributes = path.node.openingElement.attributes;
-  const cssAttr = attributes.find(
-    (attr): attr is t.JSXAttribute =>
-      t.isJSXAttribute(attr)
-      && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'css',
+  const cssAttr = findWithNarrowing(attributes, (attr) =>
+    t.isJSXAttribute(attr)
+    && t.isJSXIdentifier(attr.name)
+    && attr.name.name === 'css'
+      ? attr
+      : false,
   );
 
   if (!cssAttr) return false;
@@ -254,7 +256,7 @@ function addCssClassNameToJsx(
           ),
         );
       } else if (t.isJSXExpressionContainer(lastClassNameAttr.value)) {
-        // Merge expression with expression: className={expr1} + expr2 -> className={`${expr1} ${expr2}`}
+        // Merge expression with expression: `className={expr1} + expr2 -> className={`${expr1} ${expr2}`}`
         const existingExpr = lastClassNameAttr.value.expression;
         let middleTemplate = ' ';
         if (styledClassName) {

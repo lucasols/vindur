@@ -21,8 +21,10 @@ export function getLiteralValueType(
     : 'string';
 }
 
+ 
 export function isLiteralExpression(
   node: t.Node,
+// eslint-disable-next-line @ls-stack/no-type-guards -- Core AST utility type guard used throughout codebase
 ): node is t.StringLiteral | t.NumericLiteral | t.BooleanLiteral {
   return (
     t.isStringLiteral(node)

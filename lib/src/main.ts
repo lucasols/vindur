@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unused-vars -- Unused variables in main.ts are runtime exports that may be used by consumers */
 // todo: implement vite plugin
 
 import {
@@ -41,13 +41,13 @@ const styledHandler = {
 export const styled = new Proxy({}, styledHandler);
 
 export function styledComponent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
   tagOrComponent: string | ComponentType<any>,
   className: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Return type must be flexible for any component props
 ): ComponentType<any> {
   // Runtime helper for exported styled components
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forwardRef requires any for generic component forwarding
   const Component = forwardRef<any, any>((props, ref) => {
     const { className: userClassName, ...rest } = props;
     const finalClassName =
@@ -99,7 +99,7 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 } {
   // At runtime, this function should never be called as it gets replaced during compilation
   // But we need to provide a valid runtime implementation for TypeScript
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
   return colors as unknown as {
     [K in keyof C]: StaticColor<C[K]>;
   };

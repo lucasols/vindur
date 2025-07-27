@@ -3,17 +3,19 @@ import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
 import { handleDynamicColorSetCall } from './jsx-dynamic-color-set-call-handler';
+import { filterWithNarrowing, findWithNarrowing } from '../utils';
 
 export function handleJsxDynamicColorProp(
   path: NodePath<t.JSXElement>,
   context: { state: VindurPluginState },
 ): boolean {
   const attributes = path.node.openingElement.attributes;
-  const dynamicColorAttr = attributes.find(
-    (attr): attr is t.JSXAttribute =>
-      t.isJSXAttribute(attr)
-      && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'dynamicColor',
+  const dynamicColorAttr = findWithNarrowing(attributes, (attr) =>
+    t.isJSXAttribute(attr)
+    && t.isJSXIdentifier(attr.name)
+    && attr.name.name === 'dynamicColor'
+      ? attr
+      : false,
   );
 
   if (!dynamicColorAttr) return false;
@@ -22,20 +24,24 @@ export function handleJsxDynamicColorProp(
   const dynamicColorAttrIndex = attributes.indexOf(dynamicColorAttr);
 
   // Detect override attributes before any modifications
-  const classNameAfterDynamicColor = attributes.find(
-    (attr, index): attr is t.JSXAttribute =>
-      index > dynamicColorAttrIndex
-      && t.isJSXAttribute(attr)
+  const classNameAfterDynamicColor = findWithNarrowing(
+    attributes.slice(dynamicColorAttrIndex + 1),
+    (attr) =>
+      t.isJSXAttribute(attr)
       && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'className',
+      && attr.name.name === 'className'
+        ? attr
+        : false,
   );
 
-  const styleAfterDynamicColor = attributes.find(
-    (attr, index): attr is t.JSXAttribute =>
-      index > dynamicColorAttrIndex
-      && t.isJSXAttribute(attr)
+  const styleAfterDynamicColor = findWithNarrowing(
+    attributes.slice(dynamicColorAttrIndex + 1),
+    (attr) =>
+      t.isJSXAttribute(attr)
       && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'style',
+      && attr.name.name === 'style'
+        ? attr
+        : false,
   );
 
   // Remove the dynamicColor attribute
@@ -75,7 +81,7 @@ export function handleJsxDynamicColorProp(
   }
 
   if (t.isCallExpression(expression)) {
-    // Handle color.set(condition ? '#ff6b6b' : null) calls
+    // Handle `color.set(condition ? '#ff6b6b' : null)` calls
     if (
       t.isMemberExpression(expression.callee)
       && t.isIdentifier(expression.callee.object)
@@ -107,7 +113,7 @@ export function handleJsxDynamicColorProp(
   }
 
   if (t.isIdentifier(expression)) {
-    // Single dynamic color: dynamicColor={color}
+    // Single dynamic color: `dynamicColor={color}`
     const dynamicColorId = context.state.dynamicColors?.get(expression.name);
     if (!dynamicColorId) {
       throw new Error(`Unknown dynamic color variable "${expression.name}"`);
@@ -124,21 +130,21 @@ export function handleJsxDynamicColorProp(
     }
 
     // Check for spread attributes (excluding the dynamicColor prop we just removed)
-    const spreadAttrs = attributes.filter(
-      (attr): attr is t.JSXSpreadAttribute => t.isJSXSpreadAttribute(attr),
+    const spreadAttrs = filterWithNarrowing(attributes, (attr) =>
+      t.isJSXSpreadAttribute(attr) ? attr : false,
     );
 
     // Collect remaining non-spread attributes to check for className and style
-    const remainingAttrs = attributes.filter((attr): attr is t.JSXAttribute =>
-      t.isJSXAttribute(attr),
+    const remainingAttrs = filterWithNarrowing(attributes, (attr) =>
+      t.isJSXAttribute(attr) ? attr : false,
     );
 
-    const classNameAttr = remainingAttrs.find(
-      (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'className',
+    const classNameAttr = findWithNarrowing(remainingAttrs, (attr) =>
+      t.isJSXIdentifier(attr.name) && attr.name.name === 'className' ? attr : false,
     );
 
-    const styleAttr = remainingAttrs.find(
-      (attr) => t.isJSXIdentifier(attr.name) && attr.name.name === 'style',
+    const styleAttr = findWithNarrowing(remainingAttrs, (attr) =>
+      t.isJSXIdentifier(attr.name) && attr.name.name === 'style' ? attr : false,
     );
 
     // Create the setProps arguments
@@ -378,10 +384,10 @@ export function handleJsxDynamicColorProp(
       t.jsxSpreadAttribute(setPropsCall),
     );
   } else if (t.isArrayExpression(expression)) {
-    // Multiple dynamic colors: dynamicColor={[color1, color2]}
+    // Multiple dynamic colors: `dynamicColor={[color1, color2]}`
     // Transform to nested _sp calls
-    const colorElements = expression.elements.filter((el): el is t.Identifier =>
-      t.isIdentifier(el),
+    const colorElements = filterWithNarrowing(expression.elements, (el) =>
+      t.isIdentifier(el) ? el : false,
     );
 
     if (colorElements.length === 0) {
@@ -399,23 +405,25 @@ export function handleJsxDynamicColorProp(
     }
 
     // Check for spread props
-    const spreadAttrs = attributes.filter(
-      (attr): attr is t.JSXSpreadAttribute => t.isJSXSpreadAttribute(attr),
+    const spreadAttrs = filterWithNarrowing(attributes, (attr) =>
+      t.isJSXSpreadAttribute(attr) ? attr : false,
     );
 
     // Get className and style attributes
-    const classNameAttr = attributes.find(
-      (attr): attr is t.JSXAttribute =>
-        t.isJSXAttribute(attr)
-        && t.isJSXIdentifier(attr.name)
-        && attr.name.name === 'className',
+    const classNameAttr = findWithNarrowing(attributes, (attr) =>
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+        ? attr
+        : false,
     );
 
-    const styleAttr = attributes.find(
-      (attr): attr is t.JSXAttribute =>
-        t.isJSXAttribute(attr)
-        && t.isJSXIdentifier(attr.name)
-        && attr.name.name === 'style',
+    const styleAttr = findWithNarrowing(attributes, (attr) =>
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'style'
+        ? attr
+        : false,
     );
 
     // Get the element name to check if it's a styled component

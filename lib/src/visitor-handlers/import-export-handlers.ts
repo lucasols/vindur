@@ -45,7 +45,6 @@ export function handleFunctionImports(
   const { state, importedFunctions, debug, importAliasesArray } = handlerContext;
   
   const source = path.node.source.value;
-  if (typeof source !== 'string') return;
 
   const resolvedPath = resolveImportPath(source, importAliasesArray);
   

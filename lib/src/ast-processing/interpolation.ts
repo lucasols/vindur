@@ -16,6 +16,7 @@ import { getOrExtractFileData } from './file-processing';
 
 function isExtensionResult(
   result: string | { type: 'extension'; className: string },
+// eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for interpolation result discrimination
 ): result is { type: 'extension'; className: string } {
   return typeof result === 'object' && 'type' in result;
 }

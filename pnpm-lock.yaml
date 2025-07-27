@@ -56,8 +56,8 @@ importers:
         specifier: ^7.28.0
         version: 7.28.0
       '@ls-stack/extended-lint':
-        specifier: ^0.50.0
-        version: 0.50.0(eslint@9.32.0)(typescript@5.8.3)
+        specifier: ^0.51.0
+        version: 0.51.0(eslint@9.32.0)(typescript@5.8.3)
       '@ls-stack/utils':
         specifier: ^3.17.1
         version: 3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -432,8 +432,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.29':
     resolution: {integrity: sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ==}
 
-  '@ls-stack/extended-lint@0.50.0':
-    resolution: {integrity: sha512-002+FyT2wh9qPvn4EzA2QnhWqaGc2Uns6oe+JvDZxNV5xBqDp9HTnCBKvYd6jX6dteObGv8fCtFOGgMYo4CQ2w==}
+  '@ls-stack/extended-lint@0.51.0':
+    resolution: {integrity: sha512-z4Ppbzk9sVnkCfrL10INX0krDjEh+i8jB9cOaFKUSm3QJf7bcJi6w5TMEG+6nYQgdkM6iUrJOO0/NxyRUnKkmw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       eslint: ^9.9.1
@@ -2289,7 +2289,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.4
 
-  '@ls-stack/extended-lint@0.50.0(eslint@9.32.0)(typescript@5.8.3)':
+  '@ls-stack/extended-lint@0.51.0(eslint@9.32.0)(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/utils': 8.38.0(eslint@9.32.0)(typescript@5.8.3)
       escape-string-regexp: 5.0.0

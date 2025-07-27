@@ -135,7 +135,6 @@ export function handleFunctionImportCleanup(
   context: PostProcessingContext,
 ): boolean {
   const source = path.node.source.value;
-  if (typeof source !== 'string') return false;
 
   // Check if this is a relative import or an alias import that was resolved
   const isRelativeImport = source.startsWith('./') || source.startsWith('../');
@@ -192,16 +191,13 @@ export function cleanupImports(
 ): void {
   file.path.traverse({
     ImportDeclaration(path) {
-      const source = path.node.source.value;
-      if (typeof source === 'string') {
-        // Try vindur imports first
-        if (handleVindurImportCleanup(path, context.state)) {
-          return;
-        }
-
-        // Then try function imports
-        handleFunctionImportCleanup(path, context);
+      // Try vindur imports first
+      if (handleVindurImportCleanup(path, context.state)) {
+        return;
       }
+
+      // Then try function imports
+      handleFunctionImportCleanup(path, context);
     },
   });
 }

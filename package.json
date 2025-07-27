@@ -4,7 +4,7 @@
     "test:watch": "pnpm --filter vindur run test:watch",
     "test:ui": "pnpm --filter vindur run test:ui",
     "build": "pnpm -r run build",
-    "lint": "pnpm -r run lint",
+    "lint-all": "pnpm -r run lint",
     "dev": "pnpm --filter vindur-test-app run dev",
     "lib:build": "pnpm --filter vindur run build",
     "lib:lint": "pnpm --filter vindur run lint",

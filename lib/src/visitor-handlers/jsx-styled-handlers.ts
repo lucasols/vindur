@@ -3,6 +3,7 @@ import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
 import { isDynamicColorSetPropsCall } from './jsx-utils';
+import { filterWithNarrowing } from '../utils';
 
 export function handleJsxStyledComponent(
   path: NodePath<t.JSXElement>,
@@ -37,12 +38,13 @@ export function handleJsxStyledComponent(
 
   // Check if dynamic colors have already been processed by looking for _sp spread calls
   const attributes = path.node.openingElement.attributes;
-  const hasDynamicColorSpread = attributes.some(attr => 
-    t.isJSXSpreadAttribute(attr) && 
-    t.isCallExpression(attr.argument) &&
-    t.isMemberExpression(attr.argument.callee) &&
-    t.isIdentifier(attr.argument.callee.property) &&
-    attr.argument.callee.property.name === '_sp'
+  const hasDynamicColorSpread = attributes.some(
+    (attr) =>
+      t.isJSXSpreadAttribute(attr)
+      && t.isCallExpression(attr.argument)
+      && t.isMemberExpression(attr.argument.callee)
+      && t.isIdentifier(attr.argument.callee.property)
+      && attr.argument.callee.property.name === '_sp',
   );
 
   // Only run className merging if dynamic colors haven't already handled it
@@ -60,8 +62,8 @@ function handleJsxClassNameMerging(
 ): void {
   // Check for spread attributes
   const attributes = path.node.openingElement.attributes;
-  const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
-    t.isJSXSpreadAttribute(attr),
+  const spreadAttrs = filterWithNarrowing(attributes, (attr) =>
+    t.isJSXSpreadAttribute(attr) ? attr : false,
   );
 
   // Validate spread expressions - only allow simple identifiers or dynamic color setProps calls
@@ -77,11 +79,12 @@ function handleJsxClassNameMerging(
     }
   }
 
-  const classNameAttrs = attributes.filter(
-    (attr): attr is t.JSXAttribute =>
-      t.isJSXAttribute(attr)
-      && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'className',
+  const classNameAttrs = filterWithNarrowing(attributes, (attr) =>
+    t.isJSXAttribute(attr)
+    && t.isJSXIdentifier(attr.name)
+    && attr.name.name === 'className'
+      ? attr
+      : false,
   );
   const existingClassNameAttr = classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
 
@@ -256,7 +259,7 @@ function createMergeWithSpreadCall(
     // Create the mergeClassNames call based on SPEC format
     let mergeCall: t.CallExpression;
     if (t.isStringLiteral(existingClassNameAttr.value)) {
-      // For string literals: mergeClassNames(["className", ...spreads], styledClassName)
+      // For string literals: `mergeClassNames(["className", ...spreads], styledClassName)`
       mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
         t.arrayExpression([
           t.stringLiteral(existingClassNameAttr.value.value),

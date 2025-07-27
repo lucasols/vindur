@@ -1,5 +1,6 @@
 import { types as t } from '@babel/core';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
+import { filterWithNarrowing } from './utils';
 import type {
   CompiledFunction,
   FunctionArg,
@@ -86,7 +87,7 @@ export function parseFunction(
     return { name: 'unknown', type: 'string', defaultValue: undefined, optional: false };
   });
 
-  const validParameterNames = new Set(args.map(arg => arg.name).filter((paramName): paramName is string => Boolean(paramName)));
+  const validParameterNames = new Set(filterWithNarrowing(args.map(arg => arg.name), (paramName) => typeof paramName === 'string' ? paramName : false));
   const output = parseTemplateOutput(fnExpression.body, name, validParameterNames);
   return { type: 'positional', args, output };
 }
@@ -313,8 +314,10 @@ function validateTemplateExpressionDuringParsing(
   }
 }
 
+ 
 function isValidComparisonOperator(
   operator: string,
+// eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for operator validation
 ): operator is '===' | '!==' | '>' | '<' | '>=' | '<=' {
   return ['===', '!==', '>', '<', '>=', '<='].includes(operator);
 }

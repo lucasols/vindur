@@ -9,9 +9,14 @@
       "script": "lib:test:ui"
     },
     {
-      "label": "lint",
+      "label": "lib lint",
       "type": "npm",
-      "script": "lint"
+      "script": "lib:lint"
+    },
+    {
+      "label": "lint all",
+      "type": "npm",
+      "script": "lint-all"
     }
   ]
 }
