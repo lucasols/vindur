@@ -90,9 +90,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const secondaryColor = createDynamicCssColor("v1560qbr-2");
       const Component = () => {
         return (
-          <div
-            {...primaryColor.setProps("#ff6b6b", secondaryColor.setProps("#ff6b6b"))}
-          >
+          <div {...primaryColor._sp("#ff6b6b", secondaryColor._sp("#ff6b6b"))}>
             <div className="v1560qbr-3">Multiple colors with cross-references</div>
           </div>
         );
