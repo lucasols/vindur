@@ -170,3 +170,8 @@ When implementing features:
 
 - `overrideDefaultFs` should use `createFsMock`
 - do not use `overrideDefaultFs` and `overrideDefaultImportAliases` when using the default values
+
+## Code Optimization Memories
+
+- Use `filterWithNarrowing` instead of type guards on array.map
+- Use `findWithNarrowing` instead of type guards on array.find

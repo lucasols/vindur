@@ -7,6 +7,11 @@
       "label": "test UI",
       "type": "npm",
       "script": "lib:test:ui"
+    },
+    {
+      "label": "lint",
+      "type": "npm",
+      "script": "lint"
     }
   ]
 }

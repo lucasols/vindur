@@ -3,6 +3,7 @@ import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
 import { processStyledTemplate } from '../css-processing';
+import { filterWithNarrowing } from '../utils';
 
 export function handleJsxCssProp(
   path: NodePath<t.JSXElement>,
@@ -141,18 +142,19 @@ function addCssClassNameToJsx(
   const attributes = path.node.openingElement.attributes;
 
   // Check for spread attributes
-  const spreadAttrs = attributes.filter((attr): attr is t.JSXSpreadAttribute =>
-    t.isJSXSpreadAttribute(attr),
-  );
+  const spreadAttrs = attributes.filter((attr) => t.isJSXSpreadAttribute(attr));
 
-  const classNameAttrs = attributes.filter(
-    (attr): attr is t.JSXAttribute =>
+  const classNameAttrs = filterWithNarrowing(attributes, (attr) =>
+    (
       t.isJSXAttribute(attr)
       && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'className',
+      && attr.name.name === 'className'
+    ) ?
+      attr
+    : false,
   );
 
-  const lastClassNameAttr = classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
+  const lastClassNameAttr = classNameAttrs.at(-1); // Get the last className attr
 
   // Build the final CSS classes to add
   let finalCssClasses = '';

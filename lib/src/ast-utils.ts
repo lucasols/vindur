@@ -3,29 +3,44 @@ import { types as t, type NodePath } from '@babel/core';
 export type FunctionValueTypes = 'string' | 'number' | 'boolean';
 
 // Utility functions for AST node handling
-export function extractLiteralValue(node: t.Node): string | number | boolean | null {
+export function extractLiteralValue(
+  node: t.Node,
+): string | number | boolean | null {
   if (t.isStringLiteral(node)) return node.value;
   if (t.isNumericLiteral(node)) return node.value;
   if (t.isBooleanLiteral(node)) return node.value;
   return null;
 }
 
-export function getLiteralValueType(value: string | number | boolean | null): FunctionValueTypes {
+export function getLiteralValueType(
+  value: string | number | boolean | null,
+): FunctionValueTypes {
   const type = typeof value;
-  return (type === 'string' || type === 'number' || type === 'boolean') ? type : 'string';
+  return type === 'string' || type === 'number' || type === 'boolean' ?
+      type
+    : 'string';
 }
 
-export function isLiteralExpression(node: t.Node): node is t.StringLiteral | t.NumericLiteral | t.BooleanLiteral {
-  return t.isStringLiteral(node) || t.isNumericLiteral(node) || t.isBooleanLiteral(node);
+export function isLiteralExpression(
+  node: t.Node,
+): node is t.StringLiteral | t.NumericLiteral | t.BooleanLiteral {
+  return (
+    t.isStringLiteral(node)
+    || t.isNumericLiteral(node)
+    || t.isBooleanLiteral(node)
+  );
 }
 
-export function extractArgumentValue(arg: t.Expression, path?: NodePath): { value: string | number | boolean | null; resolved: boolean } {
+export function extractArgumentValue(
+  arg: t.Expression,
+  path?: NodePath,
+): { value: string | number | boolean | null; resolved: boolean } {
   // First try to get literal value
   const literalValue = extractLiteralValue(arg);
   if (literalValue !== null) {
     return { value: literalValue, resolved: true };
   }
-  
+
   // If it's an identifier and we have a path, try to resolve the variable
   if (t.isIdentifier(arg) && path) {
     const resolvedValue = resolveVariable(arg.name, path);
@@ -38,7 +53,7 @@ export function extractArgumentValue(arg: t.Expression, path?: NodePath): { valu
       return { value: resolvedValue, resolved: true };
     }
   }
-  
+
   // If it's a binary expression and we have a path, try to resolve it
   if (t.isBinaryExpression(arg) && path) {
     const resolvedValue = resolveBinaryExpression(arg, path);
@@ -51,7 +66,7 @@ export function extractArgumentValue(arg: t.Expression, path?: NodePath): { valu
       return { value: resolvedValue, resolved: true };
     }
   }
-  
+
   return { value: null, resolved: false };
 }
 
@@ -171,3 +186,5 @@ function resolveTemplateLiteral(
 
   return result;
 }
+
+
