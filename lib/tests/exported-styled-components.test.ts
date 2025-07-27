@@ -1,6 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from './testUtils';
+import { transform } from '../src/transform';
+import { transformWithFormat, createFsMock } from './testUtils';
 
 describe('Exported styled components', () => {
   test('should transform exported styled component to styledComponent function', async () => {
@@ -423,6 +424,55 @@ describe('Exported styled components', () => {
         & .v1560qbr-1-Button:hover {
           background: #0056b3;
         }
+      }"
+    `);
+  });
+
+  test('should handle exported styled components with vindur functions', () => {
+    const mockFS = createFsMock({
+      'main.ts': `
+        import { styled } from 'vindur'
+        import { getSpacing } from '@utils/spacing'
+
+        export const Button = styled.button\`
+          background: #007bff;
+          color: white;
+          padding: \${getSpacing(2)} \${getSpacing(3)};
+          margin: \${getSpacing(1)};
+        \`
+      `,
+      src: {
+        utils: {
+          'spacing.ts': `
+            import { vindurFn } from 'vindur'
+
+            export const getSpacing = vindurFn((multiplier: number) => 
+              \`\${multiplier * 8}px\`
+            );
+          `,
+        },
+      },
+    });
+
+    const result = transform({
+      fileAbsPath: '/main.ts',
+      source: mockFS.readFile('/main.ts'),
+      fs: mockFS,
+      importAliases: { '@utils': '/src/utils' },
+      dev: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { styledComponent } from 'vindur';
+      export const Button = styledComponent("button", "v1mq0rjp-1-Button");"
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1mq0rjp-1-Button {
+        background: #007bff;
+                color: white;
+                padding: 16px 24px;
+                margin: 8px;
       }"
     `);
   });
