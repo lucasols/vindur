@@ -340,7 +340,12 @@ export function handleJsxDynamicColorProp(
       // Check if className comes before any spread props (needs merging)
       const classNameIndex = classNameAttr ? attributes.indexOf(classNameAttr) : -1;
       const firstSpreadIndex = spreadAttrs.length > 0 ? attributes.indexOf(spreadAttrs[0]) : -1;
-      const needsMerging = spreadAttrs.length > 0 && classNameIndex !== -1 && classNameIndex < firstSpreadIndex;
+      const needsMerging = spreadAttrs.length > 0 && (
+        // Explicit className comes before spread props
+        (classNameIndex !== -1 && classNameIndex < firstSpreadIndex) ||
+        // Styled component with spread props (always needs merging)
+        (targetClassName && classNameIndex === -1)
+      );
       
       if (needsMerging) {
         // Use mergeClassNames when className comes before spread props
@@ -445,27 +450,65 @@ export function handleJsxDynamicColorProp(
       }
     }
 
-    // Handle style - don't merge with spread props by default
-    if (styleAttr) {
-      // Keep existing style
-      let styleValue;
-      if (t.isJSXExpressionContainer(styleAttr.value) && 
-          styleAttr.value.expression && 
-          !t.isJSXEmptyExpression(styleAttr.value.expression)) {
-        styleValue = styleAttr.value.expression;
-      } else if (t.isStringLiteral(styleAttr.value)) {
-        styleValue = styleAttr.value;
+    // Handle style merging when there are spread props
+    if (spreadAttrs.length > 0 && !styleAttr) {
+      // Add mergeStyles for spread props when no explicit style
+      context.state.vindurImports.add('mergeStyles');
+      const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+        t.arrayExpression(spreadAttrs.map(attr => attr.argument))
+      ]);
+      objectProperties.push(
+        t.objectProperty(t.identifier('style'), mergeStylesCall)
+      );
+    } else if (styleAttr) {
+      // Handle explicit style
+      const styleIndex = styleAttr ? attributes.indexOf(styleAttr) : -1;
+      const styleNeedsMerging = spreadAttrs.length > 0 && styleIndex !== -1 && styleIndex < firstSpreadIndex;
+      
+      if (styleNeedsMerging) {
+        // Merge style with spread props
+        context.state.vindurImports.add('mergeStyles');
+        let styleValue;
+        if (t.isJSXExpressionContainer(styleAttr.value) && 
+            styleAttr.value.expression && 
+            !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+          styleValue = styleAttr.value.expression;
+        } else if (t.isStringLiteral(styleAttr.value)) {
+          styleValue = styleAttr.value;
+        } else {
+          styleValue = t.objectExpression([]);
+        }
+        
+        const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+          t.arrayExpression([
+            ...spreadAttrs.map(attr => attr.argument),
+            styleValue
+          ])
+        ]);
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), mergeStylesCall)
+        );
       } else {
-        styleValue = t.objectExpression([]);
+        // Simple style handling
+        let styleValue;
+        if (t.isJSXExpressionContainer(styleAttr.value) && 
+            styleAttr.value.expression && 
+            !t.isJSXEmptyExpression(styleAttr.value.expression)) {
+          styleValue = styleAttr.value.expression;
+        } else if (t.isStringLiteral(styleAttr.value)) {
+          styleValue = styleAttr.value;
+        } else {
+          styleValue = t.objectExpression([]);
+        }
+        
+        objectProperties.push(
+          t.objectProperty(t.identifier('style'), styleValue)
+        );
       }
       
-      objectProperties.push(
-        t.objectProperty(t.identifier('style'), styleValue)
-      );
-      
       // Remove the style attribute since we're handling it
-      const styleIndex = attributes.indexOf(styleAttr);
-      attributes.splice(styleIndex, 1);
+      const currentStyleIndex = attributes.indexOf(styleAttr);
+      attributes.splice(currentStyleIndex, 1);
     }
 
     // Don't remove spread attributes - they should stay for normal prop spreading

@@ -168,6 +168,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
               "#ff6b6b",
               secondaryColor.setProps("#ff6b6b", {
                 className: mergeClassNames([cardProps, styleProps], "v1560qbr-3"),
+                style: mergeStyles([cardProps, styleProps]),
               }),
             )}
             onClick={() => console.log("clicked")}
