@@ -115,8 +115,14 @@ Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directo
 
 ```bash
 cd lib
-pnpm test         # Run tests
-pnpm test tests/filename.test.ts       # Run tests for a specific file
+# Run all tests
+pnpm test
+
+# Run tests for a specific file
+pnpm test tests/filename.test.ts
+
+# Run a specific test matching a pattern
+pnpm test tests/filename.test.ts -t "test name pattern"
 ```
 
 - Prefer using `toMatchInlineSnapshot` when possible
@@ -127,8 +133,14 @@ End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from 
 
 ```bash
 cd e2e-tests
-pnpm test         # Run tests
-pnpm test tests/filename.spec.ts       # Run tests for a specific file
+# Run all tests
+pnpm test
+
+# Run tests for a specific file
+pnpm test tests/filename.spec.ts
+
+# Run a specific test matching a pattern
+pnpm test tests/filename.spec.ts --grep "test name pattern"
 ```
 
 IMPORTANT: Playwright tests already have a 10s timeout configured
