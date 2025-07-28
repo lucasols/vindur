@@ -25,16 +25,19 @@ type TempFile = {
   move: (newPath: string) => void;
 };
 
-export async function startEnv(
-  testId: string,
-  initialFiles: Record<string, string> & { 'App.tsx': string },
-): Promise<{
+export type TestEnv = {
   baseUrl: string;
   getFile: (relativePath: string) => TempFile;
   createFile: (relativePath: string, content: string) => TempFile;
   getGeneratedCode: () => Promise<string>;
+  cleanup: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
-}> {
+};
+
+export async function startEnv(
+  testId: string,
+  initialFiles: Record<string, string> & { 'App.tsx': string },
+): Promise<TestEnv> {
   const baseCodeDir = path.join(__dirname, '..', 'base-code');
   const testsRunsDir = path.join(__dirname, '..', 'test-runs');
 
@@ -158,6 +161,7 @@ export async function startEnv(
     getFile,
     createFile,
     getGeneratedCode,
+    cleanup,
     [Symbol.asyncDispose]: cleanup,
   };
 }

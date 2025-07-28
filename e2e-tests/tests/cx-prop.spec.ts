@@ -1,176 +1,95 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { expect, test } from '@playwright/test';
-import { startEnv } from '../utils/startEnv';
+import { expect, test, type Page } from '@playwright/test';
+import { startEnv, type TestEnv } from '../utils/startEnv';
 
 test.describe('cx prop', () => {
-  test('should handle conditional classes with cx prop', async ({ page }) => {
-    await using env = await startEnv('cx-prop-conditional', {
+  test.describe.configure({ mode: 'serial' });
+
+  let env: TestEnv;
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+    env = await startEnv('cx-prop-tests', {
       'App.tsx': dedent`
-        import { css } from "vindur";
-
-        const activeClass = css\`
-          background: #007bff;
-          color: white;
-        \`;
-
-        const disabledClass = css\`
-          opacity: 0.5;
-          cursor: not-allowed;
-        \`;
-
-        const largeClass = css\`
-          font-size: 20px;
-          padding: 12px 24px;
-        \`;
-
-        export default function App() {
-          const isActive = true;
-          const isDisabled = false;
-          const isLarge = true;
-
-          return (
-            <div>
-              <button cx={{
-                [activeClass]: isActive,
-                [disabledClass]: isDisabled,
-                [largeClass]: isLarge,
-              }}>
-                Conditional Button
-              </button>
-      
-              <button cx={{
-                [activeClass]: !isActive,
-                [disabledClass]: !isDisabled,
-                [largeClass]: false,
-              }}>
-                Inverted Button
-              </button>
-            </div>
-          );
-        }
-      `,
-    });
-
-    await page.goto(env.baseUrl);
-
-    const firstButton = page.locator('button').first();
-    await expect(firstButton).toHaveCSS('background-color', 'rgb(0, 123, 255)');
-    await expect(firstButton).toHaveCSS('color', 'rgb(255, 255, 255)');
-    await expect(firstButton).toHaveCSS('font-size', '20px');
-    await expect(firstButton).toHaveCSS('padding', '12px 24px');
-
-    const secondButton = page.locator('button').nth(1);
-    await expect(secondButton).toHaveCSS('opacity', '0.5');
-    await expect(secondButton).toHaveCSS('cursor', 'not-allowed');
-    await expect(secondButton).not.toHaveCSS(
-      'background-color',
-      'rgb(0, 123, 255)',
-    );
-  });
-
-  test('should handle cx prop with unhashed classes', async ({ page }) => {
-    await using env = await startEnv('cx-prop-unhashed', {
-      'App.tsx': dedent`
-        import { css } from "vindur";
-
-        const primaryClass = css\`
-          background: #007bff;
-          color: white;
-          padding: 8px 16px;
-        \`;
-
-        export default function App() {
-          return (
-            <div>
-              <div cx={{
-                [primaryClass]: true,
-                $container: true,
-                $flexbox: true,
-                $hidden: false,
-              }}>
-                With external classes
-              </div>
-      
-              <div 
-                className="existing-class"
-                cx={{
-                  [primaryClass]: true,
-                  $additionalClass: true,
-                }}
-              >
-                Merged with className
-              </div>
-            </div>
-          );
-        }
-      `,
-    });
-
-    await page.goto(env.baseUrl);
-
-    const firstDiv = page.locator('div').nth(1);
-    await expect(firstDiv).toHaveClass(/container/);
-    await expect(firstDiv).toHaveClass(/flexbox/);
-    await expect(firstDiv).not.toHaveClass(/hidden/);
-    await expect(firstDiv).toHaveCSS('background-color', 'rgb(0, 123, 255)');
-
-    const secondDiv = page.locator('div').nth(2);
-    await expect(secondDiv).toHaveClass(/existing-class/);
-    await expect(secondDiv).toHaveClass(/additionalClass/);
-    await expect(secondDiv).toHaveCSS('background-color', 'rgb(0, 123, 255)');
-  });
-
-  test('should handle cx prop on styled components', async ({ page }) => {
-    await using env = await startEnv('cx-prop-styled', {
-      'App.tsx': dedent`
-        import { css, styled } from "vindur";
+        import { styled, css } from "vindur";
 
         const Button = styled.button\`
           padding: 8px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-        \`;
 
-        const primaryVariant = css\`
-          background: #007bff;
-          color: white;
-  
-          &:hover {
-            background: #0056b3;
+          &.active {
+            background: #007bff;
+          }
+
+          &.large {
+            font-size: 20px;
           }
         \`;
 
-        const outlineVariant = css\`
-          background: transparent;
-          color: #007bff;
-          border: 2px solid #007bff;
-  
-          &:hover {
-            background: #007bff;
-            color: white;
+        const baseStyles = css\`
+          padding: 10px;
+
+          &.highlighted {
+            background: #f0f8ff;
+          }
+
+          &.bold {
+            font-weight: bold;
           }
         \`;
 
         export default function App() {
           return (
             <div>
-              <Button cx={{ [primaryVariant]: true }}>
-                Primary
+              <Button 
+                data-testid="conditional-button"
+                cx={{
+                  active: true,
+                  large: true,
+                }}
+              >
+                Active Large Button
               </Button>
       
-              <Button cx={{ [outlineVariant]: true }}>
-                Outline
+              <Button 
+                data-testid="unhashed-button"
+                cx={{
+                  active: false,
+                  $external: true,
+                }}
+              >
+                External Class Button
               </Button>
-      
-              <Button cx={{ 
-                [primaryVariant]: false,
-                [outlineVariant]: false,
-                $defaultButton: true 
-              }}>
-                Default
+
+              <Button 
+                data-testid="merged-button"
+                className="existing"
+                cx={{ active: true, $custom: true }}
+              >
+                Merged Classes
               </Button>
+
+              <div 
+                data-testid="css-function-element"
+                className={baseStyles}
+                cx={{
+                  highlighted: true,
+                  bold: true,
+                }}
+              >
+                CSS Function with CX
+              </div>
+
+              <div 
+                data-testid="css-function-mixed"
+                className={baseStyles}
+                cx={{
+                  highlighted: false,
+                  $utility: true,
+                }}
+              >
+                CSS Function Mixed
+              </div>
             </div>
           );
         }
@@ -178,26 +97,46 @@ test.describe('cx prop', () => {
     });
 
     await page.goto(env.baseUrl);
+  });
 
-    const primaryButton = page.locator('button').first();
-    await expect(primaryButton).toHaveCSS(
+  test.afterAll(async () => {
+    await page.close();
+    await env.cleanup();
+  });
+
+  test('should apply conditional classes', async () => {
+    const button = page.getByTestId('conditional-button');
+    await expect(button).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+    await expect(button).toHaveCSS('font-size', '20px');
+  });
+
+  test('should handle unhashed classes with $ prefix', async () => {
+    const button = page.getByTestId('unhashed-button');
+    await expect(button).toHaveClass(/external/);
+    await expect(button).not.toHaveCSS('background-color', 'rgb(0, 123, 255)');
+  });
+
+  test('should merge with existing className', async () => {
+    const button = page.getByTestId('merged-button');
+    await expect(button).toHaveClass(/existing/);
+    await expect(button).toHaveClass(/custom/);
+    await expect(button).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+  });
+
+  test('should work with css function', async () => {
+    const element = page.getByTestId('css-function-element');
+    await expect(element).toHaveCSS('padding', '10px');
+    await expect(element).toHaveCSS('background-color', 'rgb(240, 248, 255)');
+    await expect(element).toHaveCSS('font-weight', '700');
+  });
+
+  test('should handle css function with mixed classes', async () => {
+    const element = page.getByTestId('css-function-mixed');
+    await expect(element).toHaveCSS('padding', '10px');
+    await expect(element).toHaveClass(/utility/);
+    await expect(element).not.toHaveCSS(
       'background-color',
-      'rgb(0, 123, 255)',
+      'rgb(240, 248, 255)',
     );
-    await expect(primaryButton).toHaveCSS('color', 'rgb(255, 255, 255)');
-
-    const outlineButton = page.locator('button').nth(1);
-    await expect(outlineButton).toHaveCSS(
-      'background-color',
-      'rgba(0, 0, 0, 0)',
-    );
-    await expect(outlineButton).toHaveCSS('color', 'rgb(0, 123, 255)');
-    await expect(outlineButton).toHaveCSS(
-      'border',
-      '2px solid rgb(0, 123, 255)',
-    );
-
-    const defaultButton = page.locator('button').nth(2);
-    await expect(defaultButton).toHaveClass(/defaultButton/);
   });
 });

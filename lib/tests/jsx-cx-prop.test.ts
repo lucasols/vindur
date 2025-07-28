@@ -38,6 +38,22 @@ describe('JSX cx prop transformation', () => {
         }),
       ).rejects.toThrow('cx prop only accepts object expressions');
     });
+
+    test('should throw error for computed properties', async () => {
+      await expect(
+        transformWithFormat({
+          source: dedent`
+            import { css, cx } from 'vindur';
+
+            const activeClass = css\`background: blue;\`;
+
+            function Component() {
+              return <div cx={{ [activeClass]: true }} />;
+            }
+          `,
+        }),
+      ).rejects.toThrow('cx prop object must only contain non-computed properties');
+    });
   });
 
   // Object-based Conditional Classes
