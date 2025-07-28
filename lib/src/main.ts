@@ -460,8 +460,7 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
  * Check {@link https://github.com/JedWatson/classnames} for api reference
  */
 export function stableId(): string {
-  console.error('stableId cannot be called at runtime');
-  return '';
+  throw new Error('stableId cannot be called at runtime');
 }
 
 export function createClassName(id?: string): {
@@ -471,8 +470,7 @@ export function createClassName(id?: string): {
   if (id) {
     return { selector: `.${id}`, value: id };
   }
-  console.error('createClassName cannot be called at runtime');
-  return { selector: '', value: '' };
+  throw new Error('createClassName cannot be called at runtime');
 }
 
 export function cx(

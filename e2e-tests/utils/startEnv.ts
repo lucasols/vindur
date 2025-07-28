@@ -80,8 +80,9 @@ export async function startEnv(
     plugins: [
       react(),
       vindurPlugin({
+        debugLogs: true,
         importAliases: {
-          '#src': '/src',
+          '#src': tempDir,
         },
       }),
     ],
@@ -89,7 +90,7 @@ export async function startEnv(
     root: tempDir,
     resolve: {
       alias: {
-        '#src': '/src',
+        '#src': tempDir,
       },
     },
     server: {
