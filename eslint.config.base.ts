@@ -12,7 +12,22 @@ export const ERROR = 2;
 export const ERROR_IN_CI = isCI ? ERROR : WARN;
 export const ERROR_IN_CI_ONLY = isCI ? ERROR : 0;
 
-export function createBaseConfig() {
+type RuleLevel = 0 | 1 | 2;
+type RuleEntry = RuleLevel | [RuleLevel, ...unknown[]];
+
+export function createBaseConfig({
+  globalRules = {},
+  extraRuleGroups,
+}: {
+  globalRules?: Record<string, RuleEntry>;
+  extraRuleGroups?: [
+    {
+      plugins?: Record<string, any>;
+      files: string[];
+      rules: Record<string, RuleEntry>;
+    },
+  ];
+} = {}) {
   return tseslint.config(
     js.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
@@ -163,6 +178,7 @@ export function createBaseConfig() {
         'unicorn/no-array-reduce': [ERROR, { allowSimpleOperations: true }],
         'unicorn/no-array-for-each': ERROR,
         'unicorn/template-indent': [WARN, { tags: ['dedent'] }],
+        ...globalRules,
       },
     },
     {
@@ -174,6 +190,7 @@ export function createBaseConfig() {
         ],
       },
     },
+    ...(extraRuleGroups || []),
     {
       ignores: ['dist/**', 'build/**', 'node_modules/**'],
     },

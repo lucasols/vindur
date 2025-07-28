@@ -1,12 +1,11 @@
 {
   "scripts": {
-    "test": "pnpm -r run test",
-    "test:watch": "pnpm --filter vindur run test:watch",
-    "test:ui": "pnpm --filter vindur run test:ui",
-    "build-all": "pnpm -r run build",
-    "lint-all": "pnpm -r run lint",
-    "format-all": "pnpm -r run format",
-    "format-all:check": "pnpm -r run format:check",
+    "test-all": "pnpm -r --no-bail run test",
+    "build-all": "pnpm -r --no-bail run build",
+    "lint-all": "pnpm -r --no-bail run lint",
+    "format-all": "pnpm -r --no-bail run format",
+    "format-all:check": "pnpm -r --no-bail run format:check",
+    "eslint-all": "pnpm -r --no-bail run eslint",
     "lib:build": "pnpm --filter vindur run build",
     "lib:lint": "pnpm --filter vindur run lint",
     "lib:test": "pnpm --filter vindur run test",
