@@ -25,13 +25,14 @@ describe('variable references in function calls', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         width: 24px;
       }"
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const mySize = 24;
-      const style = "vwmy4ur-1";"
+      const style = "v1560qbr-1-style";
+      "
     `);
   });
 
@@ -61,7 +62,7 @@ describe('variable references in function calls', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         margin: 16px;
         padding: 8px;
       }"
@@ -69,7 +70,8 @@ describe('variable references in function calls', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const baseUnit = 8;
       const scale = 2;
-      const style = "vwmy4ur-1";"
+      const style = "v1560qbr-1-style";
+      "
     `);
   });
 
@@ -95,13 +97,14 @@ describe('variable references in function calls', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         color: blue;
       }"
     `);
     expect(result.code).toMatchInlineSnapshot(`
-      "const primaryColor = 'blue';
-      const style = "vwmy4ur-1";"
+      "const primaryColor = "blue";
+      const style = "v1560qbr-1-style";
+      "
     `);
   });
 
@@ -131,15 +134,16 @@ describe('variable references in function calls', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         border: 2px solid red;
       }"
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const borderWidth = 2;
-      const borderStyle = 'solid';
-      const borderColor = 'red';
-      const style = "vwmy4ur-1";"
+      const borderStyle = "solid";
+      const borderColor = "red";
+      const style = "v1560qbr-1-style";
+      "
     `);
   });
 
@@ -167,15 +171,16 @@ describe('variable references in function calls', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         content: "Hello World";
       }"
     `);
     expect(result.code).toMatchInlineSnapshot(`
-      "const prefix = 'Hello';
-      const suffix = 'World';
+      "const prefix = "Hello";
+      const suffix = "World";
       const message = \`\${prefix} \${suffix}\`;
-      const style = "vwmy4ur-1";"
+      const style = "v1560qbr-1-style";
+      "
     `);
   });
 });

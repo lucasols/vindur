@@ -23,11 +23,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         width: 10px;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with multiple params', async () => {
@@ -52,11 +55,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         margin: 10px 20px 30px 40px;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with destructured object param', async () => {
@@ -84,14 +90,17 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         display: flex;
         justify-content: flex-start;
         align-items: center;
         gap: 10px;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with no parameters', async () => {
@@ -119,14 +128,17 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
         color: red;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function returning static string', async () => {
@@ -149,11 +161,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         border: 1px solid black;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with simple conditional', async () => {
@@ -178,11 +193,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         padding: large;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('multiple functions in one file', async () => {
@@ -209,13 +227,16 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         font-size: 24px;
         width: 50%;
         background: red;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with mixed parameter types', async () => {
@@ -238,11 +259,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with all default values used', async () => {
@@ -277,7 +301,7 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         background: blue;
         color: white;
         padding: 8px 16px;
@@ -286,7 +310,10 @@ describe('function evaluation - basic functionality', () => {
         cursor: pointer;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with simple interpolation', async () => {
@@ -313,13 +340,16 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 16px;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with simple ternary expressions', async () => {
@@ -345,12 +375,15 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         background: secondary;
         opacity: 1;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with partial parameter override', async () => {
@@ -383,14 +416,17 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         background: #f8f9fa;
         border-radius: 8px;
         padding: 16px;
         box-shadow: large;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with return statement syntax', async () => {
@@ -416,12 +452,15 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         transition: opacity 300ms ease-in-out;
         opacity: 0.5;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('simple template literal in ternary', async () => {
@@ -447,11 +486,14 @@ describe('function evaluation - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         display: block;
         width: 100px;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 });

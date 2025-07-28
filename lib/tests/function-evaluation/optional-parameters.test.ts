@@ -26,12 +26,15 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         margin: 8px;
         color: blue;
       }"
     `);
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
   });
 
   test('function with multiple optional parameters', async () => {
@@ -59,7 +62,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result1.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         width: 100px;
         height: 200px;
         padding: 20px;
@@ -80,7 +83,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result2.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         width: 100px;
         height: 200px;
       }"
@@ -100,7 +103,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result3.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         width: 100px;
       }"
     `);
@@ -132,7 +135,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         display: flex;
       }"
     `);
@@ -159,7 +162,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result1.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         display: none;opacity: 0.5;
       }"
     `);
@@ -178,7 +181,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result2.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         opacity: 0.8;
       }"
     `);
@@ -198,7 +201,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result3.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         color: red;
       }"
     `);
@@ -227,7 +230,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result1.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         border: 2px solid red;
       }"
     `);
@@ -246,7 +249,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result2.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         border: 3px dashed black;
       }"
     `);
@@ -265,7 +268,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result3.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         border-width: 4px;
       }"
     `);
@@ -292,7 +295,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result1.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         margin: 10px;padding: 20px;margin-left: 30px; margin-right: 30px;margin-top: 40px; margin-bottom: 40px;
       }"
     `);
@@ -311,7 +314,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result2.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         padding: 15px;margin-left: 25px; margin-right: 25px;
       }"
     `);
@@ -331,7 +334,7 @@ describe('function evaluation - optional parameters', () => {
     });
 
     expect(result3.css).toMatchInlineSnapshot(`
-      ".vwmy4ur-1 {
+      ".v1560qbr-1-style {
         color: blue;
       }"
     `);
