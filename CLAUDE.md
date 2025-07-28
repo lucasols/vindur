@@ -35,6 +35,7 @@ pnpm test            # Run tests
 pnpm lint            # TypeScript + ESLint
 pnpm build           # Build library
 pnpm tsc             # TypeScript compilation check
+pnpm build           # Build library
 ```
 
 ### Vite Plugin (vite-plugin/)
@@ -44,6 +45,7 @@ cd vite-plugin
 pnpm build           # Build plugin
 pnpm lint            # TypeScript + ESLint
 pnpm tsc             # TypeScript compilation check
+pnpm build           # Build plugin
 ```
 
 ### E2E Tests (e2e-tests/)
