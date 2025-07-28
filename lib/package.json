@@ -39,11 +39,11 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "colord": "catalog:"
+    "colord": "catalog:",
+    "@babel/core": "catalog:",
+    "@babel/generator": "catalog:"
   },
   "devDependencies": {
-    "@babel/core": "catalog:",
-    "@babel/generator": "catalog:",
     "@ls-stack/utils": "catalog:",
     "@types/babel__core": "catalog:",
     "@types/babel__generator": "catalog:",

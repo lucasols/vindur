@@ -1,21 +1,24 @@
-import { Child } from './Child';
+import '#src/globalStyles';
+import { MainLayout } from './components/MainLayout';
+import { CssPropDemo } from './demos/CssPropDemo';
+import { CssTaggedTemplateDemo } from './demos/CssTaggedTemplateDemo';
+import { CxPropDemo } from './demos/CxPropDemo';
+import { KeyframesDemo } from './demos/KeyframesDemo';
+import { ScopedVariablesDemo } from './demos/ScopedVariablesDemo';
+import { StyledComponentsDemo } from './demos/StyledComponentsDemo';
+import { VindurFnDemo } from './demos/VindurFnDemo';
 
 function App() {
-  const array = [1, 2, 3];
-
-  const test = { array };
-
-  function onClick() {
-    console.log('clicked');
-  }
-
   return (
-    <div className="App">
-      <Child
-        test={test}
-        onClick={onClick}
-      />
-    </div>
+    <MainLayout>
+      <CssTaggedTemplateDemo />
+      <StyledComponentsDemo />
+      <CssPropDemo />
+      <CxPropDemo />
+      <VindurFnDemo />
+      <ScopedVariablesDemo />
+      <KeyframesDemo />
+    </MainLayout>
   );
 }
 

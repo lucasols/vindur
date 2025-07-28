@@ -28,6 +28,7 @@
     "prettier": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-inspect": "catalog:"
+    "vite-plugin-inspect": "catalog:",
+    "vindur": "workspace:*"
   }
 }

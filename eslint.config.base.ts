@@ -193,7 +193,11 @@ export function createBaseConfig({
       },
     },
     {
-      files: ['**/eslint.config.ts'],
+      files: [
+        '**/eslint.config.ts',
+        '**/vitest.config.ts',
+        '**/tsup.config.ts',
+      ],
       rules: {
         '@ls-stack/no-default-export': OFF,
       },
