@@ -123,6 +123,9 @@ pnpm test tests/filename.test.ts
 
 # Run a specific test matching a pattern
 pnpm test tests/filename.test.ts -t "test name pattern"
+
+# Use additional arguments supported by Vitest
+pnpm test [...args]
 ```
 
 - Prefer using `toMatchInlineSnapshot` when possible
@@ -144,6 +147,9 @@ pnpm test tests/filename.spec.ts --grep "test name pattern"
 
 # Run with debug logs
 DEBUG=1 pnpm test ...
+
+# Use additional arguments supported by Playwright
+pnpm test [...args]
 ```
 
 IMPORTANT: Playwright tests already have a 10s timeout configured
