@@ -1,13 +1,17 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import type { CssProcessingContext } from '../css-processing';
 import type { VindurPluginState } from '../babel-plugin';
+import type { CssProcessingContext } from '../css-processing';
 import {
   processGlobalStyle,
   processKeyframes,
   processStyledExtension,
   processStyledTemplate,
 } from '../css-processing';
+import {
+  extractStyleFlags,
+  updateCssSelectorsForStyleFlags,
+} from './style-flags-utils';
 
 // Helper function to validate hex colors without alpha
 function isValidHexColorWithoutAlpha(color: string): boolean {
@@ -92,6 +96,11 @@ export function handleStyledElementAssignment(
   // Handle styled.div`` variable assignments
   const varName = path.node.id.name;
   const tagName = path.node.init.tag.property.name;
+
+  // Check for TypeScript generic type parameters (style flags)
+  const typeParameters = path.node.init.typeParameters;
+  const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev);
+
   const result = processStyledTemplate(
     path.node.init.quasi,
     context,
@@ -103,25 +112,68 @@ export function handleStyledElementAssignment(
   );
   classIndex.current++;
 
+  // If we have style flags, update CSS selectors to use hashed class names
+  if (styleFlags) {
+    updateCssSelectorsForStyleFlags(
+      styleFlags,
+      context.state.cssRules,
+      result.finalClassName,
+    );
+  }
+
   // Store the styled component mapping
   const isExported = isVariableExported(varName, path);
   context.state.styledComponents.set(varName, {
     element: tagName,
     className: result.finalClassName,
     isExported,
+    styleFlags,
   });
 
-  // Check if the styled component is exported
-  if (isExported) {
-    // Transform to styledComponent function call
-    context.state.vindurImports.add('styledComponent');
-    path.node.init = t.callExpression(t.identifier('styledComponent'), [
-      t.stringLiteral(tagName),
+  // Transform based on whether we have style flags
+  if (styleFlags) {
+    // Transform to vComponentWithModifiers function call
+    context.state.vindurImports.add('vComponentWithModifiers');
+
+    // Create the modifier array: [["propName", "hashedClassName"], ...]
+    const modifierArray = t.arrayExpression(
+      styleFlags.map((styleProp) => {
+        if (styleProp.type === 'boolean') {
+          return t.arrayExpression([
+            t.stringLiteral(styleProp.propName),
+            t.stringLiteral(styleProp.hashedClassName),
+          ]);
+        } else {
+          // For string union types, include the union values
+          return t.arrayExpression([
+            t.stringLiteral(styleProp.propName),
+            t.stringLiteral(styleProp.hashedClassName),
+            t.arrayExpression(
+              styleProp.unionValues.map((value) => t.stringLiteral(value)),
+            ),
+          ]);
+        }
+      }),
+    );
+
+    path.node.init = t.callExpression(t.identifier('vComponentWithModifiers'), [
+      modifierArray,
       t.stringLiteral(result.finalClassName),
+      t.stringLiteral(tagName),
     ]);
   } else {
-    // Remove the styled component declaration for local components
-    path.remove();
+    // Handle normal styled components (without style flags)
+    if (isExported) {
+      // Transform to styledComponent function call
+      context.state.vindurImports.add('styledComponent');
+      path.node.init = t.callExpression(t.identifier('styledComponent'), [
+        t.stringLiteral(tagName),
+        t.stringLiteral(result.finalClassName),
+      ]);
+    } else {
+      // Remove the styled component declaration for local components
+      path.remove();
+    }
   }
 
   return true;
@@ -460,13 +512,14 @@ export function handleStableIdCall(
 
   // Generate a hash similar to css`` - use fileHash and classIndex
   const classIndex = context.classIndex();
-  const hash = context.dev && varName
-    ? `${context.fileHash}-${varName}-${classIndex}`
+  const hash =
+    context.dev && varName ?
+      `${context.fileHash}-${varName}-${classIndex}`
     : `${context.fileHash}-${classIndex}`;
-  
+
   // Replace the call with a string literal
   path.replaceWith(t.stringLiteral(hash));
-  
+
   return true;
 }
 
@@ -498,31 +551,29 @@ export function handleCreateClassNameCall(
 
   // Generate a hash similar to css`` - use fileHash and classIndex
   const classIndex = context.classIndex();
-  const hash = context.dev && varName
-    ? `${context.fileHash}-${varName}-${classIndex}`
+  const hash =
+    context.dev && varName ?
+      `${context.fileHash}-${varName}-${classIndex}`
     : `${context.fileHash}-${classIndex}`;
-  
+
   // Replace the call with createClassName(hash)
   path.replaceWith(
-    t.callExpression(
-      t.identifier('createClassName'),
-      [t.stringLiteral(hash)],
-    ),
+    t.callExpression(t.identifier('createClassName'), [t.stringLiteral(hash)]),
   );
-  
+
   return true;
 }
 
 function validateCreateClassNameUsage(path: NodePath<t.CallExpression>): void {
   const parent = path.parent;
-  
+
   // Check if it's being destructured
   if (t.isVariableDeclarator(parent) && t.isObjectPattern(parent.id)) {
     throw new Error(
       'createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.',
     );
   }
-  
+
   // Check if it's at module root level
   if (t.isVariableDeclarator(parent)) {
     // Walk up to find the variable declaration
@@ -530,11 +581,14 @@ function validateCreateClassNameUsage(path: NodePath<t.CallExpression>): void {
     while (currentPath && !t.isVariableDeclaration(currentPath.node)) {
       currentPath = currentPath.parentPath;
     }
-    
+
     if (currentPath) {
       // Check if the variable declaration is at the top level (program body)
       const declarationParent = currentPath.parent;
-      if (!t.isProgram(declarationParent) && !t.isExportNamedDeclaration(declarationParent)) {
+      if (
+        !t.isProgram(declarationParent)
+        && !t.isExportNamedDeclaration(declarationParent)
+      ) {
         throw new Error(
           'createClassName() can only be used in variable declarations at the module root level.',
         );

@@ -50,6 +50,7 @@ export function handleVindurImportCleanup(
   let hasMergeStyles = false;
   let hasStyledComponent = false;
   let hasCreateDynamicCssColor = false;
+  let hasVComponentWithModifiers = false;
 
   for (const specifier of path.node.specifiers) {
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
@@ -73,6 +74,11 @@ export function handleVindurImportCleanup(
       } else if (importedName === 'createDynamicCssColor') {
         hasCreateDynamicCssColor = true;
         if (state.vindurImports.has('createDynamicCssColor')) {
+          specifiersToKeep.push(specifier);
+        }
+      } else if (importedName === 'vComponentWithModifiers') {
+        hasVComponentWithModifiers = true;
+        if (state.vindurImports.has('vComponentWithModifiers')) {
           specifiersToKeep.push(specifier);
         }
       }
@@ -110,11 +116,27 @@ export function handleVindurImportCleanup(
   }
 
   // Add createDynamicCssColor import if needed but not already present
-  if (state.vindurImports.has('createDynamicCssColor') && !hasCreateDynamicCssColor) {
+  if (
+    state.vindurImports.has('createDynamicCssColor')
+    && !hasCreateDynamicCssColor
+  ) {
     specifiersToKeep.push(
       t.importSpecifier(
         t.identifier('createDynamicCssColor'),
         t.identifier('createDynamicCssColor'),
+      ),
+    );
+  }
+
+  // Add vComponentWithModifiers import if needed but not already present
+  if (
+    state.vindurImports.has('vComponentWithModifiers')
+    && !hasVComponentWithModifiers
+  ) {
+    specifiersToKeep.push(
+      t.importSpecifier(
+        t.identifier('vComponentWithModifiers'),
+        t.identifier('vComponentWithModifiers'),
       ),
     );
   }
@@ -153,7 +175,7 @@ export function handleFunctionImportCleanup(
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       const importedName = specifier.imported.name;
       const localName = specifier.local.name;
-      
+
       // Remove functions that were used during CSS processing (they're compiled away)
       if (
         context.importedFunctions.has(importedName)

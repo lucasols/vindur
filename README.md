@@ -843,13 +843,14 @@ const App = ({ isActive, isDisabled }) => (
 
 ### Style Flags Props
 
-Create styled components that accept boolean props for conditional styling. This enables automatic modifier class application based on component props.
+Create styled components that accept boolean props and string union props for conditional styling. This enables automatic modifier class application based on component props.
 
 ```tsx
 import { styled } from 'vindur';
 
 const Button = styled.button<{
-  active: boolean;
+  primary: boolean;
+  size: 'small' | 'medium' | 'large';
   disabled: boolean;
 }>`
   padding: 12px 24px;
@@ -859,9 +860,24 @@ const Button = styled.button<{
   border-radius: 4px;
   cursor: pointer;
 
-  &.active {
+  &.primary {
     background: #0056b3;
     transform: scale(1.05);
+  }
+
+  &.size-small {
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  &.size-medium {
+    padding: 12px 24px;
+    font-size: 16px;
+  }
+
+  &.size-large {
+    padding: 18px 36px;
+    font-size: 18px;
   }
 
   &.disabled {
@@ -871,10 +887,11 @@ const Button = styled.button<{
   }
 `;
 
-// Usage with boolean props
-const App = ({ isActive, isDisabled }) => (
+// Usage with boolean and string union props
+const App = ({ isPrimary, buttonSize, isDisabled }) => (
   <Button
-    active={isActive}
+    primary={isPrimary}
+    size={buttonSize}
     disabled={isDisabled}
   >
     Click me
@@ -888,21 +905,48 @@ Compiles to optimized output using modifier class names:
 // Generated component
 const Button = vComponentWithModifiers(
   [
-    ['active', 'classHash-1'],
-    ['disabled', 'classHash-2'],
+    ['primary', 'classHash-1'],
+    ['size', 'classHash-2'],
+    ['disabled', 'classHash-3'],
   ],
   'vhash123-1',
+  'button',
 );
 
 // Component can be used as a normal JSX component
-const App = ({ isActive, isDisabled }) => (
+const App = ({ isPrimary, buttonSize, isDisabled }) => (
   <Button
-    active={isActive}
+    primary={isPrimary}
+    size={buttonSize}
     disabled={isDisabled}
   >
     Click me
   </Button>
 );
+```
+
+The CSS classes are automatically applied based on prop values:
+
+- **Boolean props**: Apply the hashed class when `true` (e.g., `primary={true}` → `classHash-1`)
+- **String union props**: Apply the hashed class with the value suffix (e.g., `size="large"` → `classHash-2-large`)
+
+#### Supported Prop Types
+
+- **Boolean props**: `active: boolean` → applies class when `true`
+- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix
+
+#### CSS Selector Patterns
+
+```css
+/* Boolean props */
+&.propName {
+  /* styles when prop is true */
+}
+
+/* String union props */
+&.propName-value {
+  /* styles when prop equals 'value' */
+}
 ```
 
 ## Theme Colors

@@ -6,38 +6,46 @@ import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-p
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
 import {
-  handleVindurImports,
   handleFunctionImports,
   handleVindurFnExport,
+  handleVindurImports,
 } from './visitor-handlers/import-export-handlers';
-import {
-  handleCssVariableAssignment,
-  handleDynamicCssColorAssignment,
-  handleStyledElementAssignment,
-  handleStyledExtensionAssignment,
-  handleKeyframesVariableAssignment,
-  handleStaticThemeColorsAssignment,
-  handleGlobalStyleVariableAssignment,
-  handleStableIdCall,
-  handleCreateClassNameCall,
-} from './visitor-handlers/variable-handlers';
-import {
-  handleCssTaggedTemplate,
-  handleKeyframesTaggedTemplate,
-  handleGlobalStyleTaggedTemplate,
-  handleInlineStyledError,
-} from './visitor-handlers/template-handlers';
-import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
 import { handleJsxCssProp } from './visitor-handlers/jsx-css-prop-handlers';
 import { handleJsxCxProp } from './visitor-handlers/jsx-cx-prop-handlers';
 import { handleJsxDynamicColorProp } from './visitor-handlers/jsx-dynamic-color-handlers';
+import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
+import {
+  handleCssTaggedTemplate,
+  handleGlobalStyleTaggedTemplate,
+  handleInlineStyledError,
+  handleKeyframesTaggedTemplate,
+} from './visitor-handlers/template-handlers';
+import {
+  handleCreateClassNameCall,
+  handleCssVariableAssignment,
+  handleDynamicCssColorAssignment,
+  handleGlobalStyleVariableAssignment,
+  handleKeyframesVariableAssignment,
+  handleStableIdCall,
+  handleStaticThemeColorsAssignment,
+  handleStyledElementAssignment,
+  handleStyledExtensionAssignment,
+} from './visitor-handlers/variable-handlers';
 
 export type DebugLogger = { log: (message: string) => void };
 
 export type VindurPluginState = {
   cssRules: string[];
   vindurImports: Set<string>;
-  styledComponents: Map<string, { element: string; className: string; isExported: boolean }>;
+  styledComponents: Map<
+    string,
+    {
+      element: string;
+      className: string;
+      isExported: boolean;
+      styleFlags?: Array<{ propName: string; hashedClassName: string }>;
+    }
+  >;
   cssVariables: Map<string, string>; // Track css tagged template variables
   keyframes: Map<string, string>; // Track keyframes animation names
   themeColors?: Map<string, Record<string, string>>; // Track createStaticThemeColors variables
@@ -240,7 +248,9 @@ export function createVindurPlugin(
           handleGlobalStyleTaggedTemplate(path, taggedTemplateHandlerContext)
         ) {
           // No classIndex increment for global styles
-        } else if (handleInlineStyledError(path, taggedTemplateHandlerContext)) {
+        } else if (
+          handleInlineStyledError(path, taggedTemplateHandlerContext)
+        ) {
           idIndex = classIndexRef.current;
         }
       },
@@ -264,7 +274,7 @@ export function createVindurPlugin(
             loadExternalFunction,
           }),
         });
-        
+
         // Handle cx prop (before styled component transformation)
         handleJsxCxProp(path, {
           state,
@@ -272,10 +282,10 @@ export function createVindurPlugin(
           fileHash,
           classIndex: () => idIndex++,
         });
-        
+
         // Handle dynamic color prop (before styled component transformation)
         handleJsxDynamicColorProp(path, { state });
-        
+
         // Handle styled components last (transforms element name)
         handleJsxStyledComponent(path, { state });
       },

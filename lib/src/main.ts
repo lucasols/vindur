@@ -79,6 +79,102 @@ export function styledComponent(
   return Component;
 }
 
+export function vComponentWithModifiers(
+  modifiers: Array<[string, string] | [string, string, string[]]>,
+  baseClassName: string,
+  elementType: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
+): ComponentType<any> {
+  // Runtime helper for styled components with style flags
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forwardRef requires any for generic component forwarding
+  const Component = forwardRef<any, any>((props, ref) => {
+    const { className: userClassName, ...otherProps } = props;
+
+    // Separate style flag props from other props
+    const styleProps: Record<string, boolean | string> = {};
+    const finalProps: Record<string, unknown> = {};
+
+    // Create map for faster lookup
+    const modifierMap = new Map<
+      string,
+      {
+        hashedClassName: string;
+        type: 'boolean' | 'string-union';
+        unionValues?: string[];
+      }
+    >();
+
+    for (const modifier of modifiers) {
+      if (modifier.length === 2) {
+        // Boolean prop: [propName, hashedClassName]
+        modifierMap.set(modifier[0], {
+          hashedClassName: modifier[1],
+          type: 'boolean',
+        });
+      } else {
+        // String union prop: [propName, hashedClassName, unionValues]
+        modifierMap.set(modifier[0], {
+          hashedClassName: modifier[1],
+          type: 'string-union',
+          unionValues: modifier[2],
+        });
+      }
+    }
+
+    for (const [key, value] of Object.entries(otherProps)) {
+      const modifierInfo = modifierMap.get(key);
+      if (modifierInfo) {
+        if (modifierInfo.type === 'boolean' && typeof value === 'boolean') {
+          styleProps[key] = value;
+        } else if (
+          modifierInfo.type === 'string-union'
+          && typeof value === 'string'
+        ) {
+          styleProps[key] = value;
+        } else {
+          // If type doesn't match expected, treat as regular prop
+          finalProps[key] = value;
+        }
+      } else {
+        finalProps[key] = value;
+      }
+    }
+
+    // Build className with modifiers
+    let finalClassName = baseClassName;
+
+    // Add modifier classes for active props
+    for (const [propName, modifierInfo] of modifierMap.entries()) {
+      const propValue = styleProps[propName];
+
+      if (modifierInfo.type === 'boolean' && propValue === true) {
+        finalClassName += ` ${modifierInfo.hashedClassName}`;
+      } else if (
+        modifierInfo.type === 'string-union'
+        && typeof propValue === 'string'
+        && modifierInfo.unionValues?.includes(propValue)
+      ) {
+        finalClassName += ` ${modifierInfo.hashedClassName}-${propValue}`;
+      }
+    }
+
+    // Add user className if provided
+    if (userClassName) {
+      finalClassName += ` ${userClassName}`;
+    }
+
+    return createElement(elementType, {
+      ...finalProps,
+      className: finalClassName,
+      ref,
+    });
+  });
+
+  Component.displayName = `StyledWithModifiers(${elementType})`;
+
+  return Component;
+}
+
 type StaticColor<D extends string> = {
   var: string;
   defaultHex: D;
@@ -377,7 +473,10 @@ export function stableId(): string {
   return '';
 }
 
-export function createClassName(id?: string): { selector: string; value: string } {
+export function createClassName(id?: string): {
+  selector: string;
+  value: string;
+} {
   if (id) {
     return { selector: `.${id}`, value: id };
   }

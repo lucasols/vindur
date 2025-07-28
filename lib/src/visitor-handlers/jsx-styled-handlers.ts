@@ -2,8 +2,8 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import generate from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
-import { isDynamicColorSetPropsCall } from './jsx-utils';
 import { filterWithNarrowing } from '../utils';
+import { isDynamicColorSetPropsCall } from './jsx-utils';
 
 export function handleJsxStyledComponent(
   path: NodePath<t.JSXElement>,
@@ -20,6 +20,9 @@ export function handleJsxStyledComponent(
 
   // Skip transformation for exported styled components - they remain as component references
   if (styledInfo.isExported) return false;
+
+  // Skip transformation for styled components with style flags - they remain as component references
+  if (styledInfo.styleFlags) return false;
 
   // Check if this element has already been transformed (by CSS prop handler)
   // If the element name is not the styled component name anymore, it was already processed
@@ -80,11 +83,13 @@ function handleJsxClassNameMerging(
   }
 
   const classNameAttrs = filterWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'className'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+    ) ?
+      attr
+    : false,
   );
   const existingClassNameAttr = classNameAttrs[classNameAttrs.length - 1]; // Get the last className attr
 
