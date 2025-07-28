@@ -51,7 +51,7 @@ test.describe('cx prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const firstButton = page.locator('button').first();
     await expect(firstButton).toHaveCSS('background-color', 'rgb(0, 123, 255)');
@@ -106,7 +106,7 @@ test.describe('cx prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const firstDiv = page.locator('div').nth(1);
     await expect(firstDiv).toHaveClass(/container/);
@@ -177,7 +177,7 @@ test.describe('cx prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const primaryButton = page.locator('button').first();
     await expect(primaryButton).toHaveCSS(

@@ -33,7 +33,7 @@ test.describe('css tagged template', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const header = page.locator('h1');
     await expect(header).toHaveCSS('color', 'rgb(255, 0, 0)');
@@ -70,7 +70,7 @@ test.describe('css tagged template', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const button = page.locator('button');
     await expect(button).toHaveCSS('background-color', 'rgb(173, 216, 230)');
@@ -104,7 +104,7 @@ test.describe('css tagged template', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
     const element = page.locator('div').first();
 
     await page.setViewportSize({ width: 375, height: 667 });
@@ -159,7 +159,7 @@ test.describe('css tagged template', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const container = page.locator('div').first();
     await expect(container).toHaveCSS('padding', '20px');

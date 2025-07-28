@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- Unused variables in main.ts are runtime exports that may be used by consumers */
-// todo: implement vite plugin
+
+// Export transform function for build tools
+export { transform, type TransformFS, type TransformFunctionCache, type TransformOptions } from './transform';
 
 import {
   createElement,

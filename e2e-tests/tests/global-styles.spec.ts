@@ -41,7 +41,7 @@ test.describe('createGlobalStyle', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const body = page.locator('body');
     await expect(body).toHaveCSS('margin', '0px');
@@ -118,7 +118,7 @@ test.describe('createGlobalStyle', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const body = page.locator('body');
     await expect(body).toHaveCSS('margin', '0px');
@@ -173,7 +173,7 @@ test.describe('createGlobalStyle', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const element = page.locator('.shared-class');
     await expect(element).toHaveCSS('color', 'rgb(255, 0, 0)');

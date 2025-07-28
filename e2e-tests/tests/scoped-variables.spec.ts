@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { dedent } from "@ls-stack/utils/dedent";
-import { startEnv } from "../utils/startEnv";
+import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from '@playwright/test';
+import { startEnv } from '../utils/startEnv';
 
-test.describe("scoped css variables", () => {
-  test("should handle scoped css variables", async ({ page }) => {
-    await using env = await startEnv("scoped-vars-basic", {
-      "App.tsx": dedent`
+test.describe('scoped css variables', () => {
+  test('should handle scoped css variables', async ({ page }) => {
+    await using env = await startEnv('scoped-vars-basic', {
+      'App.tsx': dedent`
         import { css } from "vindur";
 
         const themeClass = css\`
@@ -49,25 +49,25 @@ test.describe("scoped css variables", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const button = page.locator("button");
-    await expect(button).toHaveCSS("background-color", "rgb(0, 123, 255)");
-    await expect(button).toHaveCSS("padding", "16px");
-    await expect(button).toHaveCSS("border-radius", "4px");
-    
+    await page.goto(env.baseUrl);
+
+    const button = page.locator('button');
+    await expect(button).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+    await expect(button).toHaveCSS('padding', '16px');
+    await expect(button).toHaveCSS('border-radius', '4px');
+
     await button.hover();
-    await expect(button).toHaveCSS("background-color", "rgb(108, 117, 125)");
-    
-    const card = page.locator("div").nth(2);
-    await expect(card).toHaveCSS("border", "2px solid rgb(0, 123, 255)");
-    await expect(card).toHaveCSS("padding", "16px");
-    await expect(card).toHaveCSS("margin", "16px");
+    await expect(button).toHaveCSS('background-color', 'rgb(108, 117, 125)');
+
+    const card = page.locator('div').nth(2);
+    await expect(card).toHaveCSS('border', '2px solid rgb(0, 123, 255)');
+    await expect(card).toHaveCSS('padding', '16px');
+    await expect(card).toHaveCSS('margin', '16px');
   });
 
-  test("should handle nested scoped variables", async ({ page }) => {
-    await using env = await startEnv("scoped-vars-nested", {
-      "App.tsx": dedent`
+  test('should handle nested scoped variables', async ({ page }) => {
+    await using env = await startEnv('scoped-vars-nested', {
+      'App.tsx': dedent`
         import { css } from "vindur";
 
         const rootTheme = css\`
@@ -110,26 +110,31 @@ test.describe("scoped css variables", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const lightSection = page.locator("section").first();
-    await expect(lightSection).toHaveCSS("background-color", "rgb(248, 249, 250)");
-    await expect(lightSection).toHaveCSS("padding", "32px");
-    
-    const lightText = lightSection.locator("p");
-    await expect(lightText).toHaveCSS("color", "rgb(0, 123, 255)");
-    await expect(lightText).toHaveCSS("font-size", "16px");
-    
-    const darkSection = page.locator("section").nth(1);
-    await expect(darkSection).toHaveCSS("background-color", "rgb(33, 37, 41)");
-    
-    const darkText = darkSection.locator("p");
-    await expect(darkText).toHaveCSS("color", "rgb(13, 202, 240)");
+    await page.goto(env.baseUrl);
+
+    const lightSection = page.locator('section').first();
+    await expect(lightSection).toHaveCSS(
+      'background-color',
+      'rgb(248, 249, 250)',
+    );
+    await expect(lightSection).toHaveCSS('padding', '32px');
+
+    const lightText = lightSection.locator('p');
+    await expect(lightText).toHaveCSS('color', 'rgb(0, 123, 255)');
+    await expect(lightText).toHaveCSS('font-size', '16px');
+
+    const darkSection = page.locator('section').nth(1);
+    await expect(darkSection).toHaveCSS('background-color', 'rgb(33, 37, 41)');
+
+    const darkText = darkSection.locator('p');
+    await expect(darkText).toHaveCSS('color', 'rgb(13, 202, 240)');
   });
 
-  test("should handle scoped variables with styled components", async ({ page }) => {
-    await using env = await startEnv("scoped-vars-styled", {
-      "App.tsx": dedent`
+  test('should handle scoped variables with styled components', async ({
+    page,
+  }) => {
+    await using env = await startEnv('scoped-vars-styled', {
+      'App.tsx': dedent`
         import { css, styled } from "vindur";
 
         const ThemeProvider = styled.div\`
@@ -176,17 +181,26 @@ test.describe("scoped css variables", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const successButton = page.locator("button").first();
-    await expect(successButton).toHaveCSS("background-color", "rgb(40, 167, 69)");
-    await expect(successButton).toHaveCSS("padding", "8px 16px");
-    
-    const warningButton = page.locator("button").nth(1);
-    await expect(warningButton).toHaveCSS("background-color", "rgb(255, 193, 7)");
-    await expect(warningButton).toHaveCSS("color", "rgb(33, 37, 41)");
-    
-    const dangerButton = page.locator("button").nth(2);
-    await expect(dangerButton).toHaveCSS("background-color", "rgb(220, 53, 69)");
+    await page.goto(env.baseUrl);
+
+    const successButton = page.locator('button').first();
+    await expect(successButton).toHaveCSS(
+      'background-color',
+      'rgb(40, 167, 69)',
+    );
+    await expect(successButton).toHaveCSS('padding', '8px 16px');
+
+    const warningButton = page.locator('button').nth(1);
+    await expect(warningButton).toHaveCSS(
+      'background-color',
+      'rgb(255, 193, 7)',
+    );
+    await expect(warningButton).toHaveCSS('color', 'rgb(33, 37, 41)');
+
+    const dangerButton = page.locator('button').nth(2);
+    await expect(dangerButton).toHaveCSS(
+      'background-color',
+      'rgb(220, 53, 69)',
+    );
   });
 });

@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { dedent } from "@ls-stack/utils/dedent";
-import { startEnv } from "../utils/startEnv";
+import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from '@playwright/test';
+import { startEnv } from '../utils/startEnv';
 
-test.describe("vindurFn", () => {
-  test("should handle vindurFn utilities", async ({ page }) => {
-    await using env = await startEnv("vindur-fn-basic", {
-      "utils.ts": dedent`
+test.describe('vindurFn', () => {
+  test('should handle vindurFn utilities', async ({ page }) => {
+    await using env = await startEnv('vindur-fn-basic', {
+      'utils.ts': dedent`
         import { vindurFn } from "vindur";
 
         export const spacing = vindurFn((size: number) => \`
@@ -25,7 +25,7 @@ test.describe("vindurFn", () => {
           line-height: 1.5;
         \`);
       `,
-      "App.tsx": dedent`
+      'App.tsx': dedent`
         import { css } from "vindur";
         import { spacing, flexCenter, textStyle } from "#src/utils";
 
@@ -51,26 +51,26 @@ test.describe("vindurFn", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const container = page.locator("div").first();
-    await expect(container).toHaveCSS("padding", "20px");
-    await expect(container).toHaveCSS("margin", "20px");
-    await expect(container).toHaveCSS("display", "flex");
-    await expect(container).toHaveCSS("align-items", "center");
-    await expect(container).toHaveCSS("justify-content", "center");
-    await expect(container).toHaveCSS("background-color", "rgb(240, 240, 240)");
-    
-    const text = page.locator("p");
-    await expect(text).toHaveCSS("font-size", "24px");
-    await expect(text).toHaveCSS("color", "rgb(51, 51, 51)");
-    await expect(text).toHaveCSS("line-height", "1.5");
-    await expect(text).toHaveCSS("font-weight", "700");
+    await page.goto(env.baseUrl);
+
+    const container = page.locator('div').first();
+    await expect(container).toHaveCSS('padding', '20px');
+    await expect(container).toHaveCSS('margin', '20px');
+    await expect(container).toHaveCSS('display', 'flex');
+    await expect(container).toHaveCSS('align-items', 'center');
+    await expect(container).toHaveCSS('justify-content', 'center');
+    await expect(container).toHaveCSS('background-color', 'rgb(240, 240, 240)');
+
+    const text = page.locator('p');
+    await expect(text).toHaveCSS('font-size', '24px');
+    await expect(text).toHaveCSS('color', 'rgb(51, 51, 51)');
+    await expect(text).toHaveCSS('line-height', '1.5');
+    await expect(text).toHaveCSS('font-weight', '700');
   });
 
-  test("should handle vindurFn with styled components", async ({ page }) => {
-    await using env = await startEnv("vindur-fn-styled", {
-      "mixins.ts": dedent`
+  test('should handle vindurFn with styled components', async ({ page }) => {
+    await using env = await startEnv('vindur-fn-styled', {
+      'mixins.ts': dedent`
         import { vindurFn } from "vindur";
 
         export const buttonBase = vindurFn(() => \`
@@ -95,7 +95,7 @@ test.describe("vindurFn", () => {
           }
         \`);
       `,
-      "App.tsx": dedent`
+      'App.tsx': dedent`
         import { styled } from "vindur";
         import { buttonBase, buttonVariant } from "#src/mixins";
 
@@ -120,22 +120,28 @@ test.describe("vindurFn", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const primaryButton = page.locator("button").first();
-    await expect(primaryButton).toHaveCSS("background-color", "rgb(0, 123, 255)");
-    await expect(primaryButton).toHaveCSS("color", "rgb(255, 255, 255)");
-    await expect(primaryButton).toHaveCSS("padding", "8px 16px");
-    await expect(primaryButton).toHaveCSS("border-radius", "4px");
-    
-    const secondaryButton = page.locator("button").nth(1);
-    await expect(secondaryButton).toHaveCSS("background-color", "rgb(108, 117, 125)");
-    await expect(secondaryButton).toHaveCSS("transition", "all 0.2s");
+    await page.goto(env.baseUrl);
+
+    const primaryButton = page.locator('button').first();
+    await expect(primaryButton).toHaveCSS(
+      'background-color',
+      'rgb(0, 123, 255)',
+    );
+    await expect(primaryButton).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(primaryButton).toHaveCSS('padding', '8px 16px');
+    await expect(primaryButton).toHaveCSS('border-radius', '4px');
+
+    const secondaryButton = page.locator('button').nth(1);
+    await expect(secondaryButton).toHaveCSS(
+      'background-color',
+      'rgb(108, 117, 125)',
+    );
+    await expect(secondaryButton).toHaveCSS('transition', 'all 0.2s');
   });
 
-  test("should handle complex vindurFn compositions", async ({ page }) => {
-    await using env = await startEnv("vindur-fn-complex", {
-      "theme.ts": dedent`
+  test('should handle complex vindurFn compositions', async ({ page }) => {
+    await using env = await startEnv('vindur-fn-complex', {
+      'theme.ts': dedent`
         import { vindurFn } from "vindur";
 
         export const responsive = vindurFn((mobile: string, tablet: string, desktop: string) => \`
@@ -156,7 +162,7 @@ test.describe("vindurFn", () => {
           gap: \${gap}px;
         \`);
       `,
-      "App.tsx": dedent`
+      'App.tsx': dedent`
         import { css } from "vindur";
         import { responsive, grid } from "#src/theme";
 
@@ -186,22 +192,25 @@ test.describe("vindurFn", () => {
       `,
     });
 
-    await page.goto(env.port);
-    
-    const heading = page.locator("h1");
-    
+    await page.goto(env.baseUrl);
+
+    const heading = page.locator('h1');
+
     await page.setViewportSize({ width: 375, height: 667 });
-    await expect(heading).toHaveCSS("font-size", "18px");
-    
+    await expect(heading).toHaveCSS('font-size', '18px');
+
     await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(heading).toHaveCSS("font-size", "24px");
-    
+    await expect(heading).toHaveCSS('font-size', '24px');
+
     await page.setViewportSize({ width: 1024, height: 768 });
-    await expect(heading).toHaveCSS("font-size", "32px");
-    
-    const container = page.locator("div").nth(1);
-    await expect(container).toHaveCSS("display", "grid");
-    await expect(container).toHaveCSS("grid-template-columns", "repeat(3, 1fr)");
-    await expect(container).toHaveCSS("gap", "20px");
+    await expect(heading).toHaveCSS('font-size', '32px');
+
+    const container = page.locator('div').nth(1);
+    await expect(container).toHaveCSS('display', 'grid');
+    await expect(container).toHaveCSS(
+      'grid-template-columns',
+      'repeat(3, 1fr)',
+    );
+    await expect(container).toHaveCSS('gap', '20px');
   });
 });

@@ -1,6 +1,6 @@
-import { invariant } from "@ls-stack/utils/assertions";
-import { vindurPlugin } from "@vindur/vite-plugin";
-import react from "@vitejs/plugin-react-swc";
+import { invariant } from '@ls-stack/utils/assertions';
+import { vindurPlugin } from '@vindur/vite-plugin';
+import react from '@vitejs/plugin-react-swc';
 import {
   cpSync,
   existsSync,
@@ -9,9 +9,9 @@ import {
   renameSync,
   rmSync,
   writeFileSync,
-} from "node:fs";
-import path from "path";
-import { createServer } from "vite";
+} from 'node:fs';
+import path from 'path';
+import { createServer } from 'vite';
 
 type TempFile = {
   path: string;
@@ -25,15 +25,15 @@ type TempFile = {
 
 export async function startEnv(
   testId: string,
-  initialFiles: Record<string, string> & { "App.tsx": string }
+  initialFiles: Record<string, string> & { 'App.tsx': string },
 ): Promise<{
-  port: string;
+  baseUrl: string;
   getFile: (relativePath: string) => TempFile;
   createFile: (relativePath: string, content: string) => TempFile;
   [Symbol.asyncDispose]: () => Promise<void>;
 }> {
-  const baseCodeDir = path.join(__dirname, "..", "base-code");
-  const testsRunsDir = path.join(__dirname, "..", "test-runs");
+  const baseCodeDir = path.join(__dirname, '..', 'base-code');
+  const testsRunsDir = path.join(__dirname, '..', 'test-runs');
 
   const testRunDirPath = path.join(testsRunsDir, testId);
 
@@ -62,7 +62,7 @@ export async function startEnv(
       react(),
       vindurPlugin({
         importAliases: {
-          "#src": "/src",
+          '#src': '/src',
         },
       }),
     ],
@@ -70,7 +70,7 @@ export async function startEnv(
     root: tempDir,
     resolve: {
       alias: {
-        "#src": "/src",
+        '#src': '/src',
       },
     },
   });
@@ -79,10 +79,10 @@ export async function startEnv(
 
   const address = server.httpServer?.address();
 
-  invariant(address, "Address is not defined");
+  invariant(address, 'Address is not defined');
 
   const url =
-    typeof address === "object" ? `http://localhost:${address.port}` : address;
+    typeof address === 'object' ? `http://localhost:${address.port}` : address;
 
   function getFile(relativePath: string): TempFile {
     const filePath = path.join(tempDir, relativePath);
@@ -93,16 +93,16 @@ export async function startEnv(
 
     return {
       path: filePath,
-      read: () => readFileSync(filePath, "utf8"),
+      read: () => readFileSync(filePath, 'utf8'),
       write: (content: string) => writeFileSync(filePath, content),
       updateLine: (line: number, replaceWith: string) => {
-        const content = readFileSync(filePath, "utf8");
-        const lines = content.split("\n");
+        const content = readFileSync(filePath, 'utf8');
+        const lines = content.split('\n');
         lines[line - 1] = replaceWith;
-        writeFileSync(filePath, lines.join("\n"));
+        writeFileSync(filePath, lines.join('\n'));
       },
       replace: (old: RegExp | string, replaceWith: string) => {
-        const content = readFileSync(filePath, "utf8");
+        const content = readFileSync(filePath, 'utf8');
         const newContent = content.replace(old, replaceWith);
         writeFileSync(filePath, newContent);
       },
@@ -123,7 +123,7 @@ export async function startEnv(
   }
 
   return {
-    port: url,
+    baseUrl: url,
     getFile,
     createFile,
     [Symbol.asyncDispose]: cleanup,

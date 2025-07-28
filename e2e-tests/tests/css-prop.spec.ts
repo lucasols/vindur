@@ -37,7 +37,7 @@ test.describe('css prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const container = page.locator('div').nth(1);
     await expect(container).toHaveCSS('background-color', 'rgb(240, 240, 240)');
@@ -92,7 +92,7 @@ test.describe('css prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const successButton = page.locator('button').first();
     await expect(successButton).toHaveCSS(
@@ -143,7 +143,7 @@ test.describe('css prop', () => {
       `,
     });
 
-    await page.goto(env.port);
+    await page.goto(env.baseUrl);
 
     const element = page.locator('div').nth(1);
     await expect(element).toHaveCSS('padding', '10px');
