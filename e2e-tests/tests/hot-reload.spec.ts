@@ -150,7 +150,7 @@ test.describe('hot reload behavior', () => {
     await using env = await startEnv('hot-reload-constants', {
       'constants.ts': dedent`
         import { vindurFn } from "vindur";
-        
+
         export const titleStyles = vindurFn((color: string, size: string) => \`
           color: \${color};
           font-size: \${size};
@@ -179,7 +179,7 @@ test.describe('hot reload behavior', () => {
     // Update constants
     env.getFile('constants.ts').write(dedent`
       import { vindurFn } from "vindur";
-      
+
       export const titleStyles = vindurFn((color: string, size: string) => \`
         color: \${color};
         font-size: \${size};
@@ -249,7 +249,7 @@ test.describe('hot reload behavior', () => {
     await using env = await startEnv('hot-reload-theme-vars', {
       'theme.ts': dedent`
         import { vindurFn } from "vindur";
-        
+
         export const cardStyles = vindurFn(() => \`
           background: #ff6b6b;
           padding: 16px;
@@ -285,7 +285,7 @@ test.describe('hot reload behavior', () => {
     // Update theme variables
     env.getFile('theme.ts').write(dedent`
       import { vindurFn } from "vindur";
-      
+
       export const cardStyles = vindurFn(() => \`
         background: #9b59b6;
         padding: 24px;
@@ -354,7 +354,7 @@ test.describe('hot reload behavior', () => {
     await using env = await startEnv('hot-reload-deep-imports', {
       'tokens.ts': dedent`
         import { vindurFn } from "vindur";
-        
+
         export const baseStyles = vindurFn(() => \`
           color: #333;
           font-size: 16px;
@@ -404,7 +404,7 @@ test.describe('hot reload behavior', () => {
     // Update base tokens - this should cascade through the import chain
     env.getFile('tokens.ts').write(dedent`
       import { vindurFn } from "vindur";
-      
+
       export const baseStyles = vindurFn(() => \`
         color: #666;
         font-size: 20px;
