@@ -13,10 +13,25 @@ import {
 import path from "path";
 import { createServer } from "vite";
 
+type TempFile = {
+  path: string;
+  read: () => string;
+  write: (content: string) => void;
+  updateLine: (line: number, replaceWith: string) => void;
+  replace: (old: RegExp | string, replaceWith: string) => void;
+  delete: () => void;
+  move: (newPath: string) => void;
+};
+
 export async function startEnv(
   testId: string,
   initialFiles: Record<string, string> & { "App.tsx": string }
-) {
+): Promise<{
+  port: string;
+  getFile: (relativePath: string) => TempFile;
+  createFile: (relativePath: string, content: string) => TempFile;
+  [Symbol.asyncDispose]: () => Promise<void>;
+}> {
   const baseCodeDir = path.join(__dirname, "..", "base-code");
   const testsRunsDir = path.join(__dirname, "..", "test-runs");
 
@@ -62,16 +77,6 @@ export async function startEnv(
   const url =
     typeof address === "object" ? `http://localhost:${address.port}` : address;
 
-  type TempFile = {
-    path: string;
-    read: () => string;
-    write: (content: string) => void;
-    updateLine: (line: number, replaceWith: string) => void;
-    replace: (old: RegExp | string, replaceWith: string) => void;
-    delete: () => void;
-    move: (newPath: string) => void;
-  };
-
   function getFile(relativePath: string): TempFile {
     const filePath = path.join(tempDir, relativePath);
 
@@ -105,9 +110,15 @@ export async function startEnv(
     return getFile(relativePath);
   }
 
-  function cleanup() {
+  async function cleanup() {
+    await server.close();
     removeTestRunDir();
   }
 
-  return { server, port: url, cleanup, tempDir, getFile, createFile };
+  return {
+    port: url,
+    getFile,
+    createFile,
+    [Symbol.asyncDispose]: cleanup,
+  };
 }
