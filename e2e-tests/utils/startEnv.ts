@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react-swc';
 import {
   cpSync,
   existsSync,
-  mkdtempSync,
+  mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -41,7 +41,7 @@ export async function startEnv(
   removeTestRunDir();
 
   // Create temporary directory for the test id
-  const tempDir = mkdtempSync(testRunDirPath);
+  const tempDir = mkdirSync(testRunDirPath, { recursive: true });
 
   function removeTestRunDir() {
     if (existsSync(testRunDirPath)) {
@@ -50,7 +50,7 @@ export async function startEnv(
   }
 
   // Copy base code to temp directory
-  cpSync(baseCodeDir, tempDir, { recursive: true });
+  cpSync(baseCodeDir, testRunDirPath, { recursive: true });
 
   // Create initial files
   for (const [relativePath, content] of Object.entries(initialFiles)) {
@@ -61,13 +61,15 @@ export async function startEnv(
     plugins: [
       react(),
       vindurPlugin({
-        debugLogs: true,
         importAliases: {
           '#src': '/src',
         },
       }),
     ],
     configFile: false,
+    optimizeDeps: {
+      noDiscovery: true,
+    },
     root: tempDir,
     resolve: {
       alias: {
@@ -86,7 +88,7 @@ export async function startEnv(
     typeof address === 'object' ? `http://localhost:${address.port}` : address;
 
   function getFile(relativePath: string): TempFile {
-    const filePath = path.join(tempDir, relativePath);
+    const filePath = path.join(testRunDirPath, relativePath);
 
     if (!existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
@@ -113,7 +115,7 @@ export async function startEnv(
   }
 
   function createFile(relativePath: string, content: string): TempFile {
-    const filePath = path.join(tempDir, relativePath);
+    const filePath = path.join(testRunDirPath, relativePath);
     writeFileSync(filePath, content);
     return getFile(relativePath);
   }
