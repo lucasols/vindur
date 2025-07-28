@@ -1,8 +1,9 @@
 import { styled, vindurFn } from 'vindur';
-import { DemoSection, CodeBlock } from '../components/MainLayout';
+import { DemoSection } from '../components/MainLayout';
 
 // VindurFn utility functions
-const buttonStyles = vindurFn((variant: 'primary' | 'secondary') => `
+const buttonStyles = vindurFn(
+  (variant: 'primary' | 'secondary') => `
   padding: 12px 24px;
   border: none;
   border-radius: 8px;
@@ -10,7 +11,9 @@ const buttonStyles = vindurFn((variant: 'primary' | 'secondary') => `
   cursor: pointer;
   transition: all 0.2s ease;
   
-  ${variant === 'primary' ? `
+  ${
+    variant === 'primary' ?
+      `
     background: linear-gradient(45deg, #ff6b6b, #ee5a24);
     color: white;
     box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
@@ -19,7 +22,8 @@ const buttonStyles = vindurFn((variant: 'primary' | 'secondary') => `
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
     }
-  ` : `
+  `
+    : `
     background: rgba(255, 255, 255, 0.1);
     color: white;
     border: 2px solid rgba(255, 255, 255, 0.3);
@@ -29,8 +33,10 @@ const buttonStyles = vindurFn((variant: 'primary' | 'secondary') => `
       background: rgba(255, 255, 255, 0.2);
       border-color: rgba(255, 255, 255, 0.5);
     }
-  `}
-`);
+  `
+  }
+`,
+);
 
 // Non-exported styled components (inlined directly)
 const StyledButton = styled.button`
@@ -43,38 +49,31 @@ const StyledButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   margin-right: 12px;
-  
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(68, 160, 141, 0.4);
   }
 `;
 
+const ButtonContainer = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
 export function StyledComponentsDemo() {
   return (
     <DemoSection title="2. Styled Components">
-      <CodeBlock>{`// Exported (creates component)
-export const Button = styled.button\`
-  padding: 12px 24px;
-  border-radius: 8px;
-\`;
-
-// Non-exported (inlined)
-const LocalButton = styled.button\`
-  background: green;
-\`;`}</CodeBlock>
-      
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+      <ButtonContainer>
         <button className={buttonStyles('primary')}>
           Primary Button (vindurFn)
         </button>
         <button className={buttonStyles('secondary')}>
           Secondary Button (vindurFn)
         </button>
-        <StyledButton>
-          Styled Component
-        </StyledButton>
-      </div>
+        <StyledButton>Styled Component</StyledButton>
+      </ButtonContainer>
     </DemoSection>
   );
 }

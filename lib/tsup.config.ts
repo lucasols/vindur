@@ -1,10 +1,8 @@
-import { defineConfig } from 'tsup'
+import { defineConfig } from 'tsup';
 
 export default defineConfig({
   entry: ['src/main.ts'],
   clean: true,
-  format: ['esm', 'cjs'],
-  esbuildOptions(options) {
-    options.mangleProps = /[^_]_$/
-  },
-})
+  dts: true,
+  format: ['esm'],
+});

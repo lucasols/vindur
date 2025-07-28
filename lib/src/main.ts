@@ -1,14 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- Unused variables in main.ts are runtime exports that may be used by consumers */
 
-// Export transform function for build tools
-export {
-  transform,
-  type TransformFS,
-  type TransformFunctionCache,
-  type TransformOptions,
-  type VindurTransformResult,
-} from './transform';
-
 import {
   createElement,
   forwardRef,

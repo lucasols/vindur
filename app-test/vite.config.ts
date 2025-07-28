@@ -7,9 +7,16 @@ import Inspect from 'vite-plugin-inspect';
 export default defineConfig({
   plugins: [
     vindurPlugin({
-      importAliases: {},
+      importAliases: {
+        '#src/': '/src/',
+      },
     }),
     react(),
     Inspect(),
   ],
+  resolve: {
+    alias: {
+      '#src/': '/src/',
+    },
+  },
 });

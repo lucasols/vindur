@@ -26,10 +26,9 @@
     "format:check": "prettier --check ."
   },
   "peerDependencies": {
-    "vite": "^5.0.0 || ^6.0.0"
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
-    "@babel/preset-typescript": "catalog:",
     "@ls-stack/utils": "catalog:",
     "@types/node": "catalog:",
     "eslint": "catalog:",
@@ -48,6 +47,6 @@
     "css-in-js",
     "vindur"
   ],
-  "author": "Vindur Team",
+  "author": "Lucas Santos",
   "license": "MIT"
 }

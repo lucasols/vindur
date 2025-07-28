@@ -5,7 +5,4 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   clean: true,
-  external: ['vite', 'node:fs', 'node:path'],
-  target: 'node18',
-  bundle: true,
 });

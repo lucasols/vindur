@@ -12,8 +12,7 @@
     "eslint": "CI=true eslint --color src/ tests/ --max-warnings 0 --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "pnpm lint && pnpm build:no-test",
-    "build:no-test": "tsup --minify --dts",
+    "build": "tsup",
     "npm-publish": "pnpm publish --access=public",
     "pre-publish": "../scripts/check-if-is-sync.sh && pnpm build"
   },
@@ -32,6 +31,11 @@
       "types": "./dist/main.d.ts",
       "import": "./dist/main.js",
       "require": "./dist/main.cjs"
+    },
+    "./transform": {
+      "types": "./dist/transform.d.ts",
+      "import": "./dist/transform.js",
+      "require": "./dist/transform.cjs"
     }
   },
   "sideEffects": false,

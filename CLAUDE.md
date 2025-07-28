@@ -293,31 +293,36 @@ All Vindur CSS-in-JS features that use template literals are **statically analyz
 - **Use vindurFn for dynamic CSS**: When you need CSS that depends on runtime values, wrap your function with `vindurFn`
 
 **Valid examples:**
+
 ```tsx
-const BRAND_COLOR = '#667eea';  // Static constant - OK
+const BRAND_COLOR = '#667eea'; // Static constant - OK
 
 const styles = css`
-  color: ${BRAND_COLOR};        // Static variable - OK
-  padding: 16px;                // Literal value - OK
+  color: ${BRAND_COLOR}; // Static variable - OK
+  padding: 16px; // Literal value - OK
 `;
 ```
 
 **Invalid examples:**
+
 ```tsx
 function Component({ color, isActive }) {
   const styles = css`
-    color: ${color};            // ❌ Dynamic prop - NOT allowed
-    padding: ${isActive ? 16 : 8}px;  // ❌ Dynamic expression - NOT allowed
+    color: ${color}; // ❌ Dynamic prop - NOT allowed
+    padding: ${isActive ? 16 : 8}px; // ❌ Dynamic expression - NOT allowed
   `;
 }
 ```
 
 **For dynamic CSS, use vindurFn:**
+
 ```tsx
-const dynamicStyles = vindurFn((color: string, isActive: boolean) => `
+const dynamicStyles = vindurFn(
+  (color: string, isActive: boolean) => `
   color: ${color};              // ✅ OK inside vindurFn
   padding: ${isActive ? 16 : 8}px;  // ✅ OK inside vindurFn
-`);
+`,
+);
 ```
 
 This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalStyle`.
@@ -345,6 +350,7 @@ This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalSt
   - Uses object syntax for conditional classes
   - Properties prefixed with `$` are not hashed (pass-through)
   - Merges with existing className prop via runtime `cx` function
+  - cx props not supports computed properties, eg. `cx={{ [styleName]: true }}`
 
 - **vindurFn** - Compile-time CSS function utility, eg. `vindurFn((size: number) => \`width: \${size}px\`)`
   - Functions must be wrapped with `vindurFn` for compile-time evaluation
