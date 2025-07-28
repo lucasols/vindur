@@ -1,8 +1,8 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { murmur2 } from '@ls-stack/utils/hash';
 import type { VindurPluginState } from '../babel-plugin';
 import { findWithNarrowing } from '../utils';
-import { murmur2 } from '@ls-stack/utils/hash';
 
 export function handleJsxCxProp(
   path: NodePath<t.JSXElement>,
@@ -30,11 +30,15 @@ export function handleJsxCxProp(
 
   if (!isNativeDOMElement && !isStyledComponent) {
     // Check if this custom component has a cx prop - if so, throw an error
-    const cxAttr = findWithNarrowing(path.node.openingElement.attributes, (attr) =>
-      t.isJSXAttribute(attr)
-      && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'cx'
-        ? attr
+    const cxAttr = findWithNarrowing(
+      path.node.openingElement.attributes,
+      (attr) =>
+        (
+          t.isJSXAttribute(attr)
+          && t.isJSXIdentifier(attr.name)
+          && attr.name.name === 'cx'
+        ) ?
+          attr
         : false,
     );
 
@@ -50,11 +54,13 @@ export function handleJsxCxProp(
 
   const attributes = path.node.openingElement.attributes;
   const cxAttr = findWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'cx'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'cx'
+    ) ?
+      attr
+    : false,
   );
 
   if (!cxAttr) return false;
@@ -78,13 +84,16 @@ export function handleJsxCxProp(
   }
 
   // Process the object expression to hash class names
+  const classNameMappings: Array<{ original: string; hashed: string }> = [];
   const processedProperties = expression.properties.map((prop) => {
     if (!t.isObjectProperty(prop) || prop.computed) {
-      throw new Error('cx prop object must only contain non-computed properties');
+      throw new Error(
+        'cx prop object must only contain non-computed properties',
+      );
     }
 
     let className: string;
-    
+
     if (t.isStringLiteral(prop.key)) {
       className = prop.key.value;
     } else if (t.isIdentifier(prop.key)) {
@@ -97,37 +106,64 @@ export function handleJsxCxProp(
     if (className.startsWith('$')) {
       // Remove $ prefix and don't hash
       const unhashedClassName = className.slice(1);
-      return t.objectProperty(
-        t.stringLiteral(unhashedClassName),
-        prop.value,
-      );
+      classNameMappings.push({
+        original: unhashedClassName,
+        hashed: unhashedClassName,
+      });
+      return t.objectProperty(t.stringLiteral(unhashedClassName), prop.value);
     } else {
       // Hash the class name
-      const hashedClassName = generateHashedClassName(className, context.dev, context.fileHash, context.classIndex());
-      return t.objectProperty(
-        t.stringLiteral(hashedClassName),
-        prop.value,
+      const hashedClassName = generateHashedClassName(
+        className,
+        context.dev,
+        context.fileHash,
+        context.classIndex(),
       );
+      classNameMappings.push({ original: className, hashed: hashedClassName });
+      return t.objectProperty(t.stringLiteral(hashedClassName), prop.value);
     }
   });
 
+  // Update styled component CSS if this is a styled component
+  if (isStyledComponent) {
+    updateStyledComponentCss(elementName, classNameMappings, context.state);
+
+    // Transform the styled component to native element
+    const styledInfo = context.state.styledComponents.get(elementName);
+    if (styledInfo) {
+      path.node.openingElement.name = t.jsxIdentifier(styledInfo.element);
+      if (path.node.closingElement) {
+        path.node.closingElement.name = t.jsxIdentifier(styledInfo.element);
+      }
+    }
+  }
+
   // Create the cx() function call
   context.state.vindurImports.add('cx');
-  const cxCall = t.callExpression(
-    t.identifier('cx'),
-    [t.objectExpression(processedProperties)],
-  );
+  const cxCall = t.callExpression(t.identifier('cx'), [
+    t.objectExpression(processedProperties),
+  ]);
 
   // Add or merge with existing className
-  addCxClassNameToJsx(path, cxCall, context);
+  addCxClassNameToJsx(
+    path,
+    cxCall,
+    context,
+    isStyledComponent ? elementName : undefined,
+  );
 
   return true;
 }
 
-function generateHashedClassName(className: string, dev: boolean, fileHash: string, classIndex: number): string {
+function generateHashedClassName(
+  className: string,
+  dev: boolean,
+  fileHash: string,
+  classIndex: number,
+): string {
   const input = `${fileHash}-${classIndex}-cx-${className}`;
   const hash = murmur2(input);
-  
+
   if (dev) {
     return `v${hash}-${className}`;
   } else {
@@ -135,10 +171,45 @@ function generateHashedClassName(className: string, dev: boolean, fileHash: stri
   }
 }
 
+function updateStyledComponentCss(
+  styledComponentName: string,
+  classNameMappings: Array<{ original: string; hashed: string }>,
+  state: VindurPluginState,
+): void {
+  // Get the styled component info to find its CSS class name
+  const styledInfo = state.styledComponents.get(styledComponentName);
+  if (!styledInfo) return;
+
+  // Update CSS rules that contain the styled component's class name
+  for (let i = 0; i < state.cssRules.length; i++) {
+    const rule = state.cssRules[i];
+    if (rule?.includes(`.${styledInfo.className}`)) {
+      let updatedRule = rule;
+      for (const mapping of classNameMappings) {
+        // Replace &.className with &.hashedClassName
+        const selectorPattern = new RegExp(
+          `&\\.${escapeRegExp(mapping.original)}\\b`,
+          'g',
+        );
+        updatedRule = updatedRule.replace(
+          selectorPattern,
+          `&.${mapping.hashed}`,
+        );
+      }
+      state.cssRules[i] = updatedRule;
+    }
+  }
+}
+
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function addCxClassNameToJsx(
   path: NodePath<t.JSXElement>,
   cxCall: t.CallExpression,
-  context: { state: VindurPluginState },
+  context: { state: VindurPluginState; dev: boolean },
+  styledComponentName?: string,
 ): void {
   const attributes = path.node.openingElement.attributes;
 
@@ -147,21 +218,42 @@ function addCxClassNameToJsx(
 
   // Find existing className attribute
   const classNameAttr = findWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'className'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+    ) ?
+      attr
+    : false,
   );
+
+  // Get styled component className if applicable
+  const styledClassName =
+    styledComponentName ?
+      context.state.styledComponents.get(styledComponentName)?.className
+    : undefined;
 
   if (spreadAttrs.length > 0) {
     // Use mergeClassNames for spread attributes
     context.state.vindurImports.add('mergeClassNames');
-    
-    const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
+
+    const mergeArgs: t.Expression[] = [
       t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
-      cxCall,
-    ]);
+    ];
+
+    if (styledClassName) {
+      // Add styled component className and cx call as concatenated string
+      mergeArgs.push(
+        t.binaryExpression('+', t.stringLiteral(`${styledClassName} `), cxCall),
+      );
+    } else {
+      mergeArgs.push(cxCall);
+    }
+
+    const mergeCall = t.callExpression(
+      t.identifier('mergeClassNames'),
+      mergeArgs,
+    );
 
     if (classNameAttr) {
       classNameAttr.value = t.jsxExpressionContainer(mergeCall);
@@ -175,34 +267,83 @@ function addCxClassNameToJsx(
   } else if (classNameAttr) {
     // Merge with existing className
     if (t.isStringLiteral(classNameAttr.value)) {
-      // Merge with string literal: className="existing" -> className={'existing ' + cx({...})}
+      // Merge with string literal
+      let existingValue = classNameAttr.value.value;
+      if (styledClassName && !existingValue.includes(styledClassName)) {
+        existingValue = `${existingValue} ${styledClassName}`;
+      }
+
+      // Use string concatenation for existing string literals
       classNameAttr.value = t.jsxExpressionContainer(
-        t.binaryExpression(
-          '+',
-          t.stringLiteral(`${classNameAttr.value.value} `),
-          cxCall,
-        ),
+        t.binaryExpression('+', t.stringLiteral(`${existingValue} `), cxCall),
       );
     } else if (t.isJSXExpressionContainer(classNameAttr.value)) {
-      // Merge with expression: className={expr} -> className={expr + ' ' + cx({...})}
+      // Merge with expression
       const existingExpr = classNameAttr.value.expression;
-      classNameAttr.value = t.jsxExpressionContainer(
-        t.binaryExpression(
-          '+',
+      const baseExpr =
+        t.isJSXEmptyExpression(existingExpr) ?
+          t.stringLiteral('')
+        : existingExpr;
+
+      if (styledClassName) {
+        // Include styled component className
+        if (context.dev) {
+          // Dev mode: string concatenation with space
+          classNameAttr.value = t.jsxExpressionContainer(
+            t.binaryExpression(
+              '+',
+              t.binaryExpression(
+                '+',
+                t.stringLiteral(`${styledClassName} `),
+                t.binaryExpression('+', baseExpr, t.stringLiteral(' ')),
+              ),
+              cxCall,
+            ),
+          );
+        } else {
+          // Production: template literal
+          classNameAttr.value = t.jsxExpressionContainer(
+            t.templateLiteral(
+              [
+                t.templateElement(
+                  { raw: `${styledClassName} `, cooked: `${styledClassName} ` },
+                  false,
+                ),
+                t.templateElement({ raw: ' ', cooked: ' ' }, false),
+                t.templateElement({ raw: '', cooked: '' }, true),
+              ],
+              [baseExpr, cxCall],
+            ),
+          );
+        }
+      } else {
+        classNameAttr.value = t.jsxExpressionContainer(
           t.binaryExpression(
             '+',
-            t.isJSXEmptyExpression(existingExpr) ? t.stringLiteral('') : existingExpr,
-            t.stringLiteral(' '),
+            t.binaryExpression('+', baseExpr, t.stringLiteral(' ')),
+            cxCall,
           ),
-          cxCall,
-        ),
-      );
+        );
+      }
     }
   } else {
     // Add new className attribute with cx call
+    let classNameExpr: t.Expression;
+
+    if (styledClassName) {
+      // Use string concatenation for styled components
+      classNameExpr = t.binaryExpression(
+        '+',
+        t.stringLiteral(`${styledClassName} `),
+        cxCall,
+      );
+    } else {
+      classNameExpr = cxCall;
+    }
+
     const newClassNameAttr = t.jsxAttribute(
       t.jsxIdentifier('className'),
-      t.jsxExpressionContainer(cxCall),
+      t.jsxExpressionContainer(classNameExpr),
     );
     attributes.push(newClassNameAttr);
   }

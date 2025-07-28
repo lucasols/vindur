@@ -77,10 +77,13 @@ describe('JSX cx prop transformation', () => {
         "function Component({ isPrimary, isDisabled }) {
           return (
             <button
-              className={\`v1560qbr-1-Button \${cx({
-                "vkrxp8d-primary": isPrimary,
-                "v199pd0d-disabled": isDisabled,
-              })}\`}
+              className={
+                "v1560qbr-1-Button " +
+                cx({
+                  "vkrxp8d-primary": isPrimary,
+                  "v199pd0d-disabled": isDisabled,
+                })
+              }
             >
               Click me
             </button>
@@ -103,8 +106,7 @@ describe('JSX cx prop transformation', () => {
             opacity: 0.5;
             cursor: not-allowed;
           }
-        }
-        "
+        }"
       `);
     });
   });
@@ -140,10 +142,13 @@ describe('JSX cx prop transformation', () => {
           "function Component({ isActive, isDisabled }) {
             return (
               <div
-                className={'v1560qbr-1-StyledDiv ' + cx({
-                  "v18wrjm2-active": isActive,
-                  "v199pd0d-disabled": isDisabled,
-                })}
+                className={
+                  "v1560qbr-1-StyledDiv " +
+                  cx({
+                    "v18wrjm2-active": isActive,
+                    "v199pd0d-disabled": isDisabled,
+                  })
+                }
               />
             );
           }
@@ -161,8 +166,7 @@ describe('JSX cx prop transformation', () => {
             &.v199pd0d-disabled {
               background: green;
             }
-          }
-          "
+          }"
         `);
       });
 
@@ -194,10 +198,13 @@ describe('JSX cx prop transformation', () => {
           "function Component({ isActive, isDisabled }) {
             return (
               <div
-                className={\`v1560qbr-1 \${cx({
-                  v18wrjm2: isActive,
-                  v199pd0d: isDisabled,
-                })}\`}
+                className={
+                  "v1560qbr-1 " +
+                  cx({
+                    v18wrjm2: isActive,
+                    v199pd0d: isDisabled,
+                  })
+                }
               />
             );
           }
@@ -215,8 +222,7 @@ describe('JSX cx prop transformation', () => {
             &.v199pd0d {
               background: green;
             }
-          }
-          "
+          }"
         `);
       });
     });
@@ -250,10 +256,13 @@ describe('JSX cx prop transformation', () => {
           "function Component({ isActive, hasError }) {
             return (
               <div
-                className={\`v1560qbr-1-Widget \${cx({
-                  "v18wrjm2-active": isActive,
-                  error: hasError,
-                })}\`}
+                className={
+                  "v1560qbr-1-Widget " +
+                  cx({
+                    "v18wrjm2-active": isActive,
+                    error: hasError,
+                  })
+                }
               />
             );
           }
@@ -271,8 +280,7 @@ describe('JSX cx prop transformation', () => {
             &.error {
               color: red;
             }
-          }
-          "
+          }"
         `);
       });
 
@@ -300,9 +308,12 @@ describe('JSX cx prop transformation', () => {
           "function Component() {
             return (
               <div
-                className={'v1560qbr-1-StyledDiv ' + cx({
-                  noHash: true,
-                })}
+                className={
+                  "v1560qbr-1-StyledDiv " +
+                  cx({
+                    noHash: true,
+                  })
+                }
               />
             );
           }
@@ -316,8 +327,7 @@ describe('JSX cx prop transformation', () => {
             &.noHash {
               background: yellow;
             }
-          }
-          "
+          }"
         `);
       });
     });
@@ -353,7 +363,7 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "base-class v1560qbr-1-Card " +
                   cx({
-                    "v1j9ou1z-highlighted": isHighlighted,
+                    "vzszlgd-highlighted": isHighlighted,
                   })
                 }
               />
@@ -366,11 +376,10 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1-Card {
             border: 1px solid #ddd;
 
-            &.v1j9ou1z-highlighted {
+            &.vzszlgd-highlighted {
               border-color: gold;
             }
-          }
-          "
+          }"
         `);
       });
     });
@@ -496,7 +505,7 @@ describe('JSX cx prop transformation', () => {
         expect(result.css).toMatchInlineSnapshot(`
           ".v1560qbr-1-css-prop-1 {
             background: red;
-            padding: 20px;
+                  padding: 20px;
 
             &.v1abz60o-hoverable {
               transform: scale(1.05);
@@ -529,16 +538,17 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ props, isActive }) {
+          "import { mergeClassNames } from "vindur";
+          function Component({ props, isActive }) {
             return (
               <button
                 {...props}
                 className={mergeClassNames(
                   [props],
-                  \\"v1560qbr-1-Button\\" +
-                  cx({
-                    \\"v18wrjm2-active\\": isActive,
-                  })
+                  "v1560qbr-1-Button " +
+                    cx({
+                      "v18wrjm2-active": isActive,
+                    }),
                 )}
               />
             );
@@ -553,8 +563,7 @@ describe('JSX cx prop transformation', () => {
             &.v18wrjm2-active {
               background: blue;
             }
-          }
-          "
+          }"
         `);
       });
     });
