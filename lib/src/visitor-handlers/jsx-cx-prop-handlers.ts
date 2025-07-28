@@ -84,7 +84,11 @@ export function handleJsxCxProp(
   }
 
   // Process the object expression to hash class names
-  const classNameMappings: Array<{ original: string; hashed: string }> = [];
+  const classNameMappings: Array<{
+    original: string;
+    hashed: string;
+    wasDollarPrefixed?: boolean;
+  }> = [];
   const processedProperties = expression.properties.map((prop) => {
     if (!t.isObjectProperty(prop) || prop.computed) {
       throw new Error(
@@ -109,6 +113,7 @@ export function handleJsxCxProp(
       classNameMappings.push({
         original: unhashedClassName,
         hashed: unhashedClassName,
+        wasDollarPrefixed: true,
       });
       return t.objectProperty(t.stringLiteral(unhashedClassName), prop.value);
     } else {
@@ -126,6 +131,17 @@ export function handleJsxCxProp(
 
   // Update CSS rules for styled components, CSS variables, or CSS props
   if (isStyledComponent) {
+    // Check for missing CSS classes and generate warnings in dev mode
+    // Do this BEFORE updating CSS with hashed class names
+    if (context.dev) {
+      generateMissingCssClassWarnings(
+        elementName,
+        classNameMappings,
+        context.state,
+        path,
+      );
+    }
+
     updateStyledComponentCss(elementName, classNameMappings, context.state);
 
     // Transform the styled component to native element
@@ -174,9 +190,79 @@ function generateHashedClassName(
   }
 }
 
+function generateMissingCssClassWarnings(
+  styledComponentName: string,
+  classNameMappings: Array<{
+    original: string;
+    hashed: string;
+    wasDollarPrefixed?: boolean;
+  }>,
+  state: VindurPluginState,
+  path: NodePath<t.JSXElement>,
+): void {
+  // Get the styled component info to find its CSS class name
+  const styledInfo = state.styledComponents.get(styledComponentName);
+  if (!styledInfo) return;
+
+  // Find missing CSS classes by checking for original class names
+  // Exclude $ prefixed props from missing class checking
+  const missingClasses: string[] = [];
+
+  for (const mapping of classNameMappings) {
+    // Skip $ prefixed props (they were originally prefixed with $)
+    if (mapping.wasDollarPrefixed) continue;
+
+    // Check if the CSS class exists in any CSS rule for this styled component
+    // Look for &.originalClassName patterns
+    const hasClass = state.cssRules.some(
+      (rule) =>
+        rule
+        && rule.includes(`.${styledInfo.className}`)
+        && rule.includes(`&.${mapping.original}`),
+    );
+
+    if (!hasClass) {
+      missingClasses.push(mapping.original);
+    }
+  }
+
+  // Generate warning if there are missing classes
+  if (missingClasses.length > 0) {
+    const warningMessage = `Warning: Missing CSS classes for cx modifiers in ${styledComponentName}: ${missingClasses.join(', ')}`;
+
+    // Insert console.warn statement after the JSX element
+    const consoleWarnStatement = t.expressionStatement(
+      t.callExpression(
+        t.memberExpression(t.identifier('console'), t.identifier('warn')),
+        [
+          t.templateLiteral(
+            [
+              t.templateElement(
+                { raw: warningMessage, cooked: warningMessage },
+                true,
+              ),
+            ],
+            [],
+          ),
+        ],
+      ),
+    );
+
+    // Find the parent statement and insert the warning after it
+    const statementPath = path.getFunctionParent() || path.getStatementParent();
+    if (statementPath) {
+      statementPath.insertAfter(consoleWarnStatement);
+    }
+  }
+}
+
 function updateStyledComponentCss(
   styledComponentName: string,
-  classNameMappings: Array<{ original: string; hashed: string }>,
+  classNameMappings: Array<{
+    original: string;
+    hashed: string;
+    wasDollarPrefixed?: boolean;
+  }>,
   state: VindurPluginState,
 ): void {
   // Get the styled component info to find its CSS class name

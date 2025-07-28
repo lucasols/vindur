@@ -99,6 +99,10 @@ describe('Style Flags Transform Logic', () => {
             &.size-small {
               padding: 4px 8px;
             }
+
+            &.size-large {
+              padding: 12px 24px;
+            }
           \`;
 
           function Component() {
@@ -154,6 +158,10 @@ describe('Style Flags Transform Logic', () => {
 
           &.vr4ikfs-size-small {
             padding: 4px 8px;
+          }
+
+          &.vr4ikfs-size-large {
+            padding: 12px 24px;
           }
         }"
       `);
@@ -516,21 +524,21 @@ describe('Style Flags Transform Logic', () => {
   });
 
   describe('Error Handling', () => {
-    test('should throw error for non-boolean types in style flags', async () => {
+    test('should throw error for non-boolean and non-string-union types in style flags', async () => {
       await expect(
         transformWithFormat({
           source: dedent`
             import { styled } from 'vindur';
 
             const StyledWithModifier = styled.div<{
-              status: 'active' | 'inactive'; // Not boolean
+              count: number; // Not boolean or string union
             }>\`
               &.active { ... }
             \`;
           `,
         }),
       ).rejects.toThrow(
-        'Style flags only support boolean properties. Property "status" has type "active" | "inactive".',
+        'Style flags only support boolean properties and string literal unions. Property "count" has type "number".',
       );
     });
 
@@ -563,8 +571,9 @@ describe('Style Flags Transform Logic', () => {
           "v1560qbr-1-StyledWithModifier",
           "div",
         );
-        console.warn(\`Warning: Missing modifier styles for "active" in StyledWithModifier\`);
-
+        console.warn(
+          'Warning: Missing modifier styles for "&.active" in StyledWithModifier',
+        );
         function Component() {
           return <StyledWithModifier active={true}>Content</StyledWithModifier>;
         }

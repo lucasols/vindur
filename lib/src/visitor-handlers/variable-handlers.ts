@@ -9,6 +9,7 @@ import {
   processStyledTemplate,
 } from '../css-processing';
 import {
+  checkForMissingModifierStyles,
   extractStyleFlags,
   updateCssSelectorsForStyleFlags,
 } from './style-flags-utils';
@@ -138,29 +139,54 @@ export function handleStyledElementAssignment(
     // Create the modifier array: [["propName", "hashedClassName"], ...]
     const modifierArray = t.arrayExpression(
       styleFlags.map((styleProp) => {
-        if (styleProp.type === 'boolean') {
-          return t.arrayExpression([
-            t.stringLiteral(styleProp.propName),
-            t.stringLiteral(styleProp.hashedClassName),
-          ]);
-        } else {
-          // For string union types, include the union values
-          return t.arrayExpression([
-            t.stringLiteral(styleProp.propName),
-            t.stringLiteral(styleProp.hashedClassName),
-            t.arrayExpression(
-              styleProp.unionValues.map((value) => t.stringLiteral(value)),
-            ),
-          ]);
-        }
+        // All style flags use the same format: [propName, hashedClassName]
+        return t.arrayExpression([
+          t.stringLiteral(styleProp.propName),
+          t.stringLiteral(styleProp.hashedClassName),
+        ]);
       }),
     );
 
     path.node.init = t.callExpression(t.identifier('vComponentWithModifiers'), [
       modifierArray,
       t.stringLiteral(result.finalClassName),
-      t.stringLiteral(tagName),
+      t.stringLiteral(tagName), // Pass the element type
     ]);
+
+    // In dev mode, inject warnings for missing modifier styles
+    // Insert warnings after the entire variable declaration
+    if (dev) {
+      const missingSelectors = checkForMissingModifierStyles(
+        styleFlags,
+        context.state.cssRules,
+        result.finalClassName,
+      );
+      if (missingSelectors.length > 0) {
+        // Get the parent statement node to insert warnings after it
+        const declarationStatement = path.findParent((p) =>
+          p.isVariableDeclaration(),
+        );
+        if (declarationStatement) {
+          // Insert console.warn statements after the variable declaration
+          for (const missing of missingSelectors) {
+            const warnStatement = t.expressionStatement(
+              t.callExpression(
+                t.memberExpression(
+                  t.identifier('console'),
+                  t.identifier('warn'),
+                ),
+                [
+                  t.stringLiteral(
+                    `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+                  ),
+                ],
+              ),
+            );
+            declarationStatement.insertAfter(warnStatement);
+          }
+        }
+      }
+    }
   } else {
     // Handle normal styled components (without style flags)
     if (isExported) {

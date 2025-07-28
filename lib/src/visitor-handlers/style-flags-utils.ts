@@ -186,6 +186,66 @@ export function updateCssSelectorsForStyleFlags(
 }
 
 /**
+ * Check for missing modifier styles in CSS rules
+ */
+export function checkForMissingModifierStyles(
+  styleFlags: StyleFlag[],
+  cssRules: string[],
+  styledClassName: string,
+): Array<{ propName: string; original: string; expected: string }> {
+  const missingSelectors: Array<{
+    propName: string;
+    original: string;
+    expected: string;
+  }> = [];
+
+  // Find the CSS rule for this styled component
+  const relevantRule = cssRules.find((rule) => rule.includes(styledClassName));
+  if (!relevantRule) return missingSelectors;
+
+  // Remove CSS comments to avoid false positives
+  const ruleWithoutComments = relevantRule.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  for (const styleProp of styleFlags) {
+    if (styleProp.type === 'boolean') {
+      // Check for &.propName selector
+      const originalSelector = `&.${styleProp.propName}`;
+      const expectedSelector = `&.${styleProp.hashedClassName}`;
+
+      if (
+        !ruleWithoutComments.includes(originalSelector)
+        && !ruleWithoutComments.includes(expectedSelector)
+      ) {
+        missingSelectors.push({
+          propName: styleProp.propName,
+          original: originalSelector,
+          expected: expectedSelector,
+        });
+      }
+    } else {
+      // Check for &.propName-value selectors (string-union type)
+      for (const value of styleProp.unionValues) {
+        const originalSelector = `&.${styleProp.propName}-${value}`;
+        const expectedSelector = `&.${styleProp.hashedClassName}-${value}`;
+
+        if (
+          !ruleWithoutComments.includes(originalSelector)
+          && !ruleWithoutComments.includes(expectedSelector)
+        ) {
+          missingSelectors.push({
+            propName: `${styleProp.propName}-${value}`,
+            original: originalSelector,
+            expected: expectedSelector,
+          });
+        }
+      }
+    }
+  }
+
+  return missingSelectors;
+}
+
+/**
  * Escape special regex characters
  */
 function escapeRegExp(string: string): string {

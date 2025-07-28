@@ -80,7 +80,7 @@ export function styledComponent(
 }
 
 export function vComponentWithModifiers(
-  modifiers: Array<[string, string] | [string, string, string[]]>,
+  modifiers: Array<[string, string]>,
   baseClassName: string,
   elementType: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
@@ -95,41 +95,16 @@ export function vComponentWithModifiers(
     const finalProps: Record<string, unknown> = {};
 
     // Create map for faster lookup
-    const modifierMap = new Map<
-      string,
-      {
-        hashedClassName: string;
-        type: 'boolean' | 'string-union';
-        unionValues?: string[];
-      }
-    >();
+    const modifierMap = new Map<string, string>();
 
-    for (const modifier of modifiers) {
-      if (modifier.length === 2) {
-        // Boolean prop: [propName, hashedClassName]
-        modifierMap.set(modifier[0], {
-          hashedClassName: modifier[1],
-          type: 'boolean',
-        });
-      } else {
-        // String union prop: [propName, hashedClassName, unionValues]
-        modifierMap.set(modifier[0], {
-          hashedClassName: modifier[1],
-          type: 'string-union',
-          unionValues: modifier[2],
-        });
-      }
+    for (const [propName, hashedClassName] of modifiers) {
+      modifierMap.set(propName, hashedClassName);
     }
 
     for (const [key, value] of Object.entries(otherProps)) {
-      const modifierInfo = modifierMap.get(key);
-      if (modifierInfo) {
-        if (modifierInfo.type === 'boolean' && typeof value === 'boolean') {
-          styleProps[key] = value;
-        } else if (
-          modifierInfo.type === 'string-union'
-          && typeof value === 'string'
-        ) {
+      if (modifierMap.has(key)) {
+        // Accept both boolean and string values for style props
+        if (typeof value === 'boolean' || typeof value === 'string') {
           styleProps[key] = value;
         } else {
           // If type doesn't match expected, treat as regular prop
@@ -144,17 +119,15 @@ export function vComponentWithModifiers(
     let finalClassName = baseClassName;
 
     // Add modifier classes for active props
-    for (const [propName, modifierInfo] of modifierMap.entries()) {
+    for (const [propName, hashedClassName] of modifierMap.entries()) {
       const propValue = styleProps[propName];
 
-      if (modifierInfo.type === 'boolean' && propValue === true) {
-        finalClassName += ` ${modifierInfo.hashedClassName}`;
-      } else if (
-        modifierInfo.type === 'string-union'
-        && typeof propValue === 'string'
-        && modifierInfo.unionValues?.includes(propValue)
-      ) {
-        finalClassName += ` ${modifierInfo.hashedClassName}-${propValue}`;
+      if (propValue === true) {
+        // Boolean prop: add the hashed class name
+        finalClassName += ` ${hashedClassName}`;
+      } else if (typeof propValue === 'string') {
+        // String prop: add the hashed class name with value suffix
+        finalClassName += ` ${hashedClassName}-${propValue}`;
       }
     }
 
