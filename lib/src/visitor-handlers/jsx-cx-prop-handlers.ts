@@ -124,7 +124,7 @@ export function handleJsxCxProp(
     }
   });
 
-  // Update styled component CSS if this is a styled component
+  // Update CSS rules for styled components, CSS variables, or CSS props
   if (isStyledComponent) {
     updateStyledComponentCss(elementName, classNameMappings, context.state);
 
@@ -136,6 +136,9 @@ export function handleJsxCxProp(
         path.node.closingElement.name = t.jsxIdentifier(styledInfo.element);
       }
     }
+  } else {
+    // Check for CSS variables or CSS props that need updating
+    updateCssRulesForElement(path, classNameMappings, context.state);
   }
 
   // Create the cx() function call
@@ -203,6 +206,91 @@ function updateStyledComponentCss(
 
 function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function updateCssRulesForElement(
+  path: NodePath<t.JSXElement>,
+  classNameMappings: Array<{ original: string; hashed: string }>,
+  state: VindurPluginState,
+): void {
+  // Check for className attributes that reference CSS variables
+  const attributes = path.node.openingElement.attributes;
+  const classNameAttr = findWithNarrowing(attributes, (attr) =>
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+    ) ?
+      attr
+    : false,
+  );
+
+  if (classNameAttr && t.isJSXExpressionContainer(classNameAttr.value)) {
+    const expression = classNameAttr.value.expression;
+
+    // Check if this references a CSS variable
+    if (t.isIdentifier(expression)) {
+      const cssClassName = state.cssVariables.get(expression.name);
+      if (cssClassName) {
+        updateCssRulesByClassName(cssClassName, classNameMappings, state);
+        return;
+      }
+    }
+  }
+
+  // Check for CSS prop generated rules
+  // CSS props generate class names like "v1560qbr-1-css-prop-1"
+  // We'll look for CSS rules that match this pattern and contain our selectors
+  for (let i = 0; i < state.cssRules.length; i++) {
+    const rule = state.cssRules[i];
+    if (rule?.includes('css-prop-')) {
+      // Check if this rule contains any of our original class names
+      const hasMatchingSelector = classNameMappings.some((mapping) =>
+        rule.includes(`&.${mapping.original}`),
+      );
+
+      if (hasMatchingSelector) {
+        let updatedRule = rule;
+        for (const mapping of classNameMappings) {
+          const selectorPattern = new RegExp(
+            `&\\.${escapeRegExp(mapping.original)}\\b`,
+            'g',
+          );
+          updatedRule = updatedRule.replace(
+            selectorPattern,
+            `&.${mapping.hashed}`,
+          );
+        }
+        state.cssRules[i] = updatedRule;
+      }
+    }
+  }
+}
+
+function updateCssRulesByClassName(
+  cssClassName: string,
+  classNameMappings: Array<{ original: string; hashed: string }>,
+  state: VindurPluginState,
+): void {
+  // Update CSS rules that contain the CSS variable's class name
+  for (let i = 0; i < state.cssRules.length; i++) {
+    const rule = state.cssRules[i];
+    if (rule?.includes(`.${cssClassName}`)) {
+      let updatedRule = rule;
+      for (const mapping of classNameMappings) {
+        // Replace &.className with &.hashedClassName
+        const selectorPattern = new RegExp(
+          `&\\.${escapeRegExp(mapping.original)}\\b`,
+          'g',
+        );
+        updatedRule = updatedRule.replace(
+          selectorPattern,
+          `&.${mapping.hashed}`,
+        );
+      }
+      state.cssRules[i] = updatedRule;
+    }
+  }
 }
 
 function addCxClassNameToJsx(

@@ -507,11 +507,10 @@ describe('JSX cx prop transformation', () => {
             background: red;
                   padding: 20px;
 
-            &.v1abz60o-hoverable {
-              transform: scale(1.05);
-            }
-          }
-          "
+                  &.v1abz60o-hoverable {
+                    transform: scale(1.05);
+                  }
+          }"
         `);
       });
     });
