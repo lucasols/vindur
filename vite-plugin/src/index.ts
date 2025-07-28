@@ -109,7 +109,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           id,
           message: error instanceof Error ? error.message : String(error),
         });
-        return null;
       }
 
       log(
