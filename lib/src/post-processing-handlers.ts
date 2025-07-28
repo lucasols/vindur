@@ -37,6 +37,74 @@ export function resolveForwardReferences(state: VindurPluginState): void {
   });
 }
 
+type ImportSpecifierInfo = {
+  name: string;
+  hasImport: boolean;
+  specifier?: t.ImportSpecifier;
+};
+
+const importNames = [
+  'cx',
+  'mergeClassNames',
+  'mergeStyles',
+  'styledComponent',
+  'createDynamicCssColor',
+  'vComponentWithModifiers',
+  'vindurFn',
+];
+
+function processVindurSpecifiers(
+  specifiers: t.ImportDeclaration['specifiers'],
+  state: VindurPluginState,
+): {
+  keepSpecifiers: t.ImportSpecifier[];
+  importInfo: Record<string, ImportSpecifierInfo>;
+} {
+  const importInfo: Record<string, ImportSpecifierInfo> = {};
+  const keepSpecifiers: t.ImportSpecifier[] = [];
+
+  // Initialize import info
+  for (const name of importNames) {
+    importInfo[name] = { name, hasImport: false };
+  }
+
+  // Process existing specifiers
+  for (const specifier of specifiers) {
+    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
+      const importedName = specifier.imported.name;
+
+      if (importInfo[importedName]) {
+        importInfo[importedName].hasImport = true;
+        importInfo[importedName].specifier = specifier;
+
+        if (state.vindurImports.has(importedName)) {
+          keepSpecifiers.push(specifier);
+        }
+      }
+    }
+  }
+
+  return { keepSpecifiers, importInfo };
+}
+
+function addMissingImports(
+  keepSpecifiers: t.ImportSpecifier[],
+  importInfo: Record<string, ImportSpecifierInfo>,
+  state: VindurPluginState,
+): t.ImportSpecifier[] {
+  const result = [...keepSpecifiers];
+
+  for (const info of Object.values(importInfo)) {
+    if (state.vindurImports.has(info.name) && !info.hasImport) {
+      result.push(
+        t.importSpecifier(t.identifier(info.name), t.identifier(info.name)),
+      );
+    }
+  }
+
+  return result;
+}
+
 export function handleVindurImportCleanup(
   path: NodePath<t.ImportDeclaration>,
   state: VindurPluginState,
@@ -44,121 +112,16 @@ export function handleVindurImportCleanup(
   const source = path.node.source.value;
   if (source !== 'vindur') return false;
 
-  // Handle vindur imports - keep only runtime functions if they're used
-  const specifiersToKeep: t.ImportSpecifier[] = [];
-  let hasCx = false;
-  let hasMergeClassNames = false;
-  let hasMergeStyles = false;
-  let hasStyledComponent = false;
-  let hasCreateDynamicCssColor = false;
-  let hasVComponentWithModifiers = false;
+  const { keepSpecifiers, importInfo } = processVindurSpecifiers(
+    path.node.specifiers,
+    state,
+  );
 
-  for (const specifier of path.node.specifiers) {
-    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
-      const importedName = specifier.imported.name;
+  const finalSpecifiers = addMissingImports(keepSpecifiers, importInfo, state);
 
-      if (importedName === 'cx') {
-        hasCx = true;
-        if (state.vindurImports.has('cx')) {
-          specifiersToKeep.push(specifier);
-        }
-      } else if (importedName === 'mergeClassNames') {
-        hasMergeClassNames = true;
-        if (state.vindurImports.has('mergeClassNames')) {
-          specifiersToKeep.push(specifier);
-        }
-      } else if (importedName === 'mergeStyles') {
-        hasMergeStyles = true;
-        if (state.vindurImports.has('mergeStyles')) {
-          specifiersToKeep.push(specifier);
-        }
-      } else if (importedName === 'styledComponent') {
-        hasStyledComponent = true;
-        if (state.vindurImports.has('styledComponent')) {
-          specifiersToKeep.push(specifier);
-        }
-      } else if (importedName === 'createDynamicCssColor') {
-        hasCreateDynamicCssColor = true;
-        if (state.vindurImports.has('createDynamicCssColor')) {
-          specifiersToKeep.push(specifier);
-        }
-      } else if (importedName === 'vComponentWithModifiers') {
-        hasVComponentWithModifiers = true;
-        if (state.vindurImports.has('vComponentWithModifiers')) {
-          specifiersToKeep.push(specifier);
-        }
-      }
-    }
-  }
-
-  // Add cx import if needed but not already present
-  if (state.vindurImports.has('cx') && !hasCx) {
-    specifiersToKeep.push(
-      t.importSpecifier(t.identifier('cx'), t.identifier('cx')),
-    );
-  }
-
-  // Add mergeClassNames import if needed but not already present
-  if (state.vindurImports.has('mergeClassNames') && !hasMergeClassNames) {
-    specifiersToKeep.push(
-      t.importSpecifier(
-        t.identifier('mergeClassNames'),
-        t.identifier('mergeClassNames'),
-      ),
-    );
-  }
-
-  // Add mergeStyles import if needed but not already present
-  if (state.vindurImports.has('mergeStyles') && !hasMergeStyles) {
-    specifiersToKeep.push(
-      t.importSpecifier(
-        t.identifier('mergeStyles'),
-        t.identifier('mergeStyles'),
-      ),
-    );
-  }
-
-  // Add styledComponent import if needed but not already present
-  if (state.vindurImports.has('styledComponent') && !hasStyledComponent) {
-    specifiersToKeep.push(
-      t.importSpecifier(
-        t.identifier('styledComponent'),
-        t.identifier('styledComponent'),
-      ),
-    );
-  }
-
-  // Add createDynamicCssColor import if needed but not already present
-  if (
-    state.vindurImports.has('createDynamicCssColor')
-    && !hasCreateDynamicCssColor
-  ) {
-    specifiersToKeep.push(
-      t.importSpecifier(
-        t.identifier('createDynamicCssColor'),
-        t.identifier('createDynamicCssColor'),
-      ),
-    );
-  }
-
-  // Add vComponentWithModifiers import if needed but not already present
-  if (
-    state.vindurImports.has('vComponentWithModifiers')
-    && !hasVComponentWithModifiers
-  ) {
-    specifiersToKeep.push(
-      t.importSpecifier(
-        t.identifier('vComponentWithModifiers'),
-        t.identifier('vComponentWithModifiers'),
-      ),
-    );
-  }
-
-  if (specifiersToKeep.length > 0) {
-    // Keep the import but only with the needed specifiers
-    path.node.specifiers = specifiersToKeep;
+  if (finalSpecifiers.length > 0) {
+    path.node.specifiers = finalSpecifiers;
   } else {
-    // Remove the entire vindur import if nothing is needed
     path.remove();
   }
 
