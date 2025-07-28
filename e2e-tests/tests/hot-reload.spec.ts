@@ -1,9 +1,11 @@
-import { test, expect } from '@playwright/test';
 import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from '@playwright/test';
 import { startEnv } from '../utils/startEnv';
 
 test.describe('hot reload behavior', () => {
-  test('should update styles when the file itself changes', async ({ page }) => {
+  test('should update styles when the file itself changes', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-self', {
       'App.tsx': dedent`
         import { css } from "vindur";
@@ -20,26 +22,13 @@ test.describe('hot reload behavior', () => {
       `,
     });
 
-    // Listen for console errors
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        console.log('Browser console error:', msg.text());
-      }
-    });
-    
-    page.on('pageerror', error => {
-      console.log('Page error:', error.message);
-    });
-
     await page.goto(env.baseUrl);
-    
+
     // Debug: Check if page loads and has content
     await page.waitForLoadState('networkidle');
-    const pageContent = await page.content();
-    console.log('Page HTML preview:', pageContent.substring(0, 500));
-    
+
     const title = page.locator('h1');
-    
+
     // Wait for the element to exist before checking CSS
     await expect(title).toBeVisible({ timeout: 10000 });
     await expect(title).toHaveCSS('color', 'rgb(255, 0, 0)'); // red
@@ -70,7 +59,9 @@ test.describe('hot reload behavior', () => {
     await expect(title).toHaveText('Self Hot Reload Updated');
   });
 
-  test('should update styled components when the file changes', async ({ page }) => {
+  test('should update styled components when the file changes', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-styled', {
       'App.tsx': dedent`
         import { styled } from "vindur";
@@ -102,7 +93,7 @@ test.describe('hot reload behavior', () => {
 
     const container = page.locator('div').first();
     const button = page.locator('button');
-    
+
     await expect(container).toHaveCSS('padding', '20px');
     await expect(container).toHaveCSS('background-color', 'rgb(240, 240, 240)');
     await expect(button).toHaveCSS('background-color', 'rgb(0, 128, 0)'); // green
@@ -146,7 +137,9 @@ test.describe('hot reload behavior', () => {
     await expect(button).toHaveText('Updated Button');
   });
 
-  test('should update styles when imported vindurFn constants change', async ({ page }) => {
+  test('should update styles when imported vindurFn constants change', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-constants', {
       'constants.ts': dedent`
         import { vindurFn } from "vindur";
@@ -193,7 +186,9 @@ test.describe('hot reload behavior', () => {
     await expect(title).toHaveCSS('text-decoration-line', 'underline');
   });
 
-  test('should update styles when imported vindurFn functions change', async ({ page }) => {
+  test('should update styles when imported vindurFn functions change', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-vindur-fn', {
       'theme.ts': dedent`
         import { vindurFn } from "vindur";
@@ -245,7 +240,9 @@ test.describe('hot reload behavior', () => {
     await expect(button).toHaveCSS('border-radius', '8px');
   });
 
-  test('should update styles when imported theme variables change', async ({ page }) => {
+  test('should update styles when imported theme variables change', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-theme-vars', {
       'theme.ts': dedent`
         import { vindurFn } from "vindur";
@@ -296,25 +293,31 @@ test.describe('hot reload behavior', () => {
     `);
 
     // Wait for hot reload and check updated styles
-    await expect(card).toHaveCSS('background-color', 'rgb(155, 89, 182)', { timeout: 3000 }); // #9b59b6
+    await expect(card).toHaveCSS('background-color', 'rgb(155, 89, 182)', {
+      timeout: 3000,
+    }); // #9b59b6
     await expect(card).toHaveCSS('padding', '24px');
     await expect(card).toHaveCSS('margin', '12px');
     await expect(card).toHaveCSS('border-radius', '8px');
   });
 
-  test('should update styles when imported string mixins change', async ({ page }) => {
+  test('should update styles when imported vindurFn mixins change', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-mixins', {
       'mixins.ts': dedent`
-        export const flexCenter = 'display: flex; align-items: center; justify-content: center;';
-        export const cardShadow = 'box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);';
+        import { vindurFn } from "vindur";
+
+        export const flexCenter = vindurFn(() => \`display: flex; align-items: center; justify-content: center;\`);
+        export const cardShadow = vindurFn(() => \`box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);\`);
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
-        import { flexCenter, cardShadow } from "./mixins";
+        import { flexCenter, cardShadow } from "#src/mixins";
 
         const containerClass = css\`
-          \${flexCenter}
-          \${cardShadow}
+          \${flexCenter()}
+          \${cardShadow()}
           width: 200px;
           height: 100px;
           background: white;
@@ -336,21 +339,33 @@ test.describe('hot reload behavior', () => {
     await expect(container).toHaveCSS('display', 'flex');
     await expect(container).toHaveCSS('align-items', 'center');
     await expect(container).toHaveCSS('justify-content', 'center');
-    await expect(container).toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0.1) 0px 2px 4px 0px');
+    await expect(container).toHaveCSS(
+      'box-shadow',
+      'rgba(0, 0, 0, 0.1) 0px 2px 4px 0px',
+    );
 
     // Update mixins
     env.getFile('mixins.ts').write(dedent`
-      export const flexCenter = 'display: flex; align-items: flex-start; justify-content: flex-end;';
-      export const cardShadow = 'box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);';
+      import { vindurFn } from "vindur";
+
+      export const flexCenter = vindurFn(() => \`display: flex; align-items: flex-start; justify-content: flex-end;\`);
+      export const cardShadow = vindurFn(() => \`box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);\`);
     `);
 
     // Wait for hot reload and check updated styles
-    await expect(container).toHaveCSS('align-items', 'flex-start', { timeout: 3000 });
+    await expect(container).toHaveCSS('align-items', 'flex-start', {
+      timeout: 3000,
+    });
     await expect(container).toHaveCSS('justify-content', 'flex-end');
-    await expect(container).toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0.2) 0px 4px 8px 0px');
+    await expect(container).toHaveCSS(
+      'box-shadow',
+      'rgba(0, 0, 0, 0.2) 0px 4px 8px 0px',
+    );
   });
 
-  test('should update styles when deeply imported vindurFn dependencies change', async ({ page }) => {
+  test('should update styles when deeply imported vindurFn dependencies change', async ({
+    page,
+  }) => {
     await using env = await startEnv('hot-reload-deep-imports', {
       'tokens.ts': dedent`
         import { vindurFn } from "vindur";
@@ -413,7 +428,9 @@ test.describe('hot reload behavior', () => {
     `);
 
     // Wait for hot reload and check that all derived values update
-    await expect(text).toHaveCSS('color', 'rgb(102, 102, 102)', { timeout: 3000 }); // #666
+    await expect(text).toHaveCSS('color', 'rgb(102, 102, 102)', {
+      timeout: 3000,
+    }); // #666
     await expect(text).toHaveCSS('font-size', '20px');
     await expect(text).toHaveCSS('font-weight', '700'); // bold
     await expect(text).toHaveCSS('margin-bottom', '8px'); // Should still be 8px
