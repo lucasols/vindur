@@ -7,3 +7,4 @@ cache.json
 benchmarks/profiles/*.cpuprofile
 test-mocks-dir*
 notes
+e2e-tests/test-runs

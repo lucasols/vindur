@@ -27,6 +27,16 @@
       "label": "run app test",
       "type": "npm",
       "script": "run-app-test"
+    },
+    {
+      "label": "e2e test",
+      "type": "npm",
+      "script": "e2e:test"
+    },
+    {
+      "label": "build",
+      "type": "npm",
+      "script": "build"
     }
   ]
 }

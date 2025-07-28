@@ -1,13 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { type Plugin } from 'vite';
-import { 
-  transform, 
-  type TransformFS, 
+import fs from "node:fs";
+import path from "node:path";
+import {
+  transform,
+  type TransformFS,
+  type TransformFunctionCache,
   type TransformOptions,
-  type TransformFunctionCache 
-} from '../../lib/src/transform';
-import type { DebugLogger } from '../../lib/src/babel-plugin';
+} from "vindur";
+import { type Plugin } from "vite";
+import type { DebugLogger } from "../../lib/src/babel-plugin";
 
 export type VindurPluginOptions = {
   dev?: boolean;
@@ -19,49 +19,58 @@ type VindurPlugin = Plugin & {
   __vindurPlugin: true;
 };
 
-export function vindur(options: VindurPluginOptions = {}): VindurPlugin {
+export function vindurPlugin(options: VindurPluginOptions = {}): VindurPlugin {
   const {
-    dev = process.env.NODE_ENV === 'development',
+    dev = process.env.NODE_ENV === "development",
     debug = false,
     importAliases = {},
   } = options;
 
   const transformFS: TransformFS = {
     readFile: (fileAbsPath: string) => {
-      return fs.readFileSync(fileAbsPath, 'utf-8');
+      return fs.readFileSync(fileAbsPath, "utf-8");
     },
   };
 
   const transformFunctionCache: TransformFunctionCache = {};
 
-  const debugLogger: DebugLogger | undefined = debug ? { log: console.log } : undefined;
+  const debugLogger: DebugLogger | undefined = debug
+    ? { log: console.log }
+    : undefined;
 
   return {
-    name: 'vindur',
+    name: "vindur",
     __vindurPlugin: true,
-    enforce: 'pre',
-    
+    enforce: "pre",
+
     transform(code: string, id: string) {
       // Only process TypeScript/JavaScript files
-      if (!id.includes('.ts') && !id.includes('.js') && !id.includes('.tsx') && !id.includes('.jsx')) {
+      if (
+        !id.includes(".ts") &&
+        !id.includes(".js") &&
+        !id.includes(".tsx") &&
+        !id.includes(".jsx")
+      ) {
         return null;
       }
 
       // Skip node_modules
-      if (id.includes('node_modules')) {
+      if (id.includes("node_modules")) {
         return null;
       }
 
       // Skip if the file doesn't contain any vindur functions
-      if (!code.includes('css`') && 
-          !code.includes('styled.') && 
-          !code.includes('css={') &&
-          !code.includes('cx={') &&
-          !code.includes('vindurFn') &&
-          !code.includes('keyframes`') &&
-          !code.includes('createGlobalStyle`') &&
-          !code.includes('createStaticThemeColors') &&
-          !code.includes('createDynamicCssColor')) {
+      if (
+        !code.includes("css`") &&
+        !code.includes("styled.") &&
+        !code.includes("css={") &&
+        !code.includes("cx={") &&
+        !code.includes("vindurFn") &&
+        !code.includes("keyframes`") &&
+        !code.includes("createGlobalStyle`") &&
+        !code.includes("createStaticThemeColors") &&
+        !code.includes("createDynamicCssColor")
+      ) {
         return null;
       }
 
@@ -102,11 +111,13 @@ if (typeof document !== 'undefined') {
           map: null,
         };
       } catch (error) {
-        this.error(`Vindur transform failed for ${id}: ${error instanceof Error ? error.message : String(error)}`);
+        this.error(
+          `Vindur transform failed for ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
         return null;
       }
     },
   };
 }
-
-export default vindur;
