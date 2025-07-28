@@ -100,6 +100,7 @@ pnpm test tests/filename.test.ts       # Run tests for a specific file
 
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
+- If there are too many snapshots to update manually, ask for the user to update them
 
 # transform tests
 

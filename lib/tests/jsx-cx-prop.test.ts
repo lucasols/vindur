@@ -79,8 +79,8 @@ describe('JSX cx prop transformation', () => {
               className={
                 "v1560qbr-1-Button " +
                 cx({
-                  "vkrxp8d-primary": isPrimary,
-                  "v199pd0d-disabled": isDisabled,
+                  "v1560qbr-2-primary": isPrimary,
+                  "v1560qbr-3-disabled": isDisabled,
                 })
               }
             >
@@ -96,12 +96,12 @@ describe('JSX cx prop transformation', () => {
           padding: 10px;
           border: 1px solid #ccc;
 
-          &.vkrxp8d-primary {
+          &.v1560qbr-2-primary {
             background: blue;
             color: white;
           }
 
-          &.v199pd0d-disabled {
+          &.v1560qbr-3-disabled {
             opacity: 0.5;
             cursor: not-allowed;
           }
@@ -143,8 +143,8 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "v1560qbr-1-StyledDiv " +
                   cx({
-                    "v18wrjm2-active": isActive,
-                    "v199pd0d-disabled": isDisabled,
+                    "v1560qbr-2-active": isActive,
+                    "v1560qbr-3-disabled": isDisabled,
                   })
                 }
               />
@@ -157,11 +157,11 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1-StyledDiv {
             background: red;
 
-            &.v18wrjm2-active {
+            &.v1560qbr-2-active {
               background: blue;
             }
 
-            &.v199pd0d-disabled {
+            &.v1560qbr-3-disabled {
               background: green;
             }
           }"
@@ -199,8 +199,8 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "v1560qbr-1 " +
                   cx({
-                    v18wrjm2: isActive,
-                    v199pd0d: isDisabled,
+                    "v1560qbr-2": isActive,
+                    "v1560qbr-3": isDisabled,
                   })
                 }
               />
@@ -213,11 +213,11 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1 {
             background: red;
 
-            &.v18wrjm2 {
+            &.v1560qbr-2 {
               background: blue;
             }
 
-            &.v199pd0d {
+            &.v1560qbr-3 {
               background: green;
             }
           }"
@@ -256,7 +256,7 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "v1560qbr-1-Widget " +
                   cx({
-                    "v18wrjm2-active": isActive,
+                    "v1560qbr-2-active": isActive,
                     error: hasError,
                   })
                 }
@@ -270,7 +270,7 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1-Widget {
             padding: 10px;
 
-            &.v18wrjm2-active {
+            &.v1560qbr-2-active {
               background: blue;
             }
 
@@ -358,7 +358,7 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "base-class v1560qbr-1-Card " +
                   cx({
-                    "vzszlgd-highlighted": isHighlighted,
+                    "v1560qbr-2-highlighted": isHighlighted,
                   })
                 }
               />
@@ -371,7 +371,7 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1-Card {
             border: 1px solid #ddd;
 
-            &.vzszlgd-highlighted {
+            &.v1560qbr-2-highlighted {
               border-color: gold;
             }
           }"
@@ -422,8 +422,8 @@ describe('JSX cx prop transformation', () => {
                   cardStyles +
                   " " +
                   cx({
-                    "vge1qo3-featured": isFeatured,
-                    "vm4hlsi-compact": isCompact,
+                    "v1560qbr-2-featured": isFeatured,
+                    "v1560qbr-3-compact": isCompact,
                   })
                 }
               >
@@ -440,12 +440,12 @@ describe('JSX cx prop transformation', () => {
             border: 1px solid #ddd;
             padding: 16px;
 
-            &.vge1qo3-featured {
+            &.v1560qbr-2-featured {
               border-color: gold;
               box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             }
 
-            &.vm4hlsi-compact {
+            &.v1560qbr-3-compact {
               padding: 8px;
             }
           }"
@@ -484,7 +484,7 @@ describe('JSX cx prop transformation', () => {
                 className={
                   "v1560qbr-1-css-prop-1 " +
                   cx({
-                    "v1abz60o-hoverable": isHoverable,
+                    "v1560qbr-2-hoverable": isHoverable,
                   })
                 }
               >
@@ -500,7 +500,7 @@ describe('JSX cx prop transformation', () => {
             background: red;
                   padding: 20px;
 
-                  &.v1abz60o-hoverable {
+                  &.v1560qbr-2-hoverable {
                     transform: scale(1.05);
                   }
           }"
@@ -538,7 +538,7 @@ describe('JSX cx prop transformation', () => {
                   [props],
                   "v1560qbr-1-Button " +
                     cx({
-                      "v18wrjm2-active": isActive,
+                      "v1560qbr-2-active": isActive,
                     }),
                 )}
               />
@@ -551,7 +551,7 @@ describe('JSX cx prop transformation', () => {
           ".v1560qbr-1-Button {
             padding: 8px;
 
-            &.v18wrjm2-active {
+            &.v1560qbr-2-active {
               background: blue;
             }
           }"

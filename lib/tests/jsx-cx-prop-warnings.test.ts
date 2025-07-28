@@ -39,9 +39,9 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1-Card " +
                 cx({
-                  "v18wrjm2-active": isActive,
-                  "v199pd0d-disabled": isDisabled,
-                  "v6k42po-highlighted": isHighlighted,
+                  "v1560qbr-2-active": isActive,
+                  "v1560qbr-3-disabled": isDisabled,
+                  "v1560qbr-4-highlighted": isHighlighted,
                 })
               }
             >
@@ -60,11 +60,11 @@ describe('JSX cx prop warnings', () => {
           background: white;
           padding: 16px;
 
-          &.v18wrjm2-active {
+          &.v1560qbr-2-active {
             background: blue;
           }
 
-          &.v199pd0d-disabled {
+          &.v1560qbr-3-disabled {
             opacity: 0.5;
           }
         }"
@@ -101,10 +101,10 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1-Widget " +
                 cx({
-                  "v18wrjm2-active": isActive,
-                  "v199pd0d-disabled": isDisabled,
-                  "v6k42po-highlighted": isHighlighted,
-                  "v184prwi-compact": isCompact,
+                  "v1560qbr-2-active": isActive,
+                  "v1560qbr-3-disabled": isDisabled,
+                  "v1560qbr-4-highlighted": isHighlighted,
+                  "v1560qbr-5-compact": isCompact,
                 })
               }
             >
@@ -122,7 +122,7 @@ describe('JSX cx prop warnings', () => {
         ".v1560qbr-1-Widget {
           background: white;
 
-          &.v18wrjm2-active {
+          &.v1560qbr-2-active {
             background: blue;
           }
         }"
@@ -160,8 +160,8 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1 " +
                 cx({
-                  v18wrjm2: isActive,
-                  vkki7ul: isHighlighted,
+                  "v1560qbr-2": isActive,
+                  "v1560qbr-3": isHighlighted,
                 })
               }
             >
@@ -176,7 +176,7 @@ describe('JSX cx prop warnings', () => {
         ".v1560qbr-1 {
           background: white;
 
-          &.v18wrjm2 {
+          &.v1560qbr-2 {
             background: blue;
           }
         }"
@@ -217,8 +217,8 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1-Button " +
                 cx({
-                  "vkrxp8d-primary": isPrimary,
-                  "v199pd0d-disabled": isDisabled,
+                  "v1560qbr-2-primary": isPrimary,
+                  "v1560qbr-3-disabled": isDisabled,
                 })
               }
             >
@@ -233,11 +233,11 @@ describe('JSX cx prop warnings', () => {
         ".v1560qbr-1-Button {
           padding: 8px;
 
-          &.vkrxp8d-primary {
+          &.v1560qbr-2-primary {
             background: blue;
           }
 
-          &.v199pd0d-disabled {
+          &.v1560qbr-3-disabled {
             opacity: 0.5;
           }
         }"
@@ -270,9 +270,9 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1-Widget " +
                 cx({
-                  "v18wrjm2-active": isActive,
+                  "v1560qbr-2-active": isActive,
                   error: hasError,
-                  "v2jf5l9-warning": hasWarning,
+                  "v1560qbr-3-warning": hasWarning,
                 })
               }
             />
@@ -288,7 +288,7 @@ describe('JSX cx prop warnings', () => {
         ".v1560qbr-1-Widget {
           padding: 10px;
 
-          &.v18wrjm2-active {
+          &.v1560qbr-2-active {
             background: blue;
           }
         }"
@@ -329,7 +329,7 @@ describe('JSX cx prop warnings', () => {
               className={
                 "v1560qbr-1-Widget " +
                 cx({
-                  "v18wrjm2-active": isActive,
+                  "v1560qbr-2-active": isActive,
                   error: hasError,
                   disabled: isDisabled,
                 })
@@ -344,7 +344,7 @@ describe('JSX cx prop warnings', () => {
         ".v1560qbr-1-Widget {
           padding: 10px;
 
-          &.v18wrjm2-active {
+          &.v1560qbr-2-active {
             background: blue;
           }
 

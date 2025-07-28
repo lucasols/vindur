@@ -39,8 +39,6 @@ A compile-time CSS-in-JS library focused on performance.
 - [x] Dynamic CSS colors
 - [x] Style flags props
 
-### DX
-
 ### 🚧 **Utility Features**
 
 - [x] Stable IDs via `stableId` function
@@ -49,6 +47,11 @@ A compile-time CSS-in-JS library focused on performance.
 
 - [x] Scoped JSX modifier classes
 - [x] Scoped CSS variables (`---var` syntax) ✅
+
+### Vite plugin
+
+- [ ] Vite plugin
+- [ ] Vite e2e tests
 
 ## Beta 2 - Advanced Features
 

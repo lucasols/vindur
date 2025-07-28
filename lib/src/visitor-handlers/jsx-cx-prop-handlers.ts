@@ -1,6 +1,5 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import { murmur2 } from '@ls-stack/utils/hash';
 import type { VindurPluginState } from '../babel-plugin';
 import { findWithNarrowing } from '../utils';
 
@@ -117,12 +116,21 @@ export function handleJsxCxProp(
       });
       return t.objectProperty(t.stringLiteral(unhashedClassName), prop.value);
     } else {
-      // Hash the class name
+      // Hash the class name with proper index tracking
+      let classIndex = context.state.cxClassNames?.get(className);
+      if (classIndex === undefined) {
+        // First time seeing this class name, assign new index
+        classIndex = context.classIndex();
+        if (context.state.cxClassNames) {
+          context.state.cxClassNames.set(className, classIndex);
+        }
+      }
+      
       const hashedClassName = generateHashedClassName(
         className,
         context.dev,
         context.fileHash,
-        context.classIndex(),
+        classIndex,
       );
       classNameMappings.push({ original: className, hashed: hashedClassName });
       return t.objectProperty(t.stringLiteral(hashedClassName), prop.value);
@@ -180,13 +188,10 @@ function generateHashedClassName(
   fileHash: string,
   classIndex: number,
 ): string {
-  const input = `${fileHash}-${classIndex}-cx-${className}`;
-  const hash = murmur2(input);
-
   if (dev) {
-    return `v${hash}-${className}`;
+    return `${fileHash}-${classIndex}-${className}`;
   } else {
-    return `v${hash}`;
+    return `${fileHash}-${classIndex}`;
   }
 }
 
