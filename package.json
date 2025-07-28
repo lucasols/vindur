@@ -20,7 +20,17 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@ls-stack/extended-lint": "catalog:",
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-unicorn": "catalog:",
+    "eslint-plugin-vitest": "catalog:",
+    "jiti": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
   }
 }

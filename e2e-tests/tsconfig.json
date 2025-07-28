@@ -1,37 +1,22 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    /* Base Options */
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "target": "es2022",
-    "allowJs": true,
-    "resolveJsonModule": true,
-    "moduleDetection": "force",
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-
-    /* If NOT transpiling with TypeScript */
-    "module": "preserve",
-    "noEmit": true,
-
-    /* If your code runs in the DOM */
-    "lib": ["es2022", "dom", "dom.iterable"],
-
-    /* Strictness */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-
     /* Framework specific */
+    "allowJs": true,
+    "module": "preserve",
+    "lib": ["es2022", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
     "useDefineForClassFields": true,
     "types": ["@playwright/test"],
+    "moduleDetection": "force",
+    "isolatedModules": true,
 
     /* Additional linting options */
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true
   },
   "include": ["**/*.ts", "**/*.tsx", "vite-env.d.ts"]
 }
