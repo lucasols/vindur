@@ -465,11 +465,10 @@ describe('scoped CSS variables', () => {
       `,
     });
 
-    // Should not produce warnings since ---theme-color could be provided via style props
-    expect(result.code).not.toContain('console.warn');
+    expect(result.code).toContain(
+      'console.warn("Scoped variable \'---theme-color\' is used but never declared")',
+    );
   });
-
-  // Note: Style prop warning test removed as it requires more complex JSX transformation logic
 
   test('should handle complex variable names', async () => {
     const result = await transformWithFormat({
