@@ -151,7 +151,11 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
       if (virtualCssModules.has(virtualCssId)) {
         virtualCssModules.delete(virtualCssId);
-        log(`Cleared virtual CSS module for hot update: ${virtualCssId}`);
+        if (debugLogs) {
+          this.info(
+            `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
+          );
+        }
       }
       return undefined;
     },
