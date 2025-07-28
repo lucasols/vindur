@@ -133,6 +133,53 @@ pnpm test tests/filename.spec.ts       # Run tests for a specific file
 
 IMPORTANT: Playwright tests already have a 10s timeout configured
 
+### E2E Test Structure
+
+E2E tests follow a consistent pattern for performance and maintainability:
+
+**Key Guidelines:**
+
+- **Prefer reusing `startEnv`** calls, use new ones only if the test requires a different environment
+- **Serial execution** with `test.describe.configure({ mode: 'serial' })`
+- **Shared setup/teardown** using `beforeAll`/`afterAll` hooks
+- **Data-testid selectors** for reliable element targeting
+- **Simplified CSS** - minimal CSS for focused testing
+- **Test only the core features functionality related to the vite plugin** - implementations details are already tested in lib/ tests, e2e tests should only test if the vite plugin is working as expected
+- **Follow Playwright best practices**
+- **Tests should be concise**
+
+**Example structure:**
+
+```typescript
+test.describe('feature name', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let env: TestEnv;
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+    env = await startEnv('test-name', {
+      'App.tsx': dedent`
+        // Single comprehensive App component
+        // covering all test scenarios
+      `,
+    });
+    await page.goto(env.baseUrl);
+  });
+
+  test.afterAll(async () => {
+    await page.close();
+    await env.cleanup();
+  });
+
+  test('should test feature A', async () => {
+    const element = page.getByTestId('test-element');
+    await expect(element).toHaveCSS('property', 'value');
+  });
+});
+```
+
 # transform tests
 
 Tests for transform function should follow this structure:
