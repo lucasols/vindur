@@ -8,7 +8,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "lint": "pnpm tsc && pnpm eslint",
-    "tsc": "tsc -p tsconfig.prod.json",
+    "tsc": "tsc --noEmit",
     "eslint": "CI=true eslint --color src/ tests/ --max-warnings 0 --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

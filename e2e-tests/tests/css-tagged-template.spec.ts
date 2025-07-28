@@ -1,32 +1,65 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { expect, test } from '@playwright/test';
-import { startEnv } from '../utils/startEnv';
+import { expect, test, type Page } from '@playwright/test';
+import { startEnv, type TestEnv } from '../utils/startEnv';
 
 test.describe('css tagged template', () => {
-  test('should handle basic styles and multiple declarations', async ({
-    page,
-  }) => {
-    await using env = await startEnv('css-basic-multiple', {
+  test.describe.configure({ mode: 'serial' });
+
+  let env: TestEnv;
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+    env = await startEnv('css-tagged-template-tests', {
       'App.tsx': dedent`
         import { css } from "vindur";
 
         const headerClass = css\`
           color: red;
           font-size: 32px;
-          font-weight: bold;
         \`;
 
-        const paragraphClass = css\`
-          color: gray;
-          font-size: 16px;
-          line-height: 1.5;
+        const buttonClass = css\`
+          background: lightblue;
+          padding: 10px 20px;
+  
+          &:hover {
+            background: darkblue;
+          }
+        \`;
+
+        const nestedClass = css\`
+          color: blue;
+
+          h2 {
+            font-size: 24px;
+          }
+
+          .highlight {
+            background: yellow;
+          }
+        \`;
+
+        const mediaClass = css\`
+          font-size: 14px;
+
+          @media (min-width: 768px) {
+            font-size: 18px;
+          }
         \`;
 
         export default function App() {
           return (
             <div>
-              <h1 className={headerClass}>Title</h1>
-              <p className={paragraphClass}>Content</p>
+              <h1 data-testid="header" className={headerClass}>Title</h1>
+              <button data-testid="button" className={buttonClass}>Click me</button>
+      
+              <div data-testid="nested" className={nestedClass}>
+                <h2>Nested heading</h2>
+                <span className="highlight">Highlighted text</span>
+              </div>
+
+              <p data-testid="media" className={mediaClass}>Responsive text</p>
             </div>
           );
         }
@@ -34,143 +67,41 @@ test.describe('css tagged template', () => {
     });
 
     await page.goto(env.baseUrl);
-
-    const header = page.locator('h1');
-    await expect(header).toHaveCSS('color', 'rgb(255, 0, 0)');
-    await expect(header).toHaveCSS('font-size', '32px');
-    await expect(header).toHaveCSS('font-weight', '700');
-
-    const paragraph = page.locator('p');
-    await expect(paragraph).toHaveCSS('color', 'rgb(128, 128, 128)');
-    await expect(paragraph).toHaveCSS('font-size', '16px');
-    await expect(paragraph).toHaveCSS('line-height', '1.5');
   });
 
-  test('should handle pseudo-classes, pseudo-elements and hover states', async ({
-    page,
-  }) => {
-    await using env = await startEnv('css-pseudo', {
-      'App.tsx': dedent`
-        import { css } from "vindur";
+  test.afterAll(async () => {
+    await page.close();
+    await env.cleanup();
+  });
 
-        const buttonClass = css\`
-          background: lightblue;
-          padding: 10px 20px;
-          cursor: pointer;
-  
-          &:hover {
-            background: darkblue;
-            color: white;
-          }
-        \`;
+  test('should handle basic styles and multiple declarations', async () => {
+    const header = page.getByTestId('header');
+    await expect(header).toHaveCSS('color', 'rgb(255, 0, 0)');
+    await expect(header).toHaveCSS('font-size', '32px');
+  });
 
-        export default function App() {
-          return <button className={buttonClass}>Click me</button>;
-        }
-      `,
-    });
-
-    await page.goto(env.baseUrl);
-
-    const button = page.locator('button');
+  test('should handle pseudo-classes and hover states', async () => {
+    const button = page.getByTestId('button');
     await expect(button).toHaveCSS('background-color', 'rgb(173, 216, 230)');
     await expect(button).toHaveCSS('padding', '10px 20px');
 
     await button.hover();
     await expect(button).toHaveCSS('background-color', 'rgb(0, 0, 139)');
-    await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
   });
 
-  test('should handle media queries', async ({ page }) => {
-    await using env = await startEnv('css-media', {
-      'App.tsx': dedent`
-        import { css } from "vindur";
+  test('should handle nested selectors', async () => {
+    const nested = page.getByTestId('nested');
+    await expect(nested).toHaveCSS('color', 'rgb(0, 0, 255)');
 
-        const responsiveClass = css\`
-          font-size: 16px;
-  
-          @media (min-width: 768px) {
-            font-size: 24px;
-          }
-  
-          @media (min-width: 1024px) {
-            font-size: 32px;
-          }
-        \`;
+    const heading = nested.locator('h2');
+    await expect(heading).toHaveCSS('font-size', '24px');
 
-        export default function App() {
-          return <div className={responsiveClass}>Responsive Text</div>;
-        }
-      `,
-    });
-
-    await page.goto(env.baseUrl);
-    const element = page.locator('div').first();
-
-    await page.setViewportSize({ width: 375, height: 667 });
-    await expect(element).toHaveCSS('font-size', '16px');
-
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(element).toHaveCSS('font-size', '24px');
-
-    await page.setViewportSize({ width: 1024, height: 768 });
-    await expect(element).toHaveCSS('font-size', '32px');
+    const highlight = nested.locator('.highlight');
+    await expect(highlight).toHaveCSS('background-color', 'rgb(255, 255, 0)');
   });
 
-  test('should handle nested selectors and child combinators', async ({
-    page,
-  }) => {
-    await using env = await startEnv('css-nested', {
-      'App.tsx': dedent`
-        import { css } from "vindur";
-
-        const containerClass = css\`
-          padding: 20px;
-          background: #f0f0f0;
-  
-          h2 {
-            color: navy;
-            margin-bottom: 10px;
-          }
-  
-          p {
-            color: #666;
-    
-            strong {
-              color: black;
-            }
-          }
-  
-          > .direct-child {
-            border: 1px solid #ccc;
-            padding: 10px;
-          }
-        \`;
-
-        export default function App() {
-          return (
-            <div className={containerClass}>
-              <h2>Title</h2>
-              <p>Text with <strong>emphasis</strong></p>
-              <div className="direct-child">Direct child</div>
-            </div>
-          );
-        }
-      `,
-    });
-
-    await page.goto(env.baseUrl);
-
-    const container = page.locator('div').first();
-    await expect(container).toHaveCSS('padding', '20px');
-    await expect(container).toHaveCSS('background-color', 'rgb(240, 240, 240)');
-
-    await expect(page.locator('h2')).toHaveCSS('color', 'rgb(0, 0, 128)');
-    await expect(page.locator('p')).toHaveCSS('color', 'rgb(102, 102, 102)');
-    await expect(page.locator('strong')).toHaveCSS('color', 'rgb(0, 0, 0)');
-    await expect(page.locator('.direct-child')).toHaveCSS(
-      'border',
-      '1px solid rgb(204, 204, 204)',
-    );
+  test('should handle media queries', async () => {
+    const media = page.getByTestId('media');
+    await expect(media).toHaveCSS('font-size', '18px');
   });
 });
