@@ -1,20 +1,16 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transform } from '../../src/transform';
-import { createFsMock } from '../testUtils';
-
-const importAliases = { '#/': '/' };
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('variable references in function calls', () => {
-  test('function call with simple variable reference', () => {
+  test('function call with simple variable reference', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const pixelSize = vindurFn((size: number) => 'width: \${size}px;')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { pixelSize } from '#/functions'
@@ -25,22 +21,21 @@ describe('variable references in function calls', () => {
           \${pixelSize(mySize)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         width: 24px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`
+    expect(result.code).toMatchInlineSnapshot(`
       "const mySize = 24;
       const style = "vwmy4ur-1";"
     `);
   });
 
-  test('function call with arithmetic using variables', () => {
+  test('function call with arithmetic using variables', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -50,8 +45,7 @@ describe('variable references in function calls', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { spacing } from '#/functions'
@@ -63,32 +57,30 @@ describe('variable references in function calls', () => {
           \${spacing(baseUnit * scale, baseUnit)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         margin: 16px;
         padding: 8px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`
+    expect(result.code).toMatchInlineSnapshot(`
       "const baseUnit = 8;
       const scale = 2;
       const style = "vwmy4ur-1";"
     `);
   });
 
-  test('function call with string variable', () => {
+  test('function call with string variable', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const colorize = vindurFn((color: string) => 'color: \${color};')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { colorize } from '#/functions'
@@ -99,22 +91,21 @@ describe('variable references in function calls', () => {
           \${colorize(primaryColor)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         color: blue;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`
+    expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = 'blue';
       const style = "vwmy4ur-1";"
     `);
   });
 
-  test('function call with multiple variable references', () => {
+  test('function call with multiple variable references', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -123,8 +114,7 @@ describe('variable references in function calls', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { border } from '#/functions'
@@ -137,16 +127,15 @@ describe('variable references in function calls', () => {
           \${border(borderWidth, borderStyle, borderColor)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         border: 2px solid red;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`
+    expect(result.code).toMatchInlineSnapshot(`
       "const borderWidth = 2;
       const borderStyle = 'solid';
       const borderColor = 'red';
@@ -154,15 +143,14 @@ describe('variable references in function calls', () => {
     `);
   });
 
-  test('function call with template literal variable', () => {
+  test('function call with template literal variable', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const content = vindurFn((text: string) => 'content: "\${text}";')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { content } from '#/functions'
@@ -175,16 +163,15 @@ describe('variable references in function calls', () => {
           \${content(message)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         content: "Hello World";
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`
+    expect(result.code).toMatchInlineSnapshot(`
       "const prefix = 'Hello';
       const suffix = 'World';
       const message = \`\${prefix} \${suffix}\`;

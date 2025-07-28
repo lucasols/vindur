@@ -1,20 +1,16 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transform } from '../../src/transform';
-import { createFsMock } from '../testUtils';
-
-const importAliases = { '#/': '/' };
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('function evaluation - basic functionality', () => {
-  test('function with simple params', () => {
+  test('function with simple params', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const pixelSize = vindurFn((size: number) => '\${size}px')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { pixelSize } from '#/functions'
@@ -23,19 +19,18 @@ describe('function evaluation - basic functionality', () => {
           width: \${pixelSize(10)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         width: 10px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with multiple params', () => {
+  test('function with multiple params', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -44,8 +39,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { margin } from '#/functions'
@@ -54,19 +48,18 @@ describe('function evaluation - basic functionality', () => {
           \${margin(10, 20, 30, 40)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         margin: 10px 20px 30px 40px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with destructured object param', () => {
+  test('function with destructured object param', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -78,8 +71,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { inline } from '#/functions'
@@ -88,11 +80,10 @@ describe('function evaluation - basic functionality', () => {
           \${inline({ gap: 10 })};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         display: flex;
         justify-content: flex-start;
@@ -100,10 +91,10 @@ describe('function evaluation - basic functionality', () => {
         gap: 10px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with no parameters', () => {
+  test('function with no parameters', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -114,8 +105,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { reset } from '#/functions'
@@ -125,11 +115,10 @@ describe('function evaluation - basic functionality', () => {
           color: red;
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         margin: 0;
         padding: 0;
@@ -137,18 +126,17 @@ describe('function evaluation - basic functionality', () => {
         color: red;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function returning static string', () => {
+  test('function returning static string', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const border = vindurFn(() => '1px solid black')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { border } from '#/functions'
@@ -157,19 +145,18 @@ describe('function evaluation - basic functionality', () => {
           border: \${border()};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         border: 1px solid black;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with simple conditional', () => {
+  test('function with simple conditional', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -178,8 +165,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { spacing } from '#/functions'
@@ -188,19 +174,18 @@ describe('function evaluation - basic functionality', () => {
           \${spacing({ size: 'large' })};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         padding: large;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('multiple functions in one file', () => {
+  test('multiple functions in one file', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -209,8 +194,7 @@ describe('function evaluation - basic functionality', () => {
       export const color = vindurFn((name: string) => '\${name}')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { px, percent, color } from '#/functions'
@@ -221,29 +205,27 @@ describe('function evaluation - basic functionality', () => {
           background: \${color('red')};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         font-size: 24px;
         width: 50%;
         background: red;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with mixed parameter types', () => {
+  test('function with mixed parameter types', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
       export const shadow = vindurFn((x: number, y: number, blur: number, color: string) => '\${x}px \${y}px \${blur}px \${color}')
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { shadow } from '#/functions'
@@ -252,19 +234,18 @@ describe('function evaluation - basic functionality', () => {
           box-shadow: \${shadow(2, 4, 8, 'rgba(0,0,0,0.3)')};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with all default values used', () => {
+  test('function with all default values used', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -283,8 +264,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { button } from '#/functions'
@@ -293,11 +273,10 @@ describe('function evaluation - basic functionality', () => {
           \${button({})};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         background: blue;
         color: white;
@@ -307,10 +286,10 @@ describe('function evaluation - basic functionality', () => {
         cursor: pointer;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with simple interpolation', () => {
+  test('function with simple interpolation', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -321,8 +300,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { grid } from '#/functions'
@@ -331,21 +309,20 @@ describe('function evaluation - basic functionality', () => {
           \${grid(3, 16)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 16px;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with simple ternary expressions', () => {
+  test('function with simple ternary expressions', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -355,8 +332,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { theme } from '#/functions'
@@ -365,20 +341,19 @@ describe('function evaluation - basic functionality', () => {
           \${theme({ variant: 'secondary', disabled: false })};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         background: secondary;
         opacity: 1;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with partial parameter override', () => {
+  test('function with partial parameter override', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -395,8 +370,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { card } from '#/functions'
@@ -405,11 +379,10 @@ describe('function evaluation - basic functionality', () => {
           \${card({ shadow: 'large', bg: '#f8f9fa' })};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         background: #f8f9fa;
         border-radius: 8px;
@@ -417,10 +390,10 @@ describe('function evaluation - basic functionality', () => {
         box-shadow: large;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('function with return statement syntax', () => {
+  test('function with return statement syntax', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -429,8 +402,7 @@ describe('function evaluation - basic functionality', () => {
       })
     `;
 
-    const { code, css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { transition } from '#/functions'
@@ -440,20 +412,19 @@ describe('function evaluation - basic functionality', () => {
           opacity: 0.5;
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         transition: opacity 300ms ease-in-out;
         opacity: 0.5;
       }"
     `);
-    expect(code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 
-  test('simple template literal in ternary', () => {
+  test('simple template literal in ternary', async () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
@@ -463,8 +434,7 @@ describe('function evaluation - basic functionality', () => {
       \`)
     `;
 
-    const { css } = transform({
-      fileAbsPath: '/test.ts',
+    const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
         import { test } from '#/functions'
@@ -473,15 +443,15 @@ describe('function evaluation - basic functionality', () => {
           \${test(true, 100)};
         \`
       `,
-      fs: createFsMock({ 'functions.ts': fnFile }),
-      importAliases,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
     });
 
-    expect(css).toMatchInlineSnapshot(`
+    expect(result.css).toMatchInlineSnapshot(`
       ".vwmy4ur-1 {
         display: block;
         width: 100px;
       }"
     `);
+    expect(result.code).toMatchInlineSnapshot(`"const style = "vwmy4ur-1";"`);
   });
 });
