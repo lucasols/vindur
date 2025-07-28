@@ -89,7 +89,8 @@ describe('JSX cx prop transformation', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isPrimary, isDisabled }) {
+        "import { cx } from "vindur";
+        function Component({ isPrimary, isDisabled }) {
           return (
             <button
               className={
@@ -153,7 +154,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ isActive, isDisabled }) {
+          "import { cx } from "vindur";
+          function Component({ isActive, isDisabled }) {
             return (
               <div
                 className={
@@ -209,7 +211,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ isActive, isDisabled }) {
+          "import { cx } from "vindur";
+          function Component({ isActive, isDisabled }) {
             return (
               <div
                 className={
@@ -266,7 +269,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ isActive, hasError }) {
+          "import { cx } from "vindur";
+          function Component({ isActive, hasError }) {
             return (
               <div
                 className={
@@ -317,7 +321,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component() {
+          "import { cx } from "vindur";
+          function Component() {
             return (
               <div
                 className={
@@ -368,7 +373,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ isHighlighted }) {
+          "import { cx } from "vindur";
+          function Component({ isHighlighted }) {
             return (
               <div
                 className={
@@ -430,7 +436,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "const cardStyles = "v1560qbr-1-cardStyles";
+          "import { cx } from "vindur";
+          const cardStyles = "v1560qbr-1-cardStyles";
           function Component({ isFeatured, isCompact }) {
             return (
               <div
@@ -494,7 +501,8 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "function Component({ isHoverable }) {
+          "import { cx } from "vindur";
+          function Component({ isHoverable }) {
             return (
               <div
                 className={
@@ -545,7 +553,7 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "import { mergeClassNames } from "vindur";
+          "import { cx, mergeClassNames } from "vindur";
           function Component({ props, isActive }) {
             return (
               <button

@@ -33,7 +33,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isActive, isDisabled, isHighlighted }) {
+        "import { cx } from "vindur";
+        function Component({ isActive, isDisabled, isHighlighted }) {
           return (
             <div
               className={
@@ -95,7 +96,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isActive, isDisabled, isHighlighted, isCompact }) {
+        "import { cx } from "vindur";
+        function Component({ isActive, isDisabled, isHighlighted, isCompact }) {
           return (
             <div
               className={
@@ -154,7 +156,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isActive, isHighlighted }) {
+        "import { cx } from "vindur";
+        function Component({ isActive, isHighlighted }) {
           return (
             <div
               className={
@@ -211,7 +214,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isPrimary, isDisabled }) {
+        "import { cx } from "vindur";
+        function Component({ isPrimary, isDisabled }) {
           return (
             <button
               className={
@@ -264,7 +268,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isActive, hasError, hasWarning }) {
+        "import { cx } from "vindur";
+        function Component({ isActive, hasError, hasWarning }) {
           return (
             <div
               className={
@@ -323,7 +328,8 @@ describe('JSX cx prop warnings', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "function Component({ isActive, hasError, isDisabled }) {
+        "import { cx } from "vindur";
+        function Component({ isActive, hasError, isDisabled }) {
           return (
             <div
               className={
