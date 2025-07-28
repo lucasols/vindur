@@ -140,7 +140,7 @@ describe('JSX cx prop transformation', () => {
           "function Component({ isActive, isDisabled }) {
             return (
               <div
-                className={'v1560qbr-1-StyledDiv' + cx({
+                className={'v1560qbr-1-StyledDiv ' + cx({
                   "v18wrjm2-active": isActive,
                   "v199pd0d-disabled": isDisabled,
                 })}
@@ -300,7 +300,7 @@ describe('JSX cx prop transformation', () => {
           "function Component() {
             return (
               <div
-                className={'v1560qbr-1-StyledDiv' + cx({
+                className={'v1560qbr-1-StyledDiv ' + cx({
                   noHash: true,
                 })}
               />
@@ -351,7 +351,7 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "base-class " +
+                  "base-class v1560qbr-1-Card " +
                   cx({
                     "v1j9ou1z-highlighted": isHighlighted,
                   })
@@ -529,22 +529,16 @@ describe('JSX cx prop transformation', () => {
         });
 
         expect(result.code).toMatchInlineSnapshot(`
-          "import { mergeClassNames } from \\"vindur\\";
-          function Component({ props, isActive }) {
+          "function Component({ props, isActive }) {
             return (
               <button
                 {...props}
                 className={mergeClassNames(
-                  [
-                    mergeClassNames(
-                      [props],
-                      cx({
-                        \\"v18wrjm2-active\\": isActive,
-                      }),
-                    ),
-                    props,
-                  ],
-                  \\"v1560qbr-1-Button\\"
+                  [props],
+                  \\"v1560qbr-1-Button\\" +
+                  cx({
+                    \\"v18wrjm2-active\\": isActive,
+                  })
                 )}
               />
             );
