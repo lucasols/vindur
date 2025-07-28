@@ -33,39 +33,13 @@ A compile-time CSS-in-JS library focused on performance.
 
 - [x] JSX `css` prop (styled-components/emotion style) ✅
 - [x] JSX `cx` prop (classnames style) ✅
-  ```tsx
-  <div cx={{ active: true, disabled: false }} />
-  ```
 
 ### 🚧 **Dynamic Features**
 
 - [x] Dynamic CSS colors
-- [ ] Style flags props
-
-  ```tsx
-  const StyledWithModifier = styled.div<{
-    active: boolean
-    disabled: boolean
-  }>`
-    &.active { ... }
-    &.disabled { ... }
-  `
-
-  <StyledWithModifier active={true} disabled={false} />
-  ```
-
-  in output the Variable will be replaced with the following and used as a normal JSX component, no css injection in jsx in this case:
-
-  ```tsx
-  const StyledWithModifier = vComponentWithModifiers(
-    ['active', 'disabled'],
-    'vHash-1', // generated css will be injected here
-  );
-  ```
+- [x] Style flags props
 
 ### DX
-
-- [ ] Stylelint plugin
 
 ### 🚧 **Utility Features**
 
@@ -73,7 +47,7 @@ A compile-time CSS-in-JS library focused on performance.
 
 ### 🚧 **Scoping System**
 
-- [ ] Scoped JSX modifier classes (prefix with `_`)
+- [x] Scoped JSX modifier classes
 - [ ] Scoped CSS variables (`---var` syntax)
 
 ## Beta 2 - Advanced Features
@@ -89,6 +63,7 @@ A compile-time CSS-in-JS library focused on performance.
 
 ## Developer Experience
 
+- [ ] Stylelint plugin
 - [ ] Error handling improvements
 
 ---
