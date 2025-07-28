@@ -58,7 +58,14 @@ export async function startEnv(
   }
 
   const server = await createServer({
-    plugins: [react(), vindurPlugin()],
+    plugins: [
+      react(),
+      vindurPlugin({
+        importAliases: {
+          "#src": "/src",
+        },
+      }),
+    ],
     configFile: false,
     root: tempDir,
     resolve: {
