@@ -96,6 +96,7 @@ export async function startEnv(
     server: {
       port,
     },
+    cacheDir: path.join(testRunDirPath, '.vite'),
   });
 
   await server.listen();
