@@ -13,6 +13,7 @@ export function processScopedCssVariables(
   dev: boolean,
   existingScopedVariables?: ScopedVariableMap,
   classIndexRef?: { current: number },
+  potentiallyUndeclaredVariables?: Set<string>,
 ): ScopedVariableResult {
   const scopedVariables: ScopedVariableMap = new Map();
   const warnings: string[] = [];
@@ -23,7 +24,7 @@ export function processScopedCssVariables(
 
   // First pass: Find all scoped variable declarations (---varname: value)
   const declarationRegex = /---([a-zA-Z0-9-]+)\s*:\s*([^;]+);?/g;
-  let processedCss = css.replace(declarationRegex, (match: string, varName: string, value: string) => {
+  let processedCss = css.replace(declarationRegex, (_match: string, varName: string, value: string) => {
     const trimmedVarName = varName.trim();
     declaredVariables.add(trimmedVarName);
     
@@ -61,7 +62,7 @@ export function processScopedCssVariables(
 
   // Second pass: Replace all scoped variable usages var(---varname)
   const usageRegex = /var\(\s*---([a-zA-Z0-9-]+)\s*(?:,\s*([^)]+))?\)/g;
-  processedCss = processedCss.replace(usageRegex, (match: string, varName: string, fallback?: string) => {
+  processedCss = processedCss.replace(usageRegex, (_match: string, varName: string, fallback?: string) => {
     const trimmedVarName = varName.trim();
     usedVariables.add(trimmedVarName);
     
@@ -107,9 +108,18 @@ export function processScopedCssVariables(
       }
     }
 
-    // Note: We don't warn about "used but never declared" variables here because
-    // they might be provided via style props at runtime, which is a valid pattern.
-    // Only warn about declared but unused variables within the CSS itself.
+    // Track variables used but never declared (may be provided via style props)
+    if (potentiallyUndeclaredVariables) {
+      for (const usedVar of usedVariables) {
+        // Check if variable is declared in current CSS or exists in file-level scoped variables
+        const isDeclaredHere = declaredVariables.has(usedVar);
+        const isDeclaredInFile = existingScopedVariables?.has(usedVar);
+        
+        if (!isDeclaredHere && !isDeclaredInFile) {
+          potentiallyUndeclaredVariables.add(usedVar);
+        }
+      }
+    }
   }
 
   return {

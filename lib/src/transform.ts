@@ -37,6 +37,7 @@ export function transform({
     styledComponents: new Map(),
     cssVariables: new Map(),
     keyframes: new Map(),
+    potentiallyUndeclaredScopedVariables: new Set(),
   };
 
   if (!fileAbsPath.includes('/')) {
@@ -65,9 +66,22 @@ export function transform({
     throw new Error('Transform failed');
   }
 
+  let finalCode = result.code;
+
+  // Emit warnings for any remaining potentially undeclared scoped variables
+  if (dev && pluginState.potentiallyUndeclaredScopedVariables && pluginState.potentiallyUndeclaredScopedVariables.size > 0) {
+    const warnings: string[] = [];
+    for (const varName of pluginState.potentiallyUndeclaredScopedVariables) {
+      warnings.push(`console.warn("Scoped variable '---${varName}' is used but never declared");`);
+    }
+    if (warnings.length > 0) {
+      finalCode = `${warnings.join('\n')  }\n${  finalCode}`;
+    }
+  }
+
   return {
     css: pluginState.cssRules.join('\n\n'),
     styleDependencies: [],
-    code: result.code,
+    code: finalCode,
   };
 }

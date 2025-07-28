@@ -104,6 +104,7 @@ export function processStyledTemplate(
     dev,
     context.state.scopedVariables,
     classIndexRef,
+    context.state.potentiallyUndeclaredScopedVariables,
   );
 
   // Merge newly found scoped variables into file-level map
@@ -160,6 +161,7 @@ export function processStyledExtension(
     dev,
     context.state.scopedVariables,
     classIndexRef,
+    context.state.potentiallyUndeclaredScopedVariables,
   );
 
   // Merge newly found scoped variables into file-level map
@@ -231,6 +233,7 @@ export function processGlobalStyle(
     false, // Global styles don't use dev mode
     context.state.scopedVariables,
     classIndexRef,
+    context.state.potentiallyUndeclaredScopedVariables,
   );
 
   // Merge newly found scoped variables into file-level map

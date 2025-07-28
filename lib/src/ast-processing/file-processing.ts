@@ -28,6 +28,7 @@ export function getOrExtractFileData(
     cssVariables: new Map<string, string>(),
     keyframes: new Map<string, string>(),
     themeColors: new Map<string, Record<string, string>>(),
+    potentiallyUndeclaredScopedVariables: new Set<string>(),
   };
 
   // Parse the file to get the AST

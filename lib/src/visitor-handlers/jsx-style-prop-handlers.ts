@@ -52,6 +52,12 @@ export function handleJsxStyleProp(
       // Check if this is a scoped variable
       if (key.startsWith('---')) {
         hasScopedVariables = true;
+        
+        // Remove from potentially undeclared variables since it's provided via style prop
+        const varName = key.slice(3); // Remove '---' prefix
+        if (context.state.potentiallyUndeclaredScopedVariables) {
+          context.state.potentiallyUndeclaredScopedVariables.delete(varName);
+        }
       }
 
       // Store the property value node for later transformation (only if it's an expression)
