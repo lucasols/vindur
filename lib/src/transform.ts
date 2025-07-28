@@ -6,7 +6,11 @@ import {
   type VindurPluginState,
 } from './babel-plugin';
 
-type Result = { css: string; styleDependencies: string[]; code: string };
+export type VindurTransformResult = {
+  css: string;
+  styleDependencies: string[];
+  code: string;
+};
 
 export type TransformFS = { readFile: (fileAbsPath: string) => string };
 
@@ -30,7 +34,7 @@ export function transform({
   fs,
   transformFunctionCache = {},
   importAliases,
-}: TransformOptions): Result {
+}: TransformOptions): VindurTransformResult {
   const pluginState: VindurPluginState = {
     cssRules: [],
     vindurImports: new Set<string>(),
@@ -70,13 +74,19 @@ export function transform({
   let finalCode = result.code;
 
   // Emit warnings for any remaining potentially undeclared scoped variables
-  if (dev && pluginState.potentiallyUndeclaredScopedVariables && pluginState.potentiallyUndeclaredScopedVariables.size > 0) {
+  if (
+    dev
+    && pluginState.potentiallyUndeclaredScopedVariables
+    && pluginState.potentiallyUndeclaredScopedVariables.size > 0
+  ) {
     const warnings: string[] = [];
     for (const varName of pluginState.potentiallyUndeclaredScopedVariables) {
-      warnings.push(`console.warn("Scoped variable '---${varName}' is used but never declared");`);
+      warnings.push(
+        `console.warn("Scoped variable '---${varName}' is used but never declared");`,
+      );
     }
     if (warnings.length > 0) {
-      finalCode = `${warnings.join('\n')  }\n${  finalCode}`;
+      finalCode = `${warnings.join('\n')}\n${finalCode}`;
     }
   }
 

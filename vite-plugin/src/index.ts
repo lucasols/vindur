@@ -5,6 +5,7 @@ import {
   transform,
   type TransformFS,
   type TransformFunctionCache,
+  type VindurTransformResult,
 } from 'vindur';
 import { type Plugin, type ViteDevServer } from 'vite';
 
@@ -39,12 +40,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       }
     : undefined;
 
-  function log(message: string) {
-    if (debugLogs) {
-      console.info(`[vindur-plugin] ${message}`);
-    }
-  }
-
   return {
     name: 'vindur',
     enforce: 'pre',
@@ -54,7 +49,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     resolveId(id) {
       if (virtualCssModules.has(id)) {
-        log(`Resolving virtual CSS module: ${id}`);
+        if (debugLogs) {
+          this.info(`[vindur-plugin] Resolving virtual CSS module: ${id}`);
+        }
         return id;
       }
       return null;
@@ -62,29 +59,42 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     load(id) {
       if (virtualCssModules.has(id)) {
-        log(`Loading virtual CSS module: ${id}`);
+        if (debugLogs) {
+          this.info(`[vindur-plugin] Loading virtual CSS module: ${id}`);
+        }
         return virtualCssModules.get(id);
       }
       return null;
     },
 
     transform(code, id) {
-      log(`TRANSFORM CALLED: ${id}`);
-      try {
-        const shouldTransformFile = shouldTransform(id);
-        const containsVindur = code.includes('vindur');
-
-        log(
-          `Transform check for ${id}: shouldTransform=${shouldTransformFile}, containsVindur=${containsVindur}`,
-        );
-
-        if (!shouldTransformFile || !containsVindur) {
-          return null;
+      // eslint-disable-next-line @ls-stack/prefer-named-functions -- we need to access the context
+      const log = (message: string) => {
+        if (debugLogs) {
+          this.info(`[vindur-plugin] ${message}`);
         }
+      };
 
-        log(`Processing file: ${id}`);
-        log(`Starting transform for: ${id}`);
-        const result = transform({
+      log(`TRANSFORM CALLED: ${id}`);
+
+      const shouldTransformFile = shouldTransform(id);
+      const containsVindur = code.includes('vindur');
+
+      log(
+        `Transform check for ${id}: shouldTransform=${shouldTransformFile}, containsVindur=${containsVindur}`,
+      );
+
+      if (!shouldTransformFile || !containsVindur) {
+        return null;
+      }
+
+      log(`Processing file: ${id}`);
+      log(`Starting transform for: ${id}`);
+
+      let result: VindurTransformResult;
+
+      try {
+        result = transform({
           fileAbsPath: id,
           source: code,
           dev: server?.config.command === 'serve',
@@ -93,47 +103,41 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           transformFunctionCache: functionCache,
           importAliases,
         });
-
-        log(
-          `Transform completed for: ${id}, hasCSS: ${!!result.css}, codeLength: ${result.code.length}`,
-        );
-
-        if (result.css) {
-          log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
-
-          // Generate virtual CSS module ID using file hash
-          const fileHash = createHash('md5')
-            .update(id)
-            .digest('hex')
-            .slice(0, 8);
-          const virtualCssId = `virtual:vindur-${fileHash}.css`;
-
-          // Store CSS content in virtual module cache
-          virtualCssModules.set(virtualCssId, result.css);
-          log(`Stored virtual CSS module: ${virtualCssId}`);
-
-          // Add CSS import to the transformed code
-          const cssImport = `import '${virtualCssId}';`;
-          log(`Returning transformed code with CSS import for: ${id}`);
-          return {
-            code: `${cssImport}\n${result.code}`,
-            map: null,
-          };
-        }
-
-        log(`Returning transformed code without CSS for: ${id}`);
-        return { code: result.code, map: null };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const errorStack = error instanceof Error ? error.stack : undefined;
-        console.error(`[vindur] Transform failed for: ${id} - ${errorMessage}`);
-        console.error(`[vindur] Transform error stack:`, errorStack);
-
-        if (server?.config.command === 'serve') return null;
-
-        this.error(`Vindur transform failed for ${id}: ${errorMessage}`);
+        this.error({
+          code: 'VINDUR_TRANSFORM_FAILED',
+          id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return null;
       }
+
+      log(
+        `Transform completed for: ${id}, hasCSS: ${!!result.css}, codeLength: ${result.code.length}`,
+      );
+
+      if (result.css) {
+        log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
+
+        // Generate virtual CSS module ID using file hash
+        const fileHash = createHash('md5').update(id).digest('hex').slice(0, 8);
+        const virtualCssId = `virtual:vindur-${fileHash}.css`;
+
+        // Store CSS content in virtual module cache
+        virtualCssModules.set(virtualCssId, result.css);
+        log(`Stored virtual CSS module: ${virtualCssId}`);
+
+        // Add CSS import to the transformed code
+        const cssImport = `import '${virtualCssId}';`;
+        log(`Returning transformed code with CSS import for: ${id}`);
+        return {
+          code: `${cssImport}\n${result.code}`,
+          map: null,
+        };
+      }
+
+      log(`Returning transformed code without CSS for: ${id}`);
+      return { code: result.code, map: null };
     },
 
     generateBundle() {

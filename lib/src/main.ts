@@ -6,6 +6,7 @@ export {
   type TransformFS,
   type TransformFunctionCache,
   type TransformOptions,
+  type VindurTransformResult,
 } from './transform';
 
 import {

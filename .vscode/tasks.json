@@ -38,9 +38,9 @@
       }
     },
     {
-      "label": "build",
+      "label": "build all",
       "type": "npm",
-      "script": "build"
+      "script": "build-all"
     }
   ]
 }

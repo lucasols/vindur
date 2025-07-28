@@ -1,7 +1,7 @@
 {
   "scripts": {
     "test-all": "pnpm -r --no-bail run test",
-    "build-all": "pnpm -r --no-bail run build",
+    "build-all": "pnpm --filter vindur run build && pnpm --filter vite-plugin run build",
     "lint-all": "pnpm -r --no-bail run lint",
     "tsc-all": "pnpm -r --no-bail run tsc",
     "format-all": "pnpm -r --no-bail run format",
