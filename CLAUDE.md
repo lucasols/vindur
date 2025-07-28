@@ -114,7 +114,9 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
 
 ```bash
+# Must be in the lib directory
 cd lib
+
 # Run all tests
 pnpm test
 
@@ -135,7 +137,9 @@ pnpm test [...args]
 End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
 
 ```bash
+# Must be in the e2e-tests directory
 cd e2e-tests
+
 # Run all tests
 pnpm test
 
