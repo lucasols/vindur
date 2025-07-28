@@ -22,6 +22,31 @@ type VariableHandlerContext = {
   classIndex: { current: number };
 };
 
+export function handleLocalVindurFnError(
+  path: NodePath<t.VariableDeclarator>,
+  handlerContext: VariableHandlerContext,
+): boolean {
+  const { context } = handlerContext;
+
+  if (
+    !context.state.vindurImports.has('vindurFn')
+    || !path.node.init
+    || !t.isCallExpression(path.node.init)
+    || !t.isIdentifier(path.node.init.callee)
+    || path.node.init.callee.name !== 'vindurFn'
+    || path.node.init.arguments.length !== 1
+    || !t.isIdentifier(path.node.id)
+  ) {
+    return false;
+  }
+
+  const functionName = path.node.id.name;
+  throw new Error(
+    `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. ` +
+    `If you are trying to use a vindurFn function, you must import it from another file.`
+  );
+}
+
 export function handleCssVariableAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,

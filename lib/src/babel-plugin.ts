@@ -27,6 +27,7 @@ import {
   handleDynamicCssColorAssignment,
   handleGlobalStyleVariableAssignment,
   handleKeyframesVariableAssignment,
+  handleLocalVindurFnError,
   handleStableIdCall,
   handleStaticThemeColorsAssignment,
   handleStyledElementAssignment,
@@ -194,7 +195,9 @@ export function createVindurPlugin(
         };
 
         // Try each handler in order - they return true if they handled the node
-        if (handleCssVariableAssignment(path, variableHandlerContext)) {
+        if (handleLocalVindurFnError(path, variableHandlerContext)) {
+          // This handler throws an error, so it never returns true
+        } else if (handleCssVariableAssignment(path, variableHandlerContext)) {
           idIndex = idIndexRef.current;
         } else if (
           handleStyledElementAssignment(path, variableHandlerContext)

@@ -439,4 +439,44 @@ describe('function compilation errors', () => {
       );
     });
   });
+
+  describe('local vindurFn declarations', () => {
+    test('should throw error when vindurFn is declared locally', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: '/test.ts',
+          source: dedent`
+            import { vindurFn } from 'vindur'
+
+            const spacing = vindurFn((size: number) => \`\${size}px\`)
+          `,
+          fs: createFsMock({}),
+          importAliases,
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
+      );
+    });
+
+    test('should throw error when vindurFn is used in styled component', () => {
+      expect(() => {
+        transform({
+          fileAbsPath: '/test.ts',
+          source: dedent`
+            import { vindurFn, styled } from 'vindur'
+
+            const spacing = vindurFn((size: number) => \`\${size}px\`)
+
+            const Container = styled.div\`
+              margin: \${spacing(16)};
+            \`
+          `,
+          fs: createFsMock({}),
+          importAliases,
+        });
+      }).toThrowErrorMatchingInlineSnapshot(
+        `[Error: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
+      );
+    });
+  });
 });
