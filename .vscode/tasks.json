@@ -31,7 +31,11 @@
     {
       "label": "e2e test",
       "type": "npm",
-      "script": "e2e:test"
+      "script": "e2e:test",
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
     },
     {
       "label": "build",

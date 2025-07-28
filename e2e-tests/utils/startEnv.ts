@@ -13,6 +13,8 @@ import {
 import path from 'path';
 import { createServer } from 'vite';
 
+const usedPorts = new Set<number>();
+
 type TempFile = {
   path: string;
   read: () => string;
@@ -57,6 +59,21 @@ export async function startEnv(
     createFile(relativePath, content);
   }
 
+  function getSafeRandomPort(): number {
+    const min = 3000;
+    const max = 9000;
+    let port: number;
+
+    do {
+      port = Math.floor(Math.random() * (max - min + 1)) + min;
+    } while (usedPorts.has(port));
+
+    usedPorts.add(port);
+    return port;
+  }
+
+  const port = getSafeRandomPort();
+
   const server = await createServer({
     plugins: [
       react(),
@@ -75,6 +92,9 @@ export async function startEnv(
       alias: {
         '#src': '/src',
       },
+    },
+    server: {
+      port,
     },
   });
 
@@ -123,6 +143,7 @@ export async function startEnv(
   async function cleanup() {
     await server.close();
     removeTestRunDir();
+    usedPorts.delete(port);
   }
 
   return {
