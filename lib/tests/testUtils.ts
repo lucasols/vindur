@@ -7,7 +7,7 @@ export function createFsMock(files: FileTree): TransformFS {
   // walk the file tree and create a map of file paths to their contents
   const fileMap: Record<string, string> = {};
 
-  const walk = (tree: FileTree, path: string) => {
+  function walk(tree: FileTree, path: string) {
     for (const [key, value] of Object.entries(tree)) {
       if (key.startsWith('/') || key.endsWith('/') || key.includes('/')) {
         throw new Error(
@@ -23,7 +23,7 @@ export function createFsMock(files: FileTree): TransformFS {
         walk(value, fullPath);
       }
     }
-  };
+  }
 
   walk(files, '');
   return {
