@@ -1,17 +1,15 @@
-import react from '@vitejs/plugin-react-swc'
-import { defineConfig } from 'vite'
-import Inspect from 'vite-plugin-inspect'
-import vindur from '@vindur/vite'
+import { vindurPlugin } from '@vindur/vite-plugin';
+import react from '@vitejs/plugin-react-swc';
+import { defineConfig } from 'vite';
+import Inspect from 'vite-plugin-inspect';
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    vindur({
-      dev: true,
-      debug: false,
+    vindurPlugin({
       importAliases: {},
     }),
     react(),
     Inspect(),
   ],
-})
+});
