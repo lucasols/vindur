@@ -17,6 +17,11 @@
       "label": "lint all",
       "type": "npm",
       "script": "lint-all"
+    },
+    {
+      "label": "sync AI",
+      "type": "npm",
+      "script": "sync-ai"
     }
   ]
 }

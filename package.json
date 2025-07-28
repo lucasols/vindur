@@ -10,7 +10,8 @@
     "lib:lint": "pnpm --filter vindur run lint",
     "lib:test": "pnpm --filter vindur run test",
     "lib:test:ui": "pnpm --filter vindur run test:ui",
-    "generate-spec": "node scripts/generate-spec-index.ts"
+    "generate-spec": "node scripts/generate-spec-index.ts",
+    "sync-ai": "node scripts/sync-ai.ts"
   },
   "license": "MIT",
   "type": "module",
