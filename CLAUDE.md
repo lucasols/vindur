@@ -121,6 +121,16 @@ pnpm test tests/filename.test.ts       # Run tests for a specific file
 - Do not update snapshots via `vitest run --u`, update them manually
 - If there are too many snapshots to update manually, ask for the user to update them
 
+End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
+
+```bash
+cd e2e-tests
+pnpm test         # Run tests
+pnpm test tests/filename.spec.ts       # Run tests for a specific file
+```
+
+IMPORTANT: Playwright tests already have a 10s timeout configured
+
 # transform tests
 
 Tests for transform function should follow this structure:

@@ -61,6 +61,7 @@ export async function startEnv(
     plugins: [
       react(),
       vindurPlugin({
+        debugLogs: true,
         importAliases: {
           '#src': '/src',
         },
