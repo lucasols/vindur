@@ -141,6 +141,9 @@ pnpm test tests/filename.spec.ts
 
 # Run a specific test matching a pattern
 pnpm test tests/filename.spec.ts --grep "test name pattern"
+
+# Run with debug logs
+DEBUG=1 pnpm test ...
 ```
 
 IMPORTANT: Playwright tests already have a 10s timeout configured
