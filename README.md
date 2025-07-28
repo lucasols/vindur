@@ -536,6 +536,71 @@ const slideAnimation = keyframes`
 `;
 ```
 
+### Scoped CSS Variables
+
+Define CSS custom properties that are automatically scoped to avoid naming conflicts across components. Use the `---var` syntax (triple dash) to create scoped variables that are processed at compile time.
+
+#### Basic Usage
+
+```tsx
+import { styled } from 'vindur';
+
+const Card = styled.div`
+  ---primary-color: #007bff;
+  ---spacing: 16px;
+  ---border-radius: 8px;
+
+  background: var(---primary-color);
+  padding: var(---spacing);
+  border-radius: var(---border-radius);
+  border: 1px solid var(---primary-color);
+`;
+```
+
+Compiles to scoped CSS variables:
+
+**Development:**
+```css
+.vhash123-card {
+  --vhash123-1-primary-color: #007bff;
+  --vhash123-2-spacing: 16px;
+  --vhash123-3-border-radius: 8px;
+
+  background: var(--vhash123-1-primary-color);
+  padding: var(--vhash123-2-spacing);
+  border-radius: var(--vhash123-3-border-radius);
+  border: 1px solid var(--vhash123-1-primary-color);
+}
+```
+
+**Production:**
+```css
+.vhash123-card {
+  --vhash123-1: #007bff;
+  --vhash123-2: 16px;
+  --vhash123-3: 8px;
+
+  background: var(--vhash123-1);
+  padding: var(--vhash123-2);
+  border-radius: var(--vhash123-3);
+  border: 1px solid var(--vhash123-1);
+}
+```
+
+#### Dynamic Variables
+
+Scoped variables can be set dynamically with the `style` prop:
+
+```tsx
+const Card = styled.div`
+  background: var(---color);
+`;
+
+const Component = () => {
+  return <Card style={{ '---color': '#007bff' }}>Hello</Card>;
+};
+```
+
 ### Stable IDs
 
 Generate deterministic, stable IDs with `stableId` or `createClassName` function, for using in styled components, CSS functions, and any other place where you may need stable IDs. The IDs will be compiled at build time.
@@ -1152,102 +1217,6 @@ const AdaptiveButton = styled.button`
 `;
 ```
 
-### Scoped CSS Variables
-
-Define CSS custom properties that are automatically scoped to avoid naming conflicts across components. Use the `---var` syntax (triple dash) to create scoped variables that are processed at compile time.
-
-#### Basic Usage
-
-```tsx
-import { styled } from 'vindur';
-
-const Card = styled.div`
-  ---primary-color: #007bff;
-  ---spacing: 16px;
-  ---border-radius: 8px;
-
-  background: var(---primary-color);
-  padding: var(---spacing);
-  border-radius: var(---border-radius);
-  border: 1px solid var(---primary-color);
-`;
-```
-
-Compiles to scoped CSS variables:
-
-**Development:**
-
-```css
-.vhash123-card {
-  --vhash123-1-primary-color: #007bff;
-  --vhash123-2-spacing: 16px;
-  --vhash123-3-border-radius: 8px;
-
-  background: var(--vhash123-1-primary-color);
-  padding: var(--vhash123-2-spacing);
-  border-radius: var(--vhash123-3-border-radius);
-  border: 1px solid var(--vhash123-1-primary-color);
-}
-```
-
-**Production:**
-
-```css
-.vhash123-card {
-  --vhash123-1: #007bff;
-  --vhash123-2: 16px;
-  --vhash123-3: 8px;
-
-  background: var(--vhash123-1);
-  padding: var(--vhash123-2);
-  border-radius: var(--vhash123-3);
-  border: 1px solid var(--vhash123-1);
-}
-```
-
-#### Dynamic Variables
-
-Scoped variables can be set dynamically with the `style` prop, vindur will automatically process the variables with the correct scope hash:
-
-```tsx
-const Card = styled.div`
-  background: var(---color);
-`;
-
-const Component = () => {
-  return <Card style={{ '---color': '#007bff' }}>Hello</Card>;
-};
-```
-
-Compiles to:
-
-**Development:**
-
-```css
-.vhash123-card {
-  background: var(--vhash123-1-color);
-}
-```
-
-```tsx
-const Component = () => {
-  return <Card style={{ '--vhash123-1-color': '#007bff' }}>Hello</Card>;
-};
-```
-
-**Production:**
-
-```css
-.vhash123-card {
-  background: var(--vhash123-1);
-}
-```
-
-```tsx
-const Component = () => {
-  return <Card style={{ '--vhash123-1': '#007bff' }}>Hello</Card>;
-};
-```
 
 ## Roadmap
 

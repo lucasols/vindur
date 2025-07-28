@@ -144,44 +144,71 @@ const Component = () => {
 
 ### Index Assignment
 
-Variables are assigned incrementally based on their order of appearance in the CSS:
+Variables are assigned incremental indices based on their order of appearance in the file, shared with all other Vindur hash-generating features:
 
 ```tsx
+// css`` gets index 1
+const baseStyles = css`
+  background: red;
+`;
+
+// cx prop gets index 2
+const Element = <div cx={{ active: isActive }} />;
+
+// styled component gets index 3
+const Button = styled.button`
+  color: blue;
+`;
+
+// scoped CSS variables get indices 4, 5, 6
 const Card = styled.div`
-  ---primary-color: #007bff; // index 1
-  ---spacing: 16px; // index 2
-  ---border-radius: 8px; // index 3
+  ---primary-color: #007bff; // index 4
+  ---spacing: 16px; // index 5
+  ---border-radius: 8px; // index 6
 `;
 ```
 
 ### Variable Resolution
 
-All instances of the same variable name within a component scope resolve to the same index:
+All instances of the same variable name within a file scope resolve to the same index:
 
 ```tsx
+// Assuming previous features used indices 1-3
 const Card = styled.div`
-  ---color: #007bff;
-  background: var(---color); // Both resolve to same index
-  border: 1px solid var(---color);
+  ---color: #007bff; // gets index 4
+  background: var(---color); // resolves to index 4
+  border: 1px solid var(---color); // resolves to index 4
+`;
+
+const AnotherCard = styled.div`
+  ---spacing: 16px; // gets index 5
+  ---color: #ff0000; // reuses index 4 (same variable name)
+
+  padding: var(---spacing); // resolves to index 5
+  background: var(---color); // resolves to index 4
 `;
 ```
 
 ## Scoping Rules
 
-### Component-Level Scoping
+### File-Level Scoping
 
-Variables are scoped to the file where they are declared:
+Variables are scoped to the file where they are declared, with indices shared across all Vindur features:
 
 ```tsx
+// Both components share the same file scope and index counter
 const ButtonA = styled.button`
-  ---button-color: red;
+  ---button-color: red; // gets index N
   background: var(---button-color);
 `;
 
 const ButtonB = styled.button`
-  ---button-color: blue; // Same scope, same generated hash
+  ---button-color: blue; // reuses index N (same variable name)
   background: var(---button-color);
 `;
+
+// Other Vindur features continue the index counter
+const Element = <div cx={{ active: true }} />; // gets index N+1
 ```
 
 ### Style Prop Scoping
