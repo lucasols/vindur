@@ -29,6 +29,7 @@ import {
 } from './visitor-handlers/template-handlers';
 import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
 import { handleJsxCssProp } from './visitor-handlers/jsx-css-prop-handlers';
+import { handleJsxCxProp } from './visitor-handlers/jsx-cx-prop-handlers';
 import { handleJsxDynamicColorProp } from './visitor-handlers/jsx-dynamic-color-handlers';
 
 export type DebugLogger = { log: (message: string) => void };
@@ -262,6 +263,14 @@ export function createVindurPlugin(
             extractedFiles: new Map(),
             loadExternalFunction,
           }),
+        });
+        
+        // Handle cx prop (before styled component transformation)
+        handleJsxCxProp(path, {
+          state,
+          dev,
+          fileHash,
+          classIndex: () => idIndex++,
         });
         
         // Handle dynamic color prop (before styled component transformation)

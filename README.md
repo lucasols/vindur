@@ -841,6 +841,70 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
+### Style Flags Props
+
+Create styled components that accept boolean props for conditional styling. This enables automatic modifier class application based on component props.
+
+```tsx
+import { styled } from 'vindur';
+
+const Button = styled.button<{
+  active: boolean;
+  disabled: boolean;
+}>`
+  padding: 12px 24px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &.active {
+    background: #0056b3;
+    transform: scale(1.05);
+  }
+
+  &.disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+`;
+
+// Usage with boolean props
+const App = ({ isActive, isDisabled }) => (
+  <Button
+    active={isActive}
+    disabled={isDisabled}
+  >
+    Click me
+  </Button>
+);
+```
+
+Compiles to optimized output using modifier class names:
+
+```tsx
+// Generated component
+const Button = vComponentWithModifiers(
+  [
+    ['active', 'classHash-1'],
+    ['disabled', 'classHash-2'],
+  ],
+  'vhash123-1',
+);
+
+// Component can be used as a normal JSX component
+const App = ({ isActive, isDisabled }) => (
+  <Button
+    active={isActive}
+    disabled={isDisabled}
+  >
+    Click me
+  </Button>
+);
+```
+
 ## Theme Colors
 
 Create type-safe theme color systems with `createStaticThemeColors`:
