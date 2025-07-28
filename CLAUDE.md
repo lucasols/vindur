@@ -37,6 +37,15 @@ pnpm build         # Build for production
 pnpm preview       # Preview production build
 ```
 
+### E2E Tests (e2e-tests/)
+
+```bash
+pnpm e2e:test         # Run all e2e tests from root
+pnpm e2e:show-report  # Show test report from root
+cd e2e-tests
+pnpm test             # Run e2e tests from e2e-tests directory
+```
+
 ## Architecture
 
 ### Core Transform Logic

@@ -1,4 +1,9 @@
 packages:
-  - 'app-test'
-  - 'lib'
-  - 'vite'
+  - app-test
+  - lib
+  - vite
+  - e2e-tests
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild

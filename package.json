@@ -10,8 +10,12 @@
     "lib:lint": "pnpm --filter vindur run lint",
     "lib:test": "pnpm --filter vindur run test",
     "lib:test:ui": "pnpm --filter vindur run test:ui",
+    "vite:test": "pnpm --filter vite run test",
+    "e2e:test": "pnpm --filter e2e-tests run test",
+    "e2e:show-report": "pnpm --filter e2e-tests run show-report",
     "generate-spec": "node scripts/generate-spec-index.ts",
-    "sync-ai": "node scripts/sync-ai.ts"
+    "sync-ai": "node scripts/sync-ai.ts",
+    "run-app-test": "pnpm --filter vindur-test-app dev"
   },
   "license": "MIT",
   "type": "module",
