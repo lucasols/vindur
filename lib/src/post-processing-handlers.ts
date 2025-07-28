@@ -46,6 +46,7 @@ export function handleVindurImportCleanup(
 
   // Handle vindur imports - keep only runtime functions if they're used
   const specifiersToKeep: t.ImportSpecifier[] = [];
+  let hasCx = false;
   let hasMergeClassNames = false;
   let hasMergeStyles = false;
   let hasStyledComponent = false;
@@ -56,7 +57,12 @@ export function handleVindurImportCleanup(
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       const importedName = specifier.imported.name;
 
-      if (importedName === 'mergeClassNames') {
+      if (importedName === 'cx') {
+        hasCx = true;
+        if (state.vindurImports.has('cx')) {
+          specifiersToKeep.push(specifier);
+        }
+      } else if (importedName === 'mergeClassNames') {
         hasMergeClassNames = true;
         if (state.vindurImports.has('mergeClassNames')) {
           specifiersToKeep.push(specifier);
@@ -83,6 +89,13 @@ export function handleVindurImportCleanup(
         }
       }
     }
+  }
+
+  // Add cx import if needed but not already present
+  if (state.vindurImports.has('cx') && !hasCx) {
+    specifiersToKeep.push(
+      t.importSpecifier(t.identifier('cx'), t.identifier('cx')),
+    );
   }
 
   // Add mergeClassNames import if needed but not already present
