@@ -1,7 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- Unused variables in main.ts are runtime exports that may be used by consumers */
 
 // Export transform function for build tools
-export { transform, type TransformFS, type TransformFunctionCache, type TransformOptions } from './transform';
+export {
+  transform,
+  type TransformFS,
+  type TransformFunctionCache,
+  type TransformOptions,
+} from './transform';
 
 import {
   createElement,
@@ -13,16 +18,28 @@ import {
 export function vindurFn<TArgs extends unknown[], TReturn extends string>(
   fn: (...args: TArgs) => TReturn,
 ): (...args: TArgs) => TReturn {
-  console.error('vindurFn cannot be called at runtime');
-  return fn;
+  throw new Error('vindurFn cannot be called at runtime');
 }
 
 export function css(
   strings: TemplateStringsArray,
   ...values: (string | number)[]
 ): string {
-  console.error('css cannot be called at runtime');
-  return '';
+  throw new Error('css cannot be called at runtime');
+}
+
+export function createGlobalStyle(
+  strings: TemplateStringsArray,
+  ...values: (string | number)[]
+): void {
+  throw new Error('createGlobalStyle cannot be called at runtime');
+}
+
+export function keyframes(
+  strings: TemplateStringsArray,
+  ...values: (string | number)[]
+): string {
+  throw new Error('keyframes cannot be called at runtime');
 }
 
 type StyledFunction = (
@@ -34,8 +51,7 @@ type StyledFunction = (
 const styledHandler = {
   get: (_: unknown, tag: string): StyledFunction => {
     return (strings: TemplateStringsArray, ...values: (string | number)[]) => {
-      console.error('styled cannot be called at runtime');
-      return () => null;
+      throw new Error('styled cannot be called at runtime');
     };
   },
 };
