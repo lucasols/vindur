@@ -18,6 +18,7 @@ type RuleEntry = RuleLevel | [RuleLevel, ...unknown[]];
 export function createBaseConfig({
   globalRules = {},
   extraRuleGroups,
+  extraIgnorePatterns,
 }: {
   globalRules?: Record<string, RuleEntry>;
   extraRuleGroups?: [
@@ -27,6 +28,7 @@ export function createBaseConfig({
       rules: Record<string, RuleEntry>;
     },
   ];
+  extraIgnorePatterns?: string[];
 } = {}) {
   return tseslint.config(
     js.configs.recommended,
@@ -198,7 +200,12 @@ export function createBaseConfig({
     },
     ...(extraRuleGroups || []),
     {
-      ignores: ['dist/**', 'build/**', 'node_modules/**'],
+      ignores: [
+        'dist/**',
+        'build/**',
+        'node_modules/**',
+        ...(extraIgnorePatterns || []),
+      ],
     },
   );
 }

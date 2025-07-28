@@ -20,9 +20,28 @@ test.describe('hot reload behavior', () => {
       `,
     });
 
-    await page.goto(env.baseUrl);
+    // Listen for console errors
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        console.log('Browser console error:', msg.text());
+      }
+    });
+    
+    page.on('pageerror', error => {
+      console.log('Page error:', error.message);
+    });
 
+    await page.goto(env.baseUrl);
+    
+    // Debug: Check if page loads and has content
+    await page.waitForLoadState('networkidle');
+    const pageContent = await page.content();
+    console.log('Page HTML preview:', pageContent.substring(0, 500));
+    
     const title = page.locator('h1');
+    
+    // Wait for the element to exist before checking CSS
+    await expect(title).toBeVisible({ timeout: 10000 });
     await expect(title).toHaveCSS('color', 'rgb(255, 0, 0)'); // red
     await expect(title).toHaveCSS('font-size', '24px');
     await expect(title).toHaveCSS('font-weight', '700'); // bold

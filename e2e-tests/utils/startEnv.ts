@@ -32,6 +32,7 @@ export async function startEnv(
   baseUrl: string;
   getFile: (relativePath: string) => TempFile;
   createFile: (relativePath: string, content: string) => TempFile;
+  getGeneratedCode: () => Promise<string>;
   [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   const baseCodeDir = path.join(__dirname, '..', 'base-code');
@@ -43,7 +44,8 @@ export async function startEnv(
   removeTestRunDir();
 
   // Create temporary directory for the test id
-  const tempDir = mkdirSync(testRunDirPath, { recursive: true });
+  mkdirSync(testRunDirPath, { recursive: true });
+  const tempDir = testRunDirPath;
 
   function removeTestRunDir() {
     if (existsSync(testRunDirPath)) {
@@ -84,9 +86,6 @@ export async function startEnv(
       }),
     ],
     configFile: false,
-    optimizeDeps: {
-      noDiscovery: true,
-    },
     root: tempDir,
     resolve: {
       alias: {
@@ -140,6 +139,12 @@ export async function startEnv(
     return getFile(relativePath);
   }
 
+  async function getGeneratedCode(codePath?: string): Promise<string> {
+    const response = await fetch(codePath ? `${url}/${codePath}` : url);
+    const html = await response.text();
+    return html;
+  }
+
   async function cleanup() {
     await server.close();
     removeTestRunDir();
@@ -150,6 +155,7 @@ export async function startEnv(
     baseUrl: url,
     getFile,
     createFile,
+    getGeneratedCode,
     [Symbol.asyncDispose]: cleanup,
   };
 }
