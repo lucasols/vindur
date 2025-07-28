@@ -17,7 +17,7 @@ test.describe('hot reload behavior', () => {
         \`;
 
         export default function App() {
-          return <h1 className={titleClass}>Self Hot Reload</h1>;
+          return <h1 data-testid="title" className={titleClass}>Self Hot Reload</h1>;
         }
       `,
     });
@@ -27,7 +27,7 @@ test.describe('hot reload behavior', () => {
     // Debug: Check if page loads and has content
     await page.waitForLoadState('networkidle');
 
-    const title = page.locator('h1');
+    const title = page.getByTestId('title');
 
     // Wait for the element to exist before checking CSS
     await expect(title).toBeVisible({ timeout: 10000 });
@@ -47,7 +47,7 @@ test.describe('hot reload behavior', () => {
       \`;
 
       export default function App() {
-        return <h1 className={titleClass}>Self Hot Reload Updated</h1>;
+        return <h1 data-testid="title" className={titleClass}>Self Hot Reload Updated</h1>;
       }
     `);
 
@@ -81,8 +81,8 @@ test.describe('hot reload behavior', () => {
 
         export default function App() {
           return (
-            <Container>
-              <Button>Click me</Button>
+            <Container data-testid="container">
+              <Button data-testid="button">Click me</Button>
             </Container>
           );
         }
@@ -91,8 +91,8 @@ test.describe('hot reload behavior', () => {
 
     await page.goto(env.baseUrl);
 
-    const container = page.locator('div').first();
-    const button = page.locator('button');
+    const container = page.getByTestId('container');
+    const button = page.getByTestId('button');
 
     await expect(container).toHaveCSS('padding', '20px');
     await expect(container).toHaveCSS('background-color', 'rgb(240, 240, 240)');
@@ -117,13 +117,13 @@ test.describe('hot reload behavior', () => {
         margin: 10px;
       \`;
 
-      export default function App() {
-        return (
-          <Container>
-            <Button>Updated Button</Button>
-          </Container>
-        );
-      }
+              export default function App() {
+          return (
+            <Container data-testid="container">
+              <Button data-testid="button">Updated Button</Button>
+            </Container>
+          );
+        }
     `);
 
     // Wait for hot reload and check updated styles
@@ -158,14 +158,14 @@ test.describe('hot reload behavior', () => {
         \`;
 
         export default function App() {
-          return <h1 className={titleClass}>Hot Reload Test</h1>;
+          return <h1 data-testid="title" className={titleClass}>Hot Reload Test</h1>;
         }
       `,
     });
 
     await page.goto(env.baseUrl);
 
-    const title = page.locator('h1');
+    const title = page.getByTestId('title');
     await expect(title).toHaveCSS('color', 'rgb(255, 0, 0)'); // red
     await expect(title).toHaveCSS('font-size', '16px');
 
@@ -210,14 +210,14 @@ test.describe('hot reload behavior', () => {
         \`;
 
         export default function App() {
-          return <button className={primaryButtonClass}>Button</button>;
+          return <button data-testid="button" className={primaryButtonClass}>Button</button>;
         }
       `,
     });
 
     await page.goto(env.baseUrl);
 
-    const button = page.locator('button');
+    const button = page.getByTestId('button');
     await expect(button).toHaveCSS('background-color', 'rgb(0, 128, 0)'); // green
     await expect(button).toHaveCSS('padding', '10px 20px');
     await expect(button).toHaveCSS('border-radius', '4px');
@@ -264,7 +264,7 @@ test.describe('hot reload behavior', () => {
 
         export default function App() {
           return (
-            <div className={cardClass}>
+            <div data-testid="card" className={cardClass}>
               <p>Theme Card</p>
             </div>
           );
@@ -274,7 +274,7 @@ test.describe('hot reload behavior', () => {
 
     await page.goto(env.baseUrl);
 
-    const card = page.locator('div').first();
+    const card = page.getByTestId('card');
     await expect(card).toHaveCSS('background-color', 'rgb(255, 107, 107)'); // #ff6b6b
     await expect(card).toHaveCSS('padding', '16px');
     await expect(card).toHaveCSS('margin', '8px');
@@ -325,7 +325,7 @@ test.describe('hot reload behavior', () => {
 
         export default function App() {
           return (
-            <div className={containerClass}>
+            <div data-testid="container" className={containerClass}>
               <span>Centered Content</span>
             </div>
           );
@@ -335,7 +335,7 @@ test.describe('hot reload behavior', () => {
 
     await page.goto(env.baseUrl);
 
-    const container = page.locator('div').first();
+    const container = page.getByTestId('container');
     await expect(container).toHaveCSS('display', 'flex');
     await expect(container).toHaveCSS('align-items', 'center');
     await expect(container).toHaveCSS('justify-content', 'center');
@@ -403,9 +403,9 @@ test.describe('hot reload behavior', () => {
 
         export default function App() {
           return (
-            <div className={containerClass}>
-              <p className={textClass}>Deep Import Text</p>
-              <span className={baseClass}>Base styles</span>
+            <div data-testid="container" className={containerClass}>
+              <p data-testid="text" className={textClass}>Deep Import Text</p>
+              <span data-testid="base-element" className={baseClass}>Base styles</span>
             </div>
           );
         }
@@ -414,9 +414,9 @@ test.describe('hot reload behavior', () => {
 
     await page.goto(env.baseUrl);
 
-    const container = page.locator('div').first();
-    const text = page.locator('p');
-    const baseElement = page.locator('span');
+    const container = page.getByTestId('container');
+    const text = page.getByTestId('text');
+    const baseElement = page.getByTestId('base-element');
 
     await expect(container).toHaveCSS('padding', '20px');
     await expect(text).toHaveCSS('color', 'rgb(51, 51, 51)'); // #333
