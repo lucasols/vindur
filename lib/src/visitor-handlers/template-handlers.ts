@@ -36,8 +36,25 @@ export function handleCssTaggedTemplate(
     dev,
     fileHash,
     classIndex.current,
+    classIndex,
   );
   classIndex.current++;
+
+  // Inject warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0) {
+    const statement = path.getStatementParent();
+    if (statement) {
+      for (const warning of result.warnings) {
+        const warnStatement = t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('warn')),
+            [t.stringLiteral(warning)],
+          ),
+        );
+        statement.insertAfter(warnStatement);
+      }
+    }
+  }
 
   // Replace the tagged template with the class name string
   path.replaceWith(t.stringLiteral(result.finalClassName));
@@ -79,7 +96,7 @@ export function handleGlobalStyleTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context } = handlerContext;
+  const { context, dev, fileHash, classIndex } = handlerContext;
   
   if (
     !context.state.vindurImports.has('createGlobalStyle')
@@ -89,7 +106,23 @@ export function handleGlobalStyleTaggedTemplate(
     return false;
   }
 
-  processGlobalStyle(path.node.quasi, context);
+  const result = processGlobalStyle(path.node.quasi, context, fileHash, classIndex);
+
+  // Inject warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0) {
+    const statement = path.getStatementParent();
+    if (statement) {
+      for (const warning of result.warnings) {
+        const warnStatement = t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('warn')),
+            [t.stringLiteral(warning)],
+          ),
+        );
+        statement.insertAfter(warnStatement);
+      }
+    }
+  }
 
   // Remove createGlobalStyle expression since it produces no output
   if (t.isExpressionStatement(path.parent)) {
@@ -133,6 +166,7 @@ export function handleInlineStyledError(
       dev,
       fileHash,
       classIndex.current,
+      classIndex,
     );
     classIndex.current++;
 

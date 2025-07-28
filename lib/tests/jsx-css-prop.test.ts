@@ -18,7 +18,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -52,7 +51,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -87,7 +85,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -123,7 +120,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -158,7 +154,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -205,7 +200,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -255,7 +249,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -306,7 +299,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -351,7 +343,6 @@ describe('JSX css prop', () => {
           </div>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -386,7 +377,6 @@ describe('JSX css prop', () => {
           </Card>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -424,7 +414,6 @@ describe('JSX css prop', () => {
             </CustomComponent>
           )
         `,
-        dev: true,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `[Error: /test.tsx: css prop is not supported on custom component "CustomComponent". The css prop only works on native DOM elements (like div, span, button) and styled components.]`,
@@ -444,7 +433,6 @@ describe('JSX css prop', () => {
           </CustomComponent>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -483,7 +471,6 @@ describe('JSX css prop', () => {
           )
         }
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -541,7 +528,6 @@ describe('JSX css prop', () => {
           )
         }
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -595,5 +581,4 @@ describe('JSX css prop', () => {
       `[Error: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported]`,
     );
   });
-
 });

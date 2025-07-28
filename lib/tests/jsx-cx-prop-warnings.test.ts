@@ -30,7 +30,6 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -93,7 +92,6 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -152,7 +150,7 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
-        dev: false,
+        production: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -210,7 +208,6 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -264,7 +261,6 @@ describe('JSX cx prop warnings', () => {
             return <Widget cx={{ active: isActive, $error: hasError, warning: hasWarning }} />;
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -324,7 +320,6 @@ describe('JSX cx prop warnings', () => {
             return <Widget cx={{ active: isActive, $error: hasError, $disabled: isDisabled }} />;
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`

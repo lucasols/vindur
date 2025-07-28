@@ -33,7 +33,6 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     const result = await transformWithFormat({
       source,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -111,7 +110,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const Component = () => {
         return (
           <div {...color._sp("#ff6b6b")}>
-            <div className="v1560qbr-2">Card content</div>
+            <div className="v1560qbr-2-Card">Card content</div>
           </div>
         );
       };
@@ -119,7 +118,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Card {
         background: white;
         padding: 20px;
 
@@ -200,7 +199,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         return (
           <div
             {...color._sp("#ff6b6b", {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-ComplexComponent",
             })}
           >
             All selectors test
@@ -211,7 +210,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-ComplexComponent {
         background: var(--v1560qbr-1);
 
         &.v1560qbr-1-s0 {
@@ -305,7 +304,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const Component = () => {
         return (
           <div {...color._sp("#ff6b6b")}>
-            <div className="v1560qbr-2">
+            <div className="v1560qbr-2-Card">
               <div className="title">Title</div>
               <div className="content">Content</div>
             </div>
@@ -316,7 +315,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Card {
         padding: 20px;
 
         .title {

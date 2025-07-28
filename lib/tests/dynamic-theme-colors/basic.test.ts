@@ -30,7 +30,7 @@ describe('Dynamic Colors - Basic Usage', () => {
         return (
           <div
             {...dynamicColor._sp("#ff6b6b", {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-Card",
             })}
           >
             Hello World
@@ -41,7 +41,7 @@ describe('Dynamic Colors - Basic Usage', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"
@@ -85,7 +85,7 @@ describe('Dynamic Colors - Basic Usage', () => {
           <div
             onClick={() => console.log("clicked")}
             {...color._sp("#ff6b6b", {
-              className: "v1560qbr-2 custom-card",
+              className: "v1560qbr-2-Card custom-card",
               style: {
                 padding: "20px",
               },
@@ -99,7 +99,7 @@ describe('Dynamic Colors - Basic Usage', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"

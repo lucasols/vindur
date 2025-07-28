@@ -28,12 +28,12 @@ describe('styled component references', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Container {
         background-color: red;
       }
 
-      .v1560qbr-2 {
-        .v1560qbr-1:hover & {
+      .v1560qbr-2-Button {
+        .v1560qbr-1-Container:hover & {
           background-color: blue;
         }
       }"
@@ -42,8 +42,8 @@ describe('styled component references', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <div className="v1560qbr-1" />
-          <div className="v1560qbr-2" />
+          <div className="v1560qbr-1-Container" />
+          <div className="v1560qbr-2-Button" />
         </div>
       );
       "
@@ -90,26 +90,26 @@ describe('styled component references', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         padding: 16px;
         border: 1px solid gray;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Button {
         background: blue;
         color: white;
       }
 
-      .v1560qbr-3 {
-        .v1560qbr-1 & {
+      .v1560qbr-3-Interactive {
+        .v1560qbr-1-Card & {
           transform: scale(1.02);
         }
 
-        .v1560qbr-1:hover & {
+        .v1560qbr-1-Card:hover & {
           background: lightgray;
         }
 
-        & .v1560qbr-2:active {
+        & .v1560qbr-2-Button:active {
           transform: scale(0.98);
         }
       }"
@@ -117,9 +117,9 @@ describe('styled component references', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
-        <div className="v1560qbr-1">
-          <div className="v1560qbr-3">
-            <button className="v1560qbr-2">Click me</button>
+        <div className="v1560qbr-1-Card">
+          <div className="v1560qbr-3-Interactive">
+            <button className="v1560qbr-2-Button">Click me</button>
           </div>
         </div>
       );
@@ -193,28 +193,28 @@ describe('styled component references', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const hoverStyles = "v1560qbr-2";
+      "const hoverStyles = "v1560qbr-2-hoverStyles";
       const App = () => (
         <div className={hoverStyles}>
-          <button className="v1560qbr-1">Click me</button>
+          <button className="v1560qbr-1-Button">Click me</button>
         </div>
       );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         background: blue;
         color: white;
         padding: 8px 16px;
       }
 
-      .v1560qbr-2 {
-        .v1560qbr-1:hover & {
+      .v1560qbr-2-hoverStyles {
+        .v1560qbr-1-Button:hover & {
           transform: scale(1.05);
         }
 
-        & .v1560qbr-1:focus {
+        & .v1560qbr-1-Button:focus {
           outline: 2px solid blue;
         }
       }"
@@ -266,11 +266,11 @@ describe('styled component references', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const layoutStyles = "v1560qbr-3";
+      "const layoutStyles = "v1560qbr-3-layoutStyles";
       const App = () => (
         <div className={layoutStyles}>
-          <div className="v1560qbr-1">
-            <h2 className="v1560qbr-2">Card Title</h2>
+          <div className="v1560qbr-1-Card">
+            <h2 className="v1560qbr-2-Title">Card Title</h2>
           </div>
         </div>
       );
@@ -278,31 +278,31 @@ describe('styled component references', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         background: white;
         padding: 16px;
         border-radius: 8px;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Title {
         font-size: 18px;
         color: #333;
         margin: 0;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-layoutStyles {
         display: grid;
         gap: 16px;
 
-        .v1560qbr-1 .v1560qbr-2 {
+        .v1560qbr-1-Card .v1560qbr-2-Title {
           font-size: 20px;
         }
 
-        .v1560qbr-1:hover .v1560qbr-2 {
+        .v1560qbr-1-Card:hover .v1560qbr-2-Title {
           color: #007bff;
         }
 
-        & .v1560qbr-1:last-child {
+        & .v1560qbr-1-Card:last-child {
           margin-bottom: 0;
         }
       }"
@@ -346,34 +346,34 @@ describe('styled component references', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseLayout = "v1560qbr-2";
-      const interactiveLayout = "v1560qbr-2 v1560qbr-3";
+      "const baseLayout = "v1560qbr-2-baseLayout";
+      const interactiveLayout = "v1560qbr-2-baseLayout v1560qbr-3-interactiveLayout";
       const App = () => (
         <div className={interactiveLayout}>
-          <button className="v1560qbr-1">Click me</button>
+          <button className="v1560qbr-1-Button">Click me</button>
         </div>
       );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         background: blue;
         color: white;
         padding: 8px 16px;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-baseLayout {
         display: flex;
         gap: 16px;
       }
 
-      .v1560qbr-3 {
-        .v1560qbr-1:hover {
+      .v1560qbr-3-interactiveLayout {
+        .v1560qbr-1-Button:hover {
           background: darkblue;
         }
 
-        & .v1560qbr-1:active {
+        & .v1560qbr-1-Button:active {
           transform: scale(0.95);
         }
       }"

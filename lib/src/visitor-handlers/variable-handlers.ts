@@ -1,6 +1,5 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import type { VindurPluginState } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
 import {
   processGlobalStyle,
@@ -13,22 +12,8 @@ import {
   extractStyleFlags,
   updateCssSelectorsForStyleFlags,
 } from './style-flags-utils';
+import { isValidHexColorWithoutAlpha, isVariableExported } from './handler-utils';
 
-// Helper function to validate hex colors without alpha
-function isValidHexColorWithoutAlpha(color: string): boolean {
-  // Must start with #
-  if (!color.startsWith('#')) return false;
-
-  const hex = color.slice(1);
-
-  // Must be either 3 or 6 characters (no alpha channel)
-  if (hex.length !== 3 && hex.length !== 6) {
-    return false;
-  }
-
-  // Must contain only valid hex characters
-  return /^[0-9a-fA-F]+$/.test(hex);
-}
 
 type VariableHandlerContext = {
   context: CssProcessingContext;
@@ -63,11 +48,28 @@ export function handleCssVariableAssignment(
     dev,
     fileHash,
     classIndex.current,
+    classIndex,
   );
   classIndex.current++;
 
   // Track the CSS variable for future reference
   context.state.cssVariables.set(varName, result.finalClassName);
+
+  // Inject warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0) {
+    const declarationStatement = path.findParent((p) => p.isVariableDeclaration());
+    if (declarationStatement) {
+      for (const warning of result.warnings) {
+        const warnStatement = t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('warn')),
+            [t.stringLiteral(warning)],
+          ),
+        );
+        declarationStatement.insertAfter(warnStatement);
+      }
+    }
+  }
 
   // Replace the tagged template with the class name string
   path.node.init = t.stringLiteral(result.finalClassName);
@@ -110,8 +112,25 @@ export function handleStyledElementAssignment(
     dev,
     fileHash,
     classIndex.current,
+    classIndex,
   );
   classIndex.current++;
+
+  // Inject warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0) {
+    const declarationStatement = path.findParent((p) => p.isVariableDeclaration());
+    if (declarationStatement) {
+      for (const warning of result.warnings) {
+        const warnStatement = t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('warn')),
+            [t.stringLiteral(warning)],
+          ),
+        );
+        declarationStatement.insertAfter(warnStatement);
+      }
+    }
+  }
 
   // If we have style flags, update CSS selectors to use hashed class names
   if (styleFlags) {
@@ -243,6 +262,7 @@ export function handleStyledExtensionAssignment(
     dev,
     fileHash,
     classIndex.current,
+    classIndex,
   );
   classIndex.current++;
 
@@ -430,7 +450,7 @@ export function handleGlobalStyleVariableAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context } = handlerContext;
+  const { context, dev, fileHash, classIndex } = handlerContext;
 
   if (
     !context.state.vindurImports.has('createGlobalStyle')
@@ -442,7 +462,23 @@ export function handleGlobalStyleVariableAssignment(
     return false;
   }
 
-  processGlobalStyle(path.node.init.quasi, context);
+  const result = processGlobalStyle(path.node.init.quasi, context, fileHash, classIndex);
+
+  // Inject warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0) {
+    const declarationStatement = path.findParent((p) => p.isVariableDeclaration());
+    if (declarationStatement) {
+      for (const warning of result.warnings) {
+        const warnStatement = t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('warn')),
+            [t.stringLiteral(warning)],
+          ),
+        );
+        declarationStatement.insertAfter(warnStatement);
+      }
+    }
+  }
 
   // Remove the createGlobalStyle declaration since it doesn't produce a value
   path.remove();
@@ -450,180 +486,5 @@ export function handleGlobalStyleVariableAssignment(
   return true;
 }
 
-// Helper function to check if a variable is exported
-function isVariableExported(
-  variableName: string,
-  path: NodePath<t.VariableDeclarator>,
-): boolean {
-  // Check if the variable is part of an export declaration
-  const parentPath = path.parentPath;
-  if (!t.isVariableDeclaration(parentPath.node)) {
-    return false;
-  }
 
-  const grandParentPath = parentPath.parentPath;
-  if (grandParentPath && t.isExportNamedDeclaration(grandParentPath.node)) {
-    return true;
-  }
-
-  // Check if the variable is exported later with export { name }
-  let currentPath: NodePath | null = path;
-  while (currentPath?.node && !t.isProgram(currentPath.node)) {
-    currentPath = currentPath.parentPath;
-  }
-
-  if (!currentPath || !t.isProgram(currentPath.node)) {
-    return false;
-  }
-
-  const program = currentPath;
-
-  // Look for export statements that export this variable
-  if (!t.isProgram(program.node)) return false;
-
-  for (const statement of program.node.body) {
-    if (t.isExportNamedDeclaration(statement) && !statement.declaration) {
-      // This is an export { ... } statement
-      for (const specifier of statement.specifiers) {
-        if (
-          t.isExportSpecifier(specifier)
-          && t.isIdentifier(specifier.local)
-          && specifier.local.name === variableName
-        ) {
-          return true;
-        }
-      }
-    } else if (t.isExportDefaultDeclaration(statement)) {
-      // Check if it's the default export
-      if (
-        t.isIdentifier(statement.declaration)
-        && statement.declaration.name === variableName
-      ) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-type CallExpressionContext = {
-  state: VindurPluginState;
-  dev: boolean;
-  fileHash: string;
-  classIndex: () => number;
-};
-
-export function handleStableIdCall(
-  path: NodePath<t.CallExpression>,
-  context: CallExpressionContext,
-): boolean {
-  if (
-    !context.state.vindurImports.has('stableId')
-    || !t.isIdentifier(path.node.callee)
-    || path.node.callee.name !== 'stableId'
-  ) {
-    return false;
-  }
-
-  // Get variable name for dev mode from parent VariableDeclarator if present
-  let varName: string | undefined;
-  if (
-    t.isVariableDeclarator(path.parent)
-    && t.isIdentifier(path.parent.id)
-    && path.parent.init === path.node
-  ) {
-    varName = path.parent.id.name;
-  }
-
-  // Generate a hash similar to css`` - use fileHash and classIndex
-  const classIndex = context.classIndex();
-  const hash =
-    context.dev && varName ?
-      `${context.fileHash}-${varName}-${classIndex}`
-    : `${context.fileHash}-${classIndex}`;
-
-  // Replace the call with a string literal
-  path.replaceWith(t.stringLiteral(hash));
-
-  return true;
-}
-
-export function handleCreateClassNameCall(
-  path: NodePath<t.CallExpression>,
-  context: CallExpressionContext,
-): boolean {
-  if (
-    !context.state.vindurImports.has('createClassName')
-    || !t.isIdentifier(path.node.callee)
-    || path.node.callee.name !== 'createClassName'
-    || path.node.arguments.length > 0 // Skip if already has arguments (already processed)
-  ) {
-    return false;
-  }
-
-  // Check if this is a valid usage pattern
-  validateCreateClassNameUsage(path);
-
-  // Get variable name for dev mode from parent VariableDeclarator if present
-  let varName: string | undefined;
-  if (
-    t.isVariableDeclarator(path.parent)
-    && t.isIdentifier(path.parent.id)
-    && path.parent.init === path.node
-  ) {
-    varName = path.parent.id.name;
-  }
-
-  // Generate a hash similar to css`` - use fileHash and classIndex
-  const classIndex = context.classIndex();
-  const hash =
-    context.dev && varName ?
-      `${context.fileHash}-${varName}-${classIndex}`
-    : `${context.fileHash}-${classIndex}`;
-
-  // Replace the call with createClassName(hash)
-  path.replaceWith(
-    t.callExpression(t.identifier('createClassName'), [t.stringLiteral(hash)]),
-  );
-
-  return true;
-}
-
-function validateCreateClassNameUsage(path: NodePath<t.CallExpression>): void {
-  const parent = path.parent;
-
-  // Check if it's being destructured
-  if (t.isVariableDeclarator(parent) && t.isObjectPattern(parent.id)) {
-    throw new Error(
-      'createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.',
-    );
-  }
-
-  // Check if it's at module root level
-  if (t.isVariableDeclarator(parent)) {
-    // Walk up to find the variable declaration
-    let currentPath: NodePath | null = path.parentPath;
-    while (currentPath && !t.isVariableDeclaration(currentPath.node)) {
-      currentPath = currentPath.parentPath;
-    }
-
-    if (currentPath) {
-      // Check if the variable declaration is at the top level (program body)
-      const declarationParent = currentPath.parent;
-      if (
-        !t.isProgram(declarationParent)
-        && !t.isExportNamedDeclaration(declarationParent)
-      ) {
-        throw new Error(
-          'createClassName() can only be used in variable declarations at the module root level.',
-        );
-      }
-    }
-  } else {
-    // If it's not in a variable declarator, it's inline usage
-    throw new Error(
-      'createClassName() can only be used in variable declarations at the module root level, not inline.',
-    );
-  }
-}
+export { handleStableIdCall, handleCreateClassNameCall } from './call-expression-handlers';

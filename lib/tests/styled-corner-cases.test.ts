@@ -24,7 +24,7 @@ describe('styled components - corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1" />;
+      "const App = () => <div className="v1560qbr-1-EmptyStyled" />;
       "
     `);
   });
@@ -49,7 +49,7 @@ describe('styled components - corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledDiv {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif;
@@ -57,7 +57,7 @@ describe('styled components - corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1">Content</div>;
+      "const App = () => <div className="v1560qbr-1-StyledDiv">Content</div>;
       "
     `);
   });
@@ -86,7 +86,7 @@ describe('styled components - corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background: blue;
         color: white;
       }"
@@ -95,9 +95,9 @@ describe('styled components - corner cases', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="v1560qbr-1 extra-class">Click me</button>
+          <button className="v1560qbr-1-StyledButton extra-class">Click me</button>
           <button
-            className={\`v1560qbr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
+            className={\`v1560qbr-1-StyledButton \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
           >
             Dynamic
           </button>

@@ -35,12 +35,12 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-RedButton {
         background: red;
         color: white;
       }"
@@ -49,8 +49,8 @@ describe('styled component extension', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="v1560qbr-1">Blue</button>
-          <button className="v1560qbr-1 v1560qbr-2">Red</button>
+          <button className="v1560qbr-1-Button">Blue</button>
+          <button className="v1560qbr-1-Button v1560qbr-2-RedButton">Red</button>
         </div>
       );
       "
@@ -107,17 +107,17 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-BaseButton {
         padding: 8px;
         border: none;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-BlueButton {
         background: blue;
         color: white;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-LargeBlueButton {
         font-size: 18px;
         padding: 12px;
       }"
@@ -125,7 +125,9 @@ describe('styled component extension', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
-        <button className="v1560qbr-1 v1560qbr-2 v1560qbr-3">Click me</button>
+        <button className="v1560qbr-1-BaseButton v1560qbr-2-BlueButton v1560qbr-3-LargeBlueButton">
+          Click me
+        </button>
       );
       "
     `);

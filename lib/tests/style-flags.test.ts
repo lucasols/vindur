@@ -35,7 +35,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -117,7 +116,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -181,7 +179,6 @@ describe('Style Flags Transform Logic', () => {
             return <Card>Content</Card>;
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -229,7 +226,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -295,7 +291,7 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: false,
+        production: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -363,7 +359,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -422,7 +417,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -484,7 +478,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -561,7 +554,6 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -604,7 +596,6 @@ describe('Style Flags Transform Logic', () => {
             }
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`

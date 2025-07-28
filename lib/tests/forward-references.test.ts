@@ -28,17 +28,17 @@ describe('forward references', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         background: white;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
-        .v1560qbr-2:hover & {
+        .v1560qbr-2-Container:hover & {
           background: #007bff;
           color: white;
         }
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Container {
         background: #f5f5f5;
         padding: 20px;
       }"
@@ -77,24 +77,24 @@ describe('forward references', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Header {
         background: white;
 
-        .v1560qbr-2 {
+        .v1560qbr-2-Nav {
           background: transparent;
         }
 
-        .v1560qbr-3:hover {
+        .v1560qbr-3-Button:hover {
           background: #007bff;
         }
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Nav {
         display: flex;
         gap: 16px;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-Button {
         padding: 8px 16px;
         border: none;
       }"
@@ -123,21 +123,21 @@ describe('forward references', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const containerStyles = "v1560qbr-1";
+      "const containerStyles = "v1560qbr-1-containerStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-containerStyles {
         max-width: 1200px;
         margin: 0 auto;
 
-        .v1560qbr-2 {
+        .v1560qbr-2-Card {
           margin-bottom: 16px;
         }
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Card {
         background: white;
         padding: 20px;
       }"
@@ -214,24 +214,24 @@ describe('forward references', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Wrapper {
         padding: 20px;
 
-        .v1560qbr-2 {
+        .v1560qbr-2-Card {
           margin: 16px 0;
 
-          .v1560qbr-3 {
+          .v1560qbr-3-Button {
             margin-top: 8px;
           }
         }
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Card {
         background: white;
         border-radius: 8px;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-Button {
         background: #007bff;
         color: white;
       }"

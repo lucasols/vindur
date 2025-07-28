@@ -36,15 +36,15 @@ describe('createStaticThemeColors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <button className="v1560qbr-1">Click me</button>;
+        return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #007bff;
-        color: #fff;
+      ".v1560qbr-1-Button {
+        background: var(--stc-primary-var, #007bff);
+        color: var(--stc-primary-contrast-var, #fff);
       }"
     `);
   });
@@ -78,15 +78,15 @@ describe('createStaticThemeColors', () => {
         secondary: "#6c757d",
       };
       const Component = () => {
-        return <button className="v1560qbr-1">Click me</button>;
+        return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #007bff;
-        color: #fff;
+      ".v1560qbr-1-Button {
+        background: var(--stc-primary-var, #007bff);
+        color: var(--stc-primary-contrast-var, #fff);
       }"
     `);
   });
@@ -119,7 +119,7 @@ describe('createStaticThemeColors', () => {
 
     const result = await transformWithFormat({
       source,
-      dev: true,
+
       overrideDefaultFs: fs,
     });
 
@@ -172,16 +172,16 @@ describe('createStaticThemeColors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div className="v1560qbr-1">Warning message</div>;
+        return <div className="v1560qbr-1-Alert">Warning message</div>;
       };
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #dc35451a;
-        border: 1px solid #dc35454d;
-        color: #dc3545;
+      ".v1560qbr-1-Alert {
+        background: var(--stc-danger-alpha-0\\.1, #dc35451a);
+        border: 1px solid var(--stc-danger-alpha-0\\.3, #dc35454d);
+        color: var(--stc-danger-var, #dc3545);
       }"
     `);
   });
@@ -229,25 +229,25 @@ describe('createStaticThemeColors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <button className="v1560qbr-1">Click me</button>;
+        return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #007bff;
+      ".v1560qbr-1-Button {
+        background: var(--stc-primary-var, #007bff);
 
         &:hover {
-          background: #0062cc;
+          background: var(--stc-primary-darker-0\\.1, #0062cc);
         }
 
         &:active {
-          background: #004a99;
+          background: var(--stc-primary-darker-0\\.2, #004a99);
         }
 
         &:disabled {
-          background: #99caff;
+          background: var(--stc-primary-lighter-0\\.3, #99caff);
         }
       }"
     `);
@@ -288,20 +288,20 @@ describe('createStaticThemeColors', () => {
         light: "#f8f9fa",
       };
       const Component = () => {
-        return <button className="v1560qbr-1">Click me</button>;
+        return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #007bff;
-        color: #fff;
-        border: 1px solid #fff3;
+      ".v1560qbr-1-Button {
+        background: var(--stc-primary-var, #007bff);
+        color: var(--stc-primary-contrast-var, #fff);
+        border: 1px solid var(--stc-primary-contrast-alpha-0\\.2, #fff3);
 
         &.light {
-          background: #f8f9fa;
-          color: #000;
+          background: var(--stc-light-var, #f8f9fa);
+          color: var(--stc-light-contrast-optimal, #000);
         }
       }"
     `);
@@ -361,8 +361,8 @@ describe('createStaticThemeColors', () => {
       "const Component = () => {
         return (
           <div>
-            <button className="v1560qbr-1">Success</button>
-            <button className="v1560qbr-2">Primary</button>
+            <button className="v1560qbr-1-SuccessButton">Success</button>
+            <button className="v1560qbr-2-PrimaryButton">Primary</button>
           </div>
         );
       };
@@ -370,14 +370,14 @@ describe('createStaticThemeColors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        background: #28a745;
-        color: #fff;
+      ".v1560qbr-1-SuccessButton {
+        background: var(--stc-success-var, #28a745);
+        color: var(--stc-success-contrast-var, #fff);
       }
 
-      .v1560qbr-2 {
-        background: #007bff;
-        color: #fff;
+      .v1560qbr-2-PrimaryButton {
+        background: var(--stc-primary-var, #007bff);
+        color: var(--stc-primary-contrast-var, #fff);
       }"
     `);
   });
@@ -422,7 +422,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const buttonStyles = "v1560qbr-1";
+      "const buttonStyles = "v1560qbr-1-buttonStyles";
       const Component = () => {
         return <button className={buttonStyles}>Click me</button>;
       };
@@ -430,16 +430,16 @@ describe('createStaticThemeColors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-buttonStyles {
         padding: 12px 24px;
         border: none;
         border-radius: 4px;
-        background: #007bff;
-        color: #fff;
+        background: var(--stc-primary-var, #007bff);
+        color: var(--stc-primary-contrast-var, #fff);
 
         &.warning {
-          background: #ffc107;
-          color: #000;
+          background: var(--stc-warning-var, #ffc107);
+          color: var(--stc-warning-contrast-var, #000);
         }
       }"
     `);
@@ -491,7 +491,7 @@ describe('createStaticThemeColors', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
         return (
-          <div className="v1560qbr-1">
+          <div className="v1560qbr-1-Card">
             <div className="header">Header</div>
             Content
           </div>
@@ -501,16 +501,16 @@ describe('createStaticThemeColors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
-        border: 1px solid #007bff33;
+      ".v1560qbr-1-Card {
+        border: 1px solid var(--stc-primary-alpha-0\\.2, #007bff33);
 
         &:hover {
-          box-shadow: 0 4px 8px #007bff26;
+          box-shadow: 0 4px 8px var(--stc-primary-alpha-0\\.15, #007bff26);
         }
 
         .header {
-          background: #cce5ff;
-          color: #fffc;
+          background: var(--stc-primary-lighter-0\\.4, #cce5ff);
+          color: var(--stc-primary-contrast-alpha-0\\.8, #fffc);
         }
       }"
     `);
@@ -554,7 +554,7 @@ describe('createStaticThemeColors', () => {
 
     const result = await transformWithFormat({
       source,
-      dev: true,
+
       overrideDefaultFs: fs,
     });
 
@@ -605,11 +605,11 @@ describe('createStaticThemeColors', () => {
       const result = await transformWithFormat({ source });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v1560qbr-1 {
-          background: #fff3;
-          border: 1px solid #ff000080;
-          color: #000c;
-          box-shadow: 0 2px 4px #ffffff1a;
+        ".v1560qbr-1-Component {
+          background: var(--stc-white-alpha-0\\.2, #fff3);
+          border: 1px solid var(--stc-red-alpha-0\\.5, #ff000080);
+          color: var(--stc-black-alpha-0\\.8, #000c);
+          box-shadow: 0 2px 4px var(--stc-white-alpha-0\\.1, #ffffff1a);
         }"
       `);
     });
@@ -638,12 +638,12 @@ describe('createStaticThemeColors', () => {
       const result = await transformWithFormat({ source });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v1560qbr-1 {
-          color: #f00;
-          background: #0f0;
-          border-color: #00f;
-          outline-color: #fff;
-          text-shadow: 1px 1px #000;
+        ".v1560qbr-1-Component {
+          color: var(--stc-red-var, #f00);
+          background: var(--stc-green-var, #0f0);
+          border-color: var(--stc-blue-var, #00f);
+          outline-color: var(--stc-white-var, #fff);
+          text-shadow: 1px 1px var(--stc-black-var, #000);
         }"
       `);
     });
@@ -667,10 +667,10 @@ describe('createStaticThemeColors', () => {
       const result = await transformWithFormat({ source });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v1560qbr-1 {
-          color: #fff;
-          background: #000;
-          border: 1px solid #fff3;
+        ".v1560qbr-1-Component {
+          color: var(--stc-primary-contrast-var, #fff);
+          background: var(--stc-light-contrast-var, #000);
+          border: 1px solid var(--stc-primary-contrast-alpha-0\\.2, #fff3);
         }"
       `);
     });
@@ -693,12 +693,80 @@ describe('createStaticThemeColors', () => {
       const result = await transformWithFormat({ source });
 
       expect(result.css).toMatchInlineSnapshot(`
-        ".v1560qbr-1 {
-          background: #0062cc;
-          color: #f66;
+        ".v1560qbr-1-Component {
+          background: var(--stc-primary-darker-0\\.1, #0062cc);
+          color: var(--stc-secondary-lighter-0\\.2, #f66);
         }"
       `);
     });
+  });
+
+  test('should transform static theme colors in production mode without CSS variables', async () => {
+    const fs = createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors } from 'vindur'
+
+        export const colors = createStaticThemeColors({
+          primary: '#007bff',
+          secondary: '#6c757d',
+          danger: '#dc3545',
+        })
+      `,
+    });
+
+    const source = dedent`
+      import { styled } from 'vindur'
+      import { colors } from '#/theme'
+
+      const Button = styled.button\`
+        background: \${colors.primary.var};
+        color: \${colors.primary.contrast.var};
+        border: 1px solid \${colors.primary.alpha(0.2)};
+  
+        &:hover {
+          background: \${colors.primary.darker(0.1)};
+        }
+  
+        &.danger {
+          background: \${colors.danger.var};
+          color: \${colors.danger.contrast.alpha(0.9)};
+        }
+      \`
+
+      const Component = () => {
+        return <Button>Click me</Button>;
+      }
+    `;
+
+    const result = await transformWithFormat({
+      source,
+      overrideDefaultFs: fs,
+      production: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const Component = () => {
+        return <button className="v1560qbr-1">Click me</button>;
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        background: #007bff;
+        color: #fff;
+        border: 1px solid #007bff33;
+  
+        &:hover {
+          background: #0062cc;
+        }
+  
+        &.danger {
+          background: #dc3545;
+          color: #ffffffe6;
+        }
+      }"
+    `);
   });
 
   describe('validation', () => {

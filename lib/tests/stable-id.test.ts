@@ -13,7 +13,7 @@ describe('stableId', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const myId = "v1560qbr-1";
+      "export const myId = "v1560qbr-myId-1";
       "
     `);
 
@@ -32,9 +32,9 @@ describe('stableId', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const firstId = "v1560qbr-1";
-      export const secondId = "v1560qbr-2";
-      export const thirdId = "v1560qbr-3";
+      "export const firstId = "v1560qbr-firstId-1";
+      export const secondId = "v1560qbr-secondId-2";
+      export const thirdId = "v1560qbr-thirdId-3";
       "
     `);
 
@@ -48,7 +48,6 @@ describe('stableId', () => {
 
         export const myId = stableId();
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -109,7 +108,7 @@ describe('createClassName', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const myClassName = createClassName("v1560qbr-1");
+      "export const myClassName = createClassName("v1560qbr-myClassName-1");
       "
     `);
 
@@ -127,8 +126,8 @@ describe('createClassName', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const firstClassName = createClassName("v1560qbr-1");
-      export const secondClassName = createClassName("v1560qbr-2");
+      "export const firstClassName = createClassName("v1560qbr-firstClassName-1");
+      export const secondClassName = createClassName("v1560qbr-secondClassName-2");
       "
     `);
 
@@ -142,7 +141,6 @@ describe('createClassName', () => {
 
         export const myClassName = createClassName();
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -266,9 +264,9 @@ describe('mixed stable ID utilities', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const className = createClassName("v1560qbr-2");
-      export const anotherId = "v1560qbr-3";
+      "export const id = "v1560qbr-id-1";
+      export const className = createClassName("v1560qbr-className-2");
+      export const anotherId = "v1560qbr-anotherId-3";
       "
     `);
 
@@ -288,19 +286,19 @@ describe('mixed stable ID utilities', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const style1 = "v1560qbr-1";
-      export const id = "v1560qbr-2";
-      export const className = createClassName("v1560qbr-3");
-      export const style2 = "v1560qbr-4";
+      "export const style1 = "v1560qbr-1-style1";
+      export const id = "v1560qbr-id-2";
+      export const className = createClassName("v1560qbr-className-3");
+      export const style2 = "v1560qbr-4-style2";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style1 {
         color: red;
       }
 
-      .v1560qbr-4 {
+      .v1560qbr-4-style2 {
         color: blue;
       }"
     `);
@@ -323,14 +321,14 @@ describe('stable ID utilities in CSS context', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const style = "v1560qbr-2";
+      "export const id = "v1560qbr-id-1";
+      export const style = "v1560qbr-2-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        #v1560qbr-1 {
+      ".v1560qbr-2-style {
+        #v1560qbr-id-1 {
           color: red;
         }
       }"
@@ -355,17 +353,17 @@ describe('stable ID utilities in CSS context', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const className = createClassName("v1560qbr-1");
-      export const style = "v1560qbr-2";
+      "export const className = createClassName("v1560qbr-className-1");
+      export const style = "v1560qbr-2-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        .v1560qbr-1 {
+      ".v1560qbr-2-style {
+        .v1560qbr-className-1 {
           background: blue;
         }
-        .v1560qbr-1 {
+        .v1560qbr-className-1 {
           border: 1px solid black;
         }
       }"
@@ -391,18 +389,18 @@ describe('stable ID utilities in CSS context', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const className = createClassName("v1560qbr-2");
-      export const style = "v1560qbr-3";
+      "export const id = "v1560qbr-id-1";
+      export const className = createClassName("v1560qbr-className-2");
+      export const style = "v1560qbr-3-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
-        #v1560qbr-1 {
+      ".v1560qbr-3-style {
+        #v1560qbr-id-1 {
           color: red;
         }
-        .v1560qbr-2 {
+        .v1560qbr-className-2 {
           background: blue;
         }
       }"
@@ -430,17 +428,17 @@ describe('stable ID utilities in styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { styledComponent } from "vindur";
-      export const id = "v1560qbr-1";
-      export const Button = styledComponent("button", "v1560qbr-2");
+      export const id = "v1560qbr-id-1";
+      export const Button = styledComponent("button", "v1560qbr-2-Button");
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        &[data-id="v1560qbr-1"] {
+      ".v1560qbr-2-Button {
+        &[data-id="v1560qbr-id-1"] {
           color: red;
         }
-        #v1560qbr-1 {
+        #v1560qbr-id-1 {
           background: blue;
         }
       }"
@@ -466,17 +464,17 @@ describe('stable ID utilities in styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { styledComponent } from "vindur";
-      export const className = createClassName("v1560qbr-1");
-      export const Container = styledComponent("div", "v1560qbr-2");
+      export const className = createClassName("v1560qbr-className-1");
+      export const Container = styledComponent("div", "v1560qbr-2-Container");
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        .v1560qbr-1 {
+      ".v1560qbr-2-Container {
+        .v1560qbr-className-1 {
           padding: 16px;
         }
-        &.v1560qbr-1 {
+        &.v1560qbr-className-1 {
           margin: 8px;
         }
       }"
@@ -506,21 +504,21 @@ describe('stable ID utilities in styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { styledComponent } from "vindur";
-      export const id = "v1560qbr-1";
-      export const className = createClassName("v1560qbr-2");
-      export const Card = styledComponent("article", "v1560qbr-3");
+      export const id = "v1560qbr-id-1";
+      export const className = createClassName("v1560qbr-className-2");
+      export const Card = styledComponent("article", "v1560qbr-3-Card");
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
-        #v1560qbr-1 {
+      ".v1560qbr-3-Card {
+        #v1560qbr-id-1 {
           font-size: 16px;
         }
-        .v1560qbr-2 {
+        .v1560qbr-className-2 {
           border: 1px solid gray;
         }
-        &[data-id="v1560qbr-1"].v1560qbr-2 {
+        &[data-id="v1560qbr-id-1"].v1560qbr-className-2 {
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
       }"
@@ -552,17 +550,19 @@ describe('stable ID utilities in CSS prop', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const Component = () => <div className="v1560qbr-2">Content</div>;
+      "export const id = "v1560qbr-id-1";
+      export const Component = () => (
+        <div className="v1560qbr-2-css-prop-2">Content</div>
+      );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        #v1560qbr-1 {
+      ".v1560qbr-2-css-prop-2 {
+        #v1560qbr-id-1 {
             color: red;
           }
-          &[data-id="v1560qbr-1"] {
+          &[data-id="v1560qbr-id-1"] {
             background: blue;
           }
       }"
@@ -592,17 +592,19 @@ describe('stable ID utilities in CSS prop', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const className = createClassName("v1560qbr-1");
-      export const Component = () => <div className="v1560qbr-2">Content</div>;
+      "export const className = createClassName("v1560qbr-className-1");
+      export const Component = () => (
+        <div className="v1560qbr-2-css-prop-2">Content</div>
+      );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
-        .v1560qbr-1 {
+      ".v1560qbr-2-css-prop-2 {
+        .v1560qbr-className-1 {
             padding: 16px;
           }
-          &.v1560qbr-1 {
+          &.v1560qbr-className-1 {
             margin: 8px;
           }
       }"
@@ -636,23 +638,23 @@ describe('stable ID utilities in CSS prop', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const className = createClassName("v1560qbr-2");
+      "export const id = "v1560qbr-id-1";
+      export const className = createClassName("v1560qbr-className-2");
       export const Component = () => (
-        <section className="v1560qbr-3">Content</section>
+        <section className="v1560qbr-3-css-prop-3">Content</section>
       );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
-        #v1560qbr-1 {
+      ".v1560qbr-3-css-prop-3 {
+        #v1560qbr-id-1 {
             font-size: 18px;
           }
-          .v1560qbr-2 {
+          .v1560qbr-className-2 {
             border: 2px solid navy;
           }
-          &[data-id="v1560qbr-1"].v1560qbr-2 {
+          &[data-id="v1560qbr-id-1"].v1560qbr-className-2 {
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
           }
       }"
@@ -692,29 +694,29 @@ describe('stable ID utilities in CSS prop', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export const id = "v1560qbr-1";
-      export const className = createClassName("v1560qbr-2");
+      "export const id = "v1560qbr-id-1";
+      export const className = createClassName("v1560qbr-className-2");
       export const Component = () => (
         <div>
-          <header className="v1560qbr-3">Header</header>
-          <main className="v1560qbr-4">Main content</main>
+          <header className="v1560qbr-3-css-prop-3">Header</header>
+          <main className="v1560qbr-4-css-prop-4">Main content</main>
         </div>
       );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
-        #v1560qbr-1 {
+      ".v1560qbr-3-css-prop-3 {
+        #v1560qbr-id-1 {
               height: 60px;
             }
       }
 
-      .v1560qbr-4 {
-        .v1560qbr-2 {
+      .v1560qbr-4-css-prop-4 {
+        .v1560qbr-className-2 {
               min-height: 400px;
             }
-            &.v1560qbr-2 {
+            &.v1560qbr-className-2 {
               padding: 20px;
             }
       }"

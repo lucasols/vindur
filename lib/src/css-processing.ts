@@ -8,6 +8,7 @@ import type {
 } from './babel-plugin';
 import type { TransformFS } from './transform';
 import type { CompiledFunction } from './types';
+import { processScopedCssVariables, type ScopedVariableMap } from './scoped-css-variables';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -32,6 +33,8 @@ export type CssProcessingResult = {
   cssContent: string;
   extensions: string[];
   finalClassName: string;
+  scopedVariables?: ScopedVariableMap;
+  warnings?: string[];
 };
 
 const STYLED_TAG_NAME = 'styled';
@@ -79,6 +82,7 @@ export function processStyledTemplate(
   dev: boolean,
   fileHash: string,
   classIndex: number,
+  classIndexRef?: { current: number },
 ): CssProcessingResult {
   const { cssContent, extensions } = processCssTemplate(
     quasi,
@@ -88,15 +92,42 @@ export function processStyledTemplate(
     dev,
   );
 
+  // Initialize file-level scoped variables map if needed
+  if (!context.state.scopedVariables) {
+    context.state.scopedVariables = new Map();
+  }
+
+  // Process scoped CSS variables
+  const scopedResult = processScopedCssVariables(
+    cssContent,
+    fileHash,
+    dev,
+    context.state.scopedVariables,
+    classIndexRef,
+  );
+
+  // Merge newly found scoped variables into file-level map
+  for (const [varName, varInfo] of scopedResult.scopedVariables) {
+    if (!context.state.scopedVariables.has(varName)) {
+      context.state.scopedVariables.set(varName, varInfo);
+    }
+  }
+
   const className = generateClassName(dev, fileHash, classIndex, variableName);
   const finalClassName = generateCssRule(
     className,
-    cssContent,
+    scopedResult.processedCss,
     extensions,
     context.state,
   );
 
-  return { cssContent, extensions, finalClassName };
+  return { 
+    cssContent: scopedResult.processedCss, 
+    extensions, 
+    finalClassName,
+    scopedVariables: context.state.scopedVariables,
+    warnings: scopedResult.warnings,
+  };
 }
 
 export function processStyledExtension(
@@ -107,6 +138,7 @@ export function processStyledExtension(
   dev: boolean,
   fileHash: string,
   classIndex: number,
+  classIndexRef?: { current: number },
 ): CssProcessingResult {
   const { cssContent, extensions } = processCssTemplate(
     quasi,
@@ -115,6 +147,27 @@ export function processStyledExtension(
     `${STYLED_TAG_NAME}(${extendedName})`,
     dev,
   );
+
+  // Initialize file-level scoped variables map if needed
+  if (!context.state.scopedVariables) {
+    context.state.scopedVariables = new Map();
+  }
+
+  // Process scoped CSS variables
+  const scopedResult = processScopedCssVariables(
+    cssContent,
+    fileHash,
+    dev,
+    context.state.scopedVariables,
+    classIndexRef,
+  );
+
+  // Merge newly found scoped variables into file-level map
+  for (const [varName, varInfo] of scopedResult.scopedVariables) {
+    if (!context.state.scopedVariables.has(varName)) {
+      context.state.scopedVariables.set(varName, varInfo);
+    }
+  }
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
 
@@ -127,7 +180,7 @@ export function processStyledExtension(
   }
 
   // Clean up CSS content and store the CSS rule
-  const cleanedCss = cleanCss(cssContent);
+  const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
     context.state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
   }
@@ -145,16 +198,19 @@ export function processStyledExtension(
     : extendedInfo.className;
 
   return {
-    cssContent,
+    cssContent: scopedResult.processedCss,
     extensions,
     finalClassName: mergedClassName,
+    scopedVariables: context.state.scopedVariables,
   };
 }
 
 export function processGlobalStyle(
   quasi: t.TemplateLiteral,
   context: CssProcessingContext,
-): void {
+  fileHash: string,
+  classIndexRef?: { current: number },
+): { warnings?: string[] } {
   const { cssContent } = processCssTemplate(
     quasi,
     context,
@@ -163,11 +219,34 @@ export function processGlobalStyle(
     false, // Global styles don't need dev mode
   );
 
+  // Initialize file-level scoped variables map if needed
+  if (!context.state.scopedVariables) {
+    context.state.scopedVariables = new Map();
+  }
+
+  // Process scoped CSS variables
+  const scopedResult = processScopedCssVariables(
+    cssContent,
+    fileHash,
+    false, // Global styles don't use dev mode
+    context.state.scopedVariables,
+    classIndexRef,
+  );
+
+  // Merge newly found scoped variables into file-level map
+  for (const [varName, varInfo] of scopedResult.scopedVariables) {
+    if (!context.state.scopedVariables.has(varName)) {
+      context.state.scopedVariables.set(varName, varInfo);
+    }
+  }
+
   // Clean up CSS content and add to global styles (no class wrapper)
-  const cleanedCss = cleanCss(cssContent);
+  const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
     context.state.cssRules.push(cleanedCss);
   }
+
+  return { warnings: scopedResult.warnings };
 }
 
 export function processKeyframes(

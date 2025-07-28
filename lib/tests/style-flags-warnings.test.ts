@@ -16,13 +16,22 @@ describe('Style Flags Warning System', () => {
             color: blue;
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
       expect(result.code).toContain(
         'Warning: Missing modifier styles for "&.active" in Button',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Button = vComponentWithModifiers(
+          [["active", "voctcyj-active"]],
+          "v1560qbr-1-Button",
+          "button",
+        );
+        console.warn('Warning: Missing modifier styles for "&.active" in Button');
+        "
+      `);
     });
 
     test('should warn for multiple missing boolean selectors', async () => {
@@ -39,7 +48,6 @@ describe('Style Flags Warning System', () => {
             border: 1px solid #ddd;
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
@@ -52,6 +60,22 @@ describe('Style Flags Warning System', () => {
       expect(result.code).toContain(
         'Warning: Missing modifier styles for "&.collapsed" in Card',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Card = vComponentWithModifiers(
+          [
+            ["featured", "vnwmeu-featured"],
+            ["highlighted", "vges7p7-highlighted"],
+            ["collapsed", "v1wk07rx-collapsed"],
+          ],
+          "v1560qbr-1-Card",
+          "div",
+        );
+        console.warn('Warning: Missing modifier styles for "&.collapsed" in Card');
+        console.warn('Warning: Missing modifier styles for "&.highlighted" in Card');
+        console.warn('Warning: Missing modifier styles for "&.featured" in Card');
+        "
+      `);
     });
   });
 
@@ -68,7 +92,6 @@ describe('Style Flags Warning System', () => {
             color: blue;
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
@@ -78,6 +101,17 @@ describe('Style Flags Warning System', () => {
       expect(result.code).toContain(
         'Warning: Missing modifier styles for "&.size-large" in Button',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Button = vComponentWithModifiers(
+          [["size", "vr4ikfs-size"]],
+          "v1560qbr-1-Button",
+          "button",
+        );
+        console.warn('Warning: Missing modifier styles for "&.size-large" in Button');
+        console.warn('Warning: Missing modifier styles for "&.size-small" in Button');
+        "
+      `);
     });
 
     test('should warn for partially missing string union selectors', async () => {
@@ -97,7 +131,6 @@ describe('Style Flags Warning System', () => {
             /* Missing: &.variant-secondary and &.variant-danger */
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
@@ -111,6 +144,21 @@ describe('Style Flags Warning System', () => {
       expect(result.code).not.toContain(
         'Warning: Missing modifier styles for "&.variant-primary"',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Widget = vComponentWithModifiers(
+          [["variant", "v11as9cs-variant"]],
+          "v1560qbr-1-Widget",
+          "div",
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.variant-danger" in Widget',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.variant-secondary" in Widget',
+        );
+        "
+      `);
     });
 
     test('should warn for multiple string union props with missing selectors', async () => {
@@ -126,7 +174,6 @@ describe('Style Flags Warning System', () => {
             /* Missing all selectors for both props */
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
@@ -142,6 +189,30 @@ describe('Style Flags Warning System', () => {
       expect(result.code).toContain(
         'Warning: Missing modifier styles for "&.theme-dark" in Component',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Component = vComponentWithModifiers(
+          [
+            ["size", "vr4ikfs-size"],
+            ["theme", "v1cm7m20-theme"],
+          ],
+          "v1560qbr-1-Component",
+          "div",
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.theme-dark" in Component',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.theme-light" in Component',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.size-large" in Component',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.size-small" in Component',
+        );
+        "
+      `);
     });
   });
 
@@ -170,7 +241,6 @@ describe('Style Flags Warning System', () => {
             /* Missing: disabled, size-large, variant-primary, variant-secondary */
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
@@ -196,6 +266,32 @@ describe('Style Flags Warning System', () => {
       expect(result.code).not.toContain(
         'Warning: Missing modifier styles for "&.size-small"',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const ComplexButton = vComponentWithModifiers(
+          [
+            ["active", "voctcyj-active"],
+            ["disabled", "v1iz0um9-disabled"],
+            ["size", "vr4ikfs-size"],
+            ["variant", "v11as9cs-variant"],
+          ],
+          "v1560qbr-1-ComplexButton",
+          "button",
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.variant-secondary" in ComplexButton',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.variant-primary" in ComplexButton',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.size-large" in ComplexButton',
+        );
+        console.warn(
+          'Warning: Missing modifier styles for "&.disabled" in ComplexButton',
+        );
+        "
+      `);
     });
   });
 
@@ -215,21 +311,47 @@ describe('Style Flags Warning System', () => {
 
       const devResult = await transformWithFormat({
         source: sourceCode,
-        dev: true,
       });
 
       const prodResult = await transformWithFormat({
         source: sourceCode,
-        dev: false,
+        production: true,
       });
 
       // Dev mode should have warnings
       expect(devResult.code).toContain('console.warn');
       expect(devResult.code).toContain('Missing modifier styles');
+      expect(devResult.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Button = vComponentWithModifiers(
+          [
+            ["active", "voctcyj-active"],
+            ["size", "vr4ikfs-size"],
+          ],
+          "v1560qbr-1-Button",
+          "button",
+        );
+        console.warn('Warning: Missing modifier styles for "&.size-large" in Button');
+        console.warn('Warning: Missing modifier styles for "&.size-small" in Button');
+        console.warn('Warning: Missing modifier styles for "&.active" in Button');
+        "
+      `);
 
       // Production mode should NOT have warnings
       expect(prodResult.code).not.toContain('console.warn');
       expect(prodResult.code).not.toContain('Missing modifier styles');
+      expect(prodResult.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Button = vComponentWithModifiers(
+          [
+            ["active", "voctcyj"],
+            ["size", "vr4ikfs"],
+          ],
+          "v1560qbr-1",
+          "button",
+        );
+        "
+      `);
     });
   });
 
@@ -272,12 +394,25 @@ describe('Style Flags Warning System', () => {
             }
           \`;
         `,
-        dev: true,
       });
 
       // Should NOT contain any warnings
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const CompleteButton = vComponentWithModifiers(
+          [
+            ["active", "voctcyj-active"],
+            ["disabled", "v1iz0um9-disabled"],
+            ["size", "vr4ikfs-size"],
+            ["variant", "v11as9cs-variant"],
+          ],
+          "v1560qbr-1-CompleteButton",
+          "button",
+        );
+        "
+      `);
     });
   });
 
@@ -292,12 +427,12 @@ describe('Style Flags Warning System', () => {
             background: blue;
           \`;
         `,
-        dev: true,
       });
 
       // Should not contain warnings for components without style flags
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should handle complex selectors and nested styles', async () => {
@@ -321,13 +456,22 @@ describe('Style Flags Warning System', () => {
             /* Missing: &.highlighted selector */
           \`;
         `,
-        dev: true,
       });
 
       expect(result.code).toContain('console.warn');
       expect(result.code).toContain(
         'Warning: Missing modifier styles for "&.highlighted" in Card',
       );
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Card = vComponentWithModifiers(
+          [["highlighted", "vges7p7-highlighted"]],
+          "v1560qbr-1-Card",
+          "div",
+        );
+        console.warn('Warning: Missing modifier styles for "&.highlighted" in Card');
+        "
+      `);
     });
 
     test('should handle hashed selectors in CSS correctly', async () => {
@@ -346,12 +490,20 @@ describe('Style Flags Warning System', () => {
             }
           \`;
         `,
-        dev: true,
       });
 
       // Should NOT warn because the selector exists
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { vComponentWithModifiers } from "vindur";
+        const Button = vComponentWithModifiers(
+          [["primary", "v1puiack-primary"]],
+          "v1560qbr-1-Button",
+          "button",
+        );
+        "
+      `);
     });
   });
 });

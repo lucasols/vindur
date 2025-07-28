@@ -18,7 +18,7 @@ describe('constant imports', () => {
 
         const App = () => <Button>Click me</Button>
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'constants.ts': dedent`
           export const primaryColor = '#007bff'
@@ -57,7 +57,7 @@ describe('constant imports', () => {
 
         const App = () => <div className={cardStyles}>Card</div>
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'constants.ts': dedent`
           export const spacing = 16
@@ -107,12 +107,12 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <h1 className="v1560qbr-1">Hello World</h1>;
+      "const App = () => <h1 className="v1560qbr-1-Title">Hello World</h1>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Title {
         color: #2563eb;
         font-size: 24px;
         font-weight: 600;
@@ -143,13 +143,13 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const styles = "v1560qbr-1";
+      "const styles = "v1560qbr-1-styles";
       const App = () => <div className={styles}>Content</div>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-styles {
         padding: 32px 16px;
         margin: 8px;
         border-width: 2px;
@@ -185,12 +185,12 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1">Card content</div>;
+      "const App = () => <div className="v1560qbr-1-Card">Card content</div>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         background: #3b82f6;
         padding: 20px;
         border-radius: 8px;
@@ -222,12 +222,12 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <p className="v1560qbr-1">Sample text</p>;
+      "const App = () => <p className="v1560qbr-1-Text">Sample text</p>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Text {
         font-family: Inter, system-ui, sans-serif;
         font-weight: 400;
         line-height: 1.5;
@@ -289,7 +289,7 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1s4vg6s-1 v1560qbr-1">Content</div>;
+      "const App = () => <div className="v1s4vg6s-1 v1560qbr-1-Card">Content</div>;
       "
     `);
 
@@ -299,7 +299,7 @@ describe('constant imports', () => {
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
 
-      .v1560qbr-1 {
+      .v1560qbr-1-Card {
         background: #10b981;
         padding: 24px;
       }"

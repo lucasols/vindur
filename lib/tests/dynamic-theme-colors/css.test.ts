@@ -32,7 +32,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
-      const cardStyles = "v1560qbr-2";
+      const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         return (
           <div
@@ -48,7 +48,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-cardStyles {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
         padding: 20px;
@@ -100,7 +100,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
       const color = createDynamicCssColor("v1560qbr-1");
-      const cardStyles = "v1560qbr-2";
+      const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         const divProps = {
           "data-version": "2.0",

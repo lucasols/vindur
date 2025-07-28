@@ -25,19 +25,21 @@ describe('CSS style extension', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
-      const App = () => <div className="v1560qbr-1 v1560qbr-2">Hello</div>;
+      "const baseStyles = "v1560qbr-1-baseStyles";
+      const App = () => (
+        <div className="v1560qbr-1-baseStyles v1560qbr-2-Card">Hello</div>
+      );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 16px;
         border-radius: 8px;
         border: 1px solid #ddd;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Card {
         background: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
@@ -66,20 +68,20 @@ describe('CSS style extension', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
-      const extendedStyles = "v1560qbr-1 v1560qbr-2";
+      "const baseStyles = "v1560qbr-1-baseStyles";
+      const extendedStyles = "v1560qbr-1-baseStyles v1560qbr-2-extendedStyles";
       const App = () => <div className={extendedStyles}>Hello</div>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 16px;
         border-radius: 8px;
         border: 1px solid #ddd;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-extendedStyles {
         background: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
@@ -118,28 +120,28 @@ describe('CSS style extension', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
+      "const baseStyles = "v1560qbr-1-baseStyles";
       const App = () => (
         <div>
-          <div className="v1560qbr-1 v1560qbr-2">Card</div>
-          <div className="v1560qbr-1 v1560qbr-3">Primary</div>
+          <div className="v1560qbr-1-baseStyles v1560qbr-2-Card">Card</div>
+          <div className="v1560qbr-1-baseStyles v1560qbr-3-PrimaryCard">Primary</div>
         </div>
       );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 16px;
         border-radius: 8px;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Card {
         background: white;
         border: 1px solid #ddd;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-PrimaryCard {
         background: #007bff;
         color: white;
       }"
@@ -188,19 +190,21 @@ describe('CSS style extension', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
+      "const baseStyles = "v1560qbr-1-baseStyles";
       const primaryColor = "#007bff";
-      const App = () => <button className="v1560qbr-1 v1560qbr-2">Click me</button>;
+      const App = () => (
+        <button className="v1560qbr-1-baseStyles v1560qbr-2-Button">Click me</button>
+      );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 16px;
         border-radius: 8px;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Button {
         background: #007bff;
         color: white;
         border: none;

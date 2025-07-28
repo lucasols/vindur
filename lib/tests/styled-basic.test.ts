@@ -27,7 +27,7 @@ describe('styled components - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Container {
         background-color: red;
         padding: 10px;
       }"
@@ -35,7 +35,7 @@ describe('styled components - basic functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div className="v1560qbr-1" />;
+        return <div className="v1560qbr-1-Container" />;
       };
       "
     `);
@@ -68,7 +68,7 @@ describe('styled components - basic functionality', () => {
 
     const result = await transformWithFormat({
       source,
-      dev: true,
+
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -122,7 +122,7 @@ describe('styled components - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background-color: blue;
         padding: 12px;
         border: 1px solid gray;
@@ -132,7 +132,7 @@ describe('styled components - basic functionality', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
       const padding = 12;
-      const App = () => <button className="v1560qbr-1">Click</button>;
+      const App = () => <button className="v1560qbr-1-StyledButton">Click</button>;
       "
     `);
   });
@@ -165,23 +165,23 @@ describe('styled components - basic functionality', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledDiv {
         color: red;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-StyledSpan {
         color: blue;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-StyledP {
         color: green;
       }
 
-      .v1560qbr-4 {
+      .v1560qbr-4-StyledButton {
         color: purple;
       }
 
-      .v1560qbr-5 {
+      .v1560qbr-5-StyledInput {
         color: orange;
       }"
     `);
@@ -189,11 +189,11 @@ describe('styled components - basic functionality', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => (
         <div>
-          <div className="v1560qbr-1">div</div>
-          <span className="v1560qbr-2">span</span>
-          <p className="v1560qbr-3">p</p>
-          <button className="v1560qbr-4">button</button>
-          <input className="v1560qbr-5" />
+          <div className="v1560qbr-1-StyledDiv">div</div>
+          <span className="v1560qbr-2-StyledSpan">span</span>
+          <p className="v1560qbr-3-StyledP">p</p>
+          <button className="v1560qbr-4-StyledButton">button</button>
+          <input className="v1560qbr-5-StyledInput" />
         </div>
       );
       "

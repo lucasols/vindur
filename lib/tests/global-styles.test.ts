@@ -113,7 +113,7 @@ describe('createGlobalStyle', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         padding: 10px;
       }
 
@@ -141,12 +141,12 @@ describe('createGlobalStyle', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
+      "const baseStyles = "v1560qbr-1-baseStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 10px;
       }
 

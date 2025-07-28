@@ -38,7 +38,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
         return (
           <button
             {...color._sp("#ff6b6b", {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-Button",
             })}
           >
             Click me
@@ -49,7 +49,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Button {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
 

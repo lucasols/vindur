@@ -18,7 +18,7 @@ describe('CSS import extension', () => {
 
         const App = () => <div className={styles}>Hello</div>
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'styles.ts': dedent`
           import { css } from 'vindur'
@@ -67,7 +67,7 @@ describe('CSS import extension', () => {
 
         const App = () => <Button>Click me</Button>
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'styles.ts': dedent`
           import { css } from 'vindur'
@@ -128,7 +128,7 @@ describe('CSS import extension', () => {
           </Card>
         )
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'styles.ts': dedent`
           import { css } from 'vindur'
@@ -219,7 +219,7 @@ describe('CSS import extension', () => {
 
         const App = () => <Card>Content</Card>
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'styles.ts': dedent`
           import { css } from 'vindur'
@@ -318,7 +318,9 @@ describe('CSS import extension', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1s4vg6s-1 v1560qbr-1">Content</div>;
+      "const App = () => (
+        <div className="v1s4vg6s-1 v1560qbr-1-Container">Content</div>
+      );
       "
     `);
 
@@ -329,7 +331,7 @@ describe('CSS import extension', () => {
         margin: 0 auto;
       }
 
-      .v1560qbr-1 {
+      .v1560qbr-1-Container {
         background: #f8f9fa;
       }"
     `);

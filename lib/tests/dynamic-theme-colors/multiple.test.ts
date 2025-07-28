@@ -36,7 +36,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const Component = () => {
         return (
           <div {...color1._sp("#ff6b6b", color2._sp("#ff6b6b"))}>
-            <div className="v1560qbr-3">Card with multiple colors</div>
+            <div className="v1560qbr-3-Card">Card with multiple colors</div>
           </div>
         );
       };
@@ -44,7 +44,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
+      ".v1560qbr-3-Card {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
         border: 2px solid var(--v1560qbr-2);
@@ -91,7 +91,9 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const Component = () => {
         return (
           <div {...primaryColor._sp("#ff6b6b", secondaryColor._sp("#ff6b6b"))}>
-            <div className="v1560qbr-3">Multiple colors with cross-references</div>
+            <div className="v1560qbr-3-Card">
+              Multiple colors with cross-references
+            </div>
           </div>
         );
       };
@@ -99,7 +101,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-3 {
+      ".v1560qbr-3-Card {
         border: 2px solid var(--v1560qbr-2);
 
         &.v1560qbr-1-s0 {
@@ -165,7 +167,10 @@ describe('Dynamic Colors - Multiple Colors', () => {
             {...primaryColor._sp(
               "#ff6b6b",
               secondaryColor._sp("#ff6b6b", {
-                className: mergeClassNames([cardProps, styleProps], "v1560qbr-3"),
+                className: mergeClassNames(
+                  [cardProps, styleProps],
+                  "v1560qbr-3-Card",
+                ),
                 style: mergeStyles([cardProps, styleProps]),
               }),
             )}

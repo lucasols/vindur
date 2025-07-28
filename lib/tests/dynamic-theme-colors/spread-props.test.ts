@@ -36,7 +36,7 @@ describe('Dynamic Colors - Spread Props', () => {
           <button
             {...buttonProps}
             {...color._sp("#ff6b6b", {
-              className: mergeClassNames([buttonProps], "v1560qbr-2"),
+              className: mergeClassNames([buttonProps], "v1560qbr-2-Button"),
               style: mergeStyles([buttonProps]),
             })}
           >
@@ -48,7 +48,7 @@ describe('Dynamic Colors - Spread Props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Button {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"
@@ -105,7 +105,7 @@ describe('Dynamic Colors - Spread Props', () => {
             {...eventProps}
             id="card"
             {...color._sp("#ff6b6b", {
-              className: mergeClassNames([styleProps, eventProps], "v1560qbr-2"),
+              className: mergeClassNames([styleProps, eventProps], "v1560qbr-2-Card"),
               style: mergeStyles([styleProps, eventProps]),
             })}
           >
@@ -163,7 +163,7 @@ describe('Dynamic Colors - Spread Props', () => {
             {...boxProps}
             {...dataProps}
             {...color._sp("#ff6b6b", {
-              className: "v1560qbr-2 final-class",
+              className: "v1560qbr-2-Box final-class",
               style: mergeStyles([boxProps, dataProps]),
             })}
           >
@@ -224,7 +224,7 @@ describe('Dynamic Colors - Spread Props', () => {
             {...styleProps}
             {...otherProps}
             {...color._sp("#ff6b6b", {
-              className: mergeClassNames([styleProps, otherProps], "v1560qbr-2"),
+              className: mergeClassNames([styleProps, otherProps], "v1560qbr-2-Card"),
               style: {
                 padding: "30px",
                 fontSize: "14px",
@@ -239,7 +239,7 @@ describe('Dynamic Colors - Spread Props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         padding: 20px;
       }"

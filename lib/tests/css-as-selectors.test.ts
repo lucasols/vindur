@@ -37,9 +37,9 @@ describe('CSS as selectors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const baseStyles = "v1560qbr-1";
+      "const baseStyles = "v1560qbr-1-baseStyles";
       const App = () => (
-        <div className="v1560qbr-2">
+        <div className="v1560qbr-2-Container">
           <button className={baseStyles}>Click me</button>
         </div>
       );
@@ -47,21 +47,21 @@ describe('CSS as selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-baseStyles {
         padding: 12px 24px;
         border-radius: 4px;
         font-weight: 500;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Container {
         padding: 20px;
 
-        .v1560qbr-1 & {
+        .v1560qbr-1-baseStyles & {
           background: #f0f0f0;
           border: 1px solid #ddd;
         }
 
-        &:hover .v1560qbr-1 {
+        &:hover .v1560qbr-1-baseStyles {
           background: #007bff;
           color: white;
         }
@@ -114,10 +114,10 @@ describe('CSS as selectors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const buttonStyle = "v1560qbr-1";
-      const cardStyle = "v1560qbr-2";
+      "const buttonStyle = "v1560qbr-1-buttonStyle";
+      const cardStyle = "v1560qbr-2-cardStyle";
       const App = () => (
-        <div className="v1560qbr-3">
+        <div className="v1560qbr-3-Layout">
           <div className={cardStyle}>
             <button className={buttonStyle}>Action</button>
           </div>
@@ -127,31 +127,31 @@ describe('CSS as selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-buttonStyle {
         padding: 8px 16px;
         border: none;
         cursor: pointer;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-cardStyle {
         background: white;
         border-radius: 8px;
         padding: 16px;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-Layout {
         display: flex;
         gap: 16px;
 
-        .v1560qbr-2 & {
+        .v1560qbr-2-cardStyle & {
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .v1560qbr-2 .v1560qbr-1 {
+        .v1560qbr-2-cardStyle .v1560qbr-1-buttonStyle {
           border-radius: 4px;
         }
 
-        &:hover .v1560qbr-2 .v1560qbr-1 {
+        &:hover .v1560qbr-2-cardStyle .v1560qbr-1-buttonStyle {
           transform: scale(1.05);
         }
       }"
@@ -199,9 +199,9 @@ describe('CSS as selectors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const linkStyle = "v1560qbr-1";
+      "const linkStyle = "v1560qbr-1-linkStyle";
       const App = () => (
-        <nav className="v1560qbr-2">
+        <nav className="v1560qbr-2-Navigation">
           <ul>
             <li>
               <a className={linkStyle} href="#">
@@ -220,26 +220,26 @@ describe('CSS as selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-linkStyle {
         color: #007bff;
         text-decoration: none;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Navigation {
         ul {
           list-style: none;
           padding: 0;
         }
 
-        li .v1560qbr-1:hover {
+        li .v1560qbr-1-linkStyle:hover {
           text-decoration: underline;
         }
 
-        li .v1560qbr-1:active {
+        li .v1560qbr-1-linkStyle:active {
           color: #0056b3;
         }
 
-        .v1560qbr-1.active {
+        .v1560qbr-1-linkStyle.active {
           font-weight: bold;
         }
       }"
@@ -307,10 +307,10 @@ describe('CSS as selectors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const inputStyle = "v1560qbr-1";
+      "const inputStyle = "v1560qbr-1-inputStyle";
       const primaryColor = "#007bff";
       const App = () => (
-        <form className="v1560qbr-2">
+        <form className="v1560qbr-2-Form">
           <input className={inputStyle} type="text" placeholder="Name" />
           <button type="submit">Submit</button>
         </form>
@@ -319,22 +319,22 @@ describe('CSS as selectors', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-inputStyle {
         padding: 8px 12px;
         border: 1px solid #ccc;
         border-radius: 4px;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-Form {
         max-width: 400px;
         margin: 0 auto;
 
-        .v1560qbr-1 {
+        .v1560qbr-1-inputStyle {
           width: 100%;
           margin-bottom: 16px;
         }
 
-        .v1560qbr-1:focus {
+        .v1560qbr-1-inputStyle:focus {
           border-color: #007bff;
           outline: none;
         }

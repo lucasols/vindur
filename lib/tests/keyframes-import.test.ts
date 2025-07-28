@@ -1,7 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from './testUtils';
-import { createFsMock } from './testUtils';
+import { createFsMock, transformWithFormat } from './testUtils';
 
 describe('keyframes cross-file imports', () => {
   test('should handle keyframes imported from another file', async () => {
@@ -15,7 +14,7 @@ describe('keyframes cross-file imports', () => {
           background: white;
         \`
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'animations.ts': dedent`
           import { keyframes } from 'vindur'
@@ -72,7 +71,7 @@ describe('keyframes cross-file imports', () => {
           }
         \`
       `,
-      dev: true,
+
       overrideDefaultFs: createFsMock({
         'animations.ts': dedent`
           import { keyframes } from 'vindur'
@@ -149,7 +148,7 @@ describe('keyframes cross-file imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const animatedStyle = "v1560qbr-1";
+      "const animatedStyle = "v1560qbr-1-animatedStyle";
       "
     `);
 
@@ -171,7 +170,7 @@ describe('keyframes cross-file imports', () => {
         }
       }
 
-      .v1560qbr-1 {
+      .v1560qbr-1-animatedStyle {
         animation: v1gz5uqy-1 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         background: #f0f0f0;
       }"
@@ -218,7 +217,7 @@ describe('keyframes cross-file imports', () => {
         }
       }
 
-      .v1560qbr-1 {
+      .v1560qbr-1-Slider {
         animation: v1gz5uqy-1 1s ease-in-out;
       }"
     `);
@@ -252,12 +251,12 @@ describe('keyframes cross-file imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const localBounce = "v1560qbr-1";
+      "const localBounce = "v1560qbr-1-localBounce";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-localBounce {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-10px); }
       }
@@ -267,8 +266,8 @@ describe('keyframes cross-file imports', () => {
         to { opacity: 1; }
       }
 
-      .v1560qbr-2 {
-        animation: v1gz5uqy-1 0.3s ease-in, v1560qbr-1 0.6s ease-in-out infinite;
+      .v1560qbr-2-Component {
+        animation: v1gz5uqy-1 0.3s ease-in, v1560qbr-1-localBounce 0.6s ease-in-out infinite;
       }"
     `);
   });

@@ -78,6 +78,8 @@ export function handleJsxCssProp(
       // Handle template literal: css={`color: red;`}
       const classIndex = context.classIndex();
       const variableName = `css-prop-${classIndex}`;
+      // Create a reference object that can be mutated by processStyledTemplate
+      const classIndexRef = { current: classIndex };
       const result = processStyledTemplate(
         expression,
         context.cssProcessingContext(),
@@ -86,6 +88,7 @@ export function handleJsxCssProp(
         context.dev,
         context.fileHash,
         classIndex,
+        classIndexRef,
       );
       cssClassName = result.finalClassName;
     } else if (t.isIdentifier(expression)) {

@@ -21,7 +21,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         background: blue;
         color: white;
       }"
@@ -37,7 +37,7 @@ describe('handle spread props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeClassNames([buttonProps], "v1560qbr-1")}
+            className={mergeClassNames([buttonProps], "v1560qbr-1-Button")}
           >
             Click me
           </button>
@@ -82,7 +82,7 @@ describe('handle spread props', () => {
             {...inputProps}
             value="test"
             onChange={() => {}}
-            className="v1560qbr-1 extra-class"
+            className="v1560qbr-1-Input extra-class"
           />
         );
       };
@@ -90,7 +90,7 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Input {
         border: 1px solid gray;
         padding: 8px;
       }"
@@ -124,7 +124,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Div {
         display: flex;
         gap: 16px;
       }"
@@ -147,7 +147,7 @@ describe('handle spread props', () => {
             {...styleProps}
             {...eventProps}
             id="container"
-            className={mergeClassNames([styleProps, eventProps], "v1560qbr-1")}
+            className={mergeClassNames([styleProps, eventProps], "v1560qbr-1-Div")}
           >
             Content
           </div>
@@ -197,7 +197,10 @@ describe('handle spread props', () => {
           <button
             {...buttonProps}
             onClick={() => console.log("clicked")}
-            className={mergeClassNames([buttonProps], "v1560qbr-1 v1560qbr-2")}
+            className={mergeClassNames(
+              [buttonProps],
+              "v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton",
+            )}
           >
             Submit
           </button>
@@ -207,12 +210,12 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-BaseButton {
         padding: 8px 16px;
         border: none;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-PrimaryButton {
         background: blue;
         color: white;
       }"
@@ -252,7 +255,7 @@ describe('handle spread props', () => {
         return (
           <button
             {...props}
-            className={mergeClassNames(["before", props], "v1560qbr-1")}
+            className={mergeClassNames(["before", props], "v1560qbr-1-StyledButton")}
           >
             Content
           </button>
@@ -262,7 +265,7 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background: blue;
         color: white;
       }"
@@ -307,7 +310,7 @@ describe('handle spread props', () => {
           <div
             {...cardProps}
             role="article"
-            className={mergeClassNames([cardProps], "v1560qbr-1")}
+            className={mergeClassNames([cardProps], "v1560qbr-1-Card")}
           >
             Card content
           </div>
@@ -317,7 +320,7 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
@@ -358,7 +361,7 @@ describe('handle spread props', () => {
           disabled: false,
         };
         return (
-          <button {...props1} {...props2} className="v1560qbr-1 final">
+          <button {...props1} {...props2} className="v1560qbr-1-StyledButton final">
             Content
           </button>
         );
@@ -367,7 +370,7 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background: blue;
       }"
     `);
@@ -410,7 +413,7 @@ describe('handle spread props', () => {
           <button
             {...props1}
             {...props2}
-            className={mergeClassNames([props1, props2], "v1560qbr-1")}
+            className={mergeClassNames([props1, props2], "v1560qbr-1-StyledButton")}
           >
             Content
           </button>
@@ -420,7 +423,7 @@ describe('handle spread props', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background: blue;
       }"
     `);

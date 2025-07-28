@@ -44,7 +44,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         return (
           <button
             {...themeColor._sp("#ff6b6b", {
-              className: "v1560qbr-1",
+              className: "v1560qbr-1-Button",
             })}
           >
             Import test
@@ -55,7 +55,7 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         background: var(--v1560qbr-2);
         color: var(--v1560qbr-2-c);
 
@@ -101,7 +101,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         return (
           <button
             {...color._sp(condition ? "#ff6b6b" : null, {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-StyledButton",
             })}
           >
             Conditional Color
@@ -112,7 +112,7 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"
@@ -150,7 +150,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         return (
           <button
             {...color._sp(themeColor || undefined, {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-StyledButton",
             })}
           >
             Maybe Color
@@ -161,7 +161,7 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"
@@ -199,7 +199,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         return (
           <button
             {...color._sp(isActive ? "#00ff00" : false, {
-              className: "v1560qbr-2",
+              className: "v1560qbr-2-StyledButton",
             })}
           >
             Active Color
@@ -210,7 +210,7 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-2 {
+      ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
       }"

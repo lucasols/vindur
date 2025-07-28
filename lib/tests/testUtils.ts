@@ -47,11 +47,11 @@ export async function transformWithFormat({
   source,
   overrideDefaultFs: fs = createFsMock({}),
   overrideDefaultImportAliases: importAliases = { '#/': '/' },
-  dev = false,
+  production,
 }: {
   source: string;
   overrideDefaultFs?: TransformFS;
-  dev?: boolean;
+  production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
 }) {
   const result = transform({
@@ -59,7 +59,7 @@ export async function transformWithFormat({
     fs,
     importAliases,
     source,
-    dev,
+    dev: !production,
   });
 
   return { ...result, code: await formatCode(result.code) };

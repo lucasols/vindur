@@ -22,13 +22,13 @@ describe('keyframes basic functionality', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const slideIn = "v1560qbr-1";
+      "const slideIn = "v1560qbr-1-slideIn";
       console.log(slideIn);
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-slideIn {
         from {
           transform: translateX(-100%);
         }
@@ -59,12 +59,12 @@ describe('keyframes basic functionality', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const fadeInOut = "v1560qbr-1";
+      "const fadeInOut = "v1560qbr-1-fadeInOut";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-fadeInOut {
         0% {
           opacity: 0;
         }
@@ -95,7 +95,6 @@ describe('keyframes basic functionality', () => {
           }
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -142,12 +141,12 @@ describe('keyframes interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const startPosition = "0";
       const endPosition = "100px";
-      const moveRight = "v1560qbr-1";
+      const moveRight = "v1560qbr-1-moveRight";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-moveRight {
         from {
           left: 0;
         }
@@ -180,12 +179,12 @@ describe('keyframes interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const startOpacity = 0;
       const endOpacity = 1;
-      const fadeIn = "v1560qbr-1";
+      const fadeIn = "v1560qbr-1-fadeIn";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-fadeIn {
         from {
           opacity: 0;
         }
@@ -254,7 +253,7 @@ describe('keyframes corner cases', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const empty = "v1560qbr-1";
+      "const empty = "v1560qbr-1-empty";
       "
     `);
 
@@ -274,7 +273,7 @@ describe('keyframes corner cases', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const whitespace = "v1560qbr-1";
+      "const whitespace = "v1560qbr-1-whitespace";
       "
     `);
 
@@ -293,22 +292,22 @@ describe('keyframes corner cases', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const fade = "v1560qbr-1";
-      const slide = "v1560qbr-2";
-      const rotate = "v1560qbr-3";
+      "const fade = "v1560qbr-1-fade";
+      const slide = "v1560qbr-2-slide";
+      const rotate = "v1560qbr-3-rotate";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1 {
+      "@keyframes v1560qbr-1-fade {
         from { opacity: 0; } to { opacity: 1; }
       }
 
-      @keyframes v1560qbr-2 {
+      @keyframes v1560qbr-2-slide {
         from { left: 0; } to { left: 100px; }
       }
 
-      @keyframes v1560qbr-3 {
+      @keyframes v1560qbr-3-rotate {
         from { transform: rotate(0deg); } to { transform: rotate(360deg); }
       }"
     `);

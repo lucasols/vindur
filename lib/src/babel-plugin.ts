@@ -14,6 +14,7 @@ import { handleJsxCssProp } from './visitor-handlers/jsx-css-prop-handlers';
 import { handleJsxCxProp } from './visitor-handlers/jsx-cx-prop-handlers';
 import { handleJsxDynamicColorProp } from './visitor-handlers/jsx-dynamic-color-handlers';
 import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
+import { handleJsxStyleProp } from './visitor-handlers/jsx-style-prop-handlers';
 import {
   handleCssTaggedTemplate,
   handleGlobalStyleTaggedTemplate,
@@ -32,7 +33,10 @@ import {
   handleStyledExtensionAssignment,
 } from './visitor-handlers/variable-handlers';
 
-export type DebugLogger = { log: (message: string) => void };
+export type DebugLogger = { 
+  log: (message: string) => void;
+  warn?: (message: string) => void;
+};
 
 export type VindurPluginState = {
   cssRules: string[];
@@ -50,6 +54,7 @@ export type VindurPluginState = {
   keyframes: Map<string, string>; // Track keyframes animation names
   themeColors?: Map<string, Record<string, string>>; // Track createStaticThemeColors variables
   dynamicColors?: Map<string, string>; // Track createDynamicCssColor variables
+  scopedVariables?: Map<string, { index: number; originalName: string }>; // Track scoped CSS variables at file level
 };
 
 export type FunctionCache = {
@@ -285,6 +290,9 @@ export function createVindurPlugin(
 
         // Handle dynamic color prop (before styled component transformation)
         handleJsxDynamicColorProp(path, { state });
+        
+        // Handle style prop for scoped variables
+        handleJsxStyleProp(path, { state, dev, fileHash });
 
         // Handle styled components last (transforms element name)
         handleJsxStyledComponent(path, { state });

@@ -1,7 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
-import { transformWithFormat, createFsMock } from './testUtils';
+import { createFsMock, transformWithFormat } from './testUtils';
 
 describe('Exported styled components', () => {
   test('should transform exported styled component to styledComponent function', async () => {
@@ -18,7 +18,6 @@ describe('Exported styled components', () => {
           cursor: pointer;
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -63,7 +62,6 @@ describe('Exported styled components', () => {
           margin-bottom: 16px;
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -117,7 +115,6 @@ describe('Exported styled components', () => {
           }
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -166,7 +163,6 @@ describe('Exported styled components', () => {
 
         export { Button, Card }
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -204,7 +200,6 @@ describe('Exported styled components', () => {
 
         export { InternalButton as Button }
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -236,7 +231,6 @@ describe('Exported styled components', () => {
 
         export default Button
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -266,7 +260,6 @@ describe('Exported styled components', () => {
           border: 1px solid #ddd;
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -309,7 +302,6 @@ describe('Exported styled components', () => {
           </LocalCard>
         )
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -361,7 +353,6 @@ describe('Exported styled components', () => {
           margin: \${spacing / 4}px;
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -401,7 +392,6 @@ describe('Exported styled components', () => {
           }
         \`
       `,
-      dev: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`

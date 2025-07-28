@@ -70,7 +70,6 @@ describe('JSX cx prop transformation', () => {
             );
           }
         `,
-        dev: true,
       });
 
       expect(result.code).toMatchInlineSnapshot(`
@@ -135,7 +134,6 @@ describe('JSX cx prop transformation', () => {
               return <StyledDiv cx={{ active: isActive, disabled: isDisabled }} />;
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -191,7 +189,7 @@ describe('JSX cx prop transformation', () => {
               return <StyledDiv cx={{ active: isActive, disabled: isDisabled }} />;
             }
           `,
-          dev: false,
+          production: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -249,7 +247,6 @@ describe('JSX cx prop transformation', () => {
               return <Widget cx={{ active: isActive, $error: hasError }} />;
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -301,7 +298,6 @@ describe('JSX cx prop transformation', () => {
               return <StyledDiv cx={{ $noHash: true }} />;
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -353,7 +349,6 @@ describe('JSX cx prop transformation', () => {
               return <Card className="base-class" cx={{ highlighted: isHighlighted }} />;
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -416,7 +411,6 @@ describe('JSX cx prop transformation', () => {
               );
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -481,7 +475,6 @@ describe('JSX cx prop transformation', () => {
               );
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`
@@ -533,7 +526,6 @@ describe('JSX cx prop transformation', () => {
               return <Button {...props} cx={{ active: isActive }} />;
             }
           `,
-          dev: true,
         });
 
         expect(result.code).toMatchInlineSnapshot(`

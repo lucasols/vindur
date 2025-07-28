@@ -48,7 +48,7 @@ A compile-time CSS-in-JS library focused on performance.
 ### 🚧 **Scoping System**
 
 - [x] Scoped JSX modifier classes
-- [ ] Scoped CSS variables (`---var` syntax)
+- [x] Scoped CSS variables (`---var` syntax) ✅
 
 ## Beta 2 - Advanced Features
 

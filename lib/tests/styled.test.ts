@@ -27,7 +27,7 @@ describe('styled components', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Container {
         background-color: red;
         padding: 10px;
       }"
@@ -35,7 +35,7 @@ describe('styled components', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => {
-        return <div className="v1560qbr-1" />;
+        return <div className="v1560qbr-1-Container" />;
       };
       "
     `);
@@ -68,7 +68,7 @@ describe('styled components', () => {
 
     const result = await transformWithFormat({
       source,
-      dev: true,
+
       overrideDefaultFs: emptyFs,
       overrideDefaultImportAliases: importAliases,
     });
@@ -122,7 +122,7 @@ describe('styled components', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background-color: blue;
         padding: 12px;
         border: 1px solid gray;
@@ -132,7 +132,7 @@ describe('styled components', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
       const padding = 12;
-      const App = () => <button className="v1560qbr-1">Click</button>;
+      const App = () => <button className="v1560qbr-1-StyledButton">Click</button>;
       "
     `);
   });
@@ -165,23 +165,23 @@ describe('styled components', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledDiv {
         color: red;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-StyledSpan {
         color: blue;
       }
 
-      .v1560qbr-3 {
+      .v1560qbr-3-StyledP {
         color: green;
       }
 
-      .v1560qbr-4 {
+      .v1560qbr-4-StyledButton {
         color: purple;
       }
 
-      .v1560qbr-5 {
+      .v1560qbr-5-StyledInput {
         color: orange;
       }"
     `);
@@ -189,11 +189,11 @@ describe('styled components', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const Component = () => (
         <div>
-          <div className="v1560qbr-1">div</div>
-          <span className="v1560qbr-2">span</span>
-          <p className="v1560qbr-3">p</p>
-          <button className="v1560qbr-4">button</button>
-          <input className="v1560qbr-5" />
+          <div className="v1560qbr-1-StyledDiv">div</div>
+          <span className="v1560qbr-2-StyledSpan">span</span>
+          <p className="v1560qbr-3-StyledP">p</p>
+          <button className="v1560qbr-4-StyledButton">button</button>
+          <input className="v1560qbr-5-StyledInput" />
         </div>
       );
       "
@@ -246,7 +246,7 @@ describe('styled components interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledText {
         color: blue;
         font-size: 16px;
       }"
@@ -255,7 +255,7 @@ describe('styled components interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
       const fontSize = 16;
-      const App = () => <p className="v1560qbr-1">Hello</p>;
+      const App = () => <p className="v1560qbr-1-StyledText">Hello</p>;
       "
     `);
   });
@@ -281,7 +281,7 @@ describe('styled components interpolation', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledDiv {
         content: "my-value";
       }"
     `);
@@ -289,7 +289,7 @@ describe('styled components interpolation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const prefix = "my";
       const suffix = "value";
-      const App = () => <div className="v1560qbr-1" />;
+      const App = () => <div className="v1560qbr-1-StyledDiv" />;
       "
     `);
   });
@@ -357,7 +357,7 @@ describe('styled components corner cases', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1" />;
+      "const App = () => <div className="v1560qbr-1-EmptyStyled" />;
       "
     `);
   });
@@ -382,7 +382,7 @@ describe('styled components corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledDiv {
         content: "quotes \\"with\\" escapes";
         background: url('image.png');
         font-family: 'Font Name', sans-serif;
@@ -390,7 +390,7 @@ describe('styled components corner cases', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1">Content</div>;
+      "const App = () => <div className="v1560qbr-1-StyledDiv">Content</div>;
       "
     `);
   });
@@ -419,7 +419,7 @@ describe('styled components corner cases', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-StyledButton {
         background: blue;
         color: white;
       }"
@@ -428,9 +428,9 @@ describe('styled components corner cases', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="v1560qbr-1 extra-class">Click me</button>
+          <button className="v1560qbr-1-StyledButton extra-class">Click me</button>
           <button
-            className={\`v1560qbr-1 \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
+            className={\`v1560qbr-1-StyledButton \${\`dynamic-\${true ? "active" : "inactive"}\`}\`}
           >
             Dynamic
           </button>
@@ -471,12 +471,12 @@ describe('styled component extension', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-RedButton {
         background: red;
         color: white;
       }"
@@ -485,8 +485,8 @@ describe('styled component extension', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const App = () => (
         <div>
-          <button className="v1560qbr-1">Blue</button>
-          <button className="v1560qbr-1 v1560qbr-2">Red</button>
+          <button className="v1560qbr-1-Button">Blue</button>
+          <button className="v1560qbr-1-Button v1560qbr-2-RedButton">Red</button>
         </div>
       );
       "
@@ -538,7 +538,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Button {
         background: blue;
         color: white;
       }"
@@ -554,7 +554,7 @@ describe('handle spread props', () => {
         return (
           <button
             {...buttonProps}
-            className={mergeClassNames([buttonProps], "v1560qbr-1")}
+            className={mergeClassNames([buttonProps], "v1560qbr-1-Button")}
           >
             Click me
           </button>
@@ -593,7 +593,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Input {
         border: 1px solid gray;
         padding: 8px;
       }"
@@ -610,7 +610,7 @@ describe('handle spread props', () => {
             {...inputProps}
             value="test"
             onChange={() => {}}
-            className="v1560qbr-1 extra-class"
+            className="v1560qbr-1-Input extra-class"
           />
         );
       };
@@ -649,7 +649,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Div {
         display: flex;
         gap: 16px;
       }"
@@ -672,7 +672,7 @@ describe('handle spread props', () => {
             {...styleProps}
             {...eventProps}
             id="container"
-            className={mergeClassNames([styleProps, eventProps], "v1560qbr-1")}
+            className={mergeClassNames([styleProps, eventProps], "v1560qbr-1-Div")}
           >
             Content
           </div>
@@ -716,12 +716,12 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-BaseButton {
         padding: 8px 16px;
         border: none;
       }
 
-      .v1560qbr-2 {
+      .v1560qbr-2-PrimaryButton {
         background: blue;
         color: white;
       }"
@@ -738,7 +738,10 @@ describe('handle spread props', () => {
           <button
             {...buttonProps}
             onClick={() => console.log("clicked")}
-            className={mergeClassNames([buttonProps], "v1560qbr-1 v1560qbr-2")}
+            className={mergeClassNames(
+              [buttonProps],
+              "v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton",
+            )}
           >
             Submit
           </button>
@@ -780,7 +783,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Card {
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }"
@@ -797,7 +800,7 @@ describe('handle spread props', () => {
           <div
             {...cardProps}
             role="article"
-            className={mergeClassNames([cardProps], "v1560qbr-1")}
+            className={mergeClassNames([cardProps], "v1560qbr-1-Card")}
           >
             Card content
           </div>
@@ -838,7 +841,7 @@ describe('handle spread props', () => {
     });
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-Box {
         background: gray;
       }"
     `);
@@ -852,7 +855,7 @@ describe('handle spread props', () => {
           className: "second",
         };
         return (
-          <div {...props1} {...props2} className="v1560qbr-1 after">
+          <div {...props1} {...props2} className="v1560qbr-1-Box after">
             Content
           </div>
         );
