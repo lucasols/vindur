@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { dedent } from "@ls-stack/utils/dedent";
-import { startEnv } from "../utils/startEnv";
+import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from '@playwright/test';
+import { startEnv } from '../utils/startEnv';
 
-test.describe("cx prop", () => {
-  test("should handle conditional classes with cx prop", async ({ page }) => {
-    await using env = await startEnv("cx-prop-conditional", {
-      "App.tsx": dedent`
+test.describe('cx prop', () => {
+  test('should handle conditional classes with cx prop', async ({ page }) => {
+    await using env = await startEnv('cx-prop-conditional', {
+      'App.tsx': dedent`
         import { css } from "vindur";
 
         const activeClass = css\`
@@ -37,7 +37,7 @@ test.describe("cx prop", () => {
               }}>
                 Conditional Button
               </button>
-              
+      
               <button cx={{
                 [activeClass]: !isActive,
                 [disabledClass]: !isDisabled,
@@ -52,22 +52,25 @@ test.describe("cx prop", () => {
     });
 
     await page.goto(env.port);
-    
-    const firstButton = page.locator("button").first();
-    await expect(firstButton).toHaveCSS("background-color", "rgb(0, 123, 255)");
-    await expect(firstButton).toHaveCSS("color", "rgb(255, 255, 255)");
-    await expect(firstButton).toHaveCSS("font-size", "20px");
-    await expect(firstButton).toHaveCSS("padding", "12px 24px");
-    
-    const secondButton = page.locator("button").nth(1);
-    await expect(secondButton).toHaveCSS("opacity", "0.5");
-    await expect(secondButton).toHaveCSS("cursor", "not-allowed");
-    await expect(secondButton).not.toHaveCSS("background-color", "rgb(0, 123, 255)");
+
+    const firstButton = page.locator('button').first();
+    await expect(firstButton).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+    await expect(firstButton).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(firstButton).toHaveCSS('font-size', '20px');
+    await expect(firstButton).toHaveCSS('padding', '12px 24px');
+
+    const secondButton = page.locator('button').nth(1);
+    await expect(secondButton).toHaveCSS('opacity', '0.5');
+    await expect(secondButton).toHaveCSS('cursor', 'not-allowed');
+    await expect(secondButton).not.toHaveCSS(
+      'background-color',
+      'rgb(0, 123, 255)',
+    );
   });
 
-  test("should handle cx prop with unhashed classes", async ({ page }) => {
-    await using env = await startEnv("cx-prop-unhashed", {
-      "App.tsx": dedent`
+  test('should handle cx prop with unhashed classes', async ({ page }) => {
+    await using env = await startEnv('cx-prop-unhashed', {
+      'App.tsx': dedent`
         import { css } from "vindur";
 
         const primaryClass = css\`
@@ -87,7 +90,7 @@ test.describe("cx prop", () => {
               }}>
                 With external classes
               </div>
-              
+      
               <div 
                 className="existing-class"
                 cx={{
@@ -104,22 +107,22 @@ test.describe("cx prop", () => {
     });
 
     await page.goto(env.port);
-    
-    const firstDiv = page.locator("div").nth(1);
+
+    const firstDiv = page.locator('div').nth(1);
     await expect(firstDiv).toHaveClass(/container/);
     await expect(firstDiv).toHaveClass(/flexbox/);
     await expect(firstDiv).not.toHaveClass(/hidden/);
-    await expect(firstDiv).toHaveCSS("background-color", "rgb(0, 123, 255)");
-    
-    const secondDiv = page.locator("div").nth(2);
+    await expect(firstDiv).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+
+    const secondDiv = page.locator('div').nth(2);
     await expect(secondDiv).toHaveClass(/existing-class/);
     await expect(secondDiv).toHaveClass(/additionalClass/);
-    await expect(secondDiv).toHaveCSS("background-color", "rgb(0, 123, 255)");
+    await expect(secondDiv).toHaveCSS('background-color', 'rgb(0, 123, 255)');
   });
 
-  test("should handle cx prop on styled components", async ({ page }) => {
-    await using env = await startEnv("cx-prop-styled", {
-      "App.tsx": dedent`
+  test('should handle cx prop on styled components', async ({ page }) => {
+    await using env = await startEnv('cx-prop-styled', {
+      'App.tsx': dedent`
         import { css, styled } from "vindur";
 
         const Button = styled.button\`
@@ -133,7 +136,7 @@ test.describe("cx prop", () => {
         const primaryVariant = css\`
           background: #007bff;
           color: white;
-          
+  
           &:hover {
             background: #0056b3;
           }
@@ -143,7 +146,7 @@ test.describe("cx prop", () => {
           background: transparent;
           color: #007bff;
           border: 2px solid #007bff;
-          
+  
           &:hover {
             background: #007bff;
             color: white;
@@ -156,11 +159,11 @@ test.describe("cx prop", () => {
               <Button cx={{ [primaryVariant]: true }}>
                 Primary
               </Button>
-              
+      
               <Button cx={{ [outlineVariant]: true }}>
                 Outline
               </Button>
-              
+      
               <Button cx={{ 
                 [primaryVariant]: false,
                 [outlineVariant]: false,
@@ -175,17 +178,26 @@ test.describe("cx prop", () => {
     });
 
     await page.goto(env.port);
-    
-    const primaryButton = page.locator("button").first();
-    await expect(primaryButton).toHaveCSS("background-color", "rgb(0, 123, 255)");
-    await expect(primaryButton).toHaveCSS("color", "rgb(255, 255, 255)");
-    
-    const outlineButton = page.locator("button").nth(1);
-    await expect(outlineButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await expect(outlineButton).toHaveCSS("color", "rgb(0, 123, 255)");
-    await expect(outlineButton).toHaveCSS("border", "2px solid rgb(0, 123, 255)");
-    
-    const defaultButton = page.locator("button").nth(2);
+
+    const primaryButton = page.locator('button').first();
+    await expect(primaryButton).toHaveCSS(
+      'background-color',
+      'rgb(0, 123, 255)',
+    );
+    await expect(primaryButton).toHaveCSS('color', 'rgb(255, 255, 255)');
+
+    const outlineButton = page.locator('button').nth(1);
+    await expect(outlineButton).toHaveCSS(
+      'background-color',
+      'rgba(0, 0, 0, 0)',
+    );
+    await expect(outlineButton).toHaveCSS('color', 'rgb(0, 123, 255)');
+    await expect(outlineButton).toHaveCSS(
+      'border',
+      '2px solid rgb(0, 123, 255)',
+    );
+
+    const defaultButton = page.locator('button').nth(2);
     await expect(defaultButton).toHaveClass(/defaultButton/);
   });
 });

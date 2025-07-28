@@ -21,11 +21,11 @@ test.describe("styled components", () => {
           border: none;
           border-radius: 4px;
           cursor: pointer;
-          
+  
           &:hover {
             background-color: #0056b3;
           }
-          
+  
           &:disabled {
             background: #6c757d;
             cursor: not-allowed;
@@ -40,7 +40,7 @@ test.describe("styled components", () => {
         const Link = styled.a\`
           color: #007bff;
           text-decoration: none;
-          
+  
           &:hover {
             text-decoration: underline;
           }
@@ -133,21 +133,21 @@ test.describe("styled components", () => {
         const List = styled.ul\`
           list-style: none;
           padding: 0;
-          
+  
           li {
             padding: 10px;
             border-bottom: 1px solid #eee;
-            
+    
             &:last-child {
               border-bottom: none;
             }
-            
+    
             &.active {
               background-color: #e3f2fd;
               font-weight: bold;
             }
           }
-          
+  
           li span {
             color: #666;
             font-size: 14px;

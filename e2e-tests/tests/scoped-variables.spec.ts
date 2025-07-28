@@ -22,7 +22,7 @@ test.describe("scoped css variables", () => {
           border-radius: var(---borderRadius);
           border: none;
           cursor: pointer;
-          
+  
           &:hover {
             background: var(---secondaryColor);
           }
@@ -100,7 +100,7 @@ test.describe("scoped css variables", () => {
               <section className={lightSection}>
                 <p className={text}>Light theme text</p>
               </section>
-              
+      
               <section className={darkSection}>
                 <p className={text}>Dark theme text with overrides</p>
               </section>

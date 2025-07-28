@@ -85,11 +85,11 @@ test.describe("vindurFn", () => {
         export const buttonVariant = vindurFn((bg: string, color: string) => \`
           background: \${bg};
           color: \${color};
-          
+  
           &:hover {
             opacity: 0.8;
           }
-          
+  
           &:active {
             transform: scale(0.95);
           }
@@ -140,11 +140,11 @@ test.describe("vindurFn", () => {
 
         export const responsive = vindurFn((mobile: string, tablet: string, desktop: string) => \`
           font-size: \${mobile};
-          
+  
           @media (min-width: 768px) {
             font-size: \${tablet};
           }
-          
+  
           @media (min-width: 1024px) {
             font-size: \${desktop};
           }
