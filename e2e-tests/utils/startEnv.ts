@@ -152,7 +152,6 @@ export async function startEnv(
 
   async function cleanup() {
     await server.close();
-    removeTestRunDir();
     usedPorts.delete(port);
   }
 
