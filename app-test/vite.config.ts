@@ -1,15 +1,15 @@
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
 import Inspect from 'vite-plugin-inspect'
-import { viteReactCompiler } from '../lib/src/main'
+import vindur from '@vindur/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    viteReactCompiler({
-      reactCompilerConfig: {
-        target: '18',
-      },
+    vindur({
+      dev: true,
+      debug: false,
+      importAliases: {},
     }),
     react(),
     Inspect(),

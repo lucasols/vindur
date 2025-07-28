@@ -30,11 +30,11 @@ describe('CX prop index assignment according to spec', () => {
     // Check that active class uses the same index in both places
     const activeMatches = result.code.match(/-(\d+)-active/g);
     expect(activeMatches).toHaveLength(2);
-    expect(activeMatches![0]).toBe(activeMatches![1]); // Same index for 'active'
+    expect(activeMatches?.[0]).toBe(activeMatches?.[1]); // Same index for 'active'
 
     // All classes should use the same file hash
     expect(result.code).toContain('v1560qbr-2-active');
-    expect(result.code).toContain('v1560qbr-3-disabled'); 
+    expect(result.code).toContain('v1560qbr-3-disabled');
     expect(result.code).toContain('v1560qbr-5-loading');
   });
 
@@ -57,7 +57,6 @@ describe('CX prop index assignment according to spec', () => {
       `,
       production: true,
     });
-
 
     // All classes should use the same file hash but no class name suffix in production
     expect(result.code).toContain('"v1560qbr-2"'); // active
