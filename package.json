@@ -3,8 +3,8 @@
     "test-all": "pnpm -r --no-bail run test",
     "build-all": "pnpm -r --no-bail run build",
     "lint-all": "pnpm -r --no-bail run lint",
+    "tsc-all": "pnpm -r --no-bail run tsc",
     "format-all": "pnpm -r --no-bail run format",
-    "format-all:check": "pnpm -r --no-bail run format:check",
     "eslint-all": "pnpm -r --no-bail run eslint",
     "lib:build": "pnpm --filter vindur run build",
     "lib:lint": "pnpm --filter vindur run lint",
@@ -12,6 +12,7 @@
     "lib:test:ui": "pnpm --filter vindur run test:ui",
     "vite-plugin:test": "pnpm --filter vite-plugin run test",
     "e2e:test": "pnpm --filter e2e-tests run test",
+    "e2e:eslint": "pnpm --filter e2e-tests run eslint",
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",
     "run-app-test": "pnpm --filter vindur-test-app dev"

@@ -10,40 +10,50 @@ This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-
 - `app-test/` - React test application using Vite for development and testing
 - `notes/spec.md` - Feature specifications and roadmap
 
-## Development Commands
-
-Do not use `npx` to run commands, use `pnpm` only
-IMPORTANT: NEVER use `npx` to run commands
-
-### Library Development (lib/)
-
-```bash
-cd lib
-pnpm lint          # Run TypeScript check + ESLint
-pnpm tsc           # TypeScript compilation check
-pnpm eslint        # ESLint only
-```
-
-Running ts code
+## Running ts code
 
 The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
 
-### Test Application (app-test/)
+## Development Commands
+
+**Important:** Use `pnpm` only, never `npx`.
+
+### From Root
 
 ```bash
-cd app-test
-pnpm dev           # Start Vite dev server
-pnpm build         # Build for production
-pnpm preview       # Preview production build
+pnpm test-all        # Run tests for all packages
+pnpm build-all       # Build all packages
+pnpm lint-all        # Run eslint + tsc in all packages
+pnpm tsc-all         # TypeScript compilation check in all packages
+```
+
+### Library (lib/)
+
+```bash
+cd lib
+pnpm test            # Run tests
+pnpm lint            # TypeScript + ESLint
+pnpm build           # Build library
+pnpm tsc             # TypeScript compilation check
+```
+
+### Vite Plugin (vite-plugin/)
+
+```bash
+cd vite-plugin
+pnpm build           # Build plugin
+pnpm lint            # TypeScript + ESLint
+pnpm tsc             # TypeScript compilation check
 ```
 
 ### E2E Tests (e2e-tests/)
 
 ```bash
-pnpm e2e:test         # Run all e2e tests from root
-pnpm e2e:show-report  # Show test report from root
 cd e2e-tests
-pnpm test             # Run e2e tests from e2e-tests directory
+pnpm test            # Run e2e tests
+pnpm eslint          # Run eslint
+pnpm lint            # TypeScript + ESLint
+pnpm tsc             # TypeScript compilation check
 ```
 
 ## Architecture
@@ -179,6 +189,7 @@ When implementing features:
 6. Ensure all tests pass and no other features are broken
 7. Run tsc and lint and fix all errors
 8. Update ROADMAP.md
+9. Update CLAUDE.md Main features section if needed
 
 ## Test Utility Memories
 
