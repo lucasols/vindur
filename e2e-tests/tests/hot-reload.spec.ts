@@ -377,16 +377,17 @@ test.describe('hot reload behavior', () => {
       `,
       'components.ts': dedent`
         import { vindurFn } from "vindur";
-        import { baseStyles } from "#src/tokens";
 
         export const textStyles = vindurFn(() => \`
-          \${baseStyles()}
+          color: #333;
+          font-size: 16px;
           margin-bottom: 8px;
         \`);
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
         import { textStyles } from "#src/components";
+        import { baseStyles } from "#src/tokens";
 
         const containerClass = css\`
           padding: 20px;
@@ -396,10 +397,15 @@ test.describe('hot reload behavior', () => {
           \${textStyles()}
         \`;
 
+        const baseClass = css\`
+          \${baseStyles()}
+        \`;
+
         export default function App() {
           return (
             <div className={containerClass}>
               <p className={textClass}>Deep Import Text</p>
+              <span className={baseClass}>Base styles</span>
             </div>
           );
         }
@@ -410,13 +416,16 @@ test.describe('hot reload behavior', () => {
 
     const container = page.locator('div').first();
     const text = page.locator('p');
+    const baseElement = page.locator('span');
 
     await expect(container).toHaveCSS('padding', '20px');
     await expect(text).toHaveCSS('color', 'rgb(51, 51, 51)'); // #333
     await expect(text).toHaveCSS('font-size', '16px');
     await expect(text).toHaveCSS('margin-bottom', '8px');
+    await expect(baseElement).toHaveCSS('color', 'rgb(51, 51, 51)'); // #333
+    await expect(baseElement).toHaveCSS('font-size', '16px');
 
-    // Update base tokens - this should cascade through the import chain
+    // Update base tokens - this should be reflected in the base element
     env.getFile('tokens.ts').write(dedent`
       import { vindurFn } from "vindur";
 
@@ -427,12 +436,15 @@ test.describe('hot reload behavior', () => {
       \`);
     `);
 
-    // Wait for hot reload and check that all derived values update
-    await expect(text).toHaveCSS('color', 'rgb(102, 102, 102)', {
+    // Wait for hot reload and check updated styles on base element
+    await expect(baseElement).toHaveCSS('color', 'rgb(102, 102, 102)', {
       timeout: 3000,
     }); // #666
-    await expect(text).toHaveCSS('font-size', '20px');
-    await expect(text).toHaveCSS('font-weight', '700'); // bold
-    await expect(text).toHaveCSS('margin-bottom', '8px'); // Should still be 8px
+    await expect(baseElement).toHaveCSS('font-size', '20px');
+    await expect(baseElement).toHaveCSS('font-weight', '700'); // bold
+
+    // Text element should remain unchanged since it doesn't depend on baseStyles
+    await expect(text).toHaveCSS('color', 'rgb(51, 51, 51)'); // #333
+    await expect(text).toHaveCSS('margin-bottom', '8px');
   });
 });

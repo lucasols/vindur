@@ -118,9 +118,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       if (result.css) {
         log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
 
-        // Generate virtual CSS module ID using file hash
+        // Generate virtual CSS module ID using file path + content hash for hot reload
         const fileHash = createHash('md5').update(id).digest('hex').slice(0, 8);
-        const virtualCssId = `virtual:vindur-${fileHash}.css`;
+        const contentHash = createHash('md5').update(result.css).digest('hex').slice(0, 8);
+        const virtualCssId = `virtual:vindur-${fileHash}-${contentHash}.css`;
 
         // Store CSS content in virtual module cache
         virtualCssModules.set(virtualCssId, result.css);
@@ -146,16 +147,30 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     handleHotUpdate({ file }) {
       // Find and remove virtual CSS modules for this file
       const fileHash = createHash('md5').update(file).digest('hex').slice(0, 8);
-      const virtualCssId = `virtual:vindur-${fileHash}.css`;
+      const virtualCssPrefix = `virtual:vindur-${fileHash}-`;
 
-      if (virtualCssModules.has(virtualCssId)) {
-        virtualCssModules.delete(virtualCssId);
+      // Remove all virtual CSS modules that match this file
+      for (const [virtualCssId] of virtualCssModules) {
+        if (virtualCssId.startsWith(virtualCssPrefix)) {
+          virtualCssModules.delete(virtualCssId);
+          if (debugLogs) {
+            this.info(
+              `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
+            );
+          }
+        }
+      }
+
+      // Clear function cache for this file to ensure vindurFn changes are picked up
+      if (functionCache[file]) {
+        delete functionCache[file];
         if (debugLogs) {
           this.info(
-            `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
+            `[vindur-plugin] Cleared function cache for hot update: ${file}`,
           );
         }
       }
+
       return undefined;
     },
   };
