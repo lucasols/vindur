@@ -151,7 +151,7 @@ test.describe('hot reload behavior', () => {
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
-        import { titleStyles } from "./constants";
+        import { titleStyles } from "#src/constants";
 
         const titleClass = css\`
           \${titleStyles('red', '16px')}
@@ -202,7 +202,7 @@ test.describe('hot reload behavior', () => {
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
-        import { buttonStyles } from "./theme";
+        import { buttonStyles } from "#src/theme";
 
         const primaryButtonClass = css\`
           \${buttonStyles('green')}
@@ -256,7 +256,7 @@ test.describe('hot reload behavior', () => {
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
-        import { cardStyles } from "./theme";
+        import { cardStyles } from "#src/theme";
 
         const cardClass = css\`
           \${cardStyles()}
@@ -377,7 +377,7 @@ test.describe('hot reload behavior', () => {
       `,
       'components.ts': dedent`
         import { vindurFn } from "vindur";
-        import { baseStyles } from "./tokens";
+        import { baseStyles } from "#src/tokens";
 
         export const textStyles = vindurFn(() => \`
           \${baseStyles()}
@@ -386,7 +386,7 @@ test.describe('hot reload behavior', () => {
       `,
       'App.tsx': dedent`
         import { css } from "vindur";
-        import { textStyles } from "./components";
+        import { textStyles } from "#src/components";
 
         const containerClass = css\`
           padding: 20px;
