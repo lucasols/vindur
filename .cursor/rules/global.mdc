@@ -12,40 +12,52 @@ This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-
 - `app-test/` - React test application using Vite for development and testing
 - `notes/spec.md` - Feature specifications and roadmap
 
-## Development Commands
-
-Do not use `npx` to run commands, use `pnpm` only
-IMPORTANT: NEVER use `npx` to run commands
-
-### Library Development (lib/)
-
-```bash
-cd lib
-pnpm lint          # Run TypeScript check + ESLint
-pnpm tsc           # TypeScript compilation check
-pnpm eslint        # ESLint only
-```
-
-Running ts code
+## Running ts code
 
 The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
 
-### Test Application (app-test/)
+## Development Commands
+
+**Important:** Use `pnpm` only, never `npx`.
+
+### From Root
 
 ```bash
-cd app-test
-pnpm dev           # Start Vite dev server
-pnpm build         # Build for production
-pnpm preview       # Preview production build
+pnpm test-all        # Run tests for all packages
+pnpm build-all       # Build all packages
+pnpm lint-all        # Run eslint + tsc in all packages
+pnpm tsc-all         # TypeScript compilation check in all packages
+```
+
+### Library (lib/)
+
+```bash
+cd lib
+pnpm test            # Run tests
+pnpm lint            # TypeScript + ESLint
+pnpm build           # Build library
+pnpm tsc             # TypeScript compilation check
+pnpm build           # Build library
+```
+
+### Vite Plugin (vite-plugin/)
+
+```bash
+cd vite-plugin
+pnpm build           # Build plugin
+pnpm lint            # TypeScript + ESLint
+pnpm tsc             # TypeScript compilation check
+pnpm build           # Build plugin
 ```
 
 ### E2E Tests (e2e-tests/)
 
 ```bash
-pnpm e2e:test         # Run all e2e tests from root
-pnpm e2e:show-report  # Show test report from root
 cd e2e-tests
-pnpm test             # Run e2e tests from e2e-tests directory
+pnpm test            # Run e2e tests
+pnpm eslint          # Run eslint
+pnpm lint            # TypeScript + ESLint
+pnpm tsc             # TypeScript compilation check
 ```
 
 ## Architecture
@@ -104,14 +116,96 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
 
 ```bash
+# Must be in the lib directory
 cd lib
-pnpm test         # Run tests
-pnpm test tests/filename.test.ts       # Run tests for a specific file
+
+# Run all tests
+pnpm test
+
+# Run tests for a specific file
+pnpm test tests/filename.test.ts
+
+# Run a specific test matching a pattern
+pnpm test tests/filename.test.ts -t "test name pattern"
+
+# Use additional arguments supported by Vitest
+pnpm test [...args]
 ```
 
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
 - If there are too many snapshots to update manually, ask for the user to update them
+
+End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
+
+```bash
+# Must be in the e2e-tests directory
+cd e2e-tests
+
+# Run all tests
+pnpm test
+
+# Run tests for a specific file
+pnpm test tests/filename.spec.ts
+
+# Run a specific test matching a pattern
+pnpm test tests/filename.spec.ts --grep "test name pattern"
+
+# Run with debug logs
+DEBUG=1 pnpm test ...
+
+# Use additional arguments supported by Playwright
+pnpm test [...args]
+```
+
+IMPORTANT: Playwright tests already have a 10s timeout configured
+
+### E2E Test Structure
+
+E2E tests follow a consistent pattern for performance and maintainability:
+
+**Key Guidelines:**
+
+- **Prefer reusing `startEnv`** calls, use new ones only if the test requires a different environment
+- **Serial execution** with `test.describe.configure({ mode: 'serial' })`
+- **Shared setup/teardown** using `beforeAll`/`afterAll` hooks
+- **Data-testid selectors** for reliable element targeting
+- **Simplified CSS** - minimal CSS for focused testing
+- **Test only the core features functionality related to the vite plugin** - implementations details are already tested in lib/ tests, e2e tests should only test if the vite plugin is working as expected
+- **Follow Playwright best practices**
+- **Tests should be concise**
+
+**Example structure:**
+
+```typescript
+test.describe('feature name', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let env: TestEnv;
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
+    env = await startEnv('test-name', {
+      'App.tsx': dedent`
+        // Single comprehensive App component
+        // covering all test scenarios
+      `,
+    });
+    await page.goto(env.baseUrl);
+  });
+
+  test.afterAll(async () => {
+    await page.close();
+    await env.cleanup();
+  });
+
+  test('should test feature A', async () => {
+    const element = page.getByTestId('test-element');
+    await expect(element).toHaveCSS('property', 'value');
+  });
+});
+```
 
 # transform tests
 
@@ -181,6 +275,7 @@ When implementing features:
 6. Ensure all tests pass and no other features are broken
 7. Run tsc and lint and fix all errors
 8. Update ROADMAP.md
+9. Update CLAUDE.md Main features section if needed
 
 ## Test Utility Memories
 
