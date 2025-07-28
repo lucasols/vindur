@@ -5,7 +5,9 @@
   "scripts": {
     "test": "playwright test",
     "show-report": "playwright show-report",
-    "start-vite": "tsm ./utils/startVite.ts"
+    "start-vite": "tsm ./utils/startVite.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@babel/preset-react": "catalog:",
@@ -21,6 +23,7 @@
     "vite-plugin-inspect": "catalog:",
     "@vitejs/plugin-react-swc": "catalog:",
     "@playwright/test": "catalog:",
+    "prettier": "catalog:",
     "tsm": "catalog:",
     "@ls-stack/utils": "catalog:"
   }

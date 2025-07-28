@@ -19,11 +19,11 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "tsc --noEmit && eslint src --ext .ts",
+    "lint": "pnpm tsc && pnpm eslint",
     "tsc": "tsc --noEmit",
-    "eslint": "eslint src --ext .ts"
+    "eslint": "eslint src --max-warnings 0 --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0"
@@ -33,10 +33,10 @@
     "@ls-stack/utils": "catalog:",
     "@types/node": "catalog:",
     "eslint": "catalog:",
+    "prettier": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:"
   },
   "dependencies": {
     "vindur": "workspace:*"

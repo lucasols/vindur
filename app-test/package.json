@@ -8,8 +8,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "echo \"No tests specified\"",
-    "lint": "echo \"No linting configured\""
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "pnpm tsc && pnpm eslint",
+    "tsc": "tsc --noEmit",
+    "eslint": "eslint src --max-warnings 0 --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "react": "catalog:",
@@ -20,6 +25,8 @@
     "@types/react-dom": "catalog:",
     "@vindur/vite-plugin": "workspace:*",
     "@vitejs/plugin-react-swc": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-inspect": "catalog:"
