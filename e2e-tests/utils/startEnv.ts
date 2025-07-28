@@ -59,8 +59,22 @@ export async function startEnv(
   // Copy base code to temp directory
   cpSync(baseCodeDir, testRunDirPath, { recursive: true });
 
+  function hasRelativeImport(content: string): boolean {
+    return (
+      content.includes('from "./')
+      || content.includes(`from './`)
+      || content.includes('from "../')
+      || content.includes(`from '../`)
+    );
+  }
+
   // Create initial files
   for (const [relativePath, content] of Object.entries(initialFiles)) {
+    if (hasRelativeImport(content)) {
+      throw new Error(
+        `Relative imports are not allowed in the initial files. Please use alias imports instead with "#src" prefix. File: ${relativePath}`,
+      );
+    }
     createFile(relativePath, content);
   }
 
