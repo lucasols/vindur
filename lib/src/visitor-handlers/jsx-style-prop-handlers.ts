@@ -35,7 +35,7 @@ export function handleJsxStyleProp(
   if (!t.isObjectExpression(expression)) return false;
 
   // Extract the style object properties
-  const styleObject: Record<string, unknown> = {};
+  const styleObject: Record<string, t.Expression> = {};
   let hasScopedVariables = false;
 
   for (const prop of expression.properties) {
@@ -54,15 +54,17 @@ export function handleJsxStyleProp(
         hasScopedVariables = true;
       }
 
-      // Store the property value node for later transformation
-      styleObject[key] = prop.value;
+      // Store the property value node for later transformation (only if it's an expression)
+      if (t.isExpression(prop.value)) {
+        styleObject[key] = prop.value;
+      }
     }
   }
 
   if (!hasScopedVariables) return false;
 
   // Transform the scoped variables
-  const { transformedStyle, warnings } = transformStylePropScopedVariables(
+  const { transformedStyle, warnings } = transformStylePropScopedVariables<t.Expression>(
     styleObject,
     context.state.scopedVariables,
     context.fileHash,
@@ -80,15 +82,12 @@ export function handleJsxStyleProp(
   const newProperties: t.ObjectProperty[] = [];
   
   for (const [key, value] of Object.entries(transformedStyle)) {
-    // Check if value is a Babel AST Expression node
-    if (value && typeof value === 'object' && value !== null && t.isExpression(value as t.Node)) {
-      newProperties.push(
-        t.objectProperty(
-          t.stringLiteral(key),
-          value as t.Expression,
-        ),
-      );
-    }
+    newProperties.push(
+      t.objectProperty(
+        t.stringLiteral(key),
+        value,
+      ),
+    );
   }
 
   // Replace the original properties

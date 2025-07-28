@@ -756,11 +756,11 @@ describe('createStaticThemeColors', () => {
         background: #007bff;
         color: #fff;
         border: 1px solid #007bff33;
-  
+
         &:hover {
           background: #0062cc;
         }
-  
+
         &.danger {
           background: #dc3545;
           color: #ffffffe6;

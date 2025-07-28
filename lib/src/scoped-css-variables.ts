@@ -107,13 +107,9 @@ export function processScopedCssVariables(
       }
     }
 
-    // Generate warnings for used but not declared variables
-    for (const usedVar of usedVariables) {
-      if (!declaredVariables.has(usedVar)) {
-        const warning = `Scoped variable '---${usedVar}' is used but never declared`;
-        warnings.push(warning);
-      }
-    }
+    // Note: We don't warn about "used but never declared" variables here because
+    // they might be provided via style props at runtime, which is a valid pattern.
+    // Only warn about declared but unused variables within the CSS itself.
   }
 
   return {
@@ -123,13 +119,13 @@ export function processScopedCssVariables(
   };
 }
 
-export function transformStylePropScopedVariables(
-  styleValue: Record<string, unknown>,
+export function transformStylePropScopedVariables<T = unknown>(
+  styleValue: Record<string, T>,
   scopedVariables: ScopedVariableMap,
   scopeHash: string,
   dev: boolean,
-): { transformedStyle: Record<string, unknown>; warnings: string[] } {
-  const transformedStyle: Record<string, unknown> = {};
+): { transformedStyle: Record<string, T>; warnings: string[] } {
+  const transformedStyle: Record<string, T> = {};
   const warnings: string[] = [];
 
   for (const [key, value] of Object.entries(styleValue)) {

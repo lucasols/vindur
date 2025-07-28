@@ -50,7 +50,7 @@ export function getOrExtractFileData(
   const plugin = createVindurPlugin(
     {
       filePath,
-      production: true, // Use production mode for external files
+      dev: false, // Use production mode for external files
       fs: context.fs,
       transformFunctionCache: context.compiledFunctions,
       importAliases: {}, // External files don't need alias resolution for their own processing

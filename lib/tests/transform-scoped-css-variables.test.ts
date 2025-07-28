@@ -52,6 +52,7 @@ describe('scoped CSS variables', () => {
           padding: var(---spacing);
         \`;
       `,
+      production: true,
     });
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -59,12 +60,12 @@ describe('scoped CSS variables', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1-Card {
-        --v1560qbr-2-primary-color: #007bff;
-        --v1560qbr-3-spacing: 16px;
+      ".v1560qbr-1 {
+        --v1560qbr-2: #007bff;
+        --v1560qbr-3: 16px;
 
-        background: var(--v1560qbr-2-primary-color);
-        padding: var(--v1560qbr-3-spacing);
+        background: var(--v1560qbr-2);
+        padding: var(--v1560qbr-3);
       }"
     `);
   });
@@ -153,9 +154,7 @@ describe('scoped CSS variables', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "console.warn("Scoped variable '---spacing' is used but never declared");
-      console.warn("Scoped variable '---color' is used but never declared");
-      const Component = () => {
+      "const Component = () => {
         return (
           <div
             style={{
@@ -452,7 +451,7 @@ describe('scoped CSS variables', () => {
     );
   });
 
-  test('should warn about used but not declared scoped variables', async () => {
+  test('should handle variables used in CSS but not declared (valid for style props)', async () => {
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -461,14 +460,13 @@ describe('scoped CSS variables', () => {
           ---primary-color: #007bff;
   
           background: var(---primary-color);
-          border: 1px solid var(---unknown-color);
+          border: 1px solid var(---theme-color);
         \`;
       `,
     });
 
-    expect(result.code).toContain(
-      'console.warn("Scoped variable \'---unknown-color\' is used but never declared")',
-    );
+    // Should not produce warnings since ---theme-color could be provided via style props
+    expect(result.code).not.toContain('console.warn');
   });
 
   // Note: Style prop warning test removed as it requires more complex JSX transformation logic
