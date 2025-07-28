@@ -83,7 +83,7 @@ export async function startEnv(
     plugins: [
       react(),
       vindurPlugin({
-        debugLogs: true,
+        debugLogs: !!process.env.DEBUG,
         importAliases: {
           '#src': tempDir,
         },
