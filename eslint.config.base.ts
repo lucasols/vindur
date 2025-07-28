@@ -190,6 +190,12 @@ export function createBaseConfig({
         ],
       },
     },
+    {
+      files: ['**/eslint.config.ts'],
+      rules: {
+        '@ls-stack/no-default-export': OFF,
+      },
+    },
     ...(extraRuleGroups || []),
     {
       ignores: ['dist/**', 'build/**', 'node_modules/**'],

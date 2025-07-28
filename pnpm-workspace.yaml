@@ -8,6 +8,8 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
 
+color: always
+
 catalog:
   '@babel/core': '^7.28.0'
   '@babel/generator': '^7.28.0'

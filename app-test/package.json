@@ -10,9 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "pnpm tsc && pnpm eslint",
+    "lint": "pnpm tsc",
     "tsc": "tsc --noEmit",
-    "eslint": "eslint src --max-warnings 0 --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
