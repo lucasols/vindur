@@ -6,7 +6,7 @@ import {
   type TransformFS,
   type TransformFunctionCache,
   type VindurTransformResult,
-} from 'vindur';
+} from 'vindur/transform';
 import { type Plugin, type ViteDevServer } from 'vite';
 
 export type VindurPluginOptions = {
@@ -42,7 +42,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
   return {
     name: 'vindur',
-    enforce: 'pre',
+    enforce: 'pre' as const,
     configureServer(devServer) {
       server = devServer;
     },
