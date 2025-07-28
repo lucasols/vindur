@@ -284,6 +284,44 @@ When implementing features:
 - Use `filterWithNarrowing` instead of type guards on array.map
 - Use `findWithNarrowing` instead of type guards on array.find
 
+## Static Analysis and Template Literals
+
+All Vindur CSS-in-JS features that use template literals are **statically analyzed at compile-time**:
+
+- **Static values are allowed**: String literals, numbers, constants defined at module level
+- **Dynamic runtime values are NOT allowed**: State variables, props, function calls, or any values that change at runtime
+- **Use vindurFn for dynamic CSS**: When you need CSS that depends on runtime values, wrap your function with `vindurFn`
+
+**Valid examples:**
+```tsx
+const BRAND_COLOR = '#667eea';  // Static constant - OK
+
+const styles = css`
+  color: ${BRAND_COLOR};        // Static variable - OK
+  padding: 16px;                // Literal value - OK
+`;
+```
+
+**Invalid examples:**
+```tsx
+function Component({ color, isActive }) {
+  const styles = css`
+    color: ${color};            // ❌ Dynamic prop - NOT allowed
+    padding: ${isActive ? 16 : 8}px;  // ❌ Dynamic expression - NOT allowed
+  `;
+}
+```
+
+**For dynamic CSS, use vindurFn:**
+```tsx
+const dynamicStyles = vindurFn((color: string, isActive: boolean) => `
+  color: ${color};              // ✅ OK inside vindurFn
+  padding: ${isActive ? 16 : 8}px;  // ✅ OK inside vindurFn
+`);
+```
+
+This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalStyle`.
+
 ## Main features
 
 - **css tagged template**, eg. `` css`color: red` ``
