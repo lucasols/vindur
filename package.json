@@ -12,6 +12,7 @@
     "lib:test:ui": "pnpm --filter vindur run test:ui",
     "vite-plugin:test": "pnpm --filter vite-plugin run test",
     "e2e:test": "pnpm --filter e2e-tests run test",
+    "e2e:test:ui": "pnpm --filter e2e-tests run test:ui",
     "e2e:eslint": "pnpm --filter e2e-tests run eslint",
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",

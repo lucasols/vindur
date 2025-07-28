@@ -104,7 +104,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           importAliases,
         });
       } catch (error) {
-        this.error({
+        return this.error({
           code: 'VINDUR_TRANSFORM_FAILED',
           id,
           message: error instanceof Error ? error.message : String(error),
@@ -120,7 +120,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
         // Generate virtual CSS module ID using file path + content hash for hot reload
         const fileHash = createHash('md5').update(id).digest('hex').slice(0, 8);
-        const contentHash = createHash('md5').update(result.css).digest('hex').slice(0, 8);
+        const contentHash = createHash('md5')
+          .update(result.css)
+          .digest('hex')
+          .slice(0, 8);
         const virtualCssId = `virtual:vindur-${fileHash}-${contentHash}.css`;
 
         // Store CSS content in virtual module cache

@@ -135,6 +135,7 @@ pnpm test [...args]
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
 - If there are too many snapshots to update manually, ask for the user to update them
+- Do not use top level `describe` in tests to group all tests in a file, use describe to group tests only
 
 End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
 
@@ -178,32 +179,30 @@ E2E tests follow a consistent pattern for performance and maintainability:
 **Example structure:**
 
 ```typescript
-test.describe('feature name', () => {
-  test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial' });
 
-  let env: TestEnv;
-  let page: Page;
+let env: TestEnv;
+let page: Page;
 
-  test.beforeAll(async ({ browser }) => {
-    page = await browser.newPage();
-    env = await startEnv('test-name', {
-      'App.tsx': dedent`
+test.beforeAll(async ({ browser }) => {
+  page = await browser.newPage();
+  env = await startEnv('test-name', {
+    'App.tsx': dedent`
         // Single comprehensive App component
         // covering all test scenarios
       `,
-    });
-    await page.goto(env.baseUrl);
   });
+  await page.goto(env.baseUrl);
+});
 
-  test.afterAll(async () => {
-    await page.close();
-    await env.cleanup();
-  });
+test.afterAll(async () => {
+  await page.close();
+  await env.cleanup();
+});
 
-  test('should test feature A', async () => {
-    const element = page.getByTestId('test-element');
-    await expect(element).toHaveCSS('property', 'value');
-  });
+test('should test feature A', async () => {
+  const element = page.getByTestId('test-element');
+  await expect(element).toHaveCSS('property', 'value');
 });
 ```
 

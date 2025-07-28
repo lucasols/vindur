@@ -1,4 +1,5 @@
-import { type PlaywrightTestConfig, devices } from '@playwright/test'
+/* eslint-disable @ls-stack/no-default-export -- default export is required for Playwright */
+import { type PlaywrightTestConfig, devices } from '@playwright/test';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -52,6 +53,6 @@ const config: PlaywrightTestConfig = {
 
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */
   outputDir: 'test-results/',
-}
+};
 
-export default config
+export default config;
