@@ -39,6 +39,15 @@ pnpm build         # Build for production
 pnpm preview       # Preview production build
 ```
 
+### E2E Tests (e2e-tests/)
+
+```bash
+pnpm e2e:test         # Run all e2e tests from root
+pnpm e2e:show-report  # Show test report from root
+cd e2e-tests
+pnpm test             # Run e2e tests from e2e-tests directory
+```
+
 ## Architecture
 
 ### Core Transform Logic
@@ -102,6 +111,7 @@ pnpm test tests/filename.test.ts       # Run tests for a specific file
 
 - Prefer using `toMatchInlineSnapshot` when possible
 - Do not update snapshots via `vitest run --u`, update them manually
+- If there are too many snapshots to update manually, ask for the user to update them
 
 # transform tests
 
@@ -181,3 +191,47 @@ When implementing features:
 
 - Use `filterWithNarrowing` instead of type guards on array.map
 - Use `findWithNarrowing` instead of type guards on array.find
+
+## Main features
+
+- **css tagged template**, eg. `` css`color: red` ``
+  - Template literals are statically analyzed and transformed to hashed class names at compile-time
+  - No runtime CSS processing, styles are extracted to separate CSS files
+
+- **styled components**, eg. `` styled.div`color: blue` ``
+  - Non-exported styled components: Class is injected directly into JSX usages, no intermediate component
+  - Exported styled components: Generate intermediate React components using `styledComponent` helper
+  - Style flags: Always generate intermediate components regardless of export status
+  - Component references are replaced with native elements + className for non-exported cases
+
+- **css prop** - JSX prop that accepts template literals, eg. `<div css={`color: green`} />`
+  - Only works on native DOM elements (lowercase names) and styled components
+  - Transformed to className prop with extracted CSS at compile-time
+  - Template literals must be statically analyzable
+  - Replaces css prop with className in final output
+
+- **cx prop** - Conditional class name prop, eg. `<div cx={{ active: isActive, $notHashed: true }} />`
+  - Only works on native DOM elements and styled components
+  - Uses object syntax for conditional classes
+  - Properties prefixed with `$` are not hashed (pass-through)
+  - Merges with existing className prop via runtime `cx` function
+
+- **vindurFn** - Compile-time CSS function utility, eg. `vindurFn((size: number) => \`width: \${size}px\`)`
+  - Functions must be wrapped with `vindurFn` for compile-time evaluation
+  - Must be synchronous and self-contained (no external dependencies)
+  - Used for creating reusable CSS utilities across files
+
+- **scoped css variables** - CSS custom properties with automatic scoping, eg. `---primaryColor: blue`
+  - Use `---variableName` syntax in CSS, reference with `var(---variableName)`
+  - Automatically prefixed with scope hash for isolation
+  - In dev mode includes original variable name for debugging
+
+- **keyframes** - Animation definitions, eg. `` keyframes`from { opacity: 0 }` ``
+  - Extracted to CSS with unique identifiers
+  - Returns animation name for use in CSS
+  - Supports cross-file imports
+
+- **createGlobalStyle** - Global CSS injection, eg. `` createGlobalStyle`body { margin: 0 }` ``
+  - Build-time extraction and deduplication
+  - Injected once per unique style definition
+  - No runtime global style injection, expression produces no output
