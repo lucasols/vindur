@@ -42,10 +42,11 @@ describe('Style Flags Transform Logic', () => {
         "import { vComponentWithModifiers } from "vindur";
         const StyledWithModifier = vComponentWithModifiers(
           [
-            ["active", "v18wrjm2-active"],
-            ["disabled", "v199pd0d-disabled"],
+            ["active", "voctcyj-active"],
+            ["disabled", "v1iz0um9-disabled"],
           ],
           "v1560qbr-1-StyledWithModifier",
+          "div",
         );
         function Component() {
           return (
@@ -61,11 +62,11 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1-StyledWithModifier {
           padding: 16px;
 
-          &.v18wrjm2-active {
+          &.voctcyj-active {
             background: blue;
           }
 
-          &.v199pd0d-disabled {
+          &.v1iz0um9-disabled {
             opacity: 0.5;
           }
         }"
@@ -119,11 +120,12 @@ describe('Style Flags Transform Logic', () => {
         "import { vComponentWithModifiers } from "vindur";
         const Button = vComponentWithModifiers(
           [
-            ["primary", "vkrxp8d-primary"],
-            ["disabled", "v199pd0d-disabled"],
-            ["size", "hash_placeholder-size"],
+            ["primary", "v1puiack-primary"],
+            ["size", "vr4ikfs-size"],
+            ["disabled", "v1iz0um9-disabled"],
           ],
           "v1560qbr-1-Button",
+          "button",
         );
         function Component() {
           return (
@@ -140,17 +142,17 @@ describe('Style Flags Transform Logic', () => {
           padding: 8px 16px;
           border: 1px solid #ccc;
 
-          &.vkrxp8d-primary {
+          &.v1puiack-primary {
             background: blue;
             color: white;
           }
 
-          &.v199pd0d-disabled {
+          &.v1iz0um9-disabled {
             opacity: 0.5;
             cursor: not-allowed;
           }
 
-          &.hash_placeholder-size {
+          &.vr4ikfs-size-small {
             padding: 4px 8px;
           }
         }"
@@ -226,10 +228,11 @@ describe('Style Flags Transform Logic', () => {
         "import { vComponentWithModifiers } from "vindur";
         const Widget = vComponentWithModifiers(
           [
-            ["active", "v18wrjm2-active"],
-            ["featured", "vge1qo3-featured"],
+            ["active", "voctcyj-active"],
+            ["featured", "vnwmeu-featured"],
           ],
           "v1560qbr-1-Widget",
+          "div",
         );
         function Component() {
           return (
@@ -245,11 +248,11 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1-Widget {
           background: white;
 
-          &.v18wrjm2-active {
+          &.voctcyj-active {
             background: blue;
           }
 
-          &.vge1qo3-featured {
+          &.vnwmeu-featured {
             border: 2px solid gold;
           }
         }"
@@ -291,13 +294,18 @@ describe('Style Flags Transform Logic', () => {
         "import { vComponentWithModifiers } from "vindur";
         const Widget = vComponentWithModifiers(
           [
-            ["active", "v18wrjm2"],
-            ["featured", "vge1qo3"],
+            ["active", "voctcyj"],
+            ["featured", "vnwmeu"],
           ],
           "v1560qbr-1",
+          "div",
         );
         function Component() {
-          return <Widget active={true} featured={false}>Content</Widget>;
+          return (
+            <Widget active={true} featured={false}>
+              Content
+            </Widget>
+          );
         }
         "
       `);
@@ -306,11 +314,11 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1 {
           background: white;
 
-          &.v18wrjm2 {
+          &.voctcyj {
             background: blue;
           }
 
-          &.vge1qo3 {
+          &.vnwmeu {
             border: 2px solid gold;
           }
         }"
@@ -353,8 +361,9 @@ describe('Style Flags Transform Logic', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "import { vComponentWithModifiers } from "vindur";
         const Button = vComponentWithModifiers(
-          [["primary", "vkrxp8d-primary"]],
+          [["primary", "v1puiack-primary"]],
           "v1560qbr-1-Button",
+          "button",
         );
         function Component() {
           return (
@@ -371,7 +380,7 @@ describe('Style Flags Transform Logic', () => {
           padding: 8px 16px;
           border: 1px solid #ccc;
 
-          &.vkrxp8d-primary {
+          &.v1puiack-primary {
             background: blue;
             color: white;
           }
@@ -411,8 +420,9 @@ describe('Style Flags Transform Logic', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "import { vComponentWithModifiers } from "vindur";
         const Button = vComponentWithModifiers(
-          [["active", "v18wrjm2-active"]],
+          [["active", "voctcyj-active"]],
           "v1560qbr-1-Button",
+          "button",
         );
         function Component({ props }) {
           return (
@@ -428,7 +438,7 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1-Button {
           padding: 8px;
 
-          &.v18wrjm2-active {
+          &.voctcyj-active {
             background: blue;
           }
         }"
@@ -473,10 +483,11 @@ describe('Style Flags Transform Logic', () => {
         "import { vComponentWithModifiers } from "vindur";
         const Card = vComponentWithModifiers(
           [
-            ["highlighted", "vzszlgd-highlighted"],
-            ["disabled", "v199pd0d-disabled"],
+            ["highlighted", "vges7p7-highlighted"],
+            ["disabled", "v1iz0um9-disabled"],
           ],
           "v1560qbr-1-Card",
+          "div",
         );
         function Component({ isHighlighted, isDisabled }) {
           return (
@@ -492,11 +503,11 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1-Card {
           padding: 16px;
 
-          &.vzszlgd-highlighted {
+          &.vges7p7-highlighted {
             border: 2px solid gold;
           }
 
-          &.v199pd0d-disabled {
+          &.v1iz0um9-disabled {
             opacity: 0.5;
           }
         }"
@@ -532,7 +543,6 @@ describe('Style Flags Transform Logic', () => {
             active: boolean;
           }>\`
             padding: 16px;
-            // Missing: &.active selector
           \`;
 
           function Component() {
@@ -549,18 +559,14 @@ describe('Style Flags Transform Logic', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "import { vComponentWithModifiers } from "vindur";
         const StyledWithModifier = vComponentWithModifiers(
-          [["active", "v18wrjm2-active"]],
+          [["active", "voctcyj-active"]],
           "v1560qbr-1-StyledWithModifier",
+          "div",
         );
+        console.warn(\`Warning: Missing modifier styles for "active" in StyledWithModifier\`);
+
         function Component() {
-          return (
-            <StyledWithModifier active={true}>
-              Content
-            </StyledWithModifier>
-          );
-        }
-        if (process.env.NODE_ENV === "development") {
-          console.warn(\`Warning: Missing modifier styles for "active" in StyledWithModifier\`);
+          return <StyledWithModifier active={true}>Content</StyledWithModifier>;
         }
         "
       `);
@@ -595,8 +601,9 @@ describe('Style Flags Transform Logic', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "import { vComponentWithModifiers } from "vindur";
         export const Button = vComponentWithModifiers(
-          [["primary", "vkrxp8d-primary"]],
+          [["primary", "v1puiack-primary"]],
           "v1560qbr-1-Button",
+          "button",
         );
         "
       `);
@@ -605,7 +612,7 @@ describe('Style Flags Transform Logic', () => {
         ".v1560qbr-1-Button {
           padding: 8px 16px;
 
-          &.vkrxp8d-primary {
+          &.v1puiack-primary {
             background: blue;
           }
         }"
