@@ -1,5 +1,6 @@
 import type { PluginObj } from '@babel/core';
 import * as babel from '@babel/core';
+import { types as t } from '@babel/core';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
