@@ -286,9 +286,7 @@ export function ContrastTestDemo() {
       </div>
 
       <GridContainer
-        css={`
-          --grid-columns: ${hueSteps};
-        `}
+        style={{ '--grid-columns': hueSteps } as React.CSSProperties}
       >
         {testColors.map((color) => {
           const Card = showOptimal ? OptimalContrastCard : ColorCard;
