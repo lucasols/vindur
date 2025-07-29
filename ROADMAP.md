@@ -50,8 +50,8 @@ A compile-time CSS-in-JS library focused on performance.
 
 ### Vite plugin
 
-- [ ] Vite plugin
-- [ ] Vite e2e tests
+- [x] Vite plugin
+- [x] Vite e2e tests
 
 ## Beta 2 - Advanced Features
 

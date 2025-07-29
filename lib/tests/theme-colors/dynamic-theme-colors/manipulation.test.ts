@@ -33,7 +33,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         return (
           <button

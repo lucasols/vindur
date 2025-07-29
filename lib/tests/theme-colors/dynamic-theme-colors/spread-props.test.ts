@@ -26,7 +26,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         const buttonProps = {
           onClick: () => {},
@@ -88,7 +88,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         const styleProps = {
           style: {
@@ -150,7 +150,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         const boxProps = {
           className: "flex-item",
@@ -209,7 +209,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         const styleProps = {
           style: {

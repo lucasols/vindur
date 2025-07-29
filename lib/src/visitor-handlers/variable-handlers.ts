@@ -433,7 +433,7 @@ export function handleDynamicCssColorAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex } = handlerContext;
 
   if (
     !context.state.vindurImports.has('createDynamicCssColor')
@@ -463,9 +463,10 @@ export function handleDynamicCssColorAssignment(
   context.state.dynamicColors ??= new Map();
   context.state.dynamicColors.set(varName, dynamicColorId);
 
-  // Replace the function call with the hashed ID
+  // Replace the function call with the hashed ID and dev mode
   path.node.init = t.callExpression(t.identifier('createDynamicCssColor'), [
     t.stringLiteral(dynamicColorId),
+    t.booleanLiteral(dev),
   ]);
 
   return true;

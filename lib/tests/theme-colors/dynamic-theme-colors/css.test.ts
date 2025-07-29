@@ -31,7 +31,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         return (
@@ -99,7 +99,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         const divProps = {

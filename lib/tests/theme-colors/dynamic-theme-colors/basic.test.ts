@@ -25,7 +25,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const dynamicColor = createDynamicCssColor("v1560qbr-1");
+      const dynamicColor = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         return (
           <div
@@ -79,7 +79,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         return (
           <div
@@ -133,7 +133,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = () => {
         return (
           <div

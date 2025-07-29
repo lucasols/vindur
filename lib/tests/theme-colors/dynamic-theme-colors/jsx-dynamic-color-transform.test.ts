@@ -19,7 +19,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -50,7 +50,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -81,7 +81,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -114,7 +114,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -147,7 +147,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -181,7 +181,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -215,7 +215,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -249,7 +249,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component() {
           return (
             <div
@@ -285,7 +285,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component({ condition }: { condition: boolean }) {
           return (
             <div
@@ -314,7 +314,7 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color = createDynamicCssColor("v1560qbr-1");
+        const color = createDynamicCssColor("v1560qbr-1", true);
         function Component({ condition }: { condition: boolean }) {
           return (
             <div
@@ -346,8 +346,8 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color1 = createDynamicCssColor("v1560qbr-1");
-        const color2 = createDynamicCssColor("v1560qbr-2");
+        const color1 = createDynamicCssColor("v1560qbr-1", true);
+        const color2 = createDynamicCssColor("v1560qbr-2", true);
         function Component() {
           return (
             <div
@@ -380,8 +380,8 @@ describe('JSX dynamic color transform', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { createDynamicCssColor } from "vindur";
-        const color1 = createDynamicCssColor("v1560qbr-1");
-        const color2 = createDynamicCssColor("v1560qbr-2");
+        const color1 = createDynamicCssColor("v1560qbr-1", true);
+        const color2 = createDynamicCssColor("v1560qbr-2", true);
         function Component() {
           return (
             <div

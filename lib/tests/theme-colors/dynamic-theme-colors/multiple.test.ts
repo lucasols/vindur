@@ -31,8 +31,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color1 = createDynamicCssColor("v1560qbr-1");
-      const color2 = createDynamicCssColor("v1560qbr-2");
+      const color1 = createDynamicCssColor("v1560qbr-1", true);
+      const color2 = createDynamicCssColor("v1560qbr-2", true);
       const Component = () => {
         return (
           <div {...color1._sp("#ff6b6b", color2._sp("#ff6b6b"))}>
@@ -86,8 +86,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const primaryColor = createDynamicCssColor("v1560qbr-1");
-      const secondaryColor = createDynamicCssColor("v1560qbr-2");
+      const primaryColor = createDynamicCssColor("v1560qbr-1", true);
+      const secondaryColor = createDynamicCssColor("v1560qbr-2", true);
       const Component = () => {
         return (
           <div {...primaryColor._sp("#ff6b6b", secondaryColor._sp("#ff6b6b"))}>
@@ -149,8 +149,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const primaryColor = createDynamicCssColor("v1560qbr-1");
-      const secondaryColor = createDynamicCssColor("v1560qbr-2");
+      const primaryColor = createDynamicCssColor("v1560qbr-1", true);
+      const secondaryColor = createDynamicCssColor("v1560qbr-2", true);
       const Component = () => {
         const cardProps = {
           "data-testid": "themed-card",

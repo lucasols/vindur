@@ -96,7 +96,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = ({ condition }) => {
         return (
           <button
@@ -145,7 +145,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = ({ themeColor }) => {
         return (
           <button
@@ -194,7 +194,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1");
+      const color = createDynamicCssColor("v1560qbr-1", true);
       const Component = ({ isActive }) => {
         return (
           <button
