@@ -18,7 +18,7 @@ const cardStyles = css`
 `;
 
 const textStyles = css`
-  ---primaryColor: #ff6b6b;
+  ---primaryColor: #250ce6;
   ---spacing: 12px;
 
   color: var(---primaryColor);

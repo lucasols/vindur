@@ -59,7 +59,6 @@ const ButtonContainer = styled.div`
   margin-bottom: 16px;
 `;
 
-
 // Exported styled component (generates intermediate component)
 export const ExportedCard = styled.div`
   padding: 16px;
@@ -70,7 +69,8 @@ export const ExportedCard = styled.div`
   font-weight: 600;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   margin: 8px 0;
-  
+  transition: all 0.2s ease;
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
@@ -80,7 +80,6 @@ export const ExportedCard = styled.div`
 export function StyledComponentsDemo() {
   return (
     <DemoSection title="Styled Components">
-      
       <ButtonContainer>
         <PrimaryButton>Primary Styled</PrimaryButton>
         <SecondaryButton>Secondary Styled</SecondaryButton>
@@ -88,7 +87,8 @@ export function StyledComponentsDemo() {
       </ButtonContainer>
 
       <ExportedCard>
-        This is an exported styled component that generates an intermediate React component
+        This is an exported styled component that generates an intermediate
+        React component
       </ExportedCard>
     </DemoSection>
   );
