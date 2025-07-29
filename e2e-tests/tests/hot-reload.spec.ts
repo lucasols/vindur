@@ -173,7 +173,9 @@ test('should update styles when imported vindurFn changes', async ({
   await expect(title).toHaveCSS('font-size', '16px');
 });
 
-test('should update imported css when external file changes', async ({ page }) => {
+test('should update imported css when external file changes', async ({
+  page,
+}) => {
   await using env = await startEnv('hot-reload-css-import', {
     'styles.ts': dedent`
       import { css } from "vindur";
@@ -223,7 +225,9 @@ test('should update imported css when external file changes', async ({ page }) =
   await expect(box).toHaveCSS('padding', '20px');
 });
 
-test('should update imported styled component when external file changes', async ({ page }) => {
+test('should update imported styled component when external file changes', async ({
+  page,
+}) => {
   await using env = await startEnv('hot-reload-styled-import', {
     'components.ts': dedent`
       import { styled } from "vindur";
@@ -260,22 +264,32 @@ test('should update imported styled component when external file changes', async
   env.getFile('components.ts').replace('background: red;', 'background: blue;');
   await expect(button).toHaveCSS('background-color', 'rgb(0, 0, 255)'); // blue
 
-  // Second update - change padding 
-  env.getFile('components.ts').replace('padding: 10px 20px;', 'padding: 15px 30px;');
+  // Second update - change padding
+  env
+    .getFile('components.ts')
+    .replace('padding: 10px 20px;', 'padding: 15px 30px;');
   await expect(button).toHaveCSS('padding', '15px 30px');
 
   // Third update - change background again
-  env.getFile('components.ts').replace('background: blue;', 'background: purple;');
+  env
+    .getFile('components.ts')
+    .replace('background: blue;', 'background: purple;');
   await expect(button).toHaveCSS('background-color', 'rgb(128, 0, 128)'); // purple
 
   // Revert to original state
-  env.getFile('components.ts').replace('background: purple;', 'background: red;');
-  env.getFile('components.ts').replace('padding: 15px 30px;', 'padding: 10px 20px;');
+  env
+    .getFile('components.ts')
+    .replace('background: purple;', 'background: red;');
+  env
+    .getFile('components.ts')
+    .replace('padding: 15px 30px;', 'padding: 10px 20px;');
   await expect(button).toHaveCSS('background-color', 'rgb(255, 0, 0)'); // red
   await expect(button).toHaveCSS('padding', '10px 20px');
 });
 
-test('should update imported keyframes when external file changes', async ({ page }) => {
+test('should update imported keyframes when external file changes', async ({
+  page,
+}) => {
   await using env = await startEnv('hot-reload-keyframes-import', {
     'animations.ts': dedent`
       import { css, keyframes } from "vindur";
@@ -323,22 +337,32 @@ test('should update imported keyframes when external file changes', async ({ pag
   await expect(box).toHaveCSS('background-color', 'rgb(0, 0, 255)'); // blue
 
   // Second update - change keyframe values
-  env.getFile('animations.ts').replace('transform: translateY(10px);', 'transform: translateY(20px);');
-  
+  env
+    .getFile('animations.ts')
+    .replace('transform: translateY(10px);', 'transform: translateY(20px);');
+
   // Third update - change background again
-  env.getFile('animations.ts').replace('background: blue;', 'background: green;');
+  env
+    .getFile('animations.ts')
+    .replace('background: blue;', 'background: green;');
   await expect(box).toHaveCSS('background-color', 'rgb(0, 128, 0)'); // green
 
   // Revert to original state
-  env.getFile('animations.ts').replace('background: green;', 'background: red;');
-  env.getFile('animations.ts').replace('transform: translateY(20px);', 'transform: translateY(10px);');
+  env
+    .getFile('animations.ts')
+    .replace('background: green;', 'background: red;');
+  env
+    .getFile('animations.ts')
+    .replace('transform: translateY(20px);', 'transform: translateY(10px);');
   await expect(box).toHaveCSS('background-color', 'rgb(255, 0, 0)'); // red
 });
 
-test('should update imported theme colors when external file changes', async ({ page }) => {
+test('should update imported theme colors when external file changes', async ({
+  page,
+}) => {
   await using env = await startEnv('hot-reload-theme-import', {
     'theme.ts': dedent`
-      import { css, createStaticThemeColors } from "vindur";
+      import { createStaticThemeColors } from "vindur";
 
       const colors = createStaticThemeColors({
         primary: '#ff0000',
@@ -346,22 +370,24 @@ test('should update imported theme colors when external file changes', async ({ 
         accent: '#ff00ff'
       });
 
-      export const themeStyles = css\`
-        background: \${colors.primary};
+    `,
+    'App.tsx': dedent`
+      import { css } from "vindur";
+      import { colors } from "#src/theme";
+
+      const themeStyles = css\`
+        background: \${colors.primary.var};
         color: white;
         padding: 20px;
         border-radius: 8px;
         margin: 10px;
       \`;
 
-      export const secondaryStyles = css\`
-        background: \${colors.secondary};
+      const secondaryStyles = css\`
+        background: \${colors.secondary.var};
         color: black;
         padding: 15px;
       \`;
-    `,
-    'App.tsx': dedent`
-      import { themeStyles, secondaryStyles } from "#src/theme";
 
       export default function App() {
         return (
@@ -390,7 +416,9 @@ test('should update imported theme colors when external file changes', async ({ 
   await expect(primaryBox).toHaveCSS('background-color', 'rgb(0, 0, 255)'); // blue
 
   // Second update - change secondary color
-  env.getFile('theme.ts').replace("secondary: '#00ff00'", "secondary: '#ffff00'");
+  env
+    .getFile('theme.ts')
+    .replace("secondary: '#00ff00'", "secondary: '#ffff00'");
   await expect(secondaryBox).toHaveCSS('background-color', 'rgb(255, 255, 0)'); // yellow
 
   // Third update - change primary color again
@@ -399,7 +427,9 @@ test('should update imported theme colors when external file changes', async ({ 
 
   // Revert to original state
   env.getFile('theme.ts').replace("primary: '#800080'", "primary: '#ff0000'");
-  env.getFile('theme.ts').replace("secondary: '#ffff00'", "secondary: '#00ff00'");
+  env
+    .getFile('theme.ts')
+    .replace("secondary: '#ffff00'", "secondary: '#00ff00'");
   await expect(primaryBox).toHaveCSS('background-color', 'rgb(255, 0, 0)'); // red
   await expect(secondaryBox).toHaveCSS('background-color', 'rgb(0, 255, 0)'); // green
 });
