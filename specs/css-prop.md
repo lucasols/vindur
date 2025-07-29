@@ -4,7 +4,7 @@
 
 ## Detection and Validation
 
-1. **Only allow on DOM elements and styled components** - throw error for custom components
+1. **Allowed on any component**, but have different behavior for custom components
 2. **Remove css prop** from JSX (it's not a real DOM attribute)
 
 ## Template Literal css prop
@@ -148,5 +148,25 @@ const compiled = (
   >
     Content
   </div>
+);
+```
+
+## Custom Components
+
+When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop.
+
+```tsx
+const before = (
+  <CustomComponent
+    css={`
+      color: red;
+    `}
+  >
+    Content
+  </CustomComponent>
+);
+
+const compiled = (
+  <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>
 );
 ```
