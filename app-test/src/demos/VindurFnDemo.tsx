@@ -1,4 +1,4 @@
-import { buttonVariant, colorBox, spacing } from './functions';
+import { buttonVariant, colorBox, spacing } from '#src/demos/functions';
 import { styled } from 'vindur';
 import { DemoSection } from '../components/MainLayout';
 

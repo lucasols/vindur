@@ -29,11 +29,9 @@ const InteractiveCard = styled.div`
   }
 `;
 
-
 const ButtonContainer = styled.div`
   margin-bottom: 16px;
 `;
-
 
 const StatusContainer = styled.div`
   font-size: 12px;
@@ -69,14 +67,12 @@ export function CxPropDemo() {
       </ButtonContainer>
 
       <InteractiveCard
-        {...({
-          cx: {
-            active: isActive,
-            disabled: isDisabled,
-            $customClass: true,
-          },
-          onClick: () => !isDisabled && setIsActive(!isActive),
-        } as any)}
+        cx={{
+          active: isActive,
+          disabled: isDisabled,
+          $customClass: true,
+        }}
+        onClick={() => !isDisabled && setIsActive(!isActive)}
       >
         <div>Status: {isActive ? 'Active' : 'Inactive'}</div>
         <div>Disabled: {isDisabled ? 'Yes' : 'No'}</div>
@@ -112,7 +108,6 @@ export function CxPropDemo() {
       >
         cx() function for conditional class merging
       </div>
-
     </DemoSection>
   );
 }

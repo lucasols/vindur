@@ -77,13 +77,11 @@ const Label = styled.label`
   font-weight: 600;
 `;
 
-
-
 const ChildContainer = styled.div`
   padding: 16px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
-  
+
   ${primaryColor.container.isDark} {
     background: rgba(255, 255, 255, 0.1);
     color: white;
@@ -102,7 +100,6 @@ export function DynamicColorsDemo() {
   return (
     <DemoSection title="Dynamic Colors">
       <Container>
-
         <ColorControls>
           <ColorControl>
             <Label>Primary Color:</Label>
@@ -137,13 +134,13 @@ export function DynamicColorsDemo() {
           </ColorControl>
         </ColorControls>
 
-        <StyledCard {...({ dynamicColor: primaryColor.set(primaryHex) } as any)}>
+        <StyledCard dynamicColor={primaryColor.set(primaryHex)}>
           <div>Primary color card with automatic contrast text</div>
           <div>Background adapts shadows based on light/dark detection</div>
-          
+
           <ChildContainer>
-            This child container uses container selectors to style based on 
-            the parent's color properties
+            This child container uses container selectors to style based on the
+            parent's color properties
           </ChildContainer>
         </StyledCard>
 
@@ -154,15 +151,15 @@ export function DynamicColorsDemo() {
             flex-wrap: wrap;
           `}
         >
-          <AccentButton {...({ dynamicColor: accentColor.set(accentHex) } as any)}>
+          <AccentButton dynamicColor={accentColor.set(accentHex)}>
             Accent Button
           </AccentButton>
-          
-          <AccentButton {...({ dynamicColor: accentColor.set('#1a1a1a') } as any)}>
+
+          <AccentButton dynamicColor={accentColor.set('#1a1a1a')}>
             Very Dark Button
           </AccentButton>
-          
-          <AccentButton {...({ dynamicColor: accentColor.set('#f0f0f0') } as any)}>
+
+          <AccentButton dynamicColor={accentColor.set('#f0f0f0')}>
             Light Button
           </AccentButton>
         </div>
@@ -175,7 +172,7 @@ export function DynamicColorsDemo() {
             color: ${primaryColor.darker(0.6)};
             font-size: 14px;
           `}
-          {...({ dynamicColor: primaryColor.set(primaryHex) } as any)}
+          dynamicColor={primaryColor.set(primaryHex)}
         >
           Color manipulation functions: lighter background, darker text
         </div>

@@ -41,6 +41,7 @@ export function keyframes(
 export interface VindurAttributes {
   css?: CSSProp;
   cx?: Record<string, unknown>;
+  dynamicColor?: DynamicColorSet;
 }
 
 type StyledFunction = (
@@ -51,6 +52,7 @@ type StyledFunction = (
     className?: string;
     style?: CSSProperties;
     children?: ReactNode;
+    onClick?: () => void;
   } & VindurAttributes
 >;
 
