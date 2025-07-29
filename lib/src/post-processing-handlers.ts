@@ -47,9 +47,9 @@ const importNames = [
   'cx',
   'mergeClassNames',
   'mergeStyles',
-  'styledComponent',
+  '_vSC',
   'createDynamicCssColor',
-  'vComponentWithModifiers',
+  '_vCWM',
   'vindurFn',
 ];
 

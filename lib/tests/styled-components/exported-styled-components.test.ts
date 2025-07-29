@@ -4,7 +4,7 @@ import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('Exported styled components', () => {
-  test('should transform exported styled component to styledComponent function', async () => {
+  test('should transform exported styled component to _vSC function', async () => {
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur'
@@ -21,8 +21,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
+      "import { _vSC } from "vindur";
+      export const Button = _vSC("button", "v1560qbr-1-Button");
       "
     `);
 
@@ -65,10 +65,10 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
-      export const Card = styledComponent("div", "v1560qbr-2-Card");
-      export const Title = styledComponent("h1", "v1560qbr-3-Title");
+      "import { _vSC } from "vindur";
+      export const Button = _vSC("button", "v1560qbr-1-Button");
+      export const Card = _vSC("div", "v1560qbr-2-Card");
+      export const Title = _vSC("h1", "v1560qbr-3-Title");
       "
     `);
 
@@ -118,8 +118,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const PrimaryButton = styledComponent(
+      "import { _vSC } from "vindur";
+      export const PrimaryButton = _vSC(
         "button",
         "v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton",
       );
@@ -166,9 +166,9 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const Button = styledComponent("button", "v1560qbr-1-Button");
-      const Card = styledComponent("div", "v1560qbr-2-Card");
+      "import { _vSC } from "vindur";
+      const Button = _vSC("button", "v1560qbr-1-Button");
+      const Card = _vSC("div", "v1560qbr-2-Card");
       export { Button, Card };
       "
     `);
@@ -203,8 +203,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const InternalButton = styledComponent("button", "v1560qbr-1-InternalButton");
+      "import { _vSC } from "vindur";
+      const InternalButton = _vSC("button", "v1560qbr-1-InternalButton");
       export { InternalButton as Button };
       "
     `);
@@ -234,8 +234,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const Button = styledComponent("button", "v1560qbr-1-Button");
+      "import { _vSC } from "vindur";
+      const Button = _vSC("button", "v1560qbr-1-Button");
       export default Button;
       "
     `);
@@ -263,8 +263,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export default styledComponent("div", "v1560qbr-1");
+      "import { _vSC } from "vindur";
+      export default _vSC("div", "v1560qbr-1");
       "
     `);
 
@@ -305,12 +305,12 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
 
       // Local component - should be removed
 
       // Exported component - should be transformed
-      export const PublicButton = styledComponent(
+      export const PublicButton = _vSC(
         "button",
         "v1560qbr-2-PublicButton",
       );
@@ -356,10 +356,10 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       const primaryColor = "#007bff";
       const spacing = 16;
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
+      export const Button = _vSC("button", "v1560qbr-1-Button");
       "
     `);
 
@@ -395,9 +395,9 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
-      export const Container = styledComponent("div", "v1560qbr-2-Container");
+      "import { _vSC } from "vindur";
+      export const Button = _vSC("button", "v1560qbr-1-Button");
+      export const Container = _vSC("div", "v1560qbr-2-Container");
       "
     `);
 
@@ -453,8 +453,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from 'vindur';
-      export const Button = styledComponent("button", "v1mq0rjp-1-Button");"
+      "import { _vSC } from 'vindur';
+      export const Button = _vSC("button", "v1mq0rjp-1-Button");"
     `);
 
     expect(result.css).toMatchInlineSnapshot(`

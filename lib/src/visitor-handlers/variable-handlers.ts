@@ -169,8 +169,8 @@ function transformStyleFlagsComponent(
   path: NodePath<t.VariableDeclarator>,
   context: CssProcessingContext,
 ): void {
-  // Transform to vComponentWithModifiers function call
-  context.state.vindurImports.add('vComponentWithModifiers');
+  // Transform to _vCWM function call
+  context.state.vindurImports.add('_vCWM');
 
   // Create the modifier array: [["propName", "hashedClassName"], ...]
   const modifierArray = t.arrayExpression(
@@ -191,7 +191,7 @@ function transformStyleFlagsComponent(
   }
 
   path.node.init = t.callExpression(
-    t.identifier('vComponentWithModifiers'),
+    t.identifier('_vCWM'),
     args,
   );
 
@@ -238,8 +238,8 @@ function transformRegularStyledComponent(
   context: CssProcessingContext,
 ): void {
   if (isExported || hasAttrs) {
-    // Transform to styledComponent function call for exported components or components with attrs
-    context.state.vindurImports.add('styledComponent');
+    // Transform to _vSC function call for exported components or components with attrs
+    context.state.vindurImports.add('_vSC');
     const args: t.Expression[] = [
       t.stringLiteral(tagName),
       t.stringLiteral(result.finalClassName),
@@ -249,7 +249,7 @@ function transformRegularStyledComponent(
       args.push(attrsExpression);
     }
 
-    path.node.init = t.callExpression(t.identifier('styledComponent'), args);
+    path.node.init = t.callExpression(t.identifier('_vSC'), args);
   } else {
     // Remove the styled component declaration for local components without attrs
     path.remove();
@@ -460,8 +460,8 @@ export function handleStyledExtensionAssignment(
 
   // Check if the styled component should have an intermediate component
   if (hasIntermediateComponent) {
-    // Transform to styledComponent function call
-    context.state.vindurImports.add('styledComponent');
+    // Transform to _vSC function call
+    context.state.vindurImports.add('_vSC');
     const args: t.Expression[] = [
       t.stringLiteral(extendedInfo.element),
       t.stringLiteral(result.finalClassName),
@@ -471,7 +471,7 @@ export function handleStyledExtensionAssignment(
       args.push(attrsExpression);
     }
 
-    path.node.init = t.callExpression(t.identifier('styledComponent'), args);
+    path.node.init = t.callExpression(t.identifier('_vSC'), args);
   } else {
     // Remove the styled component declaration for local components
     path.remove();

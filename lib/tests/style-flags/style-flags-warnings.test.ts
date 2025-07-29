@@ -23,8 +23,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.active" in Button',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [["active", "voctcyj-active"]],
           "v1560qbr-1-Button",
           "button",
@@ -61,8 +61,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.collapsed" in Card',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Card = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Card = _vCWM(
           [
             ["featured", "vnwmeu-featured"],
             ["highlighted", "vges7p7-highlighted"],
@@ -102,8 +102,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.size-large" in Button',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [["size", "vr4ikfs-size"]],
           "v1560qbr-1-Button",
           "button",
@@ -145,8 +145,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.variant-primary"',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Widget = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Widget = _vCWM(
           [["variant", "v11as9cs-variant"]],
           "v1560qbr-1-Widget",
           "div",
@@ -190,8 +190,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.theme-dark" in Component',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Component = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Component = _vCWM(
           [
             ["size", "vr4ikfs-size"],
             ["theme", "v1cm7m20-theme"],
@@ -267,8 +267,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.size-small"',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const ComplexButton = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const ComplexButton = _vCWM(
           [
             ["active", "voctcyj-active"],
             ["disabled", "v1iz0um9-disabled"],
@@ -322,8 +322,8 @@ describe('Style Flags Warning System', () => {
       expect(devResult.code).toContain('console.warn');
       expect(devResult.code).toContain('Missing modifier styles');
       expect(devResult.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [
             ["active", "voctcyj-active"],
             ["size", "vr4ikfs-size"],
@@ -341,8 +341,8 @@ describe('Style Flags Warning System', () => {
       expect(prodResult.code).not.toContain('console.warn');
       expect(prodResult.code).not.toContain('Missing modifier styles');
       expect(prodResult.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [
             ["active", "voctcyj"],
             ["size", "vr4ikfs"],
@@ -400,8 +400,8 @@ describe('Style Flags Warning System', () => {
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const CompleteButton = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const CompleteButton = _vCWM(
           [
             ["active", "voctcyj-active"],
             ["disabled", "v1iz0um9-disabled"],
@@ -463,8 +463,8 @@ describe('Style Flags Warning System', () => {
         'Warning: Missing modifier styles for "&.highlighted" in Card',
       );
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Card = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Card = _vCWM(
           [["highlighted", "vges7p7-highlighted"]],
           "v1560qbr-1-Card",
           "div",
@@ -496,8 +496,8 @@ describe('Style Flags Warning System', () => {
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [["primary", "v1puiack-primary"]],
           "v1560qbr-1-Button",
           "button",

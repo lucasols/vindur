@@ -50,7 +50,7 @@ describe('withComponent', () => {
   test('should work with exported styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`
-        import { styled, styledComponent } from 'vindur'
+        import { styled, _vSC } from 'vindur'
 
         export const Button = styled.button\`
           padding: 10px;
@@ -71,9 +71,9 @@ describe('withComponent', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
-      export const Link = styledComponent("a", "v1560qbr-1-Button");
+      "import { _vSC } from "vindur";
+      export const Button = _vSC("button", "v1560qbr-1-Button");
+      export const Link = _vSC("a", "v1560qbr-1-Button");
       const App = () => (
         <div>
           <Button>Button</Button>
@@ -138,7 +138,7 @@ describe('withComponent', () => {
   test('should work with components that have style flags', async () => {
     const result = await transformWithFormat({
       source: dedent`
-        import { styled, vComponentWithModifiers } from 'vindur'
+        import { styled, _vCWM } from 'vindur'
 
         export const Button = styled.button<{ active: boolean }>\`
           padding: 10px;
@@ -163,13 +163,13 @@ describe('withComponent', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { vComponentWithModifiers } from "vindur";
-      export const Button = vComponentWithModifiers(
+      "import { _vCWM } from "vindur";
+      export const Button = _vCWM(
         [["active", "voctcyj-active"]],
         "v1560qbr-1-Button",
         "button",
       );
-      export const Link = vComponentWithModifiers(
+      export const Link = _vCWM(
         [["active", "voctcyj-active"]],
         "v1560qbr-1-Button",
         "a",
@@ -335,7 +335,7 @@ describe('withComponent', () => {
   test('should work with custom components for exported styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`
-        import { styled, styledComponent } from 'vindur'
+        import { styled, _vSC } from 'vindur'
 
         const MyCustomComponent = ({ className, children }) => (
           <div className={className + ' custom-class'}>{children}</div>
@@ -360,15 +360,12 @@ describe('withComponent', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       const MyCustomComponent = ({ className, children }) => (
         <div className={className + " custom-class"}>{children}</div>
       );
-      export const Button = styledComponent("button", "v1560qbr-1-Button");
-      export const CustomButton = styledComponent(
-        MyCustomComponent,
-        "v1560qbr-1-Button",
-      );
+      export const Button = _vSC("button", "v1560qbr-1-Button");
+      export const CustomButton = _vSC(MyCustomComponent, "v1560qbr-1-Button");
       const App = () => (
         <div>
           <Button>Original Button</Button>
@@ -389,7 +386,7 @@ describe('withComponent', () => {
   test('should work with custom components and style flags', async () => {
     const result = await transformWithFormat({
       source: dedent`
-        import { styled, vComponentWithModifiers } from 'vindur'
+        import { styled, _vCWM } from 'vindur'
 
         const MyCustomComponent = ({ className, children, active }) => (
           <div className={className + (active ? ' active-custom' : '')}>{children}</div>
@@ -418,16 +415,16 @@ describe('withComponent', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { vComponentWithModifiers } from "vindur";
+      "import { _vCWM } from "vindur";
       const MyCustomComponent = ({ className, children, active }) => (
         <div className={className + (active ? " active-custom" : "")}>{children}</div>
       );
-      export const Button = vComponentWithModifiers(
+      export const Button = _vCWM(
         [["active", "voctcyj-active"]],
         "v1560qbr-1-Button",
         "button",
       );
-      export const CustomButton = vComponentWithModifiers(
+      export const CustomButton = _vCWM(
         [["active", "voctcyj-active"]],
         "v1560qbr-1-Button",
         MyCustomComponent,

@@ -193,8 +193,8 @@ export function handleWithComponentAssignment(
 
   // Transform based on whether we have style flags and export status
   if (baseComponentInfo.styleFlags) {
-    // Transform to vComponentWithModifiers function call
-    context.state.vindurImports.add('vComponentWithModifiers');
+    // Transform to _vCWM function call
+    context.state.vindurImports.add('_vCWM');
 
     // Create the modifier array: [["propName", "hashedClassName"], ...]
     const modifierArray = t.arrayExpression(
@@ -219,12 +219,12 @@ export function handleWithComponentAssignment(
     }
 
     path.node.init = t.callExpression(
-      t.identifier('vComponentWithModifiers'),
+      t.identifier('_vCWM'),
       vComponentArgs,
     );
   } else if (hasIntermediateComponent) {
-    // Transform to styledComponent function call
-    context.state.vindurImports.add('styledComponent');
+    // Transform to _vSC function call
+    context.state.vindurImports.add('_vSC');
     const styledComponentArgs: t.Expression[] = [
       isCustomComponent ?
         t.identifier(newElementType)
@@ -237,7 +237,7 @@ export function handleWithComponentAssignment(
     }
 
     path.node.init = t.callExpression(
-      t.identifier('styledComponent'),
+      t.identifier('_vSC'),
       styledComponentArgs,
     );
   } else {

@@ -38,8 +38,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const StyledWithModifier = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const StyledWithModifier = _vCWM(
           [
             ["active", "voctcyj-active"],
             ["disabled", "v1iz0um9-disabled"],
@@ -119,8 +119,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [
             ["primary", "v1puiack-primary"],
             ["size", "vr4ikfs-size"],
@@ -229,8 +229,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Widget = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Widget = _vCWM(
           [
             ["active", "voctcyj-active"],
             ["featured", "vnwmeu-featured"],
@@ -295,8 +295,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Widget = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Widget = _vCWM(
           [
             ["active", "voctcyj"],
             ["featured", "vnwmeu"],
@@ -362,8 +362,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [["primary", "v1puiack-primary"]],
           "v1560qbr-1-Button",
           "button",
@@ -420,8 +420,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Button = _vCWM(
           [["active", "voctcyj-active"]],
           "v1560qbr-1-Button",
           "button",
@@ -481,8 +481,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const Card = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const Card = _vCWM(
           [
             ["highlighted", "vges7p7-highlighted"],
             ["disabled", "v1iz0um9-disabled"],
@@ -557,8 +557,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        const StyledWithModifier = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        const StyledWithModifier = _vCWM(
           [["active", "voctcyj-active"]],
           "v1560qbr-1-StyledWithModifier",
           "div",
@@ -599,8 +599,8 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { vComponentWithModifiers } from "vindur";
-        export const Button = vComponentWithModifiers(
+        "import { _vCWM } from "vindur";
+        export const Button = _vCWM(
           [["primary", "v1puiack-primary"]],
           "v1560qbr-1-Button",
           "button",

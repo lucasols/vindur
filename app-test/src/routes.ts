@@ -1,3 +1,4 @@
+import { ContrastTestDemo } from './demos/ContrastTestDemo';
 import { CssPropDemo } from './demos/CssPropDemo';
 import { CssTaggedTemplateDemo } from './demos/CssTaggedTemplateDemo';
 import { CxPropDemo } from './demos/CxPropDemo';
@@ -19,5 +20,6 @@ export const demos = [
   { path: '/keyframes', name: 'Keyframes', component: KeyframesDemo },
   { path: '/style-flags', name: 'Style Flags', component: StyleFlagsDemo },
   { path: '/dynamic-colors', name: 'Dynamic Colors', component: DynamicColorsDemo },
+  { path: '/contrast-test', name: 'Contrast Test', component: ContrastTestDemo },
   { path: '/global-styles', name: 'Global Styles', component: GlobalStyleDemo },
 ];

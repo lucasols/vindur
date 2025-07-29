@@ -427,9 +427,9 @@ describe('stable ID utilities in styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       export const id = "v1560qbr-id-1";
-      export const Button = styledComponent("button", "v1560qbr-2-Button");
+      export const Button = _vSC("button", "v1560qbr-2-Button");
       "
     `);
 
@@ -463,9 +463,9 @@ describe('stable ID utilities in styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       export const className = createClassName("v1560qbr-className-1");
-      export const Container = styledComponent("div", "v1560qbr-2-Container");
+      export const Container = _vSC("div", "v1560qbr-2-Container");
       "
     `);
 
@@ -503,10 +503,10 @@ describe('stable ID utilities in styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       export const id = "v1560qbr-id-1";
       export const className = createClassName("v1560qbr-className-2");
-      export const Card = styledComponent("article", "v1560qbr-3-Card");
+      export const Card = _vSC("article", "v1560qbr-3-Card");
       "
     `);
 

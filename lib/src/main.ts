@@ -6,7 +6,6 @@ import {
   type ComponentType,
   type CSSProperties,
   type JSX,
-  type ReactNode,
 } from 'react';
 
 export function vindurFn<TArgs extends unknown[], TReturn extends string>(
@@ -48,18 +47,25 @@ export interface VindurAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
-type StyledComponent<Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements> = ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes> & {
-  withComponent<NewTag extends keyof JSX.IntrinsicElements>(tag: NewTag): ComponentType<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+type StyledComponent<
+  Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements,
+> = ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes> & {
+  withComponent<NewTag extends keyof JSX.IntrinsicElements>(
+    tag: NewTag,
+  ): ComponentType<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
   withComponent<C extends ComponentType<any>>(component: C): C;
 };
 
-type StyledFunction<Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements> = {
+type StyledFunction<
+  Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements,
+> = {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint
   <T = {}>(
     strings: TemplateStringsArray,
     ...values: (string | number)[]
-  ): StyledComponent<Tag> & ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes & T>;
+  ): StyledComponent<Tag>
+    & ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes & T>;
   (
     strings: TemplateStringsArray,
     ...values: (string | number)[]
@@ -209,10 +215,6 @@ export function _vCWM(
 
   return Component;
 }
-
-// Aliases for the runtime functions used by the compiler
-export { _vSC as styledComponent };
-export { _vCWM as vComponentWithModifiers };
 
 type StaticColor<D extends string> = {
   var: string;

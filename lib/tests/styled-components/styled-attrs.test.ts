@@ -37,8 +37,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const Container = styledComponent("div", "v1560qbr-1-Container", {
+      "import { _vSC } from "vindur";
+      const Container = _vSC("div", "v1560qbr-1-Container", {
         "data-testid": "my-div",
         "aria-hidden": "false",
       });
@@ -82,8 +82,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const Input = styledComponent("input", "v1560qbr-1-Input", {
+      "import { _vSC } from "vindur";
+      const Input = _vSC("input", "v1560qbr-1-Input", {
         type: "text",
         disabled: false,
         tabIndex: 0,
@@ -129,8 +129,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const Button = styledComponent("button", "v1560qbr-1-Button", {
+      "import { _vSC } from "vindur";
+      export const Button = _vSC("button", "v1560qbr-1-Button", {
         type: "button",
         role: "button",
       });
@@ -182,8 +182,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const PrimaryButton = styledComponent(
+      "import { _vSC } from "vindur";
+      const PrimaryButton = _vSC(
         "button",
         "v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton",
         {
@@ -239,8 +239,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      export const PrimaryButton = styledComponent(
+      "import { _vSC } from "vindur";
+      export const PrimaryButton = _vSC(
         "button",
         "v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton",
         {
@@ -288,12 +288,12 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const BaseButton = styledComponent("button", "v1560qbr-1-BaseButton", {
+      "import { _vSC } from "vindur";
+      const BaseButton = _vSC("button", "v1560qbr-1-BaseButton", {
         type: "button",
         "data-testid": "base-button",
       });
-      export const LinkButton = styledComponent("a", "v1560qbr-1-BaseButton", {
+      export const LinkButton = _vSC("a", "v1560qbr-1-BaseButton", {
         type: "button",
         "data-testid": "base-button",
       });
@@ -359,8 +359,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { vComponentWithModifiers } from "vindur";
-      export const Button = vComponentWithModifiers(
+      "import { _vCWM } from "vindur";
+      export const Button = _vCWM(
         [
           ["active", "voctcyj-active"],
           ["size", "vr4ikfs-size"],
@@ -413,9 +413,9 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       const dynamicValue = "test";
-      const Container = styledComponent("div", "v1560qbr-1-Container", {
+      const Container = _vSC("div", "v1560qbr-1-Container", {
         "data-testid": dynamicValue,
       });
       const Component = () => {
@@ -498,10 +498,10 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       const getTestId = () => "my-component";
       const baseSize = 10;
-      const Container = styledComponent("div", "v1560qbr-1-Container", {
+      const Container = _vSC("div", "v1560qbr-1-Container", {
         "data-testid": getTestId(),
         "data-size": baseSize * 2,
         "aria-hidden": Math.random() > 0.5,
@@ -547,7 +547,7 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
+      "import { _vSC } from "vindur";
       const config = {
         testId: "my-component",
         enabled: true,
@@ -558,7 +558,7 @@ describe('styled components - attrs functionality', () => {
           large: 16,
         },
       };
-      const Container = styledComponent("div", "v1560qbr-1-Container", {
+      const Container = _vSC("div", "v1560qbr-1-Container", {
         "data-testid": config.testId,
         "aria-expanded": config.enabled,
         "data-size": theme.sizes.small,
@@ -600,8 +600,8 @@ describe('styled components - attrs functionality', () => {
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { styledComponent } from "vindur";
-      const Container = styledComponent("div", "v1560qbr-1-Container", {
+      "import { _vSC } from "vindur";
+      const Container = _vSC("div", "v1560qbr-1-Container", {
         "data-test-id": "container",
         "aria-hidden": "true",
       });
