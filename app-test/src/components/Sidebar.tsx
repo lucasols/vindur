@@ -69,8 +69,10 @@ export function Sidebar() {
       <NavList>
         {demos.map((demo) => (
           <NavItem key={demo.path}>
-            <Link to={demo.path} css={`text-decoration: none;`}>
-              <NavLink className={location.pathname === demo.path ? 'active' : ''}>
+            <Link to={demo.path}>
+              <NavLink
+                className={location.pathname === demo.path ? 'active' : ''}
+              >
                 {demo.name}
               </NavLink>
             </Link>

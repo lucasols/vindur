@@ -393,6 +393,21 @@ describe('JSX cx prop transformation', () => {
                   <Card cx={{ active: cardActive, disabled: cardDisabled }}>
                     Card content
                   </Card>
+                  <div cx={{ active: true }} css={\`
+                    &.active {
+                      background: red;
+                    }
+                  \`}>
+                    Card content
+                  </div>
+
+                  <div cx={{ active: true }} css={\`
+                    &.active {
+                      background: red;
+                    }
+                  \`}>
+                    Card content
+                  </div>
                 </div>
               );
             }
@@ -421,6 +436,27 @@ describe('JSX cx prop transformation', () => {
                     cx({
                       "v1560qbr-5-active": cardActive,
                       "v1560qbr-6-disabled": cardDisabled,
+                    })
+                  }
+                >
+                  Card content
+                </div>
+                <div
+                  className={
+                    "v1560qbr-7-css-prop-7 " +
+                    cx({
+                      "v1560qbr-8-active": true,
+                    })
+                  }
+                >
+                  Card content
+                </div>
+
+                <div
+                  className={
+                    "v1560qbr-9-css-prop-9 " +
+                    cx({
+                      "v1560qbr-10-active": true,
                     })
                   }
                 >
@@ -458,6 +494,18 @@ describe('JSX cx prop transformation', () => {
               background: #f5f5f5;
               pointer-events: none;
             }
+          }
+
+          .v1560qbr-7-css-prop-7 {
+            &.v1560qbr-8-active {
+                    background: red;
+                  }
+          }
+
+          .v1560qbr-9-css-prop-9 {
+            &.v1560qbr-10-active {
+                    background: red;
+                  }
           }"
         `);
       });

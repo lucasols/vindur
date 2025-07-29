@@ -62,7 +62,7 @@ const compiled = <div className={cx({ 'v1234hash-1': isActive })} />;
 
 ### Index Assignment
 
-Class names are assigned incremental indices based on their order of appearance in the file, shared with all other Vindur hash-generating features:
+**Each cx prop usage gets unique hash indices**, ensuring proper isolation between different elements. Class names are assigned incremental indices based on their order of appearance in the file, shared with all other Vindur hash-generating features:
 
 ```tsx
 // css`` gets index 1
@@ -70,23 +70,45 @@ const baseStyles = css`
   background: red;
 `;
 
-// cx prop: active gets index 2, disabled gets index 3
-const ComponentA = <div cx={{ active: isActive, disabled: isDisabled }} />;
-
-// styled component gets index 4
+// Button styled component gets index 2
 const Button = styled.button`
-  color: blue;
+  padding: 8px;
+  
+  &.active { background: blue; }
+  &.disabled { opacity: 0.5; }
 `;
 
-// scoped CSS variable gets index 5
+// Card styled component gets index 3
 const Card = styled.div`
-  ---spacing: 16px;
-  padding: var(---spacing);
+  border: 1px solid #ddd;
+  
+  &.active { border-color: gold; }
+  &.disabled { background: #f5f5f5; }
 `;
 
-// cx prop: active reuses index 2, loading gets index 6
-const ComponentB = <div cx={{ active: isActive, loading: isLoading }} />;
+// Button cx: active gets index 4, disabled gets index 5
+const ButtonElement = <Button cx={{ active: isActive, disabled: isDisabled }} />;
+
+// Card cx: active gets index 6, disabled gets index 7 (unique from Button)
+const CardElement = <Card cx={{ active: cardActive, disabled: cardDisabled }} />;
+
+// DOM element with css prop: active gets index 8
+const DivElement = (
+  <div cx={{ active: divActive }} css={`
+    &.active { background: yellow; }
+  `} />
+);
+
+// Another DOM element: active gets index 9 (unique from previous)
+const AnotherDiv = <div cx={{ active: anotherActive }} css={`
+  &.active { background: green; }
+`} />;
 ```
+
+This ensures that:
+- **Each element's modifiers are isolated** - `Button.active` vs `Card.active` vs `div.active` all get different hashes
+- **CSS conflicts are prevented** - Different elements can have different styling for the same modifier name
+- **Bundle optimization** - Each hash is used exactly where it's needed
 
 ### Preventing Hashing with $ Prefix
 
@@ -324,25 +346,35 @@ const dynamicClassName = cx({
 
 ### File-Level Scoping
 
-Class names are scoped at the file level, with indices shared across all Vindur features:
+Class names are scoped at the file level, with indices shared across all Vindur features. **Each cx prop usage gets a unique hash index**, ensuring proper isolation:
 
 ```tsx
 // file1.tsx
 const styles = css`
   background: red;
 `; // v1234hash-1
-const ComponentA = <div cx={{ active: isActive }} />; // v1234hash-2
+
 const Button = styled.button`
   color: blue;
-`; // v1234hash-3
-const ComponentB = <div cx={{ disabled: isDisabled }} />; // v1234hash-4
+`; // v1234hash-2
 
-// file2.tsx
-const ComponentC = <div cx={{ active: isActive }} />; // v5678hash-1 (different file, reset counter)
 const Card = styled.div`
-  ---color: red;
-`; // v5678hash-2
-const ComponentD = <div cx={{ disabled: isDisabled }} />; // v5678hash-3
+  border: 1px solid #ddd;
+`; // v1234hash-3
+
+// Each cx usage gets unique indices, even for the same modifier name
+const ButtonA = <Button cx={{ active: isActive }} />; // active=v1234hash-4
+const ButtonB = <Button cx={{ active: buttonActive, disabled: isDisabled }} />; // active=v1234hash-5, disabled=v1234hash-6
+
+const CardA = <Card cx={{ active: cardActive }} />; // active=v1234hash-7 (unique from Button.active!)
+const CardB = <Card cx={{ disabled: cardDisabled }} />; // disabled=v1234hash-8 (unique from Button.disabled!)
+
+// DOM elements with CSS context also get unique indices
+const DivA = <div cx={{ active: divActive }} css={`&.active { color: red; }`} />; // active=v1234hash-9
+const DivB = <div cx={{ active: anotherActive }} css={`&.active { color: blue; }`} />; // active=v1234hash-10
+
+// file2.tsx - new file resets the counter
+const AnotherButton = <Button cx={{ active: isActive }} />; // v5678hash-1 (different file)
 ```
 
 ### Variable Name Format
@@ -350,16 +382,4 @@ const ComponentD = <div cx={{ disabled: isDisabled }} />; // v5678hash-3
 - **Production**: `{scopeHash}-{index}`
 - **Development**: `{scopeHash}-{index}-{className}`
 
-Class names with the same name within a file always resolve to the same index, but the global index counter is shared across all Vindur features:
-
-```tsx
-// Assuming previous features used indices 1-5
-const Card1 = <div cx={{ active: isActive }} />; // active=6
-const Card2 = <div cx={{ loading: isLoading }} />; // loading=7
-const Card3 = <div cx={{ active: isActive, error: hasError }} />; // active=6, error=8
-
-// New css`` would get index 9
-const newStyles = css`
-  margin: 10px;
-`;
-```
+**Every cx prop usage gets a unique index**, ensuring complete isolation between different elements. This prevents CSS conflicts and allows different elements to style the same modifier name differently.

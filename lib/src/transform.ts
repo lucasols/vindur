@@ -42,7 +42,6 @@ export function transform({
     cssVariables: new Map(),
     keyframes: new Map(),
     potentiallyUndeclaredScopedVariables: new Set(),
-    cxClassNames: new Map(),
   };
 
   if (!fileAbsPath.includes('/')) {

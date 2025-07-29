@@ -64,6 +64,66 @@ export function handleJsxCxProp(
 
   if (!cxAttr) return false;
 
+  // Check for plain DOM elements without CSS context
+  if (isNativeDOMElement && !isStyledComponent) {
+    // Check if element has a css prop (CSS context)
+    const cssAttr = findWithNarrowing(attributes, (attr) =>
+      (
+        t.isJSXAttribute(attr)
+        && t.isJSXIdentifier(attr.name)
+        && attr.name.name === 'css'
+      ) ?
+        attr
+      : false,
+    );
+
+    const hasCssContext = cssAttr !== undefined;
+
+    if (!hasCssContext) {
+      // No CSS context - validate that all cx classes use $ prefix
+      if (!cxAttr.value) {
+        throw new Error('cx prop must have a value');
+      }
+
+      if (!t.isJSXExpressionContainer(cxAttr.value)) {
+        throw new Error(
+          'cx prop must be an expression container with an object',
+        );
+      }
+
+      const expression = cxAttr.value.expression;
+
+      if (!t.isObjectExpression(expression)) {
+        throw new Error('cx prop only accepts object expressions');
+      }
+
+      // Check if any class doesn't use $ prefix
+      const hasNonDollarPrefixedClasses = expression.properties.some((prop) => {
+        if (!t.isObjectProperty(prop) || prop.computed) {
+          return false; // These will be caught by later validation
+        }
+
+        let className: string;
+
+        if (t.isStringLiteral(prop.key)) {
+          className = prop.key.value;
+        } else if (t.isIdentifier(prop.key)) {
+          className = prop.key.name;
+        } else {
+          return false; // These will be caught by later validation
+        }
+
+        return !className.startsWith('$');
+      });
+
+      if (hasNonDollarPrefixedClasses) {
+        throw new Error(
+          "cx prop on plain DOM elements requires classes to use $ prefix (e.g., $className) when not used with css prop or styled components. This ensures you're referencing external CSS classes.",
+        );
+      }
+    }
+  }
+
   // Remove the cx attribute
   const cxAttrIndex = attributes.indexOf(cxAttr);
   attributes.splice(cxAttrIndex, 1);
@@ -116,15 +176,9 @@ export function handleJsxCxProp(
       });
       return t.objectProperty(t.stringLiteral(unhashedClassName), prop.value);
     } else {
-      // Hash the class name with proper index tracking
-      let classIndex = context.state.cxClassNames?.get(className);
-      if (classIndex === undefined) {
-        // First time seeing this class name, assign new index
-        classIndex = context.classIndex();
-        if (context.state.cxClassNames) {
-          context.state.cxClassNames.set(className, classIndex);
-        }
-      }
+      // Hash the class name - always assign a unique index for each cx prop usage
+      // This ensures complete isolation between different elements
+      const classIndex = context.classIndex();
       
       const hashedClassName = generateHashedClassName(
         className,
