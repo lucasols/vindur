@@ -79,7 +79,7 @@ const SpinBox = styled.div`
 
 export function KeyframesDemo() {
   return (
-    <DemoSection title="7. Keyframes & Animations">
+    <DemoSection title="Keyframes & Animations">
       <AnimationContainer>
         <FadeBox>Fade</FadeBox>
         <PulseBox>Pulse</PulseBox>

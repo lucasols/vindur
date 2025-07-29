@@ -1,25 +1,12 @@
-import { vindurFn, styled } from 'vindur';
+import { buttonVariant, colorBox, spacing } from './functions';
+import { styled } from 'vindur';
 import { DemoSection } from '../components/MainLayout';
 
-const spacing = vindurFn(
-  (size: number) => `
-  margin: ${size * 8}px;
-  padding: ${size * 4}px;
-`,
-);
-
-const colorBox = vindurFn(
-  (color: string, size: number) => `
-  background: ${color};
-  width: ${size}px;
-  height: ${size}px;
-  border-radius: 8px;
-  display: inline-block;
-  margin: 8px;
-  border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-`,
-);
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
 
 const SpacingContainer = styled.div`
   display: flex;
@@ -28,35 +15,86 @@ const SpacingContainer = styled.div`
   flex-wrap: wrap;
 `;
 
-const SpacingExample = styled.div`
+const SpacingExample1 = styled.div`
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   color: white;
   padding: 8px;
+  ${spacing(1)};
+`;
+
+const SpacingExample2 = styled.div`
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: white;
+  padding: 8px;
+  ${spacing(3)};
 `;
 
 const ColorBoxContainer = styled.div`
-  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
 `;
+
+const ColorBox1 = styled.div`
+  ${colorBox('#ff6b6b', 40)};
+`;
+
+const ColorBox2 = styled.div`
+  ${colorBox('#4ecdc4', 60)};
+`;
+
+const ColorBox3 = styled.div`
+  ${colorBox('#667eea', 80)};
+`;
+
+const ButtonContainer = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const PrimaryButton = styled.button`
+  ${buttonVariant('primary')};
+`;
+
+const SecondaryButton = styled.button`
+  ${buttonVariant('secondary')};
+`;
+
+const DangerButton = styled.button`
+  ${buttonVariant('danger')};
+`;
+
 
 export function VindurFnDemo() {
   return (
-    <DemoSection title="5. VindurFn Utilities">
-      <SpacingContainer>
-        <SpacingExample className={spacing(2)}>
-          Spacing utility (size: 2)
-        </SpacingExample>
-        <SpacingExample className={spacing(4)}>
-          Spacing utility (size: 4)
-        </SpacingExample>
-      </SpacingContainer>
+    <DemoSection title="VindurFn Utilities">
+      <Container>
+        <div>
+          <SpacingContainer>
+            <SpacingExample1>Spacing x1</SpacingExample1>
+            <SpacingExample2>Spacing x3</SpacingExample2>
+          </SpacingContainer>
+        </div>
 
-      <ColorBoxContainer>
-        <div className={colorBox('#ff6b6b', 40)}></div>
-        <div className={colorBox('#4ecdc4', 60)}></div>
-        <div className={colorBox('#45b7d1', 50)}></div>
-        <div className={colorBox('#f9ca24', 55)}></div>
-      </ColorBoxContainer>
+        <div>
+          <ColorBoxContainer>
+            <ColorBox1 />
+            <ColorBox2 />
+            <ColorBox3 />
+          </ColorBoxContainer>
+        </div>
+
+        <div>
+          <ButtonContainer>
+            <PrimaryButton>Primary</PrimaryButton>
+            <SecondaryButton>Secondary</SecondaryButton>
+            <DangerButton>Danger</DangerButton>
+          </ButtonContainer>
+        </div>
+      </Container>
     </DemoSection>
   );
 }

@@ -1,24 +1,23 @@
 import '#src/globalStyles';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MainLayout } from './components/MainLayout';
-import { CssPropDemo } from './demos/CssPropDemo';
-import { CssTaggedTemplateDemo } from './demos/CssTaggedTemplateDemo';
-import { CxPropDemo } from './demos/CxPropDemo';
-import { KeyframesDemo } from './demos/KeyframesDemo';
-import { ScopedVariablesDemo } from './demos/ScopedVariablesDemo';
-import { StyledComponentsDemo } from './demos/StyledComponentsDemo';
-import { VindurFnDemo } from './demos/VindurFnDemo';
+import { demos } from './routes';
 
 function App() {
   return (
-    <MainLayout>
-      <CssTaggedTemplateDemo />
-      <StyledComponentsDemo />
-      <CssPropDemo />
-      <CxPropDemo />
-      <VindurFnDemo />
-      <ScopedVariablesDemo />
-      <KeyframesDemo />
-    </MainLayout>
+    <BrowserRouter>
+      <MainLayout>
+        <Routes>
+          {demos.map((demo) => (
+            <Route 
+              key={demo.path} 
+              path={demo.path} 
+              element={<demo.component />} 
+            />
+          ))}
+        </Routes>
+      </MainLayout>
+    </BrowserRouter>
   );
 }
 

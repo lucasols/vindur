@@ -52,7 +52,9 @@ describe('JSX cx prop transformation', () => {
             }
           `,
         }),
-      ).rejects.toThrow('cx prop object must only contain non-computed properties');
+      ).rejects.toThrow(
+        'cx prop object must only contain non-computed properties',
+      );
     });
   });
 
@@ -343,6 +345,118 @@ describe('JSX cx prop transformation', () => {
 
             &.noHash {
               background: yellow;
+            }
+          }"
+        `);
+      });
+    });
+
+    describe('Cross-Component Isolation', () => {
+      test('should isolate components with unique base classes and different modifier hashes', async () => {
+        const result = await transformWithFormat({
+          source: dedent`
+            import { styled, cx } from 'vindur';
+
+            const Button = styled.button\`
+              padding: 8px;
+
+              &.active {
+                background: blue;
+                color: white;
+              }
+
+              &.disabled {
+                opacity: 0.5;
+              }
+            \`;
+
+            const Card = styled.div\`
+              border: 1px solid #ddd;
+
+              &.active {
+                border-color: gold;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              }
+
+              &.disabled {
+                background: #f5f5f5;
+                pointer-events: none;
+              }
+            \`;
+
+            function Component({ buttonActive, buttonDisabled, cardActive, cardDisabled }) {
+              return (
+                <div>
+                  <Button cx={{ active: buttonActive, disabled: buttonDisabled }}>
+                    Click me
+                  </Button>
+                  <Card cx={{ active: cardActive, disabled: cardDisabled }}>
+                    Card content
+                  </Card>
+                </div>
+              );
+            }
+          `,
+        });
+
+        expect(result.code).toMatchInlineSnapshot(`
+          "import { cx } from "vindur";
+          function Component({ buttonActive, buttonDisabled, cardActive, cardDisabled }) {
+            return (
+              <div>
+                <button
+                  className={
+                    "v1560qbr-1-Button " +
+                    cx({
+                      "v1560qbr-3-active": buttonActive,
+                      "v1560qbr-4-disabled": buttonDisabled,
+                    })
+                  }
+                >
+                  Click me
+                </button>
+                <div
+                  className={
+                    "v1560qbr-2-Card " +
+                    cx({
+                      "v1560qbr-5-active": cardActive,
+                      "v1560qbr-6-disabled": cardDisabled,
+                    })
+                  }
+                >
+                  Card content
+                </div>
+              </div>
+            );
+          }
+          "
+        `);
+
+        expect(result.css).toMatchInlineSnapshot(`
+          ".v1560qbr-1-Button {
+            padding: 8px;
+
+            &.v1560qbr-3-active {
+              background: blue;
+              color: white;
+            }
+
+            &.v1560qbr-4-disabled {
+              opacity: 0.5;
+            }
+          }
+
+          .v1560qbr-2-Card {
+            border: 1px solid #ddd;
+
+            &.v1560qbr-5-active {
+              border-color: gold;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            &.v1560qbr-6-disabled {
+              background: #f5f5f5;
+              pointer-events: none;
             }
           }"
         `);

@@ -332,18 +332,26 @@ This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalSt
 - **css tagged template**, eg. `` css`color: red` ``
   - Template literals are statically analyzed and transformed to hashed class names at compile-time
   - No runtime CSS processing, styles are extracted to separate CSS files
+  - CSS style interpolation with semicolon extension
+  - String and number variable interpolation
+  - Mixins/functions support
 
 - **styled components**, eg. `` styled.div`color: blue` ``
   - Non-exported styled components: Class is injected directly into JSX usages, no intermediate component
   - Exported styled components: Generate intermediate React components using `styledComponent` helper
   - Style flags: Always generate intermediate components regardless of export status
   - Component references are replaced with native elements + className for non-exported cases
+  - Style extension with `styled(Button)` syntax
+  - CSS selector usage in styled components used as a selector
+  - Styled component references with `&` selector
 
 - **css prop** - JSX prop that accepts template literals, eg. `<div css={`color: green`} />`
   - Only works on native DOM elements (lowercase names) and styled components
   - Transformed to className prop with extracted CSS at compile-time
   - Template literals must be statically analyzable
   - Replaces css prop with className in final output
+  - css extension with interpolation of other css variables
+  - Merges with existing className prop and handles spread props
 
 - **cx prop** - Conditional class name prop, eg. `<div cx={{ active: isActive, $notHashed: true }} />`
   - Only works on native DOM elements and styled components
@@ -351,16 +359,22 @@ This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalSt
   - Properties prefixed with `$` are not hashed (pass-through)
   - Merges with existing className prop via runtime `cx` function
   - cx props not supports computed properties, eg. `cx={{ [styleName]: true }}`
+  - Class names are file-scoped with incremental indices
+  - Integrates with css prop, dynamicColor prop, and spread props
 
 - **vindurFn** - Compile-time CSS function utility, eg. `vindurFn((size: number) => \`width: \${size}px\`)`
   - Functions must be wrapped with `vindurFn` for compile-time evaluation
   - Must be synchronous and self-contained (no external dependencies)
   - Used for creating reusable CSS utilities across files
+  - Variable interpolation from external files
 
 - **scoped css variables** - CSS custom properties with automatic scoping, eg. `---primaryColor: blue`
   - Use `---variableName` syntax in CSS, reference with `var(---variableName)`
   - Automatically prefixed with scope hash for isolation
   - In dev mode includes original variable name for debugging
+  - Dynamic variables with style prop support
+  - Validation warnings for declared but unused variables
+  - File-level scoping with shared index assignment
 
 - **keyframes** - Animation definitions, eg. `` keyframes`from { opacity: 0 }` ``
   - Extracted to CSS with unique identifiers
@@ -371,3 +385,54 @@ This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalSt
   - Build-time extraction and deduplication
   - Injected once per unique style definition
   - No runtime global style injection, expression produces no output
+
+- **style flags** - Boolean and string union props for styled components, eg. `styled.div<{ active: boolean; size: 'small' | 'large' }>`
+  - Automatic modifier class generation from component prop types
+  - Boolean props apply classes when true: `&.active { ... }`
+  - String union props apply value-based classes: `&.size-small { ... }`
+  - Always generates intermediate components using `vComponentWithModifiers`
+  - Hashed class names for optimal bundle size
+
+- **dynamic color props** - Runtime color application, eg. `<StyledButton dynamicColor={color.set('#ff6b6b')} />`
+  - Color identifier with `.set()` method for runtime color values
+  - Uses `color._sp` function injected by the compiler to merge className and style props
+  - Handles multiple dynamic colors and spread props
+  - Integrates with existing className, style, and other Vindur props
+
+- **static theme colors** - Compile-time color utilities
+  - Static color definitions for consistent theming
+  - Processed at build time for optimal performance
+
+- **stable IDs** - Deterministic identifier generation via `stableId` function
+  - Generates consistent IDs across builds for reliable references
+
+## Hash generation
+
+Vindur generates unique, deterministic hashes for CSS classes and variables using a file-scoped system.
+
+### Hash Format
+
+- **File hash**: `v${murmur2(filePath)}` (e.g., "v1560qbr")
+- **Development**: `{fileHash}-{index}-{name}` (e.g., "v1560qbr-1-Button")
+- **Production**: `{fileHash}-{index}` (e.g., "v1560qbr-1")
+
+### Index Assignment
+
+All Vindur features share a **file-scoped incremental counter**:
+
+```tsx
+const styles = css`
+  color: red;
+`; // Index 1
+<div cx={{ active: true }} />; // Index 2
+const Button = styled.button`
+  color: blue;
+`; // Index 3
+<div cx={{ test: true, loading: true }} />; // test uses index 4, loading gets index 5
+```
+
+**Key rules:**
+
+- Same names within a file reuse the same index
+- Different names get sequential indices
+- Each file has its own hash and counter space

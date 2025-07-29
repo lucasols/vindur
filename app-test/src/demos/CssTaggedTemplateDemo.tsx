@@ -29,7 +29,7 @@ const textStyles = css`
 
 export function CssTaggedTemplateDemo() {
   return (
-    <DemoSection title="1. CSS Tagged Templates">
+    <DemoSection title="CSS Tagged Templates">
       <div className={cardStyles}>Static CSS processed at compile-time</div>
 
       <div className={textStyles}>

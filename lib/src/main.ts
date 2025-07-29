@@ -5,6 +5,8 @@ import {
   forwardRef,
   type ComponentType,
   type CSSProperties,
+  type JSX,
+  type ReactNode,
 } from 'react';
 
 export function vindurFn<TArgs extends unknown[], TReturn extends string>(
@@ -12,6 +14,8 @@ export function vindurFn<TArgs extends unknown[], TReturn extends string>(
 ): (...args: TArgs) => TReturn {
   throw new Error('vindurFn cannot be called at runtime');
 }
+
+export type CSSProp = string;
 
 export function css(
   strings: TemplateStringsArray,
@@ -34,10 +38,21 @@ export function keyframes(
   throw new Error('keyframes cannot be called at runtime');
 }
 
+export interface VindurAttributes {
+  css?: CSSProp;
+  cx?: Record<string, unknown>;
+}
+
 type StyledFunction = (
   strings: TemplateStringsArray,
   ...values: (string | number)[]
-) => ComponentType<unknown>;
+) => ComponentType<
+  {
+    className?: string;
+    style?: CSSProperties;
+    children?: ReactNode;
+  } & VindurAttributes
+>;
 
 // Create a Proxy that handles all DOM element access dynamically
 const styledHandler = {
@@ -48,7 +63,11 @@ const styledHandler = {
   },
 };
 
-export const styled = new Proxy({}, styledHandler);
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Runtime fallback requires type assertion for compile-time transform
+export const styled: {
+  [key in keyof JSX.IntrinsicElements]: StyledFunction;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions, @typescript-eslint/no-explicit-any -- Runtime fallback requires type assertion for compile-time transform
+} = new Proxy({}, styledHandler) as any;
 
 export function styledComponent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
