@@ -11,12 +11,13 @@ import { type Plugin, type ViteDevServer } from 'vite';
 export type VindurPluginOptions = {
   debugLogs?: boolean;
   importAliases: Record<string, string>;
+  sourcemap?: boolean;
 };
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
-  const { debugLogs = false, importAliases = {} } = options;
+  const { debugLogs = false, importAliases = {}, sourcemap = false } = options;
 
   const virtualCssModules = new Map<string, string>();
   const functionCache: TransformFunctionCache = {};
@@ -90,6 +91,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           fs,
           transformFunctionCache: functionCache,
           importAliases,
+          sourcemap,
         });
       } catch (error) {
         return this.error({
@@ -128,12 +130,12 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
         return {
           code: `${result.code}\n${cssImport}`,
-          map: null,
+          map: result.map,
         };
       }
 
       log(`Returning transformed code without CSS for: ${id}`);
-      return { code: result.code, map: null };
+      return { code: result.code, map: result.map };
     },
 
     generateBundle() {

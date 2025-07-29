@@ -33,6 +33,7 @@
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
+    "rollup": "^4.46.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"

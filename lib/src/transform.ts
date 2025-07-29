@@ -10,6 +10,7 @@ export type VindurTransformResult = {
   css: string;
   styleDependencies: string[];
   code: string;
+  map?: babel.BabelFileResult['map'] | null | undefined;
 };
 
 export type TransformFS = { readFile: (fileAbsPath: string) => string };
@@ -24,6 +25,7 @@ export type TransformOptions = {
   fs: TransformFS;
   transformFunctionCache?: TransformFunctionCache;
   importAliases: Record<string, string>;
+  sourcemap?: boolean;
 };
 
 export function transform({
@@ -34,6 +36,7 @@ export function transform({
   fs,
   transformFunctionCache = {},
   importAliases,
+  sourcemap = false,
 }: TransformOptions): VindurTransformResult {
   const pluginState: VindurPluginState = {
     cssRules: [],
@@ -65,6 +68,7 @@ export function transform({
     plugins: [plugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
     filename: fileAbsPath,
+    sourceMaps: sourcemap,
   });
 
   if (!result?.code && result?.code !== '') {
@@ -94,5 +98,6 @@ export function transform({
     css: pluginState.cssRules.join('\n\n'),
     styleDependencies: [],
     code: finalCode,
+    map: result.map,
   };
 }

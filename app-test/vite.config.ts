@@ -11,6 +11,7 @@ export default defineConfig({
       importAliases: {
         '#src/': fileURLToPath(new URL('./src/', import.meta.url)),
       },
+      sourcemap: true,
     }),
     react(),
     Inspect(),
@@ -19,5 +20,8 @@ export default defineConfig({
     alias: {
       '#src/': fileURLToPath(new URL('./src/', import.meta.url)),
     },
+  },
+  build: {
+    sourcemap: true,
   },
 });
