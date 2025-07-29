@@ -336,4 +336,71 @@ describe('CSS import extension', () => {
       }"
     `);
   });
+
+  test('should throw error on direct circular import', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          import { baseStyles } from '#/styles'
+
+          export const mainStyles = css\`
+            \${baseStyles};
+            color: blue;
+          \`
+        `,
+        overrideDefaultFs: createFsMock({
+          'styles.ts': dedent`
+            import { css } from 'vindur'
+            import { mainStyles } from '#/test'
+
+            export const baseStyles = css\`
+              \${mainStyles};
+              padding: 16px;
+            \`
+          `,
+        }),
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+    );
+  });
+
+  test('should throw error on indirect circular import', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          import { styleA } from '#/fileA'
+
+          export const mainStyles = css\`
+            \${styleA};
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: createFsMock({
+          'fileA.ts': dedent`
+            import { css } from 'vindur'
+            import { styleB } from '#/fileB'
+
+            export const styleA = css\`
+              \${styleB};
+              margin: 8px;
+            \`
+          `,
+          'fileB.ts': dedent`
+            import { css } from 'vindur'
+            import { mainStyles } from '#/test'
+
+            export const styleB = css\`
+              \${mainStyles};
+              padding: 12px;
+            \`
+          `,
+        }),
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+    );
+  });
 });
