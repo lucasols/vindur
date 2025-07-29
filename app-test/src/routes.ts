@@ -1,6 +1,7 @@
 import { ContrastTestDemo } from './demos/ContrastTestDemo';
 import { CssPropDemo } from './demos/CssPropDemo';
 import { CssTaggedTemplateDemo } from './demos/CssTaggedTemplateDemo';
+import { CustomComponentCssDemo } from './demos/CustomComponentCssDemo';
 import { CxPropDemo } from './demos/CxPropDemo';
 import { DynamicColorsDemo } from './demos/DynamicColorsDemo';
 import { GlobalStyleDemo } from './demos/GlobalStyleDemo';
@@ -14,6 +15,7 @@ export const demos = [
   { path: '/', name: 'CSS Tagged Templates', component: CssTaggedTemplateDemo },
   { path: '/styled-components', name: 'Styled Components', component: StyledComponentsDemo },
   { path: '/css-prop', name: 'CSS Prop', component: CssPropDemo },
+  { path: '/custom-component-css', name: 'Custom Component CSS', component: CustomComponentCssDemo },
   { path: '/cx-prop', name: 'CX Prop', component: CxPropDemo },
   { path: '/vindur-fn', name: 'VindurFn', component: VindurFnDemo },
   { path: '/scoped-variables', name: 'Scoped Variables', component: ScopedVariablesDemo },

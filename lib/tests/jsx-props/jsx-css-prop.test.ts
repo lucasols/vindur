@@ -400,24 +400,73 @@ describe('JSX css prop', () => {
     `);
   });
 
-  test('should throw error when css prop is used on custom components', async () => {
-    await expect(async () => {
-      await transformWithFormat({
-        source: dedent`
-          import { css } from 'vindur'
+  test('should handle css prop on custom components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
 
-          const CustomComponent = ({ children }) => <div>{children}</div>
+        const CustomComponent = ({ children }) => <div>{children}</div>
 
-          const App = () => (
-            <CustomComponent css={\`color: red;\`}>
-              This should not process the css prop
-            </CustomComponent>
-          )
-        `,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: css prop is not supported on custom component "CustomComponent". The css prop only works on native DOM elements (like div, span, button) and styled components.]`,
-    );
+        const App = () => (
+          <CustomComponent css={\`color: red;\`}>
+            This should keep the css prop
+          </CustomComponent>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const CustomComponent = ({ children }) => <div>{children}</div>;
+      const App = () => (
+        <CustomComponent css="v1560qbr-1-css-prop-1">
+          This should keep the css prop
+        </CustomComponent>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-css-prop-1 {
+        color: red;
+      }"
+    `);
+  });
+
+  test('should handle css prop with css function reference on custom components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const styles = css\`
+          background: blue;
+          padding: 10px;
+        \`
+
+        const CustomComponent = ({ children }) => <div>{children}</div>
+
+        const App = () => (
+          <CustomComponent css={styles}>
+            With css reference
+          </CustomComponent>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const styles = "v1560qbr-1-styles";
+      const CustomComponent = ({ children }) => <div>{children}</div>;
+      const App = () => (
+        <CustomComponent css={styles}>With css reference</CustomComponent>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-styles {
+        background: blue;
+        padding: 10px;
+      }"
+    `);
   });
 
   test('should allow custom components without css prop', async () => {

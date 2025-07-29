@@ -21,34 +21,13 @@ export function handleJsxCssProp(
 
   const elementName = path.node.openingElement.name.name;
 
-  // Only allow css prop on:
-  // 1. Native DOM elements (lowercase names like div, span, etc.)
-  // 2. Styled components (they will be converted to native DOM elements)
+  // Check element type
   const isNativeDOMElement =
     elementName
     && elementName.length > 0
     && elementName[0]?.toLowerCase() === elementName[0];
   const isStyledComponent = context.state.styledComponents.has(elementName);
-
-  if (!isNativeDOMElement && !isStyledComponent) {
-    // Check if this custom component has a css prop - if so, throw an error
-    const cssAttr = findWithNarrowing(path.node.openingElement.attributes, (attr) =>
-      t.isJSXAttribute(attr)
-      && t.isJSXIdentifier(attr.name)
-      && attr.name.name === 'css'
-        ? attr
-        : false,
-    );
-
-    if (cssAttr) {
-      throw new Error(
-        `css prop is not supported on custom component "${elementName}". The css prop only works on native DOM elements (like div, span, button) and styled components.`,
-      );
-    }
-
-    // This is a custom component without css prop, don't process
-    return false;
-  }
+  const isCustomComponent = !isNativeDOMElement && !isStyledComponent;
 
   const attributes = path.node.openingElement.attributes;
   const cssAttr = findWithNarrowing(attributes, (attr) =>
@@ -61,14 +40,17 @@ export function handleJsxCssProp(
 
   if (!cssAttr) return false;
 
-  // Mark this element as having CSS context before removing the css attribute
+  // Mark this element as having CSS context before processing
   if (context.state.elementsWithCssContext) {
     context.state.elementsWithCssContext.add(path.node);
   }
 
-  // Remove the css attribute
-  const cssAttrIndex = attributes.indexOf(cssAttr);
-  attributes.splice(cssAttrIndex, 1);
+  // For custom components, we keep the css attribute and replace its value
+  // For native/styled components, we remove it
+  if (!isCustomComponent) {
+    const cssAttrIndex = attributes.indexOf(cssAttr);
+    attributes.splice(cssAttrIndex, 1);
+  }
 
   if (!cssAttr.value) {
     throw new Error('css prop must have a value');
@@ -116,6 +98,17 @@ export function handleJsxCssProp(
     throw new Error(
       'Invalid css prop value. Only template literals and references to css function calls are supported',
     );
+  }
+
+  // For custom components, replace the css prop value with the generated class name
+  if (isCustomComponent) {
+    if (typeof cssClassName === 'string') {
+      cssAttr.value = t.stringLiteral(cssClassName);
+    } else {
+      // For css function references, keep as expression
+      cssAttr.value = t.jsxExpressionContainer(cssClassName);
+    }
+    return true;
   }
 
   // For styled components with css prop, we need to handle transformation here

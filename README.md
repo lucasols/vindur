@@ -873,33 +873,33 @@ const App = () => (
 );
 ```
 
-You can also use CSS function references:
+When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop.
 
 ```tsx
-const buttonStyles = css`
-  background: #007bff;
-  color: white;
-  padding: 8px 16px;
-`;
+const CustomComponent = ({
+  children,
+  css,
+}: {
+  children: React.ReactNode;
+  // just type it as string and it will work
+  css: string;
+}) => {
+  // then use the css as a className
+  return <div className={css}>{children}</div>;
+};
 
-const Button = ({ children }) => <button css={buttonStyles}>{children}</button>;
-```
-
-The `css` prop automatically merges with existing `className` attributes:
-
-```tsx
-<div
-  className="existing-class"
+// css now will correctly work with the component!
+<CustomComponent
   css={`
-    color: green;
-    font-weight: bold;
+    color: red;
   `}
 >
-  Styled content
-</div>
-```
+  Content
+</CustomComponent>;
 
-**Note**: The `css` prop only works with native DOM elements (like `div`, `span`, `button`) and styled components. It does not work with custom React components.
+// the component will compile to:
+<CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
+```
 
 ### JSX CX Prop
 
@@ -959,6 +959,28 @@ const App = ({ isActive, isDisabled }) => (
     Content with conditional classes
   </Container>
 );
+```
+
+### `cx` utility function
+
+In cases where you can't use the `cx` prop, you can use the `cx` utility function to merge classes. It works just like the `classnames` library.
+
+```tsx
+import { cx } from 'vindur';
+
+const className = cx(
+  'class-1',
+  'class-2',
+  {
+    merge: true,
+    'no-merge': false,
+  },
+  trueCondition && 'short-circuit',
+  falseCondition && 'false-short-circuit',
+);
+
+// returns:
+('class-1 class-2 merge short-circuit');
 ```
 
 ### Style Flags Props
@@ -1277,27 +1299,43 @@ const AdaptiveButton = styled.button`
 [CSS layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) can be used to avoid conflicts with other styles.
 
 ```tsx
-import { styled, setLayer } from 'vindur';
+import { styled, layer, createGlobalStyle } from 'vindur';
 
-// only one layer can be used at a time
-// layers should be at the top of the styles
+// optionally create global style to set the layers order
+const GlobalStyle = createGlobalStyle`
+  @layer lower-priority, higher-priority;
+`;
+
+// then use the `layer` function extend the layers in the components;
 const Card = styled.div`
-  ${setLayer('vindur')};
+  ${layer('higher-priority')} {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+  }
 
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
+  ${layer('lower-priority')} {
+    background: red;
+  }
 `;
 ```
 
 Compiles to:
 
 ```css
-@layer vindur {
+@layer lower-priority, higher-priority;
+
+@layer higher-priority {
   .vhash123-1-Card {
     background: white;
     padding: 20px;
     border-radius: 8px;
+  }
+}
+
+@layer lower-priority {
+  .vhash123-1-Card {
+    background: red;
   }
 }
 ```
