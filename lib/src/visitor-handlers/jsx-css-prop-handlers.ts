@@ -61,6 +61,11 @@ export function handleJsxCssProp(
 
   if (!cssAttr) return false;
 
+  // Mark this element as having CSS context before removing the css attribute
+  if (context.state.elementsWithCssContext) {
+    context.state.elementsWithCssContext.add(path.node);
+  }
+
   // Remove the css attribute
   const cssAttrIndex = attributes.indexOf(cssAttr);
   attributes.splice(cssAttrIndex, 1);

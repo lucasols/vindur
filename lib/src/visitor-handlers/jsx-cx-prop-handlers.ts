@@ -66,18 +66,34 @@ export function handleJsxCxProp(
 
   // Check for plain DOM elements without CSS context
   if (isNativeDOMElement && !isStyledComponent) {
-    // Check if element has a css prop (CSS context)
-    const cssAttr = findWithNarrowing(attributes, (attr) =>
-      (
-        t.isJSXAttribute(attr)
-        && t.isJSXIdentifier(attr.name)
-        && attr.name.name === 'css'
-      ) ?
-        attr
-      : false,
-    );
-
-    const hasCssContext = cssAttr !== undefined;
+    // Check if element has CSS context:
+    // 1. Was processed by css prop handler
+    // 2. Has className that references a css function
+    let hasCssContext = context.state.elementsWithCssContext?.has(path.node) ?? false;
+    
+    if (!hasCssContext) {
+      // Check if className references a css function
+      const classNameAttr = findWithNarrowing(attributes, (attr) =>
+        (
+          t.isJSXAttribute(attr)
+          && t.isJSXIdentifier(attr.name)
+          && attr.name.name === 'className'
+        ) ?
+          attr
+        : false,
+      );
+      
+      if (classNameAttr && t.isJSXExpressionContainer(classNameAttr.value)) {
+        const expression = classNameAttr.value.expression;
+        if (t.isIdentifier(expression)) {
+          // Check if this identifier is a css function
+          const cssVariable = context.state.cssVariables.get(expression.name);
+          if (cssVariable) {
+            hasCssContext = true;
+          }
+        }
+      }
+    }
 
     if (!hasCssContext) {
       // No CSS context - validate that all cx classes use $ prefix

@@ -42,6 +42,7 @@ export function transform({
     cssVariables: new Map(),
     keyframes: new Map(),
     potentiallyUndeclaredScopedVariables: new Set(),
+    elementsWithCssContext: new WeakSet(),
   };
 
   if (!fileAbsPath.includes('/')) {
