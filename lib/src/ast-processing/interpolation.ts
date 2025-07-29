@@ -13,12 +13,7 @@ import {
   resolveVariable,
 } from './resolution';
 import { resolveThemeColorExpression } from './theme-colors';
-
-function isExtensionResult(
-  result: string | { type: 'extension'; className: string },
-): result is { type: 'extension'; className: string } {
-  return typeof result === 'object' && 'type' in result;
-}
+import { isExtensionResult } from './interpolation.type-guards';
 
 function processIdentifierExpression(
   expression: t.Identifier,

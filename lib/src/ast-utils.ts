@@ -1,4 +1,5 @@
 import { types as t, type NodePath } from '@babel/core';
+export { isLiteralExpression } from './ast-utils.type-guards';
 
 export type FunctionValueTypes = 'string' | 'number' | 'boolean';
 
@@ -21,15 +22,6 @@ export function getLiteralValueType(
     : 'string';
 }
 
-export function isLiteralExpression(
-  node: t.Node,
-): node is t.StringLiteral | t.NumericLiteral | t.BooleanLiteral {
-  return (
-    t.isStringLiteral(node)
-    || t.isNumericLiteral(node)
-    || t.isBooleanLiteral(node)
-  );
-}
 
 export function extractArgumentValue(
   arg: t.Expression,
