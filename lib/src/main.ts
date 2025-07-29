@@ -48,31 +48,24 @@ export interface VindurAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
-type StyledFunction = {
+type StyledComponent<Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements> = ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes> & {
+  withComponent<NewTag extends keyof JSX.IntrinsicElements>(tag: NewTag): ComponentType<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
+  withComponent<C extends ComponentType<any>>(component: C): C;
+};
+
+type StyledFunction<Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements> = {
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint
   <T = {}>(
     strings: TemplateStringsArray,
     ...values: (string | number)[]
-  ): ComponentType<
-    {
-      className?: string;
-      style?: CSSProperties;
-      children?: ReactNode;
-      onClick?: () => void;
-    } & VindurAttributes
-      & T
-  >;
+  ): StyledComponent<Tag> & ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes & T>;
   (
     strings: TemplateStringsArray,
     ...values: (string | number)[]
-  ): ComponentType<
-    {
-      className?: string;
-      style?: CSSProperties;
-      children?: ReactNode;
-      onClick?: () => void;
-    } & VindurAttributes
-  >;
+  ): StyledComponent<Tag>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Attributes can be any valid props
+  attrs<A extends Record<string, any>>(attrs: A): StyledFunction<Tag>;
 };
 
 // Create a Proxy that handles all DOM element access dynamically
@@ -85,6 +78,11 @@ const styledHandler = {
       throw new Error('styled cannot be called at runtime');
     };
 
+    // Add attrs method to the function
+    styledFn.attrs = () => {
+      throw new Error('styled.attrs cannot be called at runtime');
+    };
+
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
     return styledFn as StyledFunction;
   },
@@ -92,7 +90,7 @@ const styledHandler = {
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Runtime fallback requires type assertion for compile-time transform
 export const styled: {
-  [key in keyof JSX.IntrinsicElements]: StyledFunction;
+  [Key in keyof JSX.IntrinsicElements]: StyledFunction<Key>;
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions, @typescript-eslint/no-explicit-any -- Runtime fallback requires type assertion for compile-time transform
 } = new Proxy({}, styledHandler) as any;
 
