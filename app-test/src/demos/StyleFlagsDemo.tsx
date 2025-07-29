@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { styled } from 'vindur';
 import { DemoSection } from '../components/MainLayout';
 
-const StyledButton = styled.button`
+const StyledButton = styled.button<{
+  active: boolean;
+  size: 'small' | 'medium' | 'large';
+  variant: 'primary' | 'secondary' | 'danger';
+}>`
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -10,11 +14,13 @@ const StyledButton = styled.button`
   font-weight: 600;
   margin: 4px;
 
+  /* Style flags - boolean prop */
   &.active {
     transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
 
+  /* Style flags - string union prop values */
   &.size-small {
     padding: 6px 12px;
     font-size: 12px;
@@ -78,17 +84,16 @@ const Label = styled.label`
   font-weight: 600;
 `;
 
-
-
 export function StyleFlagsDemo() {
   const [active, setActive] = useState(false);
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [variant, setVariant] = useState<'primary' | 'secondary' | 'danger'>('primary');
+  const [variant, setVariant] = useState<'primary' | 'secondary' | 'danger'>(
+    'primary',
+  );
 
   return (
     <DemoSection title="Style Flags">
       <Container>
-
         <Controls>
           <ControlGroup>
             <Label>
@@ -96,7 +101,9 @@ export function StyleFlagsDemo() {
                 type="checkbox"
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
-                css={`margin-right: 8px;`}
+                css={`
+                  margin-right: 8px;
+                `}
               />
               Active State
             </Label>
@@ -106,7 +113,9 @@ export function StyleFlagsDemo() {
             <Label>Size:</Label>
             <select
               value={size}
-              onChange={(e) => setSize(e.target.value as 'small' | 'medium' | 'large')}
+              onChange={(e) =>
+                setSize(e.target.value as 'small' | 'medium' | 'large')
+              }
               css={`
                 padding: 4px 8px;
                 border-radius: 4px;
@@ -124,7 +133,9 @@ export function StyleFlagsDemo() {
             <Label>Variant:</Label>
             <select
               value={variant}
-              onChange={(e) => setVariant(e.target.value as 'primary' | 'secondary' | 'danger')}
+              onChange={(e) =>
+                setVariant(e.target.value as 'primary' | 'secondary' | 'danger')
+              }
               css={`
                 padding: 4px 8px;
                 border-radius: 4px;
@@ -140,43 +151,19 @@ export function StyleFlagsDemo() {
         </Controls>
 
         <ButtonGrid>
-          <StyledButton
-            {...({
-              active,
-              size,
-              variant
-            } as any)}
-          >
+          <StyledButton active={active} size={size} variant={variant}>
             Interactive Button
           </StyledButton>
 
-          <StyledButton
-            {...({
-              active: true,
-              size: "small",
-              variant: "primary"
-            } as any)}
-          >
+          <StyledButton active={true} size="small" variant="primary">
             Small Primary (Active)
           </StyledButton>
 
-          <StyledButton
-            {...({
-              active: false,
-              size: "medium",
-              variant: "secondary"
-            } as any)}
-          >
+          <StyledButton active={false} size="medium" variant="secondary">
             Medium Secondary
           </StyledButton>
 
-          <StyledButton
-            {...({
-              active: true,
-              size: "large",
-              variant: "danger"
-            } as any)}
-          >
+          <StyledButton active={true} size="large" variant="danger">
             Large Danger (Active)
           </StyledButton>
         </ButtonGrid>

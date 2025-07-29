@@ -44,24 +44,40 @@ export interface VindurAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
-type StyledFunction = (
-  strings: TemplateStringsArray,
-  ...values: (string | number)[]
-) => ComponentType<
-  {
-    className?: string;
-    style?: CSSProperties;
-    children?: ReactNode;
-    onClick?: () => void;
-  } & VindurAttributes
->;
+type StyledFunction = {
+  // eslint-disable-next-line @typescript-eslint/ban-types -- Empty object type needed for generic constraint
+  <T = {}>(
+    strings: TemplateStringsArray,
+    ...values: (string | number)[]
+  ): ComponentType<
+    {
+      className?: string;
+      style?: CSSProperties;
+      children?: ReactNode;
+      onClick?: () => void;
+    } & VindurAttributes & T
+  >;
+  (
+    strings: TemplateStringsArray,
+    ...values: (string | number)[]
+  ): ComponentType<
+    {
+      className?: string;
+      style?: CSSProperties;
+      children?: ReactNode;
+      onClick?: () => void;
+    } & VindurAttributes
+  >;
+};
 
 // Create a Proxy that handles all DOM element access dynamically
 const styledHandler = {
   get: (_: unknown, tag: string): StyledFunction => {
-    return (strings: TemplateStringsArray, ...values: (string | number)[]) => {
+    const styledFn = (strings: TemplateStringsArray, ...values: (string | number)[]) => {
       throw new Error('styled cannot be called at runtime');
     };
+    
+    return styledFn as StyledFunction;
   },
 };
 

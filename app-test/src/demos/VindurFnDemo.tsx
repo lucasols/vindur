@@ -1,4 +1,4 @@
-import { buttonVariant, colorBox, spacing } from '#src/demos/functions';
+import { primaryButton, secondaryButton, dangerButton, colorBox, spacing } from '#src/demos/functions';
 import { styled } from 'vindur';
 import { DemoSection } from '../components/MainLayout';
 
@@ -56,15 +56,15 @@ const ButtonContainer = styled.div`
 `;
 
 const PrimaryButton = styled.button`
-  ${buttonVariant('primary')};
+  ${primaryButton()};
 `;
 
 const SecondaryButton = styled.button`
-  ${buttonVariant('secondary')};
+  ${secondaryButton()};
 `;
 
 const DangerButton = styled.button`
-  ${buttonVariant('danger')};
+  ${dangerButton()};
 `;
 
 

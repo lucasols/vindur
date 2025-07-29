@@ -14,25 +14,45 @@ export const colorBox = vindurFn((color: string, size: number) => `
   display: inline-block;
 `);
 
-// Button variant utility using vindurFn
-export const buttonVariant = vindurFn((variant: 'primary' | 'secondary' | 'danger') => {
-  const variants = {
-    primary: '#667eea',
-    secondary: '#4ecdc4', 
-    danger: '#ff6b6b'
-  };
+// Button variant utilities using vindurFn
+export const primaryButton = vindurFn(() => `
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
   
-  return `
-    background: ${variants[variant]};
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: opacity 0.2s;
-    
-    &:hover {
-      opacity: 0.8;
-    }
-  `;
-});
+  &:hover {
+    opacity: 0.8;
+  }
+`);
+
+export const secondaryButton = vindurFn(() => `
+  background: #4ecdc4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+`);
+
+export const dangerButton = vindurFn(() => `
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+`);
