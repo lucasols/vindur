@@ -17,6 +17,7 @@ The node version installed supports running ts code directly. No build step is n
 ## Development Commands
 
 **Important:** Use `pnpm` only, never `npx`.
+DO NOT USE `npx` to run commands, NEVER.
 
 ### From Root
 

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
@@ -107,12 +106,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       if (result.css) {
         log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
 
-        // Generate virtual CSS module ID using file path + content hash for hot reload
-        const contentHash = createHash('md5')
-          .update(result.css)
-          .digest('hex')
-          .slice(0, 8);
-        const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(id)}-${contentHash}.css`;
+        const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(id)}.css`;
 
         // Store CSS content in virtual module cache
         virtualCssModules.set(virtualCssId, result.css);
@@ -146,14 +140,23 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       virtualCssModules.clear();
     },
 
-    handleHotUpdate({ file }) {
+    handleHotUpdate({ file, modules }) {
       // Find and remove virtual CSS modules for this file
-      const virtualCssPrefix = `virtual:vindur-${getVirtualCssIdPrefix(file)}-`;
+      const virtualCssPrefix = `virtual:vindur-${getVirtualCssIdPrefix(file)}`;
+
+      const modulesToInvalidate = [...modules];
+
+      let hasRelatedVirtualCss = false;
 
       // Remove all virtual CSS modules that match this file
       for (const [virtualCssId] of virtualCssModules) {
-        if (virtualCssId.startsWith(virtualCssPrefix)) {
+        if (virtualCssId === virtualCssPrefix) {
           virtualCssModules.delete(virtualCssId);
+          const cssModule = devServer?.moduleGraph.getModuleById(virtualCssId);
+          if (cssModule) {
+            modulesToInvalidate.push(cssModule);
+            hasRelatedVirtualCss = true;
+          }
           if (debugLogs) {
             this.info(
               `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
@@ -172,7 +175,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         }
       }
 
-      return undefined;
+      return hasRelatedVirtualCss ? modulesToInvalidate : undefined;
     },
   };
 }
@@ -187,5 +190,5 @@ function hasVindurStyles(code: string, id: string): boolean {
 }
 
 function getVirtualCssIdPrefix(id: string): string {
-  return id.replace(/\.[jt]sx?$/, '').replace(/\\/g, '_');
+  return id.replace(/\.[jt]sx?$/, '').replace(/\//g, '_');
 }

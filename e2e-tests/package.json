@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "type": "module",
   "dependencies": {
     "@babel/preset-react": "catalog:",
     "@babel/preset-typescript": "catalog:",

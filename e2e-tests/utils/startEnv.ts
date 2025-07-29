@@ -20,7 +20,10 @@ type TempFile = {
   read: () => string;
   write: (content: string) => void;
   updateLine: (line: number, replaceWith: string) => void;
-  replace: (old: RegExp | string, replaceWith: string) => void;
+  replace: (
+    oldOrReplacements: RegExp | string | Array<[RegExp | string, string]>,
+    replaceWith?: string,
+  ) => void;
   delete: () => void;
   move: (newPath: string) => void;
 };
@@ -38,8 +41,8 @@ export async function startEnv(
   testId: string,
   initialFiles: Record<string, string> & { 'App.tsx': string },
 ): Promise<TestEnv> {
-  const baseCodeDir = path.join(__dirname, '..', 'base-code');
-  const testsRunsDir = path.join(__dirname, '..', 'test-runs');
+  const baseCodeDir = path.join(import.meta.dirname, '..', 'base-code');
+  const testsRunsDir = path.join(import.meta.dirname, '..', 'test-runs');
 
   const testRunDirPath = path.join(testsRunsDir, testId);
 
@@ -142,10 +145,28 @@ export async function startEnv(
         lines[line - 1] = replaceWith;
         writeFileSync(filePath, lines.join('\n'));
       },
-      replace: (old: RegExp | string, replaceWith: string) => {
-        const content = readFileSync(filePath, 'utf8');
-        const newContent = content.replace(old, replaceWith);
-        writeFileSync(filePath, newContent);
+      replace: (
+        oldOrReplacements: RegExp | string | Array<[RegExp | string, string]>,
+        replaceWith?: string,
+      ) => {
+        let content = readFileSync(filePath, 'utf8');
+
+        if (Array.isArray(oldOrReplacements)) {
+          // Multiple replacements
+          for (const [old, replacement] of oldOrReplacements) {
+            content = content.replace(old, replacement);
+          }
+        } else {
+          // Single replacement
+          if (replaceWith === undefined) {
+            throw new Error(
+              'replaceWith parameter is required for single replacement',
+            );
+          }
+          content = content.replace(oldOrReplacements, replaceWith);
+        }
+
+        writeFileSync(filePath, content);
       },
       delete: () => rmSync(filePath),
       move: (newPath: string) => renameSync(filePath, newPath),
