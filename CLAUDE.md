@@ -345,6 +345,7 @@ This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalSt
   - Style extension with `styled(Button)` syntax
   - CSS selector usage in styled components used as a selector
   - Styled component references with `&` selector
+  - **withComponent method**: Change element type while keeping styles, eg. `Button.withComponent('a')`
 
 - **css prop** - JSX prop that accepts template literals, eg. `<div css={`color: green`} />`
   - Only works on native DOM elements (lowercase names) and styled components

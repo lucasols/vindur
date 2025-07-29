@@ -33,6 +33,7 @@ import {
   handleStaticThemeColorsAssignment,
   handleStyledElementAssignment,
   handleStyledExtensionAssignment,
+  handleWithComponentAssignment,
 } from './visitor-handlers/variable-handlers';
 
 export type DebugLogger = { 
@@ -50,6 +51,8 @@ export type VindurPluginState = {
       className: string;
       isExported: boolean;
       styleFlags?: Array<{ propName: string; hashedClassName: string }>;
+      attrs?: boolean; // Whether component has attrs (actual expression stored separately)
+      attrsExpression?: t.ObjectExpression; // The original attrs expression
     }
   >;
   cssVariables: Map<string, string>; // Track css tagged template variables
@@ -59,6 +62,7 @@ export type VindurPluginState = {
   scopedVariables?: Map<string, { index: number; originalName: string }>; // Track scoped CSS variables at file level
   potentiallyUndeclaredScopedVariables?: Set<string>; // Track variables used in CSS but not declared (may be provided via style props)
   elementsWithCssContext?: WeakSet<t.JSXElement>; // Track elements that have been processed by css prop handler
+  currentLayer?: string; // Track the current CSS layer for the current styled component
 };
 
 export type FunctionCache = {
@@ -209,6 +213,10 @@ export function createVindurPlugin(
           handleStyledExtensionAssignment(path, variableHandlerContext)
         ) {
           idIndex = idIndexRef.current;
+        } else if (
+          handleWithComponentAssignment(path, variableHandlerContext)
+        ) {
+          // No idIndex increment for withComponent as it reuses existing classes
         } else if (
           handleKeyframesVariableAssignment(path, variableHandlerContext)
         ) {

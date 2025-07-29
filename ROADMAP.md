@@ -55,11 +55,11 @@ A compile-time CSS-in-JS library focused on performance.
 
 ## Beta 2 - Advanced Features
 
-- [ ] `withComponent` or something similar to change styled component tags
-- [ ] `styled.div.attrs` support or something similar to create components with predefined props
+- [x] `withComponent` or something similar to change styled component tags ✅
+- [x] `styled.div.attrs` support or something similar to create components with predefined props ✅
 - [x] Variable interpolation from external files
 - [ ] Cross-module styled component references
-- [ ] CSS layers for conflict resolution
+- [x] CSS layers for conflict resolution ✅
 - [ ] Atomic styles generation
 - [ ] CSS output caching
 - [ ] Light/dark mode support

@@ -38,6 +38,10 @@ export function keyframes(
   throw new Error('keyframes cannot be called at runtime');
 }
 
+export function setLayer(_layerName: string): string {
+  throw new Error('setLayer cannot be called at runtime');
+}
+
 export interface VindurAttributes {
   css?: CSSProp;
   cx?: Record<string, unknown>;
@@ -96,6 +100,7 @@ export function _vSC(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
   tagOrComponent: string | ComponentType<any>,
   className: string,
+  attrs?: Record<string, string | number | boolean> | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Return type must be flexible for any component props
 ): ComponentType<any> {
   // Runtime helper for exported styled components
@@ -105,10 +110,13 @@ export function _vSC(
     const finalClassName =
       userClassName ? `${className} ${userClassName}` : className;
 
+    // Merge attrs with user props, giving user props precedence
+    const finalProps = attrs ? { ...attrs, ...rest } : rest;
+
     if (typeof tagOrComponent === 'string') {
       // Native HTML element
       return createElement(tagOrComponent, {
-        ...rest,
+        ...finalProps,
         className: finalClassName,
         ref,
       });
@@ -116,7 +124,7 @@ export function _vSC(
 
     // Custom component
     return createElement(tagOrComponent, {
-      ...rest,
+      ...finalProps,
       className: finalClassName,
       ref,
     });
@@ -135,6 +143,7 @@ export function _vCWM(
   modifiers: Array<[string, string]>,
   baseClassName: string,
   elementType: string,
+  attrs?: Record<string, string | number | boolean> | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
@@ -188,8 +197,11 @@ export function _vCWM(
       finalClassName += ` ${userClassName}`;
     }
 
+    // Merge attrs with finalProps, giving finalProps precedence
+    const propsWithAttrs = attrs ? { ...attrs, ...finalProps } : finalProps;
+
     return createElement(elementType, {
-      ...finalProps,
+      ...propsWithAttrs,
       className: finalClassName,
       ref,
     });
@@ -199,6 +211,10 @@ export function _vCWM(
 
   return Component;
 }
+
+// Aliases for the runtime functions used by the compiler
+export { _vSC as styledComponent };
+export { _vCWM as vComponentWithModifiers };
 
 type StaticColor<D extends string> = {
   var: string;

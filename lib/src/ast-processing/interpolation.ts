@@ -16,7 +16,6 @@ import { resolveThemeColorExpression } from './theme-colors';
 
 function isExtensionResult(
   result: string | { type: 'extension'; className: string },
-  // eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for interpolation result discrimination
 ): result is { type: 'extension'; className: string } {
   return typeof result === 'object' && 'type' in result;
 }
@@ -126,11 +125,22 @@ function processArrowFunctionExpression(
 function processCallExpression(
   expression: t.CallExpression,
   context: CssProcessingContext,
-  interpolationContext: { dev?: boolean },
+  interpolationContext: {
+    dev?: boolean;
+    position?: { isFirst: boolean; hasNonWhitespaceContent: boolean };
+  },
   variableName: string | undefined,
   tagType: string,
 ): string {
-  // Try regular function calls first
+  // Try setLayer function calls first
+  const layerResolved = resolveSetLayerCall(
+    expression,
+    context,
+    interpolationContext.position,
+  );
+  if (layerResolved !== null) return layerResolved;
+
+  // Try regular function calls
   const functionResolved = resolveFunctionCall(
     expression,
     context,
@@ -269,6 +279,7 @@ export function processInterpolationExpression(
   interpolationContext: {
     isExtension?: boolean;
     dev?: boolean;
+    position?: { isFirst: boolean; hasNonWhitespaceContent: boolean };
   } = {},
 ): string | { type: 'extension'; className: string } {
   if (t.isIdentifier(expression)) {
@@ -330,11 +341,18 @@ export function processTemplateWithInterpolation(
 ) {
   let cssContent = '';
   const extensions: string[] = [];
+  let hasNonWhitespaceContent = false;
 
   // Process template literal with interpolations
   for (let i = 0; i < quasi.quasis.length; i++) {
     // Add the static string part - use cooked value to preserve formatting
     const staticPart = quasi.quasis[i]?.value.cooked ?? '';
+
+    // Track if we've encountered non-whitespace content before checking interpolations
+    if (staticPart.trim() !== '') {
+      hasNonWhitespaceContent = true;
+    }
+
     cssContent += staticPart;
 
     // Add the interpolated expression if it exists
@@ -350,11 +368,19 @@ export function processTemplateWithInterpolation(
           context,
           variableName,
           tagType.includes('styled') ? 'styled' : 'css',
-          { isExtension, dev },
+          {
+            isExtension,
+            dev,
+            position: { isFirst: i === 0, hasNonWhitespaceContent },
+          },
         );
 
         if (typeof resolvedExpression === 'string') {
           cssContent += resolvedExpression;
+          // After processing any interpolation, we have content
+          if (resolvedExpression.trim() !== '') {
+            hasNonWhitespaceContent = true;
+          }
         } else if (isExtensionResult(resolvedExpression)) {
           // Handle extension - store for later class combination
           extensions.push(resolvedExpression.className);
@@ -364,6 +390,52 @@ export function processTemplateWithInterpolation(
   }
 
   return { cssContent, extensions };
+}
+
+function resolveSetLayerCall(
+  expression: t.CallExpression,
+  context: CssProcessingContext,
+  position?: { isFirst: boolean; hasNonWhitespaceContent: boolean },
+): string | null {
+  // Check if this is a setLayer function call
+  if (
+    !context.state.vindurImports.has('setLayer')
+    || !t.isIdentifier(expression.callee)
+    || expression.callee.name !== 'setLayer'
+    || expression.arguments.length !== 1
+  ) {
+    return null;
+  }
+
+  const layerArg = expression.arguments[0];
+  if (!t.isStringLiteral(layerArg)) {
+    throw new Error(
+      'setLayer() must be called with a string literal layer name',
+    );
+  }
+
+  // Check if setLayer is called after any non-whitespace content
+  if (position?.hasNonWhitespaceContent) {
+    throw new Error(
+      'setLayer() must be called at the beginning of the template literal',
+    );
+  }
+
+  const layerName = layerArg.value;
+
+  // Validate layer name (basic CSS identifier rules)
+  if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(layerName)) {
+    throw new Error(
+      `Invalid layer name "${layerName}". Layer names must be valid CSS identifiers`,
+    );
+  }
+
+  // Store the layer information in the processing context
+  // This will be used later when generating CSS rules
+  context.state.currentLayer = layerName;
+
+  // Return empty string since setLayer doesn't produce CSS content
+  return '';
 }
 
 // These are moved from the resolution module to avoid circular imports

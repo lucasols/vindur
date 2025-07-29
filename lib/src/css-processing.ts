@@ -68,7 +68,17 @@ export function generateCssRule(
       : className;
   }
 
-  state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+  const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
+  
+  // Wrap in @layer if a layer is set
+  if (state.currentLayer) {
+    state.cssRules.push(`@layer ${state.currentLayer} {\n  ${cssRule}\n}`);
+    // Clear the current layer after use (per-component basis)
+    state.currentLayer = undefined;
+  } else {
+    state.cssRules.push(cssRule);
+  }
+  
   return extensions.length > 0 ?
       `${extensions.join(' ')} ${className}`
     : className;
@@ -184,7 +194,16 @@ export function processStyledExtension(
   // Clean up CSS content and store the CSS rule
   const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
-    context.state.cssRules.push(`.${className} {\n  ${cleanedCss}\n}`);
+    const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
+    
+    // Wrap in @layer if a layer is set
+    if (context.state.currentLayer) {
+      context.state.cssRules.push(`@layer ${context.state.currentLayer} {\n  ${cssRule}\n}`);
+      // Clear the current layer after use (per-component basis)
+      context.state.currentLayer = undefined;
+    } else {
+      context.state.cssRules.push(cssRule);
+    }
   }
 
   // Handle extensions first
@@ -244,9 +263,12 @@ export function processGlobalStyle(
   }
 
   // Clean up CSS content and add to global styles (no class wrapper)
+  // Global styles should not be wrapped in layers
   const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
     context.state.cssRules.push(cleanedCss);
+    // Clear any layer state since global styles don't use layers
+    context.state.currentLayer = undefined;
   }
 
   return { warnings: scopedResult.warnings };
@@ -284,10 +306,13 @@ export function processKeyframes(
   }
 
   // Clean up CSS content and wrap in @keyframes rule
+  // Keyframes should not be wrapped in layers
   const cleanedCss = cleanCss(cssContent);
   const keyframesRule = `@keyframes ${animationName} {\n  ${cleanedCss}\n}`;
 
   context.state.cssRules.push(keyframesRule);
+  // Clear any layer state since keyframes don't use layers
+  context.state.currentLayer = undefined;
 
   return {
     cssContent,

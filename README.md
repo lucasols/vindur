@@ -157,6 +157,59 @@ const SecondaryButton = styled(BaseButton)`
 `;
 ```
 
+### Element Type Changes
+
+Change the HTML element while keeping styles using `withComponent`:
+
+```tsx
+const Button = styled.button`
+  padding: 12px 24px;
+  background: #007bff;
+  color: white;
+`;
+
+const Link = Button.withComponent('a'); // Same styles, <a> element
+const Div = Button.withComponent('div'); // Same styles, <div> element
+
+// you can also pass a custom component to the withComponent method
+const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
+```
+
+### Default Attributes
+
+Set default attributes on styled components using `attrs`:
+
+```tsx
+const StyledDiv = styled.div.attrs({
+  'data-testid': 'my-div',
+  'aria-hidden': 'false',
+})`
+  background-color: blue;
+  padding: 10px;
+`;
+
+// will be compiled to an intermediate component with the attrs
+const StyledDiv = _vSC('div', 'vhash123-1', {
+  'data-testid': 'my-div',
+  'aria-hidden': 'false',
+});
+
+// Usage, will already apply the attrs to the component
+<StyledDiv>Content</StyledDiv>;
+```
+
+`attrs` can also be used with styled extensions:
+
+```tsx
+const StyledDiv = styled(Component).attrs({
+  'data-testid': 'my-div',
+  'aria-hidden': 'false',
+})`
+  background-color: blue;
+  padding: 10px;
+`;
+```
+
 ### Nesting Styles
 
 Vindur supports CSS nesting using the native CSS nesting standard:
@@ -560,6 +613,7 @@ const Card = styled.div`
 Compiles to scoped CSS variables:
 
 **Development:**
+
 ```css
 .vhash123-card {
   --vhash123-1-primary-color: #007bff;
@@ -574,6 +628,7 @@ Compiles to scoped CSS variables:
 ```
 
 **Production:**
+
 ```css
 .vhash123-card {
   --vhash123-1: #007bff;
@@ -1217,6 +1272,35 @@ const AdaptiveButton = styled.button`
 `;
 ```
 
+## CSS Layers
+
+[CSS layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) can be used to avoid conflicts with other styles.
+
+```tsx
+import { styled, setLayer } from 'vindur';
+
+// only one layer can be used at a time
+// layers should be at the top of the styles
+const Card = styled.div`
+  ${setLayer('vindur')};
+
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+`;
+```
+
+Compiles to:
+
+```css
+@layer vindur {
+  .vhash123-1-Card {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+  }
+}
+```
 
 ## Roadmap
 

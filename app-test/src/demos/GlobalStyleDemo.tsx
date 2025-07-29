@@ -38,7 +38,6 @@ const Container = styled.div`
   gap: 16px;
 `;
 
-
 const CodeExample = styled.pre`
   background: rgba(0, 0, 0, 0.3);
   color: #a8e6cf;
@@ -53,9 +52,8 @@ export function GlobalStyleDemo() {
   return (
     <DemoSection title="Global Styles">
       <Container>
-
         <CodeExample>
-{`createGlobalStyle\`
+          {`createGlobalStyle\`
   .demo-global-card {
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
@@ -75,10 +73,10 @@ export function GlobalStyleDemo() {
 
         <div className="demo-global-card">
           <div className="demo-global-text">
-            All elements with <code>.demo-global-card</code> class share the same styles
+            All elements with <code>.demo-global-card</code> class share the
+            same styles
           </div>
         </div>
-
       </Container>
     </DemoSection>
   );

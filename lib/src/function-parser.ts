@@ -1,12 +1,12 @@
 import { types as t } from '@babel/core';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
-import { filterWithNarrowing } from './utils';
 import type {
   CompiledFunction,
   FunctionArg,
   OutputQuasi,
   TernaryConditionValue,
 } from './types';
+import { filterWithNarrowing } from './utils';
 
 export function parseFunction(
   fnExpression: t.ArrowFunctionExpression | t.FunctionExpression,
@@ -61,7 +61,11 @@ export function parseFunction(
     }
 
     const validParameterNames = new Set(Object.keys(args));
-    const output = parseTemplateOutput(fnExpression.body, name, validParameterNames);
+    const output = parseTemplateOutput(
+      fnExpression.body,
+      name,
+      validParameterNames,
+    );
     return { type: 'destructured', args, output };
   }
 
@@ -84,11 +88,25 @@ export function parseFunction(
         optional: true, // Parameters with defaults are optional
       };
     }
-    return { name: 'unknown', type: 'string', defaultValue: undefined, optional: false };
+    return {
+      name: 'unknown',
+      type: 'string',
+      defaultValue: undefined,
+      optional: false,
+    };
   });
 
-  const validParameterNames = new Set(filterWithNarrowing(args.map(arg => arg.name), (paramName) => typeof paramName === 'string' ? paramName : false));
-  const output = parseTemplateOutput(fnExpression.body, name, validParameterNames);
+  const validParameterNames = new Set(
+    filterWithNarrowing(
+      args.map((arg) => arg.name),
+      (paramName) => (typeof paramName === 'string' ? paramName : false),
+    ),
+  );
+  const output = parseTemplateOutput(
+    fnExpression.body,
+    name,
+    validParameterNames,
+  );
   return { type: 'positional', args, output };
 }
 
@@ -126,7 +144,11 @@ function parseTemplateOutput(
 
     // Parse the return expression based on its type
     if (t.isTemplateLiteral(statement.argument)) {
-      return parseTemplateLiteral(statement.argument, functionName, validParameterNames);
+      return parseTemplateLiteral(
+        statement.argument,
+        functionName,
+        validParameterNames,
+      );
     } else if (t.isStringLiteral(statement.argument)) {
       return parseStringWithInterpolation(statement.argument.value);
     } else if (t.isCallExpression(statement.argument)) {
@@ -197,8 +219,17 @@ function parseTemplateLiteral(
       if (expr && t.isExpression(expr)) {
         if (t.isIdentifier(expr)) {
           // Validate that the identifier is a valid parameter or built-in
-          const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
-          if (validParameterNames && !validParameterNames.has(expr.name) && !builtInIdentifiers.has(expr.name)) {
+          const builtInIdentifiers = new Set([
+            'undefined',
+            'null',
+            'true',
+            'false',
+          ]);
+          if (
+            validParameterNames
+            && !validParameterNames.has(expr.name)
+            && !builtInIdentifiers.has(expr.name)
+          ) {
             throw new Error(
               `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
             );
@@ -206,7 +237,11 @@ function parseTemplateLiteral(
           output.push({ type: 'arg', name: expr.name });
         } else if (t.isConditionalExpression(expr)) {
           // Handle ternary expressions - validate their parts during parsing
-          const condition = parseTernaryCondition(expr.test, functionName, validParameterNames);
+          const condition = parseTernaryCondition(
+            expr.test,
+            functionName,
+            validParameterNames,
+          );
           const ifTrue = parseQuasiFromExpression(
             expr.consequent,
             functionName,
@@ -221,18 +256,38 @@ function parseTemplateLiteral(
           output.push({ type: 'ternary', condition, ifTrue, ifFalse });
         } else if (t.isBinaryExpression(expr)) {
           // Handle binary expressions like `multiplier * 8`
-          const binaryExpr = parseBinaryExpression(expr, functionName, validParameterNames);
+          const binaryExpr = parseBinaryExpression(
+            expr,
+            functionName,
+            validParameterNames,
+          );
           if (binaryExpr) {
             output.push(binaryExpr);
           } else {
             // Simple binary expressions for comparisons in ternary conditions
-            validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
-            validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+            validateTemplateExpressionDuringParsing(
+              expr.left,
+              functionName,
+              validParameterNames,
+            );
+            validateTemplateExpressionDuringParsing(
+              expr.right,
+              functionName,
+              validParameterNames,
+            );
           }
         } else if (t.isLogicalExpression(expr)) {
           // Handle logical expressions like || for default values
-          validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
-          validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+          validateTemplateExpressionDuringParsing(
+            expr.left,
+            functionName,
+            validParameterNames,
+          );
+          validateTemplateExpressionDuringParsing(
+            expr.right,
+            functionName,
+            validParameterNames,
+          );
         } else if (
           t.isStringLiteral(expr)
           || t.isNumericLiteral(expr)
@@ -269,8 +324,17 @@ function validateTemplateExpressionDuringParsing(
   if (t.isExpression(expr)) {
     if (t.isIdentifier(expr)) {
       // Allow built-in JavaScript identifiers and valid parameters
-      const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
-      if (validParameterNames && !validParameterNames.has(expr.name) && !builtInIdentifiers.has(expr.name)) {
+      const builtInIdentifiers = new Set([
+        'undefined',
+        'null',
+        'true',
+        'false',
+      ]);
+      if (
+        validParameterNames
+        && !validParameterNames.has(expr.name)
+        && !builtInIdentifiers.has(expr.name)
+      ) {
         throw new Error(
           `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         );
@@ -278,17 +342,45 @@ function validateTemplateExpressionDuringParsing(
       return;
     } else if (t.isConditionalExpression(expr)) {
       // Ternary expressions are allowed - validate their parts
-      validateTemplateExpressionDuringParsing(expr.test, functionName, validParameterNames);
-      validateTemplateExpressionDuringParsing(expr.consequent, functionName, validParameterNames);
-      validateTemplateExpressionDuringParsing(expr.alternate, functionName, validParameterNames);
+      validateTemplateExpressionDuringParsing(
+        expr.test,
+        functionName,
+        validParameterNames,
+      );
+      validateTemplateExpressionDuringParsing(
+        expr.consequent,
+        functionName,
+        validParameterNames,
+      );
+      validateTemplateExpressionDuringParsing(
+        expr.alternate,
+        functionName,
+        validParameterNames,
+      );
     } else if (t.isBinaryExpression(expr)) {
       // Simple binary expressions for comparisons in ternary conditions
-      validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
-      validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+      validateTemplateExpressionDuringParsing(
+        expr.left,
+        functionName,
+        validParameterNames,
+      );
+      validateTemplateExpressionDuringParsing(
+        expr.right,
+        functionName,
+        validParameterNames,
+      );
     } else if (t.isLogicalExpression(expr)) {
       // Handle logical expressions like || for default values
-      validateTemplateExpressionDuringParsing(expr.left, functionName, validParameterNames);
-      validateTemplateExpressionDuringParsing(expr.right, functionName, validParameterNames);
+      validateTemplateExpressionDuringParsing(
+        expr.left,
+        functionName,
+        validParameterNames,
+      );
+      validateTemplateExpressionDuringParsing(
+        expr.right,
+        functionName,
+        validParameterNames,
+      );
     } else if (
       t.isStringLiteral(expr)
       || t.isNumericLiteral(expr)
@@ -314,10 +406,8 @@ function validateTemplateExpressionDuringParsing(
   }
 }
 
- 
 function isValidComparisonOperator(
   operator: string,
-// eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for operator validation
 ): operator is '===' | '!==' | '>' | '<' | '>=' | '<=' {
   return ['===', '!==', '>', '<', '>=', '<='].includes(operator);
 }
@@ -340,8 +430,16 @@ function parseTernaryCondition(
       );
     }
 
-    const left = parseConditionValue(test.left, functionName, validParameterNames);
-    const right = parseConditionValue(test.right, functionName, validParameterNames);
+    const left = parseConditionValue(
+      test.left,
+      functionName,
+      validParameterNames,
+    );
+    const right = parseConditionValue(
+      test.right,
+      functionName,
+      validParameterNames,
+    );
     const operator = test.operator;
 
     if (isValidComparisonOperator(operator)) {
@@ -355,7 +453,11 @@ function parseTernaryCondition(
     // Handle simple boolean conditions like `disabled ? '0.5' : '1'`
     // Validate that the identifier is a valid parameter or built-in
     const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
-    if (validParameterNames && !validParameterNames.has(test.name) && !builtInIdentifiers.has(test.name)) {
+    if (
+      validParameterNames
+      && !validParameterNames.has(test.name)
+      && !builtInIdentifiers.has(test.name)
+    ) {
       throw new Error(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${test.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
       );
@@ -380,7 +482,11 @@ function parseConditionValue(
   if (t.isIdentifier(expr)) {
     // Validate that the identifier is a valid parameter or built-in
     const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
-    if (validParameterNames && !validParameterNames.has(expr.name) && !builtInIdentifiers.has(expr.name)) {
+    if (
+      validParameterNames
+      && !validParameterNames.has(expr.name)
+      && !builtInIdentifiers.has(expr.name)
+    ) {
       throw new Error(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
       );
@@ -415,25 +521,38 @@ function parseBinaryExpression(
   validParameterNames?: Set<string>,
 ): OutputQuasi | null {
   const { left, right, operator } = expr;
-  
+
   // Only support basic arithmetic operators
   if (!['+', '-', '*', '/'].includes(operator)) return null;
-  
+
   // Ensure operands are expressions
   if (!t.isExpression(left) || !t.isExpression(right)) {
     return null;
   }
-  
+
   // Parse left operand
-  const leftValue = parseConditionValue(left, functionName, validParameterNames);
-  
-  // Parse right operand  
-  const rightValue = parseConditionValue(right, functionName, validParameterNames);
-  
-  if (operator !== '+' && operator !== '-' && operator !== '*' && operator !== '/') {
+  const leftValue = parseConditionValue(
+    left,
+    functionName,
+    validParameterNames,
+  );
+
+  // Parse right operand
+  const rightValue = parseConditionValue(
+    right,
+    functionName,
+    validParameterNames,
+  );
+
+  if (
+    operator !== '+'
+    && operator !== '-'
+    && operator !== '*'
+    && operator !== '/'
+  ) {
     return null;
   }
-  
+
   return {
     type: 'binary',
     operator,
@@ -452,7 +571,11 @@ function parseQuasiFromExpression(
   } else if (t.isIdentifier(expr)) {
     // Validate that the identifier is a valid parameter or built-in
     const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
-    if (validParameterNames && !validParameterNames.has(expr.name) && !builtInIdentifiers.has(expr.name)) {
+    if (
+      validParameterNames
+      && !validParameterNames.has(expr.name)
+      && !builtInIdentifiers.has(expr.name)
+    ) {
       throw new Error(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
       );
@@ -461,19 +584,31 @@ function parseQuasiFromExpression(
   } else if (t.isTemplateLiteral(expr)) {
     // Handle template literals in ternary expressions
     const parts = parseTemplateLiteral(expr, functionName, validParameterNames);
-    
+
     // If it's a single string part, return it directly
     if (parts.length === 1 && parts[0]?.type === 'string') {
       return parts[0];
     }
-    
+
     // Otherwise, return as a template type
     return { type: 'template', parts };
   } else if (t.isConditionalExpression(expr)) {
     // Handle nested ternary expressions
-    const condition = parseTernaryCondition(expr.test, functionName, validParameterNames);
-    const ifTrue = parseQuasiFromExpression(expr.consequent, functionName, validParameterNames);
-    const ifFalse = parseQuasiFromExpression(expr.alternate, functionName, validParameterNames);
+    const condition = parseTernaryCondition(
+      expr.test,
+      functionName,
+      validParameterNames,
+    );
+    const ifTrue = parseQuasiFromExpression(
+      expr.consequent,
+      functionName,
+      validParameterNames,
+    );
+    const ifFalse = parseQuasiFromExpression(
+      expr.alternate,
+      functionName,
+      validParameterNames,
+    );
 
     return { type: 'ternary', condition, ifTrue, ifFalse };
   } else if (t.isCallExpression(expr)) {
