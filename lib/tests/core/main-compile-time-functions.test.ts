@@ -62,7 +62,7 @@ describe('styled proxy behavior', () => {
 
   test('should handle property access with symbols or unusual keys', () => {
     // @ts-expect-error Testing dynamic property access (normally not allowed by types)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- Testing runtime behavior of styled proxy with dynamic properties
     expect(() => styled['custom-element']`color: red`).toThrow('styled cannot be called at runtime');
   });
 });

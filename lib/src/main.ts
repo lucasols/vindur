@@ -45,7 +45,7 @@ export interface VindurAttributes {
 }
 
 type StyledFunction = {
-  // eslint-disable-next-line @typescript-eslint/ban-types -- Empty object type needed for generic constraint
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint  
   <T = {}>(
     strings: TemplateStringsArray,
     ...values: (string | number)[]
@@ -77,6 +77,7 @@ const styledHandler = {
       throw new Error('styled cannot be called at runtime');
     };
     
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
     return styledFn as StyledFunction;
   },
 };
