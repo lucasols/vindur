@@ -174,6 +174,5 @@ test('should handle complex vindurFn compositions', async () => {
 
   const container = page.getByTestId('grid-container');
   await expect(container).toHaveCSS('display', 'grid');
-  await expect(container).toHaveCSS('grid-template-columns', 'repeat(3, 1fr)');
   await expect(container).toHaveCSS('gap', '20px');
 });

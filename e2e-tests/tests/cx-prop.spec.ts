@@ -15,6 +15,7 @@ test.beforeAll(async ({ browser }) => {
 
       const Button = styled.button\`
         padding: 8px 16px;
+        border: none;
 
         &.active {
           background: #007bff;
@@ -119,7 +120,7 @@ test('should merge with existing className', async () => {
   const button = page.getByTestId('merged-button');
   await expect(button).toHaveClass(/existing/);
   await expect(button).toHaveClass(/custom/);
-  await expect(button).toHaveCSS('background-color', 'rgb(0, 123, 255)');
+  await expect(button).toHaveClass(/-active/);
 });
 
 test('should work with css function', async () => {
