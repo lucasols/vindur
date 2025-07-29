@@ -45,7 +45,7 @@ export interface VindurAttributes {
 }
 
 type StyledFunction = {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint  
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint
   <T = {}>(
     strings: TemplateStringsArray,
     ...values: (string | number)[]
@@ -55,7 +55,8 @@ type StyledFunction = {
       style?: CSSProperties;
       children?: ReactNode;
       onClick?: () => void;
-    } & VindurAttributes & T
+    } & VindurAttributes
+      & T
   >;
   (
     strings: TemplateStringsArray,
@@ -73,10 +74,13 @@ type StyledFunction = {
 // Create a Proxy that handles all DOM element access dynamically
 const styledHandler = {
   get: (_: unknown, tag: string): StyledFunction => {
-    const styledFn = (strings: TemplateStringsArray, ...values: (string | number)[]) => {
+    const styledFn = (
+      strings: TemplateStringsArray,
+      ...values: (string | number)[]
+    ) => {
       throw new Error('styled cannot be called at runtime');
     };
-    
+
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
     return styledFn as StyledFunction;
   },
@@ -543,24 +547,23 @@ export function mergeClassNames(
   spreadProps: (Record<string, unknown> | string)[],
   vindurClassName: string,
 ): string {
-  const classNames: string[] = [];
+  let finalClassName = '';
 
   // Extract className from spread props
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
-      classNames.push(prop);
+      finalClassName = prop;
     } else if (typeof prop === 'object' && 'className' in prop) {
       const className = prop.className;
       if (typeof className === 'string') {
-        classNames.push(className);
+        finalClassName = className;
       }
     }
   }
 
-  // Add vindur className
-  classNames.push(vindurClassName);
+  if (finalClassName) return `${finalClassName} ${vindurClassName}`;
 
-  return classNames.join(' ');
+  return vindurClassName;
 }
 
 /**
