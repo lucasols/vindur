@@ -1,22 +1,22 @@
 import { types as t } from '@babel/core';
-import generate from '@babel/generator';
-import {
-  extractLiteralValue,
-  isLiteralExpression,
-} from '../ast-utils';
+import { generate } from '@babel/generator';
+import { extractLiteralValue, isLiteralExpression } from '../ast-utils';
 import type { CssProcessingContext } from '../css-processing';
 import {
-  resolveVariable,
+  resolveDynamicColorCallExpression,
+  resolveDynamicColorExpression,
+} from './dynamic-colors';
+import { getOrExtractFileData } from './file-processing';
+import {
   resolveBinaryExpression,
   resolveFunctionCall,
+  resolveVariable,
 } from './resolution';
 import { resolveThemeColorExpression } from './theme-colors';
-import { resolveDynamicColorExpression, resolveDynamicColorCallExpression } from './dynamic-colors';
-import { getOrExtractFileData } from './file-processing';
 
 function isExtensionResult(
   result: string | { type: 'extension'; className: string },
-// eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for interpolation result discrimination
+  // eslint-disable-next-line @ls-stack/no-type-guards -- Type guard for interpolation result discrimination
 ): result is { type: 'extension'; className: string } {
   return typeof result === 'object' && 'type' in result;
 }
@@ -50,14 +50,19 @@ function processIdentifierExpression(
   if (keyframesAnimation) return keyframesAnimation;
 
   // Check imported items
-  const importedResult = resolveImportedIdentifier(expression.name, context, interpolationContext);
+  const importedResult = resolveImportedIdentifier(
+    expression.name,
+    context,
+    interpolationContext,
+  );
   if (importedResult !== null) return importedResult;
 
   // Try local variable resolution
   const resolvedValue = resolveVariable(expression.name, context.path);
   if (resolvedValue !== null) return resolvedValue;
 
-  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  const varContext =
+    variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new Error(
     `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
   );
@@ -103,14 +108,15 @@ function processArrowFunctionExpression(
   tagType: string,
 ): string {
   if (
-    expression.params.length === 0 &&
-    t.isIdentifier(expression.body) &&
-    !expression.async
+    expression.params.length === 0
+    && t.isIdentifier(expression.body)
+    && !expression.async
   ) {
     const componentName = expression.body.name;
     return `__FORWARD_REF__${componentName}__`;
   } else {
-    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+    const varContext =
+      variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new Error(
       `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
     );
@@ -131,13 +137,17 @@ function processCallExpression(
     interpolationContext.dev || false,
   );
   if (functionResolved !== null) return functionResolved;
-  
+
   // Try dynamic color function calls
-  const dynamicResolved = resolveDynamicColorCallExpression(expression, context);
+  const dynamicResolved = resolveDynamicColorCallExpression(
+    expression,
+    context,
+  );
   if (dynamicResolved !== null) return dynamicResolved;
-  
+
   const expressionSource = generate(expression).code;
-  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  const varContext =
+    variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new Error(
     `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
   );
@@ -154,7 +164,8 @@ function processBinaryExpression(
     return resolved;
   } else {
     const expressionSource = generate(expression).code;
-    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+    const varContext =
+      variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new Error(
       `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
     );
@@ -171,7 +182,8 @@ function resolveCreateClassNameMemberExpression(
     && t.isIdentifier(expression.object.callee)
     && expression.object.callee.name === 'createClassName'
     && t.isIdentifier(expression.property)
-    && (expression.property.name === 'selector' || expression.property.name === 'value')
+    && (expression.property.name === 'selector'
+      || expression.property.name === 'value')
     && expression.object.arguments.length === 1
     && t.isStringLiteral(expression.object.arguments[0])
   ) {
@@ -179,19 +191,24 @@ function resolveCreateClassNameMemberExpression(
     if (expression.property.name === 'selector') return `.${hash}`;
     return hash;
   }
-  
+
   // Check if this is an identifier.selector or identifier.value where identifier was assigned createClassName()
   if (
     t.isIdentifier(expression.object)
     && t.isIdentifier(expression.property)
-    && (expression.property.name === 'selector' || expression.property.name === 'value')
+    && (expression.property.name === 'selector'
+      || expression.property.name === 'value')
   ) {
     // Find the variable binding for the identifier
     const binding = context.path.scope.getBinding(expression.object.name);
-    
-    if (binding?.path && binding.path.isVariableDeclarator() && binding.path.node.init) {
+
+    if (
+      binding?.path
+      && binding.path.isVariableDeclarator()
+      && binding.path.node.init
+    ) {
       const init = binding.path.node.init;
-      
+
       // Check if the initialization is a createClassName() call
       if (
         t.isCallExpression(init)
@@ -206,7 +223,7 @@ function resolveCreateClassNameMemberExpression(
       }
     }
   }
-  
+
   return null;
 }
 
@@ -218,19 +235,27 @@ function processMemberExpression(
   tagType: string,
 ): string {
   // Try theme colors first
-  const themeResolved = resolveThemeColorExpression(expression, context, interpolationContext.dev || false);
+  const themeResolved = resolveThemeColorExpression(
+    expression,
+    context,
+    interpolationContext.dev || false,
+  );
   if (themeResolved !== null) return themeResolved;
-  
+
   // Try dynamic colors
   const dynamicResolved = resolveDynamicColorExpression(expression, context);
   if (dynamicResolved !== null) return dynamicResolved;
-  
+
   // Try createClassName member expressions
-  const createClassNameResolved = resolveCreateClassNameMemberExpression(expression, context);
+  const createClassNameResolved = resolveCreateClassNameMemberExpression(
+    expression,
+    context,
+  );
   if (createClassNameResolved !== null) return createClassNameResolved;
-  
+
   const expressionSource = generate(expression).code;
-  const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+  const varContext =
+    variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new Error(
     `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
   );
@@ -247,7 +272,13 @@ export function processInterpolationExpression(
   } = {},
 ): string | { type: 'extension'; className: string } {
   if (t.isIdentifier(expression)) {
-    return processIdentifierExpression(expression, context, interpolationContext, variableName, tagType);
+    return processIdentifierExpression(
+      expression,
+      context,
+      interpolationContext,
+      variableName,
+      tagType,
+    );
   } else if (t.isArrowFunctionExpression(expression)) {
     return processArrowFunctionExpression(expression, variableName, tagType);
   } else if (isLiteralExpression(expression)) {
@@ -263,14 +294,27 @@ export function processInterpolationExpression(
     );
     return nested.cssContent;
   } else if (t.isCallExpression(expression)) {
-    return processCallExpression(expression, context, interpolationContext, variableName, tagType);
+    return processCallExpression(
+      expression,
+      context,
+      interpolationContext,
+      variableName,
+      tagType,
+    );
   } else if (t.isBinaryExpression(expression)) {
     return processBinaryExpression(expression, context, variableName, tagType);
   } else if (t.isMemberExpression(expression)) {
-    return processMemberExpression(expression, context, interpolationContext, variableName, tagType);
+    return processMemberExpression(
+      expression,
+      context,
+      interpolationContext,
+      variableName,
+      tagType,
+    );
   } else {
     const expressionSource = generate(expression).code;
-    const varContext = variableName ? `... ${variableName} = ${tagType}` : tagType;
+    const varContext =
+      variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new Error(
       `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
     );
@@ -329,13 +373,13 @@ function resolveImportedKeyframes(
 ): string | null {
   // Check if this keyframes is imported from another file
   const keyframesFilePath = context.importedFunctions.get(keyframesName);
-  
+
   if (!keyframesFilePath) return null;
 
   // Load and process the external file to extract keyframes
   try {
     const extractedData = getOrExtractFileData(keyframesFilePath, context);
-    
+
     // Look for the specific keyframes in the external file
     const keyframesAnimationName = extractedData.keyframes.get(keyframesName);
     if (keyframesAnimationName) {
@@ -343,14 +387,16 @@ function resolveImportedKeyframes(
       context.usedFunctions.add(keyframesName);
       return keyframesAnimationName;
     }
-    
+
     // Return null if not found (allow other resolvers to try)
     return null;
   } catch (error) {
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(`Failed to load keyframes "${keyframesName}" from ${keyframesFilePath}`);
+    throw new Error(
+      `Failed to load keyframes "${keyframesName}" from ${keyframesFilePath}`,
+    );
   }
 }
 
@@ -360,13 +406,13 @@ function resolveImportedCss(
 ): string | null {
   // Check if this CSS is imported from another file
   const cssFilePath = context.importedFunctions.get(cssName);
-  
+
   if (!cssFilePath) return null;
 
   // Load and process the external file to extract CSS variables
   try {
     const extractedData = getOrExtractFileData(cssFilePath, context);
-    
+
     // Look for the specific CSS variable in the external file
     const cssClassName = extractedData.cssVariables.get(cssName);
     if (cssClassName) {
@@ -374,7 +420,7 @@ function resolveImportedCss(
       context.usedFunctions.add(cssName);
       return cssClassName;
     }
-    
+
     // Return null if not found (allow other resolvers to try)
     return null;
   } catch (error) {
@@ -391,13 +437,13 @@ function resolveImportedConstantLocal(
 ): string | number | null {
   // Check if this constant is imported from another file
   const constantFilePath = context.importedFunctions.get(constantName);
-  
+
   if (!constantFilePath) return null;
 
   // Load and process the external file to extract constants
   try {
     const extractedData = getOrExtractFileData(constantFilePath, context);
-    
+
     // Look for the specific constant in the external file
     const constantValue = extractedData.constants.get(constantName);
     if (constantValue !== undefined) {
@@ -405,14 +451,15 @@ function resolveImportedConstantLocal(
       context.usedFunctions.add(constantName);
       return constantValue;
     }
-    
+
     // Return null if not found (allow other resolvers to try)
     return null;
   } catch (error) {
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(`Failed to load constant "${constantName}" from ${constantFilePath}`);
+    throw new Error(
+      `Failed to load constant "${constantName}" from ${constantFilePath}`,
+    );
   }
 }
-

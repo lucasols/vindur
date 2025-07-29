@@ -1,6 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import generate from '@babel/generator';
+import { generate } from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
 import { filterWithNarrowing } from '../utils';
 import { isDynamicColorSetPropsCall } from './jsx-utils';
