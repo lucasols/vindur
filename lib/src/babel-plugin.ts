@@ -148,6 +148,7 @@ export function createVindurPlugin(
 
   const importAliasesArray = Object.entries(importAliases);
 
+
   return {
     name: 'vindur-css-transform',
     visitor: {
@@ -324,6 +325,7 @@ export function createVindurPlugin(
       state.keyframes.clear();
       idIndex = 1;
       usedFunctions.clear();
+      importedFunctions.clear();
     },
     post(file) {
       const postProcessingContext = {

@@ -31,24 +31,17 @@ export function getOrExtractFileData(
     potentiallyUndeclaredScopedVariables: new Set<string>(),
   };
 
-  // Parse the file to get the AST
-  const parseResult = babel.parseSync(fileContent, {
-    sourceType: 'module',
-    parserOpts: {
-      plugins: ['typescript', 'jsx'],
-    },
-    filename: filePath,
-  });
+  // Create maps to collect constants during transform
+  const allConstants = new Map<string, string | number>();
+  const exportedConstants = new Map<string, string | number>();
 
-  if (!parseResult) {
-    throw new Error(`Failed to parse AST for ${filePath}`);
-  }
+  // Create a combined plugin that extracts both constants and CSS in one pass
+  const constantsExtractorPlugin = createConstantsExtractorPlugin(
+    allConstants,
+    exportedConstants,
+  );
 
-  // Extract constants from the parsed AST (without transformation)
-  const constants = extractConstantsFromAST(parseResult, fileContent);
-
-  // Now transform the file to extract CSS variables and keyframes
-  const plugin = createVindurPlugin(
+  const vindurPlugin = createVindurPlugin(
     {
       filePath,
       dev: false, // Use production mode for external files
@@ -59,9 +52,9 @@ export function getOrExtractFileData(
     tempState,
   );
 
-  // Transform the external file to extract CSS and keyframes
+  // Transform the external file with both plugins in a single pass
   babel.transformSync(fileContent, {
-    plugins: [plugin],
+    plugins: [constantsExtractorPlugin, vindurPlugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
     filename: filePath,
   });
@@ -69,7 +62,7 @@ export function getOrExtractFileData(
   // Debug: log extracted constants
   if (context.debug) {
     context.debug.log(
-      `Extracted constants from ${filePath}: ${JSON.stringify(Array.from(constants.entries()))}`,
+      `Extracted constants from ${filePath}: ${JSON.stringify(Array.from(exportedConstants.entries()))}`,
     );
   }
 
@@ -77,115 +70,94 @@ export function getOrExtractFileData(
   const result = {
     cssVariables: new Map(tempState.cssVariables),
     keyframes: new Map(tempState.keyframes),
-    constants,
+    constants: exportedConstants,
     themeColors: new Map(tempState.themeColors),
   };
-
-  // Cache the result
-  context.extractedFiles.set(filePath, result);
 
   // Add the CSS rules from the external file to the main CSS output
   context.state.cssRules.push(...tempState.cssRules);
 
+  // Cache the result
+  context.extractedFiles.set(filePath, result);
+
   return result;
 }
 
-function extractConstantsFromAST(
-  ast: t.File,
-  _sourceCode: string,
-): Map<string, string | number> {
-  const constants = new Map<string, string | number>();
-  const allConstants = new Map<string, string | number>();
-
-  // First pass: collect all const declarations
-  babel.traverse(ast, {
-    VariableDeclaration(path) {
-      if (path.node.kind === 'const') {
-        for (const declarator of path.node.declarations) {
-          if (t.isIdentifier(declarator.id) && declarator.init) {
-            const variableName = declarator.id.name;
-            const value = extractLiteralValue(declarator.init);
-
-            if (
-              value !== null
-              && (typeof value === 'string' || typeof value === 'number')
-            ) {
-              allConstants.set(variableName, value);
-            }
-          }
-        }
-      }
-    },
-  });
-
-  // Second pass: resolve template literals now that all literals are collected
-  babel.traverse(ast, {
-    VariableDeclaration(path) {
-      if (path.node.kind === 'const') {
-        for (const declarator of path.node.declarations) {
-          if (
-            t.isIdentifier(declarator.id)
-            && declarator.init
-            && t.isTemplateLiteral(declarator.init)
-          ) {
-            const variableName = declarator.id.name;
-            // Try to resolve template literal with the constants we've collected
-            const resolvedValue = resolveTemplateLiteralWithConstants(
-              declarator.init,
-              allConstants,
-            );
-            if (resolvedValue !== null) {
-              allConstants.set(variableName, resolvedValue);
-            }
-          }
-        }
-      }
-    },
-  });
-
-  // Third pass: find exported constants
-  babel.traverse(ast, {
-    ExportNamedDeclaration(path) {
-      const declaration = path.node.declaration;
-
-      if (t.isVariableDeclaration(declaration)) {
-        // Handle: export const name = value
-        for (const declarator of declaration.declarations) {
-          if (t.isIdentifier(declarator.id)) {
-            const variableName = declarator.id.name;
-
-            // Try to get the value directly from the declarator
-            if (declarator.init) {
+function createConstantsExtractorPlugin(
+  allConstants: Map<string, string | number>,
+  exportedConstants: Map<string, string | number>,
+): babel.PluginObj {
+  return {
+    name: 'extract-constants',
+    visitor: {
+      VariableDeclaration(path) {
+        if (path.node.kind === 'const') {
+          for (const declarator of path.node.declarations) {
+            if (t.isIdentifier(declarator.id) && declarator.init) {
+              const variableName = declarator.id.name;
               const value = extractLiteralValue(declarator.init);
+
               if (
                 value !== null
                 && (typeof value === 'string' || typeof value === 'number')
               ) {
-                constants.set(variableName, value);
+                allConstants.set(variableName, value);
               } else if (t.isTemplateLiteral(declarator.init)) {
-                // Handle template literals in export declarations
+                // Try to resolve template literal with collected constants
                 const resolvedValue = resolveTemplateLiteralWithConstants(
                   declarator.init,
                   allConstants,
                 );
                 if (resolvedValue !== null) {
-                  constants.set(variableName, resolvedValue);
+                  allConstants.set(variableName, resolvedValue);
                 }
-              }
-            } else {
-              // Look for it in allConstants if it was declared separately
-              const value = allConstants.get(variableName);
-              if (value !== undefined) {
-                constants.set(variableName, value);
               }
             }
           }
         }
-      }
-    },
-  });
+      },
+      ExportNamedDeclaration(path) {
+        const declaration = path.node.declaration;
 
-  return constants;
+        if (t.isVariableDeclaration(declaration)) {
+          // Handle: export const name = value
+          for (const declarator of declaration.declarations) {
+            if (t.isIdentifier(declarator.id)) {
+              const variableName = declarator.id.name;
+
+              // Try to get the value directly from the declarator
+              if (declarator.init) {
+                const value = extractLiteralValue(declarator.init);
+                if (
+                  value !== null
+                  && (typeof value === 'string' || typeof value === 'number')
+                ) {
+                  allConstants.set(variableName, value);
+                  exportedConstants.set(variableName, value);
+                } else if (t.isTemplateLiteral(declarator.init)) {
+                  // Handle template literals in export declarations
+                  const resolvedValue = resolveTemplateLiteralWithConstants(
+                    declarator.init,
+                    allConstants,
+                  );
+                  if (resolvedValue !== null) {
+                    allConstants.set(variableName, resolvedValue);
+                    exportedConstants.set(variableName, resolvedValue);
+                  }
+                }
+              } else {
+                // Look for it in allConstants if it was declared separately
+                const value = allConstants.get(variableName);
+                if (value !== undefined) {
+                  exportedConstants.set(variableName, value);
+                }
+              }
+            }
+          }
+        }
+      },
+    },
+  };
 }
 
 function resolveTemplateLiteralWithConstants(
