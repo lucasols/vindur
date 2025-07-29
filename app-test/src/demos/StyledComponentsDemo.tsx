@@ -77,6 +77,82 @@ export const ExportedCard = styled.div`
   }
 `;
 
+// attrs demo - styled components with default attributes
+const AttrsButton = styled.button.attrs({
+  type: 'button',
+  'data-component': 'attrs-button',
+  'aria-label': 'Button with attrs'
+})`
+  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+  }
+`;
+
+const AttrsInput = styled.input.attrs({
+  type: 'text',
+  placeholder: 'Input with attrs...',
+  'data-testid': 'attrs-input'
+})`
+  padding: 12px 16px;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+  margin-right: 12px;
+  margin-bottom: 12px;
+
+  &:focus {
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+`;
+
+// withComponent demo - reusing styles across different elements
+const BaseButton = styled.button`
+  background: linear-gradient(45deg, #2ed573, #1e90ff);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+  margin-right: 12px;
+  margin-bottom: 12px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(46, 213, 115, 0.4);
+  }
+`;
+
+const LinkButton = BaseButton.withComponent('a');
+const SpanButton = BaseButton.withComponent('span');
+
+const DemoContainer = styled.div`
+  margin-bottom: 24px;
+`;
+
+const DemoTitle = styled.h3`
+  color: white;
+  margin-bottom: 12px;
+  font-size: 18px;
+`;
+
 export function StyledComponentsDemo() {
   return (
     <DemoSection title="Styled Components">
@@ -90,6 +166,30 @@ export function StyledComponentsDemo() {
         This is an exported styled component that generates an intermediate
         React component
       </ExportedCard>
+
+      <DemoContainer>
+        <DemoTitle>Attrs Demo - Components with Default Attributes</DemoTitle>
+        <div>
+          <AttrsButton>Button with attrs</AttrsButton>
+          <AttrsInput />
+        </div>
+        <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', margin: '8px 0' }}>
+          The button has type="button", data-component="attrs-button", and aria-label attributes.
+          The input has type="text", placeholder, and data-testid attributes.
+        </p>
+      </DemoContainer>
+
+      <DemoContainer>
+        <DemoTitle>withComponent Demo - Reusing Styles Across Elements</DemoTitle>
+        <div>
+          <BaseButton>Base Button</BaseButton>
+          <LinkButton href="#demo" onClick={(e) => e.preventDefault()}>Link Button</LinkButton>
+          <SpanButton>Span Button</SpanButton>
+        </div>
+        <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', margin: '8px 0' }}>
+          Same styles applied to button, anchor, and span elements using withComponent method.
+        </p>
+      </DemoContainer>
     </DemoSection>
   );
 }
