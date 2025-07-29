@@ -87,7 +87,7 @@ export const styled: {
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions, @typescript-eslint/no-explicit-any -- Runtime fallback requires type assertion for compile-time transform
 } = new Proxy({}, styledHandler) as any;
 
-export function styledComponent(
+export function _vSC(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
   tagOrComponent: string | ComponentType<any>,
   className: string,
@@ -126,7 +126,7 @@ export function styledComponent(
   return Component;
 }
 
-export function vComponentWithModifiers(
+export function _vCWM(
   modifiers: Array<[string, string]>,
   baseClassName: string,
   elementType: string,
@@ -250,7 +250,7 @@ type DynamicCssColor = {
     },
   ) => {
     className?: string;
-    style?: Record<string, unknown>;
+    style?: CSSProperties;
   };
   // selectors to be used in the component that is setting the color
   self: {
@@ -476,8 +476,17 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
         style?: Record<string, unknown>;
       },
     ) => {
-      console.error('color._sp() should not be called at runtime');
-      return mergeWith;
+      if (!colorValue) return mergeWith;
+
+      const colorProps = color.setProps(colorValue, {
+        className: mergeWith.className,
+        style: mergeWith.style ? mergeWith.style : undefined,
+      });
+
+      return {
+        className: colorProps.className,
+        style: colorProps.style,
+      };
     },
   };
 
