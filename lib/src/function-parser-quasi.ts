@@ -1,6 +1,7 @@
 import { types as t } from '@babel/core';
 import type { OutputQuasi } from './types';
 import { parseTernaryCondition } from './function-parser-ternary';
+import { parseBinaryExpression } from './function-parser-binary';
 
 export function parseQuasiFromExpression(
   expr: t.Expression,
@@ -52,6 +53,13 @@ export function parseQuasiFromExpression(
     );
 
     return { type: 'ternary', condition, ifTrue, ifFalse };
+  } else if (t.isBinaryExpression(expr)) {
+    // Handle binary expressions (arithmetic operations)
+    const binaryResult = parseBinaryExpression(expr, functionName, validParameterNames);
+    if (binaryResult) {
+      return binaryResult;
+    }
+    // If parseBinaryExpression returns null, fall through to the error
   } else if (t.isCallExpression(expr)) {
     // Function calls are not allowed
     throw new Error(

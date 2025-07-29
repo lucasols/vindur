@@ -4,7 +4,7 @@
     "build-all": "pnpm --filter vindur run build && pnpm --filter vite-plugin run build",
     "lint-all": "pnpm -r --no-bail run lint",
     "tsc-all": "pnpm -r --no-bail run tsc",
-    "lint-tsc-all": "pnpm run build-all && pnpm run tsc-all && pnpm run eslint-all",
+    "lint-tsc-all": "pnpm run build-all && pnpm run tsc-all && pnpm run eslint-all && pnpm run app-test:build",
     "format-all": "pnpm -r --no-bail run format",
     "eslint-all": "pnpm -r --no-bail run eslint",
     "lib:build": "pnpm --filter vindur run build",
@@ -18,6 +18,7 @@
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",
     "run-app-test": "pnpm --filter vindur-test-app dev",
+    "app-test:build": "pnpm --filter vindur-test-app run build",
     "clean-empty-folders": "node scripts/remove-empty-folders.ts"
   },
   "license": "MIT",

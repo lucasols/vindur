@@ -263,8 +263,7 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { _vSC } from "vindur";
-      export default _vSC("div", "v1560qbr-1");
+      "export default styledComponent("div", "v1560qbr-1");
       "
     `);
 
@@ -310,10 +309,7 @@ describe('Exported styled components', () => {
       // Local component - should be removed
 
       // Exported component - should be transformed
-      export const PublicButton = _vSC(
-        "button",
-        "v1560qbr-2-PublicButton",
-      );
+      export const PublicButton = _vSC("button", "v1560qbr-2-PublicButton");
 
       // Using both in a component
       export const App = () => (

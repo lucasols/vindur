@@ -105,11 +105,8 @@ export function evaluateQuasi(
 
     // Check if both values are numbers
     if (typeof leftValue !== 'number' || typeof rightValue !== 'number') {
-      const leftName = quasi.left.type === 'arg' ? quasi.left.name : 'literal';
-      const rightName =
-        quasi.right.type === 'arg' ? quasi.right.name : 'literal';
       throw new Error(
-        `Binary expression evaluation failed: operands must be numbers, got ${typeof leftValue} for '${leftName}' and ${typeof rightValue} for '${rightName}'`,
+        `Binary expression evaluation failed: operands must be numbers`,
       );
     }
 

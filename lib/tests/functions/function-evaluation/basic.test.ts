@@ -496,4 +496,36 @@ describe('function evaluation - basic functionality', () => {
       "
     `);
   });
+
+  test('function with binary operator', async () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
+
+      export const spacing = vindurFn((multiplier: number) => \`
+        margin: \${multiplier * 8}px;
+      \`)
+    `;
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { spacing } from '#/functions'
+
+        const style = css\`
+          \${spacing(2)};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        margin: 16px;
+      }"
+    `);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
+  });
 });

@@ -103,11 +103,7 @@ describe('Style Flags Warning System', () => {
       );
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [["size", "vr4ikfs-size"]],
-          "v1560qbr-1-Button",
-          "button",
-        );
+        const Button = _vCWM([["size", "vr4ikfs-size"]], "v1560qbr-1-Button", "button");
         console.warn('Warning: Missing modifier styles for "&.size-large" in Button');
         console.warn('Warning: Missing modifier styles for "&.size-small" in Button');
         "
