@@ -7,30 +7,34 @@ function generateColorGrid(
   hueSteps: number,
   saturationLevels: number[],
   lightnessLevels: number[],
-  includeGrayscale: boolean = true
+  includeGrayscale: boolean = true,
 ) {
   const colors = [];
-  
+
   // Grayscale row (top)
   if (includeGrayscale) {
     for (let l = 0; l <= 100; l += 100 / (hueSteps - 1)) {
       colors.push(`hsl(0, 0%, ${Math.round(l)}%)`);
     }
   }
-  
+
   // Color spectrum rows
   for (let satIndex = 0; satIndex < saturationLevels.length; satIndex++) {
     const saturation = saturationLevels[satIndex];
-    
-    for (let lightIndex = 0; lightIndex < lightnessLevels.length; lightIndex++) {
+
+    for (
+      let lightIndex = 0;
+      lightIndex < lightnessLevels.length;
+      lightIndex++
+    ) {
       const lightness = lightnessLevels[lightIndex];
-      
+
       for (let h = 0; h < 360; h += 360 / hueSteps) {
         colors.push(`hsl(${Math.round(h)}, ${saturation}%, ${lightness}%)`);
       }
     }
   }
-  
+
   return colors;
 }
 
@@ -59,7 +63,7 @@ const ColorCard = styled.div`
   font-size: 8px;
   font-weight: 600;
   position: relative;
-  
+
   &:hover {
     z-index: 10;
     transform: scale(1.5);
@@ -105,7 +109,7 @@ const OptimalContrastCard = styled.div`
   font-size: 8px;
   font-weight: 600;
   position: relative;
-  
+
   &:hover {
     z-index: 10;
     transform: scale(1.5);
@@ -163,7 +167,7 @@ const ToggleButton = styled.button`
   border-radius: 4px;
   cursor: pointer;
   font-weight: 600;
-  
+
   &.active {
     background: #4ecdc4;
     color: #000;
@@ -173,11 +177,18 @@ const ToggleButton = styled.button`
 export function ContrastTestDemo() {
   const [showOptimal, setShowOptimal] = useState(false);
   const [hueSteps, setHueSteps] = useState(12);
-  const [saturationLevels, setSaturationLevels] = useState([90, 75, 60, 45, 30]);
+  const [saturationLevels, setSaturationLevels] = useState([
+    90, 75, 60, 45, 30,
+  ]);
   const [lightnessLevels, setLightnessLevels] = useState([20, 35, 50, 65, 80]);
   const [includeGrayscale, setIncludeGrayscale] = useState(true);
-  
-  const testColors = generateColorGrid(hueSteps, saturationLevels, lightnessLevels, includeGrayscale);
+
+  const testColors = generateColorGrid(
+    hueSteps,
+    saturationLevels,
+    lightnessLevels,
+    includeGrayscale,
+  );
 
   return (
     <DemoSection title="Contrast Test">
@@ -191,7 +202,7 @@ export function ContrastTestDemo() {
             />
             Show Optimal Contrast
           </Label>
-          
+
           <Label>
             <input
               type="checkbox"
@@ -282,7 +293,10 @@ export function ContrastTestDemo() {
           margin-bottom: 8px;
         `}
       >
-        Grid: {hueSteps} columns × {(includeGrayscale ? 1 : 0) + saturationLevels.length * lightnessLevels.length} rows ({testColors.length} colors)
+        Grid: {hueSteps} columns ×{' '}
+        {(includeGrayscale ? 1 : 0)
+          + saturationLevels.length * lightnessLevels.length}{' '}
+        rows ({testColors.length} colors)
       </div>
 
       <GridContainer
@@ -290,9 +304,12 @@ export function ContrastTestDemo() {
       >
         {testColors.map((color) => {
           const Card = showOptimal ? OptimalContrastCard : ColorCard;
-          
+
           return (
-            <Card key={color} dynamicColor={dynamicColor.set(color)}>
+            <Card
+              key={color}
+              dynamicColor={dynamicColor.set(color)}
+            >
               <div>Sample Text</div>
               <ColorInfo>{color.toUpperCase()}</ColorInfo>
               <ContrastValue>
@@ -315,12 +332,13 @@ export function ContrastTestDemo() {
         `}
       >
         <strong>About Contrast:</strong>
+        <br />• <strong>Auto Contrast (.contrast.var):</strong> Standard
+        contrast calculation based on luminance
+        <br />• <strong>Optimal Contrast (.contrast.optimal):</strong> Enhanced
+        contrast for better accessibility
         <br />
-        • <strong>Auto Contrast (.contrast.var):</strong> Standard contrast calculation based on luminance
-        <br />
-        • <strong>Optimal Contrast (.contrast.optimal):</strong> Enhanced contrast for better accessibility
-        <br />
-        Toggle the checkbox above to compare both contrast methods across different background colors.
+        Toggle the checkbox above to compare both contrast methods across
+        different background colors.
       </div>
     </DemoSection>
   );

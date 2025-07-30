@@ -62,7 +62,13 @@ export function handleJsxStyledComponent(
 
 function handleJsxClassNameMerging(
   path: NodePath<t.JSXElement>,
-  styledInfo: { element: string; className: string; isExported: boolean; attrs?: boolean; attrsExpression?: t.ObjectExpression },
+  styledInfo: {
+    element: string;
+    className: string;
+    isExported: boolean;
+    attrs?: boolean;
+    attrsExpression?: t.ObjectExpression;
+  },
   context: { state: VindurPluginState },
 ): void {
   // Check for spread attributes
@@ -118,7 +124,13 @@ function handleClassNameWithSpreads(
   spreadAttrs: t.JSXSpreadAttribute[],
   existingClassNameAttr: t.JSXAttribute | undefined,
   classNameAttrs: t.JSXAttribute[],
-  styledInfo: { element: string; className: string; isExported: boolean; attrs?: boolean; attrsExpression?: t.ObjectExpression },
+  styledInfo: {
+    element: string;
+    className: string;
+    isExported: boolean;
+    attrs?: boolean;
+    attrsExpression?: t.ObjectExpression;
+  },
   context: { state: VindurPluginState },
 ): void {
   // Check if any spread is a dynamic color setProps call that already includes className
@@ -198,7 +210,13 @@ function handleClassNameWithSpreads(
 function handleClassNameWithoutSpreads(
   attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[],
   existingClassNameAttr: t.JSXAttribute | undefined,
-  styledInfo: { element: string; className: string; isExported: boolean; attrs?: boolean; attrsExpression?: t.ObjectExpression },
+  styledInfo: {
+    element: string;
+    className: string;
+    isExported: boolean;
+    attrs?: boolean;
+    attrsExpression?: t.ObjectExpression;
+  },
 ): void {
   if (existingClassNameAttr) {
     // Merge with existing className
@@ -241,7 +259,13 @@ function handleClassNameWithoutSpreads(
 function createMergeWithSpreadCall(
   existingClassNameAttr: t.JSXAttribute | undefined,
   spreadAttrs: t.JSXSpreadAttribute[],
-  styledInfo: { element: string; className: string; isExported: boolean; attrs?: boolean; attrsExpression?: t.ObjectExpression },
+  styledInfo: {
+    element: string;
+    className: string;
+    isExported: boolean;
+    attrs?: boolean;
+    attrsExpression?: t.ObjectExpression;
+  },
   context: { state: VindurPluginState },
   attributes?: (t.JSXAttribute | t.JSXSpreadAttribute)[],
 ): void {

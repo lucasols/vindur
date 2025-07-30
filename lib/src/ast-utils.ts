@@ -22,7 +22,6 @@ export function getLiteralValueType(
     : 'string';
 }
 
-
 export function extractArgumentValue(
   arg: t.Expression,
   path?: NodePath,

@@ -13,15 +13,35 @@ import { VindurFnDemo } from './demos/VindurFnDemo';
 
 export const demos = [
   { path: '/', name: 'CSS Tagged Templates', component: CssTaggedTemplateDemo },
-  { path: '/styled-components', name: 'Styled Components', component: StyledComponentsDemo },
+  {
+    path: '/styled-components',
+    name: 'Styled Components',
+    component: StyledComponentsDemo,
+  },
   { path: '/css-prop', name: 'CSS Prop', component: CssPropDemo },
-  { path: '/custom-component-css', name: 'Custom Component CSS', component: CustomComponentCssDemo },
+  {
+    path: '/custom-component-css',
+    name: 'Custom Component CSS',
+    component: CustomComponentCssDemo,
+  },
   { path: '/cx-prop', name: 'CX Prop', component: CxPropDemo },
   { path: '/vindur-fn', name: 'VindurFn', component: VindurFnDemo },
-  { path: '/scoped-variables', name: 'Scoped Variables', component: ScopedVariablesDemo },
+  {
+    path: '/scoped-variables',
+    name: 'Scoped Variables',
+    component: ScopedVariablesDemo,
+  },
   { path: '/keyframes', name: 'Keyframes', component: KeyframesDemo },
   { path: '/style-flags', name: 'Style Flags', component: StyleFlagsDemo },
-  { path: '/dynamic-colors', name: 'Dynamic Colors', component: DynamicColorsDemo },
-  { path: '/contrast-test', name: 'Contrast Test', component: ContrastTestDemo },
+  {
+    path: '/dynamic-colors',
+    name: 'Dynamic Colors',
+    component: DynamicColorsDemo,
+  },
+  {
+    path: '/contrast-test',
+    name: 'Contrast Test',
+    component: ContrastTestDemo,
+  },
   { path: '/global-styles', name: 'Global Styles', component: GlobalStyleDemo },
 ];

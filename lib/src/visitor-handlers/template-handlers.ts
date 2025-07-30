@@ -19,7 +19,7 @@ export function handleCssTaggedTemplate(
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
   const { context, dev, fileHash, classIndex } = handlerContext;
-  
+
   if (
     !context.state.vindurImports.has('css')
     || !t.isIdentifier(path.node.tag)
@@ -58,7 +58,7 @@ export function handleCssTaggedTemplate(
 
   // Replace the tagged template with the class name string
   path.replaceWith(t.stringLiteral(result.finalClassName));
-  
+
   return true;
 }
 
@@ -67,7 +67,7 @@ export function handleKeyframesTaggedTemplate(
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
   const { context, dev, fileHash, classIndex } = handlerContext;
-  
+
   if (
     !context.state.vindurImports.has('keyframes')
     || !t.isIdentifier(path.node.tag)
@@ -88,7 +88,7 @@ export function handleKeyframesTaggedTemplate(
 
   // Replace the tagged template with the animation name string
   path.replaceWith(t.stringLiteral(result.finalClassName));
-  
+
   return true;
 }
 
@@ -97,7 +97,7 @@ export function handleGlobalStyleTaggedTemplate(
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
   const { context, dev, fileHash, classIndex } = handlerContext;
-  
+
   if (
     !context.state.vindurImports.has('createGlobalStyle')
     || !t.isIdentifier(path.node.tag)
@@ -106,7 +106,12 @@ export function handleGlobalStyleTaggedTemplate(
     return false;
   }
 
-  const result = processGlobalStyle(path.node.quasi, context, fileHash, classIndex);
+  const result = processGlobalStyle(
+    path.node.quasi,
+    context,
+    fileHash,
+    classIndex,
+  );
 
   // Inject warnings for scoped variables in dev mode
   if (dev && result.warnings && result.warnings.length > 0) {
@@ -132,7 +137,7 @@ export function handleGlobalStyleTaggedTemplate(
     // If it's part of another expression, replace with void 0
     path.replaceWith(t.unaryExpression('void', t.numericLiteral(0)));
   }
-  
+
   return true;
 }
 
@@ -141,7 +146,7 @@ export function handleInlineStyledError(
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
   const { context, dev, fileHash, classIndex } = handlerContext;
-  
+
   if (
     !context.state.vindurImports.has('styled')
     || !t.isMemberExpression(path.node.tag)
@@ -157,7 +162,7 @@ export function handleInlineStyledError(
   if (t.isExportDefaultDeclaration(parent)) {
     // Handle export default styled.div`...`
     const tagName = path.node.tag.property.name;
-    
+
     const result = processStyledTemplate(
       path.node.quasi,
       context,
@@ -173,13 +178,10 @@ export function handleInlineStyledError(
     // Transform to styledComponent function call
     context.state.vindurImports.add('styledComponent');
     path.replaceWith(
-      t.callExpression(
-        t.identifier('styledComponent'),
-        [
-          t.stringLiteral(tagName),
-          t.stringLiteral(result.finalClassName),
-        ],
-      ),
+      t.callExpression(t.identifier('styledComponent'), [
+        t.stringLiteral(tagName),
+        t.stringLiteral(result.finalClassName),
+      ]),
     );
     return true;
   }

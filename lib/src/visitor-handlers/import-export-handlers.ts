@@ -1,11 +1,11 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { parseFunction } from '../function-parser';
-import type { 
-  DebugLogger, 
-  VindurPluginState, 
-  FunctionCache, 
-  ImportedFunctions 
+import type {
+  DebugLogger,
+  VindurPluginState,
+  FunctionCache,
+  ImportedFunctions,
 } from '../babel-plugin';
 
 type ImportHandlerContext = {
@@ -25,12 +25,9 @@ export function handleVindurImports(
   handlerContext: ImportHandlerContext,
 ): void {
   const { state } = handlerContext;
-  
+
   for (const specifier of path.node.specifiers) {
-    if (
-      t.isImportSpecifier(specifier)
-      && t.isIdentifier(specifier.imported)
-    ) {
+    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       state.vindurImports.add(specifier.imported.name);
     }
   }
@@ -42,34 +39,36 @@ export function handleFunctionImports(
   path: NodePath<t.ImportDeclaration>,
   handlerContext: ImportHandlerContext,
 ): void {
-  const { state, importedFunctions, debug, importAliasesArray } = handlerContext;
-  
+  const { state, importedFunctions, debug, importAliasesArray } =
+    handlerContext;
+
   const source = path.node.source.value;
 
   const resolvedPath = resolveImportPath(source, importAliasesArray);
-  
+
   if (resolvedPath === null) {
-    debug?.log(
-      `[vindur:import] ${source} is not an alias import, skipping`,
-    );
+    debug?.log(`[vindur:import] ${source} is not an alias import, skipping`);
     return;
   }
 
   debug?.log(`[vindur:import] ${source} resolved to ${resolvedPath}`);
 
   for (const specifier of path.node.specifiers) {
-    if (
-      t.isImportSpecifier(specifier)
-      && t.isIdentifier(specifier.imported)
-    ) {
+    if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
       const importedName = specifier.imported.name;
       const localName = specifier.local.name;
-      
+
       importedFunctions.set(importedName, resolvedPath);
-      
+
       // Check if this might be a dynamic color import and pre-load the external file
       // We'll load the file to check for dynamic color exports
-      loadExternalDynamicColors(resolvedPath, importedName, localName, state, debug);
+      loadExternalDynamicColors(
+        resolvedPath,
+        importedName,
+        localName,
+        state,
+        debug,
+      );
     }
   }
 }
@@ -85,7 +84,7 @@ function loadExternalDynamicColors(
   try {
     // For the test case, we know themeColor should be treated as a dynamic color
     // In a real implementation, we'd parse the external file to detect createDynamicCssColor exports
-    
+
     // For now, use pattern matching but be more inclusive
     const dynamicColorPatterns = [
       /color/i,
@@ -95,28 +94,32 @@ function loadExternalDynamicColors(
       /secondary/i,
       /accent/i,
     ];
-    
-    const mightBeDynamicColor = dynamicColorPatterns.some(pattern => 
-      pattern.test(importedName) || pattern.test(localName)
+
+    const mightBeDynamicColor = dynamicColorPatterns.some(
+      (pattern) => pattern.test(importedName) || pattern.test(localName),
     );
-    
+
     if (mightBeDynamicColor) {
       // Generate a proper hash ID for the imported dynamic color
       // Use the same format as local dynamic colors
       const hashId = `v1560qbr-2`; // Use a predictable ID for imported colors for now
-      
+
       // Initialize dynamicColors map if it doesn't exist
       if (!state.dynamicColors) {
         state.dynamicColors = new Map();
       }
-      
+
       // Add the imported dynamic color to state
       state.dynamicColors.set(localName, hashId);
-      
-      debug?.log(`[vindur:dynamic-color] Detected dynamic color import: ${localName} -> ${hashId}`);
+
+      debug?.log(
+        `[vindur:dynamic-color] Detected dynamic color import: ${localName} -> ${hashId}`,
+      );
     }
   } catch (error) {
-    debug?.log(`[vindur:dynamic-color] Error loading external dynamic colors from ${filePath}: ${String(error)}`);
+    debug?.log(
+      `[vindur:dynamic-color] Error loading external dynamic colors from ${filePath}: ${String(error)}`,
+    );
   }
 }
 
@@ -125,8 +128,11 @@ export function handleVindurFnExport(
   handlerContext: ExportHandlerContext,
 ): void {
   const { transformFunctionCache, filePath } = handlerContext;
-  
-  if (!path.node.declaration || !t.isVariableDeclaration(path.node.declaration)) {
+
+  if (
+    !path.node.declaration
+    || !t.isVariableDeclaration(path.node.declaration)
+  ) {
     return;
   }
 
@@ -141,10 +147,7 @@ export function handleVindurFnExport(
       && declarator.init.arguments.length === 1
     ) {
       const arg = declarator.init.arguments[0];
-      if (
-        t.isArrowFunctionExpression(arg)
-        || t.isFunctionExpression(arg)
-      ) {
+      if (t.isArrowFunctionExpression(arg) || t.isFunctionExpression(arg)) {
         const functionName = declarator.id.name;
         const compiledFn = parseFunction(arg, functionName);
 

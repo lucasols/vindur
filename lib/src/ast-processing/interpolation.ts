@@ -399,9 +399,7 @@ function resolveLayerCall(
 
   const layerArg = expression.arguments[0];
   if (!t.isStringLiteral(layerArg)) {
-    throw new Error(
-      'layer() must be called with a string literal layer name',
-    );
+    throw new Error('layer() must be called with a string literal layer name');
   }
 
   const layerName = layerArg.value;
@@ -409,7 +407,6 @@ function resolveLayerCall(
   // Return a special marker that will be processed by the CSS processor
   return `__VINDUR_LAYER_START__${layerName}__`;
 }
-
 
 // These are moved from the resolution module to avoid circular imports
 function resolveImportedKeyframes(

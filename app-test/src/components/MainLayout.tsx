@@ -40,9 +40,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <Layout>
       <Sidebar />
-      <MainContent>
-        {children}
-      </MainContent>
+      <MainContent>{children}</MainContent>
     </Layout>
   );
 }

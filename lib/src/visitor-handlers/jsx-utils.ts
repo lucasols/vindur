@@ -32,18 +32,20 @@ export function findAndRemoveDynamicColorAttr(
   attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[],
 ): { attr: t.JSXAttribute; index: number } | null {
   const dynamicColorAttr = findWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'dynamicColor'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'dynamicColor'
+    ) ?
+      attr
+    : false,
   );
 
   if (!dynamicColorAttr) return null;
 
   const index = attributes.indexOf(dynamicColorAttr);
   attributes.splice(index, 1);
-  
+
   return { attr: dynamicColorAttr, index };
 }
 
@@ -52,21 +54,18 @@ export function findOverrideAttributes(
   dynamicColorAttr: t.JSXAttribute,
 ): OverrideAttributes {
   const dynamicColorIndex = attributes.indexOf(dynamicColorAttr);
-  
+
   // Find attributes that come AFTER the dynamicColor attribute
   const attributesAfterDynamicColor = attributes.slice(dynamicColorIndex + 1);
-  
+
   // Find the LAST className and style attributes that come after dynamicColor
   let classNameOverride: t.JSXAttribute | false = false;
   let styleOverride: t.JSXAttribute | false = false;
-  
+
   // Search from the end to get the last occurrence
   for (let i = attributesAfterDynamicColor.length - 1; i >= 0; i--) {
     const attr = attributesAfterDynamicColor[i];
-    if (
-      t.isJSXAttribute(attr) &&
-      t.isJSXIdentifier(attr.name)
-    ) {
+    if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name)) {
       if (attr.name.name === 'className' && !classNameOverride) {
         classNameOverride = attr;
       }
@@ -108,21 +107,27 @@ export function handleArrayExpression(
     t.isJSXSpreadAttribute(attr) ? attr : false,
   );
 
-  const classNameAttr = findWithNarrowing(attrs, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'className'
-      ? attr
+  const classNameAttr =
+    findWithNarrowing(attrs, (attr) =>
+      (
+        t.isJSXAttribute(attr)
+        && t.isJSXIdentifier(attr.name)
+        && attr.name.name === 'className'
+      ) ?
+        attr
       : false,
-  ) || false;
+    ) || false;
 
-  const styleAttr = findWithNarrowing(attrs, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'style'
-      ? attr
+  const styleAttr =
+    findWithNarrowing(attrs, (attr) =>
+      (
+        t.isJSXAttribute(attr)
+        && t.isJSXIdentifier(attr.name)
+        && attr.name.name === 'style'
+      ) ?
+        attr
       : false,
-  ) || false;
+    ) || false;
 
   let targetClassName: string | undefined;
   if (t.isJSXIdentifier(path.node.openingElement.name)) {
@@ -143,11 +148,7 @@ export function handleArrayExpression(
     context: ctx,
   });
 
-  attrs.splice(
-    dynamicColorAttrIndex,
-    0,
-    t.jsxSpreadAttribute(nestedSetProps),
-  );
+  attrs.splice(dynamicColorAttrIndex, 0, t.jsxSpreadAttribute(nestedSetProps));
 }
 
 export function buildNestedSetProps(params: {
@@ -159,8 +160,16 @@ export function buildNestedSetProps(params: {
   attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[];
   context: DynamicColorContext;
 }): t.Expression {
-  const { colorElements, targetClassName, classNameAttr, styleAttr, spreadAttrs, attributes, context } = params;
-  
+  const {
+    colorElements,
+    targetClassName,
+    classNameAttr,
+    styleAttr,
+    spreadAttrs,
+    attributes,
+    context,
+  } = params;
+
   const lastColorElement = colorElements[colorElements.length - 1];
   if (!lastColorElement) {
     throw new Error('No color elements found');
@@ -206,7 +215,14 @@ export function buildObjectPropertiesForArray(params: {
   attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[];
   context: DynamicColorContext;
 }): t.ObjectProperty[] {
-  const { targetClassName, classNameAttr, styleAttr, spreadAttrs, attributes, context } = params;
+  const {
+    targetClassName,
+    classNameAttr,
+    styleAttr,
+    spreadAttrs,
+    attributes,
+    context,
+  } = params;
   const objectProperties: t.ObjectProperty[] = [];
 
   // Handle className
@@ -215,9 +231,10 @@ export function buildObjectPropertiesForArray(params: {
 
     if (classNameAttr) {
       if (t.isStringLiteral(classNameAttr.value)) {
-        finalClassName = finalClassName ?
-          `${finalClassName} ${classNameAttr.value.value}` :
-          classNameAttr.value.value;
+        finalClassName =
+          finalClassName ?
+            `${finalClassName} ${classNameAttr.value.value}`
+          : classNameAttr.value.value;
       }
       const currentClassNameIdx = attributes.indexOf(classNameAttr);
       attributes.splice(currentClassNameIdx, 1);
@@ -225,13 +242,10 @@ export function buildObjectPropertiesForArray(params: {
 
     if (spreadAttrs.length > 0) {
       context.state.vindurImports.add('mergeClassNames');
-      const mergeCall = t.callExpression(
-        t.identifier('mergeClassNames'),
-        [
-          t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
-          t.stringLiteral(finalClassName),
-        ],
-      );
+      const mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
+        t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+        t.stringLiteral(finalClassName),
+      ]);
       objectProperties.push(
         t.objectProperty(t.identifier('className'), mergeCall),
       );
@@ -268,10 +282,9 @@ export function buildObjectPropertiesForArray(params: {
         attributes.splice(currentStyleIdx, 1);
       }
 
-      const mergeStylesCall = t.callExpression(
-        t.identifier('mergeStyles'),
-        [t.arrayExpression(styleArgs)],
-      );
+      const mergeStylesCall = t.callExpression(t.identifier('mergeStyles'), [
+        t.arrayExpression(styleArgs),
+      ]);
       objectProperties.push(
         t.objectProperty(t.identifier('style'), mergeStylesCall),
       );

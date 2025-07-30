@@ -1,4 +1,10 @@
-import { primaryButton, secondaryButton, dangerButton, colorBox, spacing } from '#src/demos/functions';
+import {
+  primaryButton,
+  secondaryButton,
+  dangerButton,
+  colorBox,
+  spacing,
+} from '#src/demos/functions';
 import { styled } from 'vindur';
 import { DemoSection } from '../components/MainLayout';
 
@@ -66,7 +72,6 @@ const SecondaryButton = styled.button`
 const DangerButton = styled.button`
   ${dangerButton()};
 `;
-
 
 export function VindurFnDemo() {
   return (

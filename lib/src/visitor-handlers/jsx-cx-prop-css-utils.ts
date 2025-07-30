@@ -111,7 +111,11 @@ export function updateCssRulesForElement(
   // Check for className attributes that reference CSS variables
   const attributes = path.node.openingElement.attributes;
   const classNameAttr = findWithNarrowing(attributes, (attr) => {
-    if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'className') {
+    if (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+    ) {
       return attr;
     }
     return false;

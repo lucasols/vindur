@@ -90,23 +90,26 @@ test.afterAll(async () => {
 test('should apply static theme colors in CSS', async () => {
   const primaryButton = page.getByTestId('primary-button');
   const secondaryButton = page.getByTestId('secondary-button');
-  
+
   await expect(primaryButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // #007bff
-  await expect(secondaryButton).toHaveCSS('background-color', 'rgb(108, 117, 125)'); // #6c757d
+  await expect(secondaryButton).toHaveCSS(
+    'background-color',
+    'rgb(108, 117, 125)',
+  ); // #6c757d
 });
 
 test('should handle theme colors in borders and backgrounds', async () => {
   const successCard = page.getByTestId('success-card');
-  
+
   await expect(successCard).toHaveCSS('border-color', 'rgb(40, 167, 69)'); // #28a745
   // Background with alpha transparency might be computed differently
 });
 
 test('should work with CSS variables', async () => {
   const dangerText = page.getByTestId('danger-text');
-  
+
   // Verify element exists and has some color applied
   await expect(dangerText).toBeVisible();
-  const color = await dangerText.evaluate(el => getComputedStyle(el).color);
+  const color = await dangerText.evaluate((el) => getComputedStyle(el).color);
   expect(color).toBeTruthy();
 });

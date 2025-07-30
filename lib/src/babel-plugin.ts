@@ -36,7 +36,7 @@ import {
   handleWithComponentAssignment,
 } from './visitor-handlers/variable-handlers';
 
-export type DebugLogger = { 
+export type DebugLogger = {
   log: (message: string) => void;
   warn?: (message: string) => void;
 };
@@ -151,7 +151,6 @@ export function createVindurPlugin(
   transformFunctionCache[filePath] ??= {};
 
   const importAliasesArray = Object.entries(importAliases);
-
 
   return {
     name: 'vindur-css-transform',
@@ -305,7 +304,7 @@ export function createVindurPlugin(
 
         // Handle dynamic color prop (before styled component transformation)
         handleJsxDynamicColorProp(path, { state });
-        
+
         // Handle style prop for scoped variables
         handleJsxStyleProp(path, { state, dev, fileHash });
 

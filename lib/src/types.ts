@@ -30,7 +30,7 @@ export type FunctionArg = {
   optional?: boolean; // Whether the parameter is optional
 };
 
-export type CompiledFunction = 
+export type CompiledFunction =
   | {
       type: 'destructured';
       args: Record<string, FunctionArg>;

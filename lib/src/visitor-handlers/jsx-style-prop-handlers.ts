@@ -13,24 +13,29 @@ export function handleJsxStyleProp(
   },
 ): boolean {
   // Check if we have scoped variables to process
-  if (!context.state.scopedVariables || context.state.scopedVariables.size === 0) {
+  if (
+    !context.state.scopedVariables
+    || context.state.scopedVariables.size === 0
+  ) {
     return false;
   }
 
   const attributes = path.node.openingElement.attributes;
   const styleAttr = filterWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'style'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'style'
+    ) ?
+      attr
+    : false,
   )[0];
 
   if (!styleAttr?.value) return false;
 
   // Only process JSX expression containers with object expressions
   if (!t.isJSXExpressionContainer(styleAttr.value)) return false;
-  
+
   const expression = styleAttr.value.expression;
   if (!t.isObjectExpression(expression)) return false;
 
@@ -52,7 +57,7 @@ export function handleJsxStyleProp(
       // Check if this is a scoped variable
       if (key.startsWith('---')) {
         hasScopedVariables = true;
-        
+
         // Remove from potentially undeclared variables since it's provided via style prop
         const varName = key.slice(3); // Remove '---' prefix
         if (context.state.potentiallyUndeclaredScopedVariables) {
@@ -70,12 +75,13 @@ export function handleJsxStyleProp(
   if (!hasScopedVariables) return false;
 
   // Transform the scoped variables
-  const { transformedStyle, warnings } = transformStylePropScopedVariables<t.Expression>(
-    styleObject,
-    context.state.scopedVariables,
-    context.fileHash,
-    context.dev,
-  );
+  const { transformedStyle, warnings } =
+    transformStylePropScopedVariables<t.Expression>(
+      styleObject,
+      context.state.scopedVariables,
+      context.fileHash,
+      context.dev,
+    );
 
   // Log warnings in dev mode
   if (context.dev && warnings.length > 0) {
@@ -86,14 +92,9 @@ export function handleJsxStyleProp(
 
   // Create new object properties with transformed keys
   const newProperties: t.ObjectProperty[] = [];
-  
+
   for (const [key, value] of Object.entries(transformedStyle)) {
-    newProperties.push(
-      t.objectProperty(
-        t.stringLiteral(key),
-        value,
-      ),
-    );
+    newProperties.push(t.objectProperty(t.stringLiteral(key), value));
   }
 
   // Replace the original properties

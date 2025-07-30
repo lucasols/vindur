@@ -1,16 +1,16 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import {
-  extractArgumentValue,
-  extractLiteralValue,
-} from '../ast-utils';
+import { extractArgumentValue, extractLiteralValue } from '../ast-utils';
 import { evaluateOutput } from '../evaluation';
 import type { FunctionArg } from '../types';
 import type { CssProcessingContext } from '../css-processing';
 import { resolveThemeColorCallExpression } from './theme-colors';
 import { resolveImportedConstant } from './file-processing';
 
-export function resolveVariable(variableName: string, path: NodePath): string | null {
+export function resolveVariable(
+  variableName: string,
+  path: NodePath,
+): string | null {
   // Find the variable declaration in the current scope or parent scopes
   const binding = path.scope.getBinding(variableName);
 
@@ -57,7 +57,7 @@ export function resolveBinaryExpression(
         leftValue = importedConstant;
       }
     }
-    
+
     // Fall back to local variable resolution
     if (leftValue === null) {
       const resolved = resolveVariable(left.name, path);
@@ -79,7 +79,7 @@ export function resolveBinaryExpression(
         rightValue = importedConstant;
       }
     }
-    
+
     // Fall back to local variable resolution
     if (rightValue === null) {
       const resolved = resolveVariable(right.name, path);
@@ -114,9 +114,13 @@ export function resolveFunctionCall(
   dev: boolean = false,
 ): string | null {
   // First try to resolve theme color call expressions
-  const themeColorResult = resolveThemeColorCallExpression(callExpr, context, dev);
+  const themeColorResult = resolveThemeColorCallExpression(
+    callExpr,
+    context,
+    dev,
+  );
   if (themeColorResult !== null) return themeColorResult;
-  
+
   if (!t.isIdentifier(callExpr.callee)) return null;
 
   const functionName = callExpr.callee.name;
@@ -203,4 +207,3 @@ function getParameterNames(compiledFn: {
 }): string[] {
   return compiledFn.args.map((arg) => arg.name ?? 'unknown');
 }
-

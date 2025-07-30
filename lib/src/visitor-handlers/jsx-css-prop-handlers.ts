@@ -31,11 +31,13 @@ export function handleJsxCssProp(
 
   const attributes = path.node.openingElement.attributes;
   const cssAttr = findWithNarrowing(attributes, (attr) =>
-    t.isJSXAttribute(attr)
-    && t.isJSXIdentifier(attr.name)
-    && attr.name.name === 'css'
-      ? attr
-      : false,
+    (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'css'
+    ) ?
+      attr
+    : false,
   );
 
   if (!cssAttr) return false;

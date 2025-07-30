@@ -31,7 +31,9 @@ describe('Binary Expression Error Handling', () => {
         fs: mockFS,
         importAliases: { '@utils': '/src/utils' },
       });
-    }).toThrow('Binary expression evaluation failed: left operand \'multiplier\' is undefined');
+    }).toThrow(
+      "Binary expression evaluation failed: left operand 'multiplier' is undefined",
+    );
   });
 
   it('should throw error when binary expression operand is not a number', () => {

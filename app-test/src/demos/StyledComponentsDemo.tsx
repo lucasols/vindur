@@ -81,7 +81,7 @@ export const ExportedCard = styled.div`
 const AttrsButton = styled.button.attrs({
   type: 'button',
   'data-component': 'attrs-button',
-  'aria-label': 'Button with attrs'
+  'aria-label': 'Button with attrs',
 })`
   background: linear-gradient(45deg, #ff6b6b, #ee5a24);
   color: white;
@@ -102,7 +102,7 @@ const AttrsButton = styled.button.attrs({
 const AttrsInput = styled.input.attrs({
   type: 'text',
   placeholder: 'Input with attrs...',
-  'data-testid': 'attrs-input'
+  'data-testid': 'attrs-input',
 })`
   padding: 12px 16px;
   border: 2px solid #667eea;
@@ -173,21 +173,42 @@ export function StyledComponentsDemo() {
           <AttrsButton>Button with attrs</AttrsButton>
           <AttrsInput />
         </div>
-        <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', margin: '8px 0' }}>
-          The button has type="button", data-component="attrs-button", and aria-label attributes.
-          The input has type="text", placeholder, and data-testid attributes.
+        <p
+          style={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontSize: '14px',
+            margin: '8px 0',
+          }}
+        >
+          The button has type="button", data-component="attrs-button", and
+          aria-label attributes. The input has type="text", placeholder, and
+          data-testid attributes.
         </p>
       </DemoContainer>
 
       <DemoContainer>
-        <DemoTitle>withComponent Demo - Reusing Styles Across Elements</DemoTitle>
+        <DemoTitle>
+          withComponent Demo - Reusing Styles Across Elements
+        </DemoTitle>
         <div>
           <BaseButton>Base Button</BaseButton>
-          <LinkButton href="#demo" onClick={(e) => e.preventDefault()}>Link Button</LinkButton>
+          <LinkButton
+            href="#demo"
+            onClick={(e) => e.preventDefault()}
+          >
+            Link Button
+          </LinkButton>
           <SpanButton>Span Button</SpanButton>
         </div>
-        <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', margin: '8px 0' }}>
-          Same styles applied to button, anchor, and span elements using withComponent method.
+        <p
+          style={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontSize: '14px',
+            margin: '8px 0',
+          }}
+        >
+          Same styles applied to button, anchor, and span elements using
+          withComponent method.
         </p>
       </DemoContainer>
     </DemoSection>

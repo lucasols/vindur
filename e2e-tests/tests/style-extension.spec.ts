@@ -108,11 +108,11 @@ test.afterAll(async () => {
 test('should extend styled components correctly', async () => {
   const baseButton = page.getByTestId('base-button');
   const primaryButton = page.getByTestId('primary-button');
-  
+
   // Base button should have base styles
   await expect(baseButton).toHaveCSS('padding', '8px 16px');
   await expect(baseButton).toHaveCSS('background-color', 'rgb(248, 249, 250)'); // #f8f9fa
-  
+
   // Primary button should inherit base styles but override background
   await expect(primaryButton).toHaveCSS('padding', '8px 16px'); // inherited
   await expect(primaryButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // #007bff overridden
@@ -121,7 +121,7 @@ test('should extend styled components correctly', async () => {
 
 test('should handle multiple levels of extension', async () => {
   const dangerButton = page.getByTestId('danger-button');
-  
+
   // Should inherit from PrimaryButton which inherits from BaseButton
   await expect(dangerButton).toHaveCSS('padding', '8px 16px'); // from BaseButton
   await expect(dangerButton).toHaveCSS('color', 'rgb(255, 255, 255)'); // from PrimaryButton
@@ -130,7 +130,7 @@ test('should handle multiple levels of extension', async () => {
 
 test('should handle property-specific extensions', async () => {
   const largeButton = page.getByTestId('large-button');
-  
+
   // Should inherit base styles but override size-related properties
   await expect(largeButton).toHaveCSS('background-color', 'rgb(248, 249, 250)'); // inherited
   await expect(largeButton).toHaveCSS('padding', '12px 24px'); // overridden
@@ -140,38 +140,47 @@ test('should handle property-specific extensions', async () => {
 test('should extend CSS template literals', async () => {
   const baseStyles = page.getByTestId('base-styles');
   const extendedStyles = page.getByTestId('extended-styles');
-  
+
   // Base styles
   await expect(baseStyles).toHaveCSS('padding', '10px');
   await expect(baseStyles).toHaveCSS('margin', '5px');
-  
+
   // Extended styles should include base styles plus additions
   await expect(extendedStyles).toHaveCSS('padding', '10px'); // inherited from baseStyles
   await expect(extendedStyles).toHaveCSS('margin', '5px'); // inherited from baseStyles
-  await expect(extendedStyles).toHaveCSS('background-color', 'rgb(233, 236, 239)'); // #e9ecef added
+  await expect(extendedStyles).toHaveCSS(
+    'background-color',
+    'rgb(233, 236, 239)',
+  ); // #e9ecef added
   await expect(extendedStyles).toHaveCSS('border-width', '1px'); // added
 });
 
 test('should combine extension with styled components', async () => {
   const cardComponent = page.getByTestId('card-component');
-  
+
   // Should have styles from baseStyles + extendedStyles + Card-specific styles
   await expect(cardComponent).toHaveCSS('padding', '10px'); // from baseStyles
   await expect(cardComponent).toHaveCSS('margin', '5px'); // from baseStyles
-  await expect(cardComponent).toHaveCSS('background-color', 'rgb(233, 236, 239)'); // from extendedStyles
+  await expect(cardComponent).toHaveCSS(
+    'background-color',
+    'rgb(233, 236, 239)',
+  ); // from extendedStyles
   await expect(cardComponent).toHaveCSS('border-width', '1px'); // from extendedStyles
-  await expect(cardComponent).toHaveCSS('box-shadow', 'rgba(0, 0, 0, 0.1) 0px 2px 4px 0px'); // from Card
+  await expect(cardComponent).toHaveCSS(
+    'box-shadow',
+    'rgba(0, 0, 0, 0.1) 0px 2px 4px 0px',
+  ); // from Card
 });
 
 test('should support hover states in extended components', async () => {
   const primaryButton = page.getByTestId('primary-button');
   const dangerButton = page.getByTestId('danger-button');
-  
+
   // Test primary button hover
   await expect(primaryButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // initial
   await primaryButton.hover();
   await expect(primaryButton).toHaveCSS('background-color', 'rgb(0, 86, 179)'); // #0056b3 on hover
-  
+
   // Test danger button hover (should override primary hover)
   await expect(dangerButton).toHaveCSS('background-color', 'rgb(220, 53, 69)'); // initial
   await dangerButton.hover();

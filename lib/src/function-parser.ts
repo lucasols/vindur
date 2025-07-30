@@ -1,10 +1,6 @@
 import { types as t } from '@babel/core';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
-import type {
-  CompiledFunction,
-  FunctionArg,
-  OutputQuasi,
-} from './types';
+import type { CompiledFunction, FunctionArg, OutputQuasi } from './types';
 import { filterWithNarrowing } from './utils';
 import { parseTemplateLiteral } from './function-parser-quasi';
 
@@ -200,4 +196,3 @@ function parseStringWithInterpolation(str: string): OutputQuasi[] {
 
   return output;
 }
-

@@ -110,22 +110,50 @@ export function validateFunctionExpressionStructure(
   } else if (t.isConditionalExpression(expr)) {
     // Ternary expressions are allowed - validate their parts
     if (t.isExpression(expr.test)) {
-      validateFunctionExpressionStructure(expr.test, functionName, validParameterNames);
+      validateFunctionExpressionStructure(
+        expr.test,
+        functionName,
+        validParameterNames,
+      );
     }
-    validateFunctionExpressionStructure(expr.consequent, functionName, validParameterNames);
-    validateFunctionExpressionStructure(expr.alternate, functionName, validParameterNames);
+    validateFunctionExpressionStructure(
+      expr.consequent,
+      functionName,
+      validParameterNames,
+    );
+    validateFunctionExpressionStructure(
+      expr.alternate,
+      functionName,
+      validParameterNames,
+    );
   } else if (t.isBinaryExpression(expr)) {
     // Simple binary expressions for comparisons in ternary conditions
     if (t.isExpression(expr.left)) {
-      validateFunctionExpressionStructure(expr.left, functionName, validParameterNames);
+      validateFunctionExpressionStructure(
+        expr.left,
+        functionName,
+        validParameterNames,
+      );
     }
     if (t.isExpression(expr.right)) {
-      validateFunctionExpressionStructure(expr.right, functionName, validParameterNames);
+      validateFunctionExpressionStructure(
+        expr.right,
+        functionName,
+        validParameterNames,
+      );
     }
   } else if (t.isLogicalExpression(expr)) {
     // Handle logical expressions like || for default values
-    validateFunctionExpressionStructure(expr.left, functionName, validParameterNames);
-    validateFunctionExpressionStructure(expr.right, functionName, validParameterNames);
+    validateFunctionExpressionStructure(
+      expr.left,
+      functionName,
+      validParameterNames,
+    );
+    validateFunctionExpressionStructure(
+      expr.right,
+      functionName,
+      validParameterNames,
+    );
   } else if (
     !t.isStringLiteral(expr)
     && !t.isNumericLiteral(expr)

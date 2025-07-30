@@ -107,7 +107,7 @@ test.afterAll(async () => {
 
 test('should apply string union style flags', async () => {
   const primaryButton = page.getByTestId('primary-button');
-  
+
   await expect(primaryButton).toHaveClass(/variant-primary/);
   await expect(primaryButton).toHaveClass(/size-large/);
   await expect(primaryButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // primary
@@ -116,7 +116,7 @@ test('should apply string union style flags', async () => {
 
 test('should apply boolean style flags', async () => {
   const disabledButton = page.getByTestId('disabled-button');
-  
+
   await expect(disabledButton).toHaveClass(/disabled/);
   await expect(disabledButton).toHaveClass(/variant-secondary/);
   await expect(disabledButton).toHaveClass(/size-small/);
@@ -125,9 +125,12 @@ test('should apply boolean style flags', async () => {
 
 test('should handle multiple flags together', async () => {
   const loadingButton = page.getByTestId('loading-button');
-  
+
   await expect(loadingButton).toHaveClass(/loading/);
   await expect(loadingButton).toHaveClass(/variant-danger/);
   await expect(loadingButton).toHaveClass(/size-large/);
-  await expect(loadingButton).toHaveCSS('background-color', 'rgb(248, 249, 250)'); // loading overrides danger
+  await expect(loadingButton).toHaveCSS(
+    'background-color',
+    'rgb(248, 249, 250)',
+  ); // loading overrides danger
 });

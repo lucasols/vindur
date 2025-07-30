@@ -91,35 +91,44 @@ test.afterAll(async () => {
 test('should render exported styled components correctly', async () => {
   const exportedButton = page.getByTestId('exported-button');
   const exportedCard = page.getByTestId('exported-card');
-  
-  await expect(exportedButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // #007bff
+
+  await expect(exportedButton).toHaveCSS(
+    'background-color',
+    'rgb(0, 123, 255)',
+  ); // #007bff
   await expect(exportedButton).toHaveCSS('padding', '12px 24px');
   await expect(exportedButton).toHaveCSS('font-weight', '600');
-  
-  await expect(exportedCard).toHaveCSS('background-color', 'rgb(248, 249, 250)'); // #f8f9fa
+
+  await expect(exportedCard).toHaveCSS(
+    'background-color',
+    'rgb(248, 249, 250)',
+  ); // #f8f9fa
   await expect(exportedCard).toHaveCSS('border-width', '1px');
 });
 
 test('should handle re-exported styled components', async () => {
   const exportedDiv = page.getByTestId('exported-div');
-  
+
   await expect(exportedDiv).toHaveCSS('background-color', 'rgb(40, 167, 69)'); // #28a745
   await expect(exportedDiv).toHaveCSS('color', 'rgb(255, 255, 255)');
 });
 
 test('should differentiate between exported and local components', async () => {
   const localButton = page.getByTestId('local-button');
-  
+
   await expect(localButton).toHaveCSS('background-color', 'rgb(220, 53, 69)'); // #dc3545
   await expect(localButton).toHaveCSS('padding', '8px 16px');
 });
 
 test('should support hover states on exported components', async () => {
   const exportedButton = page.getByTestId('exported-button');
-  
+
   // Initial state
-  await expect(exportedButton).toHaveCSS('background-color', 'rgb(0, 123, 255)'); // #007bff
-  
+  await expect(exportedButton).toHaveCSS(
+    'background-color',
+    'rgb(0, 123, 255)',
+  ); // #007bff
+
   // Hover state
   await exportedButton.hover();
   await expect(exportedButton).toHaveCSS('background-color', 'rgb(0, 86, 179)'); // #0056b3

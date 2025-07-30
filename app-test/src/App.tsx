@@ -9,10 +9,10 @@ function App() {
       <MainLayout>
         <Routes>
           {demos.map((demo) => (
-            <Route 
-              key={demo.path} 
-              path={demo.path} 
-              element={<demo.component />} 
+            <Route
+              key={demo.path}
+              path={demo.path}
+              element={<demo.component />}
             />
           ))}
         </Routes>

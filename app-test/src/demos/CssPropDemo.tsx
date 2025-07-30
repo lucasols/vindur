@@ -7,7 +7,6 @@ const Container = styled.div`
   gap: 16px;
 `;
 
-
 // Styled component that supports css prop
 const CustomCard = styled.div`
   padding: 12px;
@@ -20,7 +19,6 @@ export function CssPropDemo() {
   return (
     <DemoSection title="CSS Prop">
       <Container>
-
         <div
           css={`
             padding: 16px;
@@ -45,7 +43,7 @@ export function CssPropDemo() {
           css={`
             ---cardColor: #4ecdc4;
             ---cardPadding: 20px;
-            
+
             padding: var(---cardPadding);
             background: var(---cardColor);
             color: white;
@@ -63,7 +61,7 @@ export function CssPropDemo() {
             background: linear-gradient(135deg, #667eea, #764ba2);
             transform: rotate(-1deg);
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-            
+
             &:hover {
               transform: rotate(0deg) scale(1.05);
             }

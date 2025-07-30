@@ -8,7 +8,10 @@ import type {
 } from './babel-plugin';
 import type { TransformFS } from './transform';
 import type { CompiledFunction } from './types';
-import { processScopedCssVariables, type ScopedVariableMap } from './scoped-css-variables';
+import {
+  processScopedCssVariables,
+  type ScopedVariableMap,
+} from './scoped-css-variables';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -18,8 +21,16 @@ export type CssProcessingContext = {
   state: VindurPluginState;
   path: NodePath;
   debug?: DebugLogger;
-  // Cache for external file extractions to prevent duplicate processing  
-  extractedFiles: Map<string, { cssVariables: Map<string, string>; keyframes: Map<string, string>; constants: Map<string, string | number>; themeColors: Map<string, Record<string, string>> }>;
+  // Cache for external file extractions to prevent duplicate processing
+  extractedFiles: Map<
+    string,
+    {
+      cssVariables: Map<string, string>;
+      keyframes: Map<string, string>;
+      constants: Map<string, string | number>;
+      themeColors: Map<string, Record<string, string>>;
+    }
+  >;
   loadExternalFunction: (
     fs: { readFile: (path: string) => string },
     filePath: string,
@@ -71,33 +82,35 @@ export function generateCssRule(
   // Check for layer markers and split CSS accordingly
   const layerMarkerPattern = /__VINDUR_LAYER_START__([^_]+)__\s*\{/g;
   const layerMarkers = [...cleanedCss.matchAll(layerMarkerPattern)];
-  
+
   if (layerMarkers.length > 0) {
     // Split CSS into layered and non-layered sections
-    const sections: Array<{layer: string | null, css: string}> = [];
+    const sections: Array<{ layer: string | null; css: string }> = [];
     let lastProcessedIndex = 0;
-    
+
     // Process each layer marker
     for (const match of layerMarkers) {
       const layerName = match[1];
       if (!layerName) continue;
-      
+
       // Add any non-layered content before this layer
       if (match.index > lastProcessedIndex) {
-        const nonLayeredCss = cleanedCss.substring(lastProcessedIndex, match.index).trim();
+        const nonLayeredCss = cleanedCss
+          .substring(lastProcessedIndex, match.index)
+          .trim();
         if (nonLayeredCss) {
           sections.push({ layer: null, css: nonLayeredCss });
         }
       }
-      
+
       // Find the start of the CSS content (after the opening brace)
       const contentStart = match.index + match[0].length;
-      
+
       // Find the matching closing brace using proper brace counting
       let braceCount = 1;
       let currentIndex = contentStart;
       let contentEnd = -1;
-      
+
       while (currentIndex < cleanedCss.length && braceCount > 0) {
         const char = cleanedCss[currentIndex];
         if (char === '{') {
@@ -111,7 +124,7 @@ export function generateCssRule(
         }
         currentIndex++;
       }
-      
+
       if (contentEnd !== -1) {
         const layerCss = cleanedCss.substring(contentStart, contentEnd).trim();
         if (layerCss) {
@@ -120,7 +133,7 @@ export function generateCssRule(
         lastProcessedIndex = contentEnd + 1;
       }
     }
-    
+
     // Add any remaining non-layered content after the last layer
     if (lastProcessedIndex < cleanedCss.length) {
       const remainingCss = cleanedCss.substring(lastProcessedIndex).trim();
@@ -128,7 +141,7 @@ export function generateCssRule(
         sections.push({ layer: null, css: remainingCss });
       }
     }
-    
+
     // Generate CSS rules for each section
     for (const section of sections) {
       if (section.layer) {
@@ -140,17 +153,17 @@ export function generateCssRule(
         state.cssRules.push(cssRule);
       }
     }
-    
+
     // Add return statement at the end to avoid continue processing non-layered CSS
     return extensions.length > 0 ?
         `${extensions.join(' ')} ${className}`
       : className;
   }
-  
+
   // No layer markers, handle as before
   const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
   state.cssRules.push(cssRule);
-  
+
   return extensions.length > 0 ?
       `${extensions.join(' ')} ${className}`
     : className;
@@ -204,9 +217,9 @@ export function processStyledTemplate(
     context.state,
   );
 
-  return { 
-    cssContent: scopedResult.processedCss, 
-    extensions, 
+  return {
+    cssContent: scopedResult.processedCss,
+    extensions,
     finalClassName,
     scopedVariables: context.state.scopedVariables,
     warnings: scopedResult.warnings,
@@ -267,10 +280,12 @@ export function processStyledExtension(
   const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
     const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
-    
+
     // Wrap in @layer if a layer is set
     if (context.state.currentLayer) {
-      context.state.cssRules.push(`@layer ${context.state.currentLayer} {\n  ${cssRule}\n}`);
+      context.state.cssRules.push(
+        `@layer ${context.state.currentLayer} {\n  ${cssRule}\n}`,
+      );
       // Clear the current layer after use (per-component basis)
       context.state.currentLayer = undefined;
     } else {

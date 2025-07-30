@@ -16,7 +16,11 @@ export function addCxClassNameToJsx(
 
   // Find existing className attribute
   const classNameAttr = findWithNarrowing(attributes, (attr) => {
-    if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'className') {
+    if (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'className'
+    ) {
       return attr;
     }
     return false;

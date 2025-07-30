@@ -23,15 +23,19 @@ export function handleJsxCxProp(
   }
 
   const elementName = path.node.openingElement.name.name;
-  const { isNativeDOMElement, isStyledComponent } = validateElementType(elementName, context.state, path);
-  
+  const { isNativeDOMElement, isStyledComponent } = validateElementType(
+    elementName,
+    context.state,
+    path,
+  );
+
   if (!isNativeDOMElement && !isStyledComponent) {
     return false;
   }
 
   const attributes = path.node.openingElement.attributes;
   const cxAttr = findCxAttribute(attributes);
-  
+
   if (!cxAttr) return false;
 
   // Validate plain DOM elements without CSS context
@@ -42,33 +46,47 @@ export function handleJsxCxProp(
   // Remove the cx attribute and validate its structure
   const cxAttrIndex = attributes.indexOf(cxAttr);
   attributes.splice(cxAttrIndex, 1);
-  
+
   const expression = validateAndExtractCxExpression(cxAttr);
-  
+
   // Process the object expression to hash class names
-  const { classNameMappings, processedProperties } = processCxObjectExpression(expression, context);
+  const { classNameMappings, processedProperties } = processCxObjectExpression(
+    expression,
+    context,
+  );
 
   // Update CSS rules and handle styled components
-  handleCssUpdatesAndStyledComponents(isStyledComponent, elementName, classNameMappings, context, path);
+  handleCssUpdatesAndStyledComponents(
+    isStyledComponent,
+    elementName,
+    classNameMappings,
+    context,
+    path,
+  );
 
   // Create the cx() function call and add to JSX
   const cxCall = createCxCall(processedProperties, context.state);
-  addCxClassNameToJsx(path, cxCall, context, isStyledComponent ? elementName : undefined);
+  addCxClassNameToJsx(
+    path,
+    cxCall,
+    context,
+    isStyledComponent ? elementName : undefined,
+  );
 
   return true;
 }
 
 function validateElementType(
-  elementName: string, 
-  state: VindurPluginState, 
-  path: NodePath<t.JSXElement>
+  elementName: string,
+  state: VindurPluginState,
+  path: NodePath<t.JSXElement>,
 ): { isNativeDOMElement: boolean; isStyledComponent: boolean } {
   const firstChar = elementName[0];
   const isNativeDOMElement = Boolean(
-    elementName &&
-    elementName.length > 0 &&
-    firstChar &&
-    firstChar.toLowerCase() === firstChar
+    elementName
+      && elementName.length > 0
+      && firstChar
+      && firstChar.toLowerCase() === firstChar,
   );
   const isStyledComponent = state.styledComponents.has(elementName);
 
@@ -84,9 +102,15 @@ function validateElementType(
   return { isNativeDOMElement, isStyledComponent };
 }
 
-function findCxAttribute(attributes: Array<t.JSXAttribute | t.JSXSpreadAttribute>): t.JSXAttribute | undefined {
+function findCxAttribute(
+  attributes: Array<t.JSXAttribute | t.JSXSpreadAttribute>,
+): t.JSXAttribute | undefined {
   return findWithNarrowing(attributes, (attr) => {
-    if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'cx') {
+    if (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'cx'
+    ) {
       return attr;
     }
     return false;
@@ -97,10 +121,10 @@ function validatePlainDomElement(
   path: NodePath<t.JSXElement>,
   context: { state: VindurPluginState },
   attributes: Array<t.JSXAttribute | t.JSXSpreadAttribute>,
-  cxAttr: t.JSXAttribute
+  cxAttr: t.JSXAttribute,
 ): void {
   const hasCssContext = checkForCssContext(path, context.state, attributes);
-  
+
   if (!hasCssContext) {
     validateDollarPrefixRequirement(cxAttr);
   }
@@ -109,20 +133,24 @@ function validatePlainDomElement(
 function checkForCssContext(
   path: NodePath<t.JSXElement>,
   state: VindurPluginState,
-  attributes: Array<t.JSXAttribute | t.JSXSpreadAttribute>
+  attributes: Array<t.JSXAttribute | t.JSXSpreadAttribute>,
 ): boolean {
   // Check if element was processed by css prop handler
   let hasCssContext = state.elementsWithCssContext?.has(path.node) ?? false;
-  
+
   if (!hasCssContext) {
     // Check if className references a css function
     const classNameAttr = findWithNarrowing(attributes, (attr) => {
-      if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'className') {
+      if (
+        t.isJSXAttribute(attr)
+        && t.isJSXIdentifier(attr.name)
+        && attr.name.name === 'className'
+      ) {
         return attr;
       }
       return false;
     });
-    
+
     if (classNameAttr && t.isJSXExpressionContainer(classNameAttr.value)) {
       const expression = classNameAttr.value.expression;
       if (t.isIdentifier(expression)) {
@@ -133,7 +161,7 @@ function checkForCssContext(
       }
     }
   }
-  
+
   return hasCssContext;
 }
 
@@ -171,7 +199,9 @@ function validateDollarPrefixRequirement(cxAttr: t.JSXAttribute): void {
   }
 }
 
-function validateAndExtractCxExpression(cxAttr: t.JSXAttribute): t.ObjectExpression {
+function validateAndExtractCxExpression(
+  cxAttr: t.JSXAttribute,
+): t.ObjectExpression {
   if (!cxAttr.value) {
     throw new Error('cx prop must have a value');
   }
@@ -194,7 +224,7 @@ function processCxObjectExpression(
     dev: boolean;
     fileHash: string;
     classIndex: () => number;
-  }
+  },
 ): {
   classNameMappings: Array<{
     original: string;
@@ -208,10 +238,12 @@ function processCxObjectExpression(
     hashed: string;
     wasDollarPrefixed?: boolean;
   }> = [];
-  
+
   const processedProperties = expression.properties.map((prop) => {
     if (!t.isObjectProperty(prop) || prop.computed) {
-      throw new Error('cx prop object must only contain non-computed properties');
+      throw new Error(
+        'cx prop object must only contain non-computed properties',
+      );
     }
 
     let className: string;
@@ -260,11 +292,16 @@ function handleCssUpdatesAndStyledComponents(
     state: VindurPluginState;
     dev: boolean;
   },
-  path: NodePath<t.JSXElement>
+  path: NodePath<t.JSXElement>,
 ): void {
   if (isStyledComponent) {
     if (context.dev) {
-      generateMissingCssClassWarnings(elementName, classNameMappings, context.state, path);
+      generateMissingCssClassWarnings(
+        elementName,
+        classNameMappings,
+        context.state,
+        path,
+      );
     }
 
     updateStyledComponentCss(elementName, classNameMappings, context.state);
@@ -284,7 +321,7 @@ function handleCssUpdatesAndStyledComponents(
 
 function createCxCall(
   processedProperties: t.ObjectProperty[],
-  state: VindurPluginState
+  state: VindurPluginState,
 ): t.CallExpression {
   state.vindurImports.add('cx');
   return t.callExpression(t.identifier('cx'), [

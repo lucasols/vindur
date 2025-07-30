@@ -150,11 +150,13 @@ export function resolveDynamicColorCallExpression(
           if (callExpr.arguments.length > 0 && t.isObjectExpression(firstArg)) {
             // Handle `optimal({ alpha: 0.6 })` case
             const alphaProp = findWithNarrowing(firstArg.properties, (prop) =>
-              t.isObjectProperty(prop)
-              && t.isIdentifier(prop.key)
-              && prop.key.name === 'alpha'
-                ? prop
-                : false,
+              (
+                t.isObjectProperty(prop)
+                && t.isIdentifier(prop.key)
+                && prop.key.name === 'alpha'
+              ) ?
+                prop
+              : false,
             );
 
             if (alphaProp && t.isNumericLiteral(alphaProp.value)) {

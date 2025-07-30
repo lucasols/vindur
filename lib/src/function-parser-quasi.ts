@@ -55,7 +55,11 @@ export function parseQuasiFromExpression(
     return { type: 'ternary', condition, ifTrue, ifFalse };
   } else if (t.isBinaryExpression(expr)) {
     // Handle binary expressions (arithmetic operations)
-    const binaryResult = parseBinaryExpression(expr, functionName, validParameterNames);
+    const binaryResult = parseBinaryExpression(
+      expr,
+      functionName,
+      validParameterNames,
+    );
     if (binaryResult) {
       return binaryResult;
     }
@@ -86,14 +90,18 @@ export function parseTemplateLiteral(
 
   for (let i = 0; i < template.quasis.length; i++) {
     const quasi = template.quasis[i];
-    
+
     if (quasi && quasi.value.raw !== '') {
       output.push({ type: 'string', value: quasi.value.raw });
     }
 
     const expr = template.expressions[i];
     if (expr && t.isExpression(expr)) {
-      const quasiFromExpr = parseQuasiFromExpression(expr, functionName, validParameterNames);
+      const quasiFromExpr = parseQuasiFromExpression(
+        expr,
+        functionName,
+        validParameterNames,
+      );
       output.push(quasiFromExpr);
     }
   }

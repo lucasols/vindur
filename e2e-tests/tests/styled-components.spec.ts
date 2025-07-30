@@ -193,23 +193,26 @@ test('should handle complex nested selectors', async () => {
 
 test('should handle styled components with attrs', async () => {
   const attrsButton = page.getByTestId('attrs-button');
-  
+
   // Test CSS styles
   await expect(attrsButton).toHaveCSS('background-color', 'rgb(220, 53, 69)');
   await expect(attrsButton).toHaveCSS('color', 'rgb(255, 255, 255)');
   await expect(attrsButton).toHaveCSS('padding', '8px 16px');
-  
+
   // Test attrs attributes
   await expect(attrsButton).toHaveAttribute('type', 'button');
   await expect(attrsButton).toHaveAttribute('data-component', 'attrs-button');
-  await expect(attrsButton).toHaveAttribute('aria-label', 'Styled button with attrs');
-  
+  await expect(attrsButton).toHaveAttribute(
+    'aria-label',
+    'Styled button with attrs',
+  );
+
   const attrsInput = page.getByTestId('attrs-input');
-  
+
   // Test CSS styles
   await expect(attrsInput).toHaveCSS('border', '2px solid rgb(0, 123, 255)');
   await expect(attrsInput).toHaveCSS('padding', '6px 12px');
-  
+
   // Test attrs attributes
   await expect(attrsInput).toHaveAttribute('type', 'text');
   await expect(attrsInput).toHaveAttribute('placeholder', 'Attrs placeholder');
@@ -219,30 +222,32 @@ test('should handle withComponent functionality', async () => {
   const baseButton = page.getByTestId('base-button');
   const linkButton = page.getByTestId('link-button');
   const spanButton = page.getByTestId('span-button');
-  
+
   // All should have the same base styles
   const expectedBgColor = 'rgb(40, 167, 69)';
   const expectedPadding = '12px 24px';
   const expectedColor = 'rgb(255, 255, 255)';
-  
+
   await expect(baseButton).toHaveCSS('background-color', expectedBgColor);
   await expect(baseButton).toHaveCSS('padding', expectedPadding);
   await expect(baseButton).toHaveCSS('color', expectedColor);
-  
+
   await expect(linkButton).toHaveCSS('background-color', expectedBgColor);
   await expect(linkButton).toHaveCSS('padding', expectedPadding);
   await expect(linkButton).toHaveCSS('color', expectedColor);
-  
+
   await expect(spanButton).toHaveCSS('background-color', expectedBgColor);
   await expect(spanButton).toHaveCSS('padding', expectedPadding);
   await expect(spanButton).toHaveCSS('color', expectedColor);
-  
+
   // Test different element types
   await expect(baseButton).toHaveRole('button');
   await expect(linkButton).toHaveRole('link');
   await expect(linkButton).toHaveAttribute('href', '#test');
-  
+
   // Span doesn't have a specific role but should be a span element
-  const spanTagName = await spanButton.evaluate(el => el.tagName.toLowerCase());
+  const spanTagName = await spanButton.evaluate((el) =>
+    el.tagName.toLowerCase(),
+  );
   expect(spanTagName).toBe('span');
 });

@@ -24,7 +24,7 @@ const style = css`
 const StyledDiv = styled.div`
   ---padding: 16px;
   ---borderRadius: 8px;
-  
+
   padding: var(---padding);
   border-radius: var(---borderRadius);
   background: var(---color);
@@ -57,9 +57,7 @@ export function ScopedVariablesDemo() {
         Scoped CSS variables with css prop
       </div>
 
-      <div className={style}>
-        Scoped CSS variables with css template tag
-      </div>
+      <div className={style}>Scoped CSS variables with css template tag</div>
 
       <StyledDiv
         style={{
@@ -71,7 +69,9 @@ export function ScopedVariablesDemo() {
           type="color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
-          css={`margin-left: 12px;`}
+          css={`
+            margin-left: 12px;
+          `}
         />
       </StyledDiv>
     </DemoSection>

@@ -151,19 +151,35 @@ export function StyleFlagsDemo() {
         </Controls>
 
         <ButtonGrid>
-          <StyledButton active={active} size={size} variant={variant}>
+          <StyledButton
+            active={active}
+            size={size}
+            variant={variant}
+          >
             Interactive Button
           </StyledButton>
 
-          <StyledButton active={true} size="small" variant="primary">
+          <StyledButton
+            active={true}
+            size="small"
+            variant="primary"
+          >
             Small Primary (Active)
           </StyledButton>
 
-          <StyledButton active={false} size="medium" variant="secondary">
+          <StyledButton
+            active={false}
+            size="medium"
+            variant="secondary"
+          >
             Medium Secondary
           </StyledButton>
 
-          <StyledButton active={true} size="large" variant="danger">
+          <StyledButton
+            active={true}
+            size="large"
+            variant="danger"
+          >
             Large Danger (Active)
           </StyledButton>
         </ButtonGrid>

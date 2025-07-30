@@ -2,7 +2,10 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
 import { processGlobalStyle } from '../css-processing';
-import { isValidHexColorWithoutAlpha, isVariableExported } from './handler-utils';
+import {
+  isValidHexColorWithoutAlpha,
+  isVariableExported,
+} from './handler-utils';
 
 type VariableHandlerContext = {
   context: CssProcessingContext;
@@ -218,10 +221,7 @@ export function handleWithComponentAssignment(
       vComponentArgs.push(baseComponentInfo.attrsExpression);
     }
 
-    path.node.init = t.callExpression(
-      t.identifier('_vCWM'),
-      vComponentArgs,
-    );
+    path.node.init = t.callExpression(t.identifier('_vCWM'), vComponentArgs);
   } else if (hasIntermediateComponent) {
     // Transform to _vSC function call
     context.state.vindurImports.add('_vSC');

@@ -73,16 +73,16 @@ test('should generate stable IDs for CSS targeting', async () => {
   const modal = page.getByTestId('modal');
   const header = page.getByTestId('header');
   const footer = page.getByTestId('footer');
-  
+
   // Check that elements have IDs
   const modalId = await modal.getAttribute('id');
   const headerId = await header.getAttribute('id');
   const footerId = await footer.getAttribute('id');
-  
+
   expect(modalId).toBeTruthy();
   expect(headerId).toBeTruthy();
   expect(footerId).toBeTruthy();
-  
+
   // IDs should be different
   expect(modalId).not.toBe(headerId);
   expect(headerId).not.toBe(footerId);
@@ -92,14 +92,14 @@ test('should apply CSS styles using stable IDs', async () => {
   const modal = page.getByTestId('modal');
   const header = page.getByTestId('header');
   const footer = page.getByTestId('footer');
-  
+
   await expect(modal).toHaveCSS('position', 'fixed');
   await expect(modal).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(modal).toHaveCSS('padding', '20px');
-  
+
   await expect(header).toHaveCSS('font-size', '24px');
   await expect(header).toHaveCSS('font-weight', '700');
-  
+
   await expect(footer).toHaveCSS('text-align', 'right');
   await expect(footer).toHaveCSS('border-top-width', '1px');
 });
@@ -107,12 +107,12 @@ test('should apply CSS styles using stable IDs', async () => {
 test('should maintain ID consistency', async () => {
   const modal = page.getByTestId('modal');
   const modalId = await modal.getAttribute('id');
-  
+
   // Refresh page and check ID remains the same (deterministic)
   await page.reload();
-  
+
   const modalAfterReload = page.getByTestId('modal');
   const modalIdAfterReload = await modalAfterReload.getAttribute('id');
-  
+
   expect(modalIdAfterReload).toBe(modalId);
 });

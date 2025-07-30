@@ -174,10 +174,12 @@ function transformStyleFlagsComponent(
 
   // Create the modifier array: [["propName", "hashedClassName"], ...]
   const modifierArray = t.arrayExpression(
-    styleFlags.map((styleProp) => t.arrayExpression([
-      t.stringLiteral(styleProp.propName),
-      t.stringLiteral(styleProp.hashedClassName),
-    ])),
+    styleFlags.map((styleProp) =>
+      t.arrayExpression([
+        t.stringLiteral(styleProp.propName),
+        t.stringLiteral(styleProp.hashedClassName),
+      ]),
+    ),
   );
 
   const args: t.Expression[] = [
@@ -190,10 +192,7 @@ function transformStyleFlagsComponent(
     args.push(attrsExpression);
   }
 
-  path.node.init = t.callExpression(
-    t.identifier('_vCWM'),
-    args,
-  );
+  path.node.init = t.callExpression(t.identifier('_vCWM'), args);
 
   // In dev mode, inject warnings for missing modifier styles
   if (dev) {
@@ -210,10 +209,7 @@ function transformStyleFlagsComponent(
         for (const missing of missingSelectors) {
           const warnStatement = t.expressionStatement(
             t.callExpression(
-              t.memberExpression(
-                t.identifier('console'),
-                t.identifier('warn'),
-              ),
+              t.memberExpression(t.identifier('console'), t.identifier('warn')),
               [
                 t.stringLiteral(
                   `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
@@ -518,7 +514,6 @@ export function handleKeyframesVariableAssignment(
 
   return true;
 }
-
 
 export {
   handleCreateClassNameCall,

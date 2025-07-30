@@ -80,13 +80,19 @@ test.afterAll(async () => {
 test('should apply dynamic colors to styled components', async () => {
   const primaryButton = page.getByTestId('primary-button');
   const secondaryButton = page.getByTestId('secondary-button');
-  
-  await expect(primaryButton).toHaveCSS('background-color', 'rgb(255, 107, 107)'); // #ff6b6b
-  await expect(secondaryButton).toHaveCSS('background-color', 'rgb(78, 205, 196)'); // #4ecdc4
+
+  await expect(primaryButton).toHaveCSS(
+    'background-color',
+    'rgb(255, 107, 107)',
+  ); // #ff6b6b
+  await expect(secondaryButton).toHaveCSS(
+    'background-color',
+    'rgb(78, 205, 196)',
+  ); // #4ecdc4
 });
 
 test('should apply dynamic colors to different element types', async () => {
   const primaryCard = page.getByTestId('primary-card');
-  
+
   await expect(primaryCard).toHaveCSS('background-color', 'rgb(149, 225, 211)'); // #95e1d3
 });
