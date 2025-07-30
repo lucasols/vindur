@@ -6,7 +6,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && pnpm exec prettier --write \"$CLAUDE_TOOL_FILE_PATH\""
+            "command": "jq -r '.tool_input.file_path' | { read file_path; if echo \"$file_path\" | grep -q '\\.ts$'; then pnpm exec prettier --write \"$file_path\"; fi; }"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "say 'Claude Code is awaiting your input'"
           }
         ]
       }
