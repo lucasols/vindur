@@ -62,5 +62,9 @@ export async function transformWithFormat({
     dev: !production,
   });
 
-  return { ...result, code: await formatCode(result.code) };
+  return {
+    ...result,
+    code: await formatCode(result.code),
+    css: await format(result.css, { parser: 'css' }),
+  };
 }
