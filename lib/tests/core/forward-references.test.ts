@@ -41,7 +41,8 @@ describe('forward references', () => {
       .v1560qbr-2-Container {
         background: #f5f5f5;
         padding: 20px;
-      }"
+      }
+      "
     `);
   });
 
@@ -97,7 +98,8 @@ describe('forward references', () => {
       .v1560qbr-3-Button {
         padding: 8px 16px;
         border: none;
-      }"
+      }
+      "
     `);
   });
 
@@ -140,7 +142,8 @@ describe('forward references', () => {
       .v1560qbr-2-Card {
         background: white;
         padding: 20px;
-      }"
+      }
+      "
     `);
   });
 
@@ -234,7 +237,8 @@ describe('forward references', () => {
       .v1560qbr-3-Button {
         background: #007bff;
         color: white;
-      }"
+      }
+      "
     `);
   });
 });

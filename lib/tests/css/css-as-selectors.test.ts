@@ -65,7 +65,8 @@ describe('CSS as selectors', () => {
           background: #007bff;
           color: white;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -144,7 +145,7 @@ describe('CSS as selectors', () => {
         gap: 16px;
 
         .v1560qbr-2-cardStyle & {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .v1560qbr-2-cardStyle .v1560qbr-1-buttonStyle {
@@ -154,7 +155,8 @@ describe('CSS as selectors', () => {
         &:hover .v1560qbr-2-cardStyle .v1560qbr-1-buttonStyle {
           transform: scale(1.05);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -242,7 +244,8 @@ describe('CSS as selectors', () => {
         .v1560qbr-1-linkStyle.active {
           font-weight: bold;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -343,7 +346,8 @@ describe('CSS as selectors', () => {
           background: #007bff;
           color: white;
         }
-      }"
+      }
+      "
     `);
   });
 });

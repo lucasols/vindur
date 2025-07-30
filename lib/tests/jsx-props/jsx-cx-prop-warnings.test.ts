@@ -68,7 +68,8 @@ describe('JSX cx prop warnings', () => {
           &.v1560qbr-3-disabled {
             opacity: 0.5;
           }
-        }"
+        }
+        "
       `);
     });
 
@@ -127,7 +128,8 @@ describe('JSX cx prop warnings', () => {
           &.v1560qbr-2-active {
             background: blue;
           }
-        }"
+        }
+        "
       `);
     });
 
@@ -182,7 +184,8 @@ describe('JSX cx prop warnings', () => {
           &.v1560qbr-2 {
             background: blue;
           }
-        }"
+        }
+        "
       `);
     });
 
@@ -244,7 +247,8 @@ describe('JSX cx prop warnings', () => {
           &.v1560qbr-3-disabled {
             opacity: 0.5;
           }
-        }"
+        }
+        "
       `);
     });
 
@@ -296,7 +300,8 @@ describe('JSX cx prop warnings', () => {
           &.v1560qbr-2-active {
             background: blue;
           }
-        }"
+        }
+        "
       `);
     });
 
@@ -361,7 +366,8 @@ describe('JSX cx prop warnings', () => {
           &.disabled {
             opacity: 0.5;
           }
-        }"
+        }
+        "
       `);
     });
   });

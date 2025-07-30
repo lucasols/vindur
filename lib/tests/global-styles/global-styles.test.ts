@@ -30,13 +30,14 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "body {
-          margin: 0;
-          font-family: Arial, sans-serif;
-        }
+        margin: 0;
+        font-family: Arial, sans-serif;
+      }
 
-        * {
-          box-sizing: border-box;
-        }"
+      * {
+        box-sizing: border-box;
+      }
+      "
     `);
   });
 
@@ -57,8 +58,9 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "h1 {
-          color: blue;
-        }"
+        color: blue;
+      }
+      "
     `);
   });
 
@@ -87,9 +89,10 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "body {
-          color: red;
-          font-size: 16px;
-        }"
+        color: red;
+        font-size: 16px;
+      }
+      "
     `);
   });
 
@@ -118,8 +121,9 @@ describe('createGlobalStyle', () => {
       }
 
       .button-base {
-          margin: 5px;
-        }"
+        margin: 5px;
+      }
+      "
     `);
   });
 
@@ -151,8 +155,9 @@ describe('createGlobalStyle', () => {
       }
 
       .custom-styles {
-          margin: 5px;
-        }"
+        margin: 5px;
+      }
+      "
     `);
   });
 
@@ -179,12 +184,13 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "body {
-          margin: 0;
-        }
+        margin: 0;
+      }
 
       h1 {
-          color: blue;
-        }"
+        color: blue;
+      }
+      "
     `);
   });
 
@@ -223,15 +229,20 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "body {
-          margin: 0px;
-          padding: 16px;
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-        }
+        margin: 0px;
+        padding: 16px;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+      }
 
-        code {
-          font-family: Monaco, Consolas, monospace;
-          padding: 8px;
-        }"
+      code {
+        font-family: Monaco, Consolas, monospace;
+        padding: 8px;
+      }
+      "
     `);
   });
 
@@ -281,25 +292,26 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".modal-overlay {
-          z-index: 1000;
-        }
+        z-index: 1000;
+      }
 
-        .dropdown {
-          z-index: 100;
-        }
+      .dropdown {
+        z-index: 100;
+      }
 
-        @media (min-width: 768px) {
-          .container {
-            max-width: 768px;
-            margin: 0 auto;
-          }
+      @media (min-width: 768px) {
+        .container {
+          max-width: 768px;
+          margin: 0 auto;
         }
+      }
 
-        @media (min-width: 1024px) {
-          .container {
-            max-width: 1024px;
-          }
-        }"
+      @media (min-width: 1024px) {
+        .container {
+          max-width: 1024px;
+        }
+      }
+      "
     `);
   });
 
@@ -351,23 +363,24 @@ describe('createGlobalStyle', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ":root {
-          --primary-color: #007bff;
-          --container-max-width: 1200px;
-        }
+        --primary-color: #007bff;
+        --container-max-width: 1200px;
+      }
 
-        html {
-          font-size: 1rem;
-        }
+      html {
+        font-size: 1rem;
+      }
 
-        h1 {
-          font-size: 2rem;
-          color: var(--primary-color);
-        }
+      h1 {
+        font-size: 2rem;
+        color: var(--primary-color);
+      }
 
-        .container {
-          max-width: var(--container-max-width);
-          padding: 1.5rem;
-        }"
+      .container {
+        max-width: var(--container-max-width);
+        padding: 1.5rem;
+      }
+      "
     `);
   });
 });

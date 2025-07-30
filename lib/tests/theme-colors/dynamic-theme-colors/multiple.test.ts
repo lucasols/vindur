@@ -48,7 +48,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
         border: 2px solid var(--v1560qbr-2);
-      }"
+      }
+      "
     `);
   });
 
@@ -109,9 +110,10 @@ describe('Dynamic Colors - Multiple Colors', () => {
         }
 
         .v1560qbr-2-c1 & {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-      }"
+      }
+      "
     `);
   });
 

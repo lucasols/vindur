@@ -30,7 +30,8 @@ describe('styled components - basic functionality', () => {
       ".v1560qbr-1-Container {
         background-color: red;
         padding: 10px;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -83,7 +84,8 @@ describe('styled components - basic functionality', () => {
       .v1560qbr-2-Header {
         font-size: 24px;
         font-weight: bold;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -126,7 +128,8 @@ describe('styled components - basic functionality', () => {
         background-color: blue;
         padding: 12px;
         border: 1px solid gray;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -183,7 +186,8 @@ describe('styled components - basic functionality', () => {
 
       .v1560qbr-5-StyledInput {
         color: orange;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`

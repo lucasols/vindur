@@ -50,10 +50,11 @@ describe('styled components - corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-StyledDiv {
-        content: "quotes \\"with\\" escapes";
-        background: url('image.png');
-        font-family: 'Font Name', sans-serif;
-      }"
+        content: 'quotes "with" escapes';
+        background: url("image.png");
+        font-family: "Font Name", sans-serif;
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -89,7 +90,8 @@ describe('styled components - corner cases', () => {
       ".v1560qbr-1-StyledButton {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`

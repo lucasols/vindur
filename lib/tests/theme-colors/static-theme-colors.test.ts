@@ -45,7 +45,8 @@ describe('createStaticThemeColors', () => {
       ".v1560qbr-1-Button {
         background: var(--stc-primary-var, #007bff);
         color: var(--stc-primary-contrast-var, #fff);
-      }"
+      }
+      "
     `);
   });
 
@@ -87,7 +88,8 @@ describe('createStaticThemeColors', () => {
       ".v1560qbr-1-Button {
         background: var(--stc-primary-var, #007bff);
         color: var(--stc-primary-contrast-var, #fff);
-      }"
+      }
+      "
     `);
   });
 
@@ -134,7 +136,8 @@ describe('createStaticThemeColors', () => {
       ".v1560qbr-1-Button {
         background: var(--stc-primary-var, #007bff);
         color: var(--stc-primary-contrast-var, #fff);
-      }"
+      }
+      "
     `);
   });
 
@@ -182,7 +185,8 @@ describe('createStaticThemeColors', () => {
         background: var(--stc-danger-alpha-0\\.1, #dc35451a);
         border: 1px solid var(--stc-danger-alpha-0\\.3, #dc35454d);
         color: var(--stc-danger-var, #dc3545);
-      }"
+      }
+      "
     `);
   });
 
@@ -249,7 +253,8 @@ describe('createStaticThemeColors', () => {
         &:disabled {
           background: var(--stc-primary-lighter-0\\.3, #99caff);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -303,7 +308,8 @@ describe('createStaticThemeColors', () => {
           background: var(--stc-light-var, #f8f9fa);
           color: var(--stc-light-contrast-optimal, #000);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -378,7 +384,8 @@ describe('createStaticThemeColors', () => {
       .v1560qbr-2-PrimaryButton {
         background: var(--stc-primary-var, #007bff);
         color: var(--stc-primary-contrast-var, #fff);
-      }"
+      }
+      "
     `);
   });
 
@@ -441,7 +448,8 @@ describe('createStaticThemeColors', () => {
           background: var(--stc-warning-var, #ffc107);
           color: var(--stc-warning-contrast-var, #000);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -512,7 +520,8 @@ describe('createStaticThemeColors', () => {
           background: var(--stc-primary-lighter-0\\.4, #cce5ff);
           color: var(--stc-primary-contrast-alpha-0\\.8, #fffc);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -579,7 +588,8 @@ describe('createStaticThemeColors', () => {
           background: var(--stc-secondary-lighter-0\\.2, #a1a8ae);
           color: var(--stc-secondary-contrast-alpha-0\\.5, #ffffff80);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -610,7 +620,8 @@ describe('createStaticThemeColors', () => {
           border: 1px solid var(--stc-red-alpha-0\\.5, #ff000080);
           color: var(--stc-black-alpha-0\\.8, #000c);
           box-shadow: 0 2px 4px var(--stc-white-alpha-0\\.1, #ffffff1a);
-        }"
+        }
+        "
       `);
     });
 
@@ -644,7 +655,8 @@ describe('createStaticThemeColors', () => {
           border-color: var(--stc-blue-var, #00f);
           outline-color: var(--stc-white-var, #fff);
           text-shadow: 1px 1px var(--stc-black-var, #000);
-        }"
+        }
+        "
       `);
     });
 
@@ -671,7 +683,8 @@ describe('createStaticThemeColors', () => {
           color: var(--stc-primary-contrast-var, #fff);
           background: var(--stc-light-contrast-var, #000);
           border: 1px solid var(--stc-primary-contrast-alpha-0\\.2, #fff3);
-        }"
+        }
+        "
       `);
     });
 
@@ -696,7 +709,8 @@ describe('createStaticThemeColors', () => {
         ".v1560qbr-1-Component {
           background: var(--stc-primary-darker-0\\.1, #0062cc);
           color: var(--stc-secondary-lighter-0\\.2, #f66);
-        }"
+        }
+        "
       `);
     });
   });
@@ -765,7 +779,8 @@ describe('createStaticThemeColors', () => {
           background: #dc3545;
           color: #ffffffe6;
         }
-      }"
+      }
+      "
     `);
   });
 

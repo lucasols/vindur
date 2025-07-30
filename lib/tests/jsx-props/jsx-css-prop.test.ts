@@ -28,9 +28,10 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         background: blue;
-          padding: 20px;
-          color: white;
-      }"
+        padding: 20px;
+        color: white;
+      }
+      "
     `);
   });
 
@@ -64,7 +65,8 @@ describe('JSX css prop', () => {
         background: red;
         margin: 10px;
         border-radius: 4px;
-      }"
+      }
+      "
     `);
   });
 
@@ -97,8 +99,9 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         color: green;
-            font-weight: bold;
-      }"
+        font-weight: bold;
+      }
+      "
     `);
   });
 
@@ -132,9 +135,10 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         background: #007bff;
-          padding: 16px;
-          margin: 8px;
-      }"
+        padding: 16px;
+        margin: 8px;
+      }
+      "
     `);
   });
 
@@ -168,12 +172,15 @@ describe('JSX css prop', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
-        color: blue; font-size: 24px;
+        color: blue;
+        font-size: 24px;
       }
 
       .v1560qbr-2-css-prop-2 {
-        color: red; margin: 10px;
-      }"
+        color: red;
+        margin: 10px;
+      }
+      "
     `);
   });
 
@@ -214,17 +221,18 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         background: white;
-          padding: 20px;
+        padding: 20px;
 
-          h2 {
-            color: #333;
-            margin-bottom: 16px;
-          }
+        h2 {
+          color: #333;
+          margin-bottom: 16px;
+        }
 
-          &:hover {
-            transform: translateY(-2px);
-          }
-      }"
+        &:hover {
+          transform: translateY(-2px);
+        }
+      }
+      "
     `);
   });
 
@@ -270,8 +278,9 @@ describe('JSX css prop', () => {
 
       .v1560qbr-2-css-prop-2 {
         background: white;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }"
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      "
     `);
   });
 
@@ -321,10 +330,11 @@ describe('JSX css prop', () => {
       .v1560qbr-2-css-prop-2 {
         padding: 20px;
 
-          & .v1560qbr-1-Button:hover {
-            background: #0056b3;
-          }
-      }"
+        & .v1560qbr-1-Button:hover {
+          background: #0056b3;
+        }
+      }
+      "
     `);
   });
 
@@ -357,7 +367,8 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         background: yellow;
-      }"
+      }
+      "
     `);
   });
 
@@ -396,7 +407,8 @@ describe('JSX css prop', () => {
 
       .v1560qbr-2-css-prop-2 {
         border: 1px solid red;
-      }"
+      }
+      "
     `);
   });
 
@@ -428,7 +440,8 @@ describe('JSX css prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         color: red;
-      }"
+      }
+      "
     `);
   });
 
@@ -465,7 +478,8 @@ describe('JSX css prop', () => {
       ".v1560qbr-1-styles {
         background: blue;
         padding: 10px;
-      }"
+      }
+      "
     `);
   });
 
@@ -550,7 +564,8 @@ describe('JSX css prop', () => {
 
       .v1560qbr-2-css-prop-2 {
         border: 1px solid red;
-      }"
+      }
+      "
     `);
   });
 
@@ -607,7 +622,8 @@ describe('JSX css prop', () => {
 
       .v1560qbr-2-css-prop-2 {
         border: 1px solid red;
-      }"
+      }
+      "
     `);
   });
 

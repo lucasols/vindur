@@ -124,7 +124,8 @@ describe('JSX cx prop transformation', () => {
             opacity: 0.5;
             cursor: not-allowed;
           }
-        }"
+        }
+        "
       `);
     });
   });
@@ -184,7 +185,8 @@ describe('JSX cx prop transformation', () => {
             &.v1560qbr-3-disabled {
               background: green;
             }
-          }"
+          }
+          "
         `);
       });
 
@@ -241,7 +243,8 @@ describe('JSX cx prop transformation', () => {
             &.v1560qbr-3 {
               background: green;
             }
-          }"
+          }
+          "
         `);
       });
     });
@@ -299,7 +302,8 @@ describe('JSX cx prop transformation', () => {
             &.error {
               color: red;
             }
-          }"
+          }
+          "
         `);
       });
 
@@ -346,7 +350,8 @@ describe('JSX cx prop transformation', () => {
             &.noHash {
               background: yellow;
             }
-          }"
+          }
+          "
         `);
       });
     });
@@ -487,7 +492,7 @@ describe('JSX cx prop transformation', () => {
 
             &.v1560qbr-5-active {
               border-color: gold;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             }
 
             &.v1560qbr-6-disabled {
@@ -498,15 +503,16 @@ describe('JSX cx prop transformation', () => {
 
           .v1560qbr-7-css-prop-7 {
             &.v1560qbr-8-active {
-                    background: red;
-                  }
+              background: red;
+            }
           }
 
           .v1560qbr-9-css-prop-9 {
             &.v1560qbr-10-active {
-                    background: red;
-                  }
-          }"
+              background: red;
+            }
+          }
+          "
         `);
       });
     });
@@ -558,7 +564,8 @@ describe('JSX cx prop transformation', () => {
             &.v1560qbr-2-highlighted {
               border-color: gold;
             }
-          }"
+          }
+          "
         `);
       });
     });
@@ -627,13 +634,14 @@ describe('JSX cx prop transformation', () => {
 
             &.v1560qbr-2-featured {
               border-color: gold;
-              box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+              box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             }
 
             &.v1560qbr-3-compact {
               padding: 8px;
             }
-          }"
+          }
+          "
         `);
       });
 
@@ -684,12 +692,13 @@ describe('JSX cx prop transformation', () => {
         expect(result.css).toMatchInlineSnapshot(`
           ".v1560qbr-1-css-prop-1 {
             background: red;
-                  padding: 20px;
+            padding: 20px;
 
-                  &.v1560qbr-2-hoverable {
-                    transform: scale(1.05);
-                  }
-          }"
+            &.v1560qbr-2-hoverable {
+              transform: scale(1.05);
+            }
+          }
+          "
         `);
       });
     });
@@ -740,7 +749,8 @@ describe('JSX cx prop transformation', () => {
             &.v1560qbr-2-active {
               background: blue;
             }
-          }"
+          }
+          "
         `);
       });
     });

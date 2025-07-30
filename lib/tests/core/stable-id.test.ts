@@ -300,7 +300,8 @@ describe('mixed stable ID utilities', () => {
 
       .v1560qbr-4-style2 {
         color: blue;
-      }"
+      }
+      "
     `);
   });
 });
@@ -331,7 +332,8 @@ describe('stable ID utilities in CSS context', () => {
         #v1560qbr-id-1 {
           color: red;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -366,7 +368,8 @@ describe('stable ID utilities in CSS context', () => {
         .v1560qbr-className-1 {
           border: 1px solid black;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -403,7 +406,8 @@ describe('stable ID utilities in CSS context', () => {
         .v1560qbr-className-2 {
           background: blue;
         }
-      }"
+      }
+      "
     `);
   });
 });
@@ -441,7 +445,8 @@ describe('stable ID utilities in styled components', () => {
         #v1560qbr-id-1 {
           background: blue;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -477,7 +482,8 @@ describe('stable ID utilities in styled components', () => {
         &.v1560qbr-className-1 {
           margin: 8px;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -519,9 +525,10 @@ describe('stable ID utilities in styled components', () => {
           border: 1px solid gray;
         }
         &[data-id="v1560qbr-id-1"].v1560qbr-className-2 {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-      }"
+      }
+      "
     `);
   });
 });
@@ -560,12 +567,13 @@ describe('stable ID utilities in CSS prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-css-prop-2 {
         #v1560qbr-id-1 {
-            color: red;
-          }
-          &[data-id="v1560qbr-id-1"] {
-            background: blue;
-          }
-      }"
+          color: red;
+        }
+        &[data-id="v1560qbr-id-1"] {
+          background: blue;
+        }
+      }
+      "
     `);
   });
 
@@ -602,12 +610,13 @@ describe('stable ID utilities in CSS prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-css-prop-2 {
         .v1560qbr-className-1 {
-            padding: 16px;
-          }
-          &.v1560qbr-className-1 {
-            margin: 8px;
-          }
-      }"
+          padding: 16px;
+        }
+        &.v1560qbr-className-1 {
+          margin: 8px;
+        }
+      }
+      "
     `);
   });
 
@@ -649,15 +658,16 @@ describe('stable ID utilities in CSS prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-3-css-prop-3 {
         #v1560qbr-id-1 {
-            font-size: 18px;
-          }
-          .v1560qbr-className-2 {
-            border: 2px solid navy;
-          }
-          &[data-id="v1560qbr-id-1"].v1560qbr-className-2 {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-          }
-      }"
+          font-size: 18px;
+        }
+        .v1560qbr-className-2 {
+          border: 2px solid navy;
+        }
+        &[data-id="v1560qbr-id-1"].v1560qbr-className-2 {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+      }
+      "
     `);
   });
 
@@ -708,18 +718,19 @@ describe('stable ID utilities in CSS prop', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-3-css-prop-3 {
         #v1560qbr-id-1 {
-              height: 60px;
-            }
+          height: 60px;
+        }
       }
 
       .v1560qbr-4-css-prop-4 {
         .v1560qbr-className-2 {
-              min-height: 400px;
-            }
-            &.v1560qbr-className-2 {
-              padding: 20px;
-            }
-      }"
+          min-height: 400px;
+        }
+        &.v1560qbr-className-2 {
+          padding: 20px;
+        }
+      }
+      "
     `);
   });
 });

@@ -43,7 +43,8 @@ describe('withComponent', () => {
       ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -87,7 +88,8 @@ describe('withComponent', () => {
       ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -131,7 +133,8 @@ describe('withComponent', () => {
       ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -191,7 +194,8 @@ describe('withComponent', () => {
         &.voctcyj-active {
           background: red;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -278,7 +282,8 @@ describe('withComponent', () => {
 
       .v1560qbr-2-RedButton {
         background: red;
-      }"
+      }
+      "
     `);
   });
 
@@ -328,7 +333,8 @@ describe('withComponent', () => {
       ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -379,7 +385,8 @@ describe('withComponent', () => {
       ".v1560qbr-1-Button {
         padding: 10px;
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -446,7 +453,8 @@ describe('withComponent', () => {
         &.voctcyj-active {
           background: red;
         }
-      }"
+      }
+      "
     `);
   });
 });

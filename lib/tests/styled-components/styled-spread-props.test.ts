@@ -24,7 +24,8 @@ describe('handle spread props', () => {
       ".v1560qbr-1-Button {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
@@ -93,7 +94,8 @@ describe('handle spread props', () => {
       ".v1560qbr-1-Input {
         border: 1px solid gray;
         padding: 8px;
-      }"
+      }
+      "
     `);
   });
 
@@ -127,7 +129,8 @@ describe('handle spread props', () => {
       ".v1560qbr-1-Div {
         display: flex;
         gap: 16px;
-      }"
+      }
+      "
     `);
 
     expect(await formatCode(result.code)).toMatchInlineSnapshot(`
@@ -218,7 +221,8 @@ describe('handle spread props', () => {
       .v1560qbr-2-PrimaryButton {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -268,7 +272,8 @@ describe('handle spread props', () => {
       ".v1560qbr-1-StyledButton {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -322,8 +327,9 @@ describe('handle spread props', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Card {
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }"
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      "
     `);
   });
 
@@ -372,7 +378,8 @@ describe('handle spread props', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-StyledButton {
         background: blue;
-      }"
+      }
+      "
     `);
   });
 
@@ -425,7 +432,8 @@ describe('handle spread props', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-StyledButton {
         background: blue;
-      }"
+      }
+      "
     `);
   });
 

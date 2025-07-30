@@ -35,7 +35,8 @@ describe('keyframes basic functionality', () => {
         to {
           transform: translateX(0);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -74,7 +75,8 @@ describe('keyframes basic functionality', () => {
         100% {
           opacity: 0;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -104,7 +106,11 @@ describe('keyframes basic functionality', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "@keyframes v1560qbr-1-bounceAnimation {
-        0%, 20%, 50%, 80%, 100% {
+        0%,
+        20%,
+        50%,
+        80%,
+        100% {
           transform: translateY(0);
         }
         40% {
@@ -113,7 +119,8 @@ describe('keyframes basic functionality', () => {
         60% {
           transform: translateY(-15px);
         }
-      }"
+      }
+      "
     `);
   });
 });
@@ -153,7 +160,8 @@ describe('keyframes interpolation', () => {
         to {
           left: 100px;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -191,7 +199,8 @@ describe('keyframes interpolation', () => {
         to {
           opacity: 1;
         }
-      }"
+      }
+      "
     `);
   });
 });
@@ -300,16 +309,32 @@ describe('keyframes corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "@keyframes v1560qbr-1-fade {
-        from { opacity: 0; } to { opacity: 1; }
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
       }
 
       @keyframes v1560qbr-2-slide {
-        from { left: 0; } to { left: 100px; }
+        from {
+          left: 0;
+        }
+        to {
+          left: 100px;
+        }
       }
 
       @keyframes v1560qbr-3-rotate {
-        from { transform: rotate(0deg); } to { transform: rotate(360deg); }
-      }"
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      "
     `);
   });
 
@@ -329,8 +354,14 @@ describe('keyframes corner cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       "@keyframes v1560qbr-1 {
-        from { opacity: 0; } to { opacity: 1; }
-      }"
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      "
     `);
   });
 });

@@ -33,7 +33,8 @@ describe('styled components - attrs functionality', () => {
       ".v1560qbr-1-Container {
         background-color: red;
         padding: 10px;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -78,7 +79,8 @@ describe('styled components - attrs functionality', () => {
       ".v1560qbr-1-Input {
         padding: 8px;
         border: 1px solid gray;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -125,7 +127,8 @@ describe('styled components - attrs functionality', () => {
         padding: 12px 24px;
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -178,7 +181,8 @@ describe('styled components - attrs functionality', () => {
       .v1560qbr-2-PrimaryButton {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -235,7 +239,8 @@ describe('styled components - attrs functionality', () => {
       .v1560qbr-2-PrimaryButton {
         background: blue;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -284,7 +289,8 @@ describe('styled components - attrs functionality', () => {
       ".v1560qbr-1-BaseButton {
         padding: 8px 16px;
         border: none;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -355,7 +361,8 @@ describe('styled components - attrs functionality', () => {
         &.vr4ikfs-size-large {
           padding: 12px 24px;
         }
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -409,7 +416,8 @@ describe('styled components - attrs functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Container {
         background-color: red;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -494,7 +502,8 @@ describe('styled components - attrs functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Container {
         background-color: red;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -543,7 +552,8 @@ describe('styled components - attrs functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Container {
         background-color: red;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -596,7 +606,8 @@ describe('styled components - attrs functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Container {
         background-color: red;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`

@@ -29,17 +29,18 @@ describe('CSS layers with layer() function', () => {
     expect(result.css).toMatchInlineSnapshot(`
       "@layer higher-priority {
         .v1560qbr-1-Card {
-        background: white;
+          background: white;
           padding: 20px;
           border-radius: 8px;
-      }
+        }
       }
 
       @layer lower-priority {
         .v1560qbr-1-Card {
-        background: red;
+          background: red;
+        }
       }
-      }"
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -89,10 +90,10 @@ describe('CSS layers with layer() function', () => {
 
       @layer theme {
         .v1560qbr-1-Button {
-        background: blue;
+          background: blue;
           color: white;
           padding: 8px 16px;
-      }
+        }
       }
 
       .v1560qbr-1-Button {
@@ -104,9 +105,10 @@ describe('CSS layers with layer() function', () => {
 
       @layer overrides {
         .v1560qbr-1-Button {
-        font-weight: bold;
+          font-weight: bold;
+        }
       }
-      }"
+      "
     `);
   });
 
@@ -132,17 +134,18 @@ describe('CSS layers with layer() function', () => {
     expect(result.css).toMatchInlineSnapshot(`
       "@layer utilities {
         .v1560qbr-1-styles {
-        margin: 0 auto;
+          margin: 0 auto;
           max-width: 1200px;
-      }
+        }
       }
 
       @layer components {
         .v1560qbr-1-styles {
-        padding: 20px;
+          padding: 20px;
           background: #f5f5f5;
+        }
       }
-      }"
+      "
     `);
   });
 
@@ -172,7 +175,7 @@ describe('CSS layers with layer() function', () => {
     expect(result.css).toMatchInlineSnapshot(`
       "@layer layout {
         .v1560qbr-1-Nav {
-        display: flex;
+          display: flex;
           gap: 20px;
 
           a {
@@ -183,8 +186,9 @@ describe('CSS layers with layer() function', () => {
               text-decoration: underline;
             }
           }
+        }
       }
-      }"
+      "
     `);
   });
 
@@ -204,9 +208,10 @@ describe('CSS layers with layer() function', () => {
     expect(result.css).toMatchInlineSnapshot(`
       "@layer invalid layer name {
         .v1560qbr-1-Card {
-        background: white;
+          background: white;
+        }
       }
-      }"
+      "
     `);
   });
 
@@ -257,15 +262,16 @@ describe('CSS layers with layer() function', () => {
 
       @layer higher-priority {
         .v1560qbr-1-Card {
-        background: white;
-      }
+          background: white;
+        }
       }
 
       @layer lower-priority {
         .v1560qbr-1-Card {
-        background: red;
+          background: red;
+        }
       }
-      }"
+      "
     `);
   });
 });

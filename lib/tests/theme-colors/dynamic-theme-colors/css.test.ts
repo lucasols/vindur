@@ -57,7 +57,8 @@ describe('Dynamic Colors - CSS Function Usage', () => {
         &.v1560qbr-1-s0 {
           border: 1px solid color-mix(in srgb, var(--v1560qbr-1) 80%, #fff);
         }
-      }"
+      }
+      "
     `);
   });
 

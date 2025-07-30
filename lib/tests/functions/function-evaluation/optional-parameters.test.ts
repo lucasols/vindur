@@ -29,7 +29,8 @@ describe('function evaluation - optional parameters', () => {
       ".v1560qbr-1-style {
         margin: 8px;
         color: blue;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -66,7 +67,8 @@ describe('function evaluation - optional parameters', () => {
         width: 100px;
         height: 200px;
         padding: 20px;
-      }"
+      }
+      "
     `);
 
     // Test with some args
@@ -86,7 +88,8 @@ describe('function evaluation - optional parameters', () => {
       ".v1560qbr-1-style {
         width: 100px;
         height: 200px;
-      }"
+      }
+      "
     `);
 
     // Test with minimal args
@@ -105,7 +108,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result3.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         width: 100px;
-      }"
+      }
+      "
     `);
   });
 
@@ -137,7 +141,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         display: flex;
-      }"
+      }
+      "
     `);
   });
 
@@ -163,8 +168,10 @@ describe('function evaluation - optional parameters', () => {
 
     expect(result1.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
-        display: none;opacity: 0.5;
-      }"
+        display: none;
+        opacity: 0.5;
+      }
+      "
     `);
 
     // Test with only opacity
@@ -183,7 +190,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result2.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         opacity: 0.8;
-      }"
+      }
+      "
     `);
 
     // Test with no args
@@ -203,7 +211,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result3.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         color: red;
-      }"
+      }
+      "
     `);
   });
 
@@ -232,7 +241,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result1.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         border: 2px solid red;
-      }"
+      }
+      "
     `);
 
     // Test with style but no color (should use default)
@@ -251,7 +261,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result2.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         border: 3px dashed black;
-      }"
+      }
+      "
     `);
 
     // Test without style (should use fallback)
@@ -270,7 +281,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result3.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         border-width: 4px;
-      }"
+      }
+      "
     `);
   });
 
@@ -296,8 +308,14 @@ describe('function evaluation - optional parameters', () => {
 
     expect(result1.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
-        margin: 10px;padding: 20px;margin-left: 30px; margin-right: 30px;margin-top: 40px; margin-bottom: 40px;
-      }"
+        margin: 10px;
+        padding: 20px;
+        margin-left: 30px;
+        margin-right: 30px;
+        margin-top: 40px;
+        margin-bottom: 40px;
+      }
+      "
     `);
 
     // Test with some params
@@ -315,8 +333,11 @@ describe('function evaluation - optional parameters', () => {
 
     expect(result2.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
-        padding: 15px;margin-left: 25px; margin-right: 25px;
-      }"
+        padding: 15px;
+        margin-left: 25px;
+        margin-right: 25px;
+      }
+      "
     `);
 
     // Test with empty object
@@ -336,7 +357,8 @@ describe('function evaluation - optional parameters', () => {
     expect(result3.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         color: blue;
-      }"
+      }
+      "
     `);
   });
 });

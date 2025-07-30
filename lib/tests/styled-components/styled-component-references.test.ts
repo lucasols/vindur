@@ -36,7 +36,8 @@ describe('styled component references', () => {
         .v1560qbr-1-Container:hover & {
           background-color: blue;
         }
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -112,7 +113,8 @@ describe('styled component references', () => {
         & .v1560qbr-2-Button:active {
           transform: scale(0.98);
         }
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -217,7 +219,8 @@ describe('styled component references', () => {
         & .v1560qbr-1-Button:focus {
           outline: 2px solid blue;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -305,7 +308,8 @@ describe('styled component references', () => {
         & .v1560qbr-1-Card:last-child {
           margin-bottom: 0;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -376,7 +380,8 @@ describe('styled component references', () => {
         & .v1560qbr-1-Button:active {
           transform: scale(0.95);
         }
-      }"
+      }
+      "
     `);
   });
 });

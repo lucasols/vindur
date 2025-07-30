@@ -31,7 +31,8 @@ describe('styled components - interpolation', () => {
       ".v1560qbr-1-StyledText {
         color: blue;
         font-size: 16px;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -65,7 +66,8 @@ describe('styled components - interpolation', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-StyledDiv {
         content: "my-value";
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`

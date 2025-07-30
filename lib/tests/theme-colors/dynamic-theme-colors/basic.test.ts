@@ -44,7 +44,8 @@ describe('Dynamic Colors - Basic Usage', () => {
       ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 
@@ -102,7 +103,8 @@ describe('Dynamic Colors - Basic Usage', () => {
       ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 

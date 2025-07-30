@@ -58,9 +58,18 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
         --lighter: color-mix(in srgb, var(--v1560qbr-1) 70%, #fff);
         --contrast-alpha: color-mix(in srgb, var(--v1560qbr-1-c) 60%, transparent);
         --contrast-optimal: var(--v1560qbr-1-c-optimal);
-        --contrast-optimal-alpha: color-mix(in srgb, var(--v1560qbr-1-c-optimal) 60%, transparent);
-        --saturated-darker: color-mix(in srgb, var(--v1560qbr-1) 90%, hsl(from var(--v1560qbr-1) h 100% 20%));
-      }"
+        --contrast-optimal-alpha: color-mix(
+          in srgb,
+          var(--v1560qbr-1-c-optimal) 60%,
+          transparent
+        );
+        --saturated-darker: color-mix(
+          in srgb,
+          var(--v1560qbr-1) 90%,
+          hsl(from var(--v1560qbr-1) h 100% 20%)
+        );
+      }
+      "
     `);
   });
 

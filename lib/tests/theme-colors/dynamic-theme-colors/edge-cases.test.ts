@@ -64,9 +64,10 @@ describe('Dynamic Colors - Edge Cases', () => {
         }
 
         .v1560qbr-2-c1 & {
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -115,7 +116,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 
@@ -164,7 +166,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 
@@ -213,7 +216,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       ".v1560qbr-2-StyledButton {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 

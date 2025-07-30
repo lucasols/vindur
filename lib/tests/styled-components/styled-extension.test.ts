@@ -43,7 +43,8 @@ describe('styled component extension', () => {
       .v1560qbr-2-RedButton {
         background: red;
         color: white;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`
@@ -120,7 +121,8 @@ describe('styled component extension', () => {
       .v1560qbr-3-LargeBlueButton {
         font-size: 18px;
         padding: 12px;
-      }"
+      }
+      "
     `);
 
     expect(result.code).toMatchInlineSnapshot(`

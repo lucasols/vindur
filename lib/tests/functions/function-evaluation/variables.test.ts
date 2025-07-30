@@ -27,7 +27,8 @@ describe('variable references in function calls', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         width: 24px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const mySize = 24;
@@ -65,7 +66,8 @@ describe('variable references in function calls', () => {
       ".v1560qbr-1-style {
         margin: 16px;
         padding: 8px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const baseUnit = 8;
@@ -99,7 +101,8 @@ describe('variable references in function calls', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         color: blue;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const primaryColor = "blue";
@@ -136,7 +139,8 @@ describe('variable references in function calls', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         border: 2px solid red;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const borderWidth = 2;
@@ -173,7 +177,8 @@ describe('variable references in function calls', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         content: "Hello World";
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const prefix = "Hello";

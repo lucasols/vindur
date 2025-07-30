@@ -34,7 +34,8 @@ describe('Exported styled components', () => {
         border-radius: 4px;
         border: none;
         cursor: pointer;
-      }"
+      }
+      "
     `);
   });
 
@@ -90,7 +91,8 @@ describe('Exported styled components', () => {
         font-size: 24px;
         color: #333;
         margin-bottom: 16px;
-      }"
+      }
+      "
     `);
   });
 
@@ -141,7 +143,8 @@ describe('Exported styled components', () => {
         &:hover {
           background: #0056b3;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -183,7 +186,8 @@ describe('Exported styled components', () => {
       .v1560qbr-2-Card {
         background: white;
         padding: 20px;
-      }"
+      }
+      "
     `);
   });
 
@@ -214,7 +218,8 @@ describe('Exported styled components', () => {
         background: green;
         color: white;
         padding: 10px 20px;
-      }"
+      }
+      "
     `);
   });
 
@@ -245,7 +250,8 @@ describe('Exported styled components', () => {
         background: red;
         color: white;
         padding: 12px 24px;
-      }"
+      }
+      "
     `);
   });
 
@@ -272,7 +278,8 @@ describe('Exported styled components', () => {
         background: white;
         padding: 20px;
         border: 1px solid #ddd;
-      }"
+      }
+      "
     `);
   });
 
@@ -330,7 +337,8 @@ describe('Exported styled components', () => {
         background: blue;
         color: white;
         padding: 8px 16px;
-      }"
+      }
+      "
     `);
   });
 
@@ -365,7 +373,8 @@ describe('Exported styled components', () => {
         color: white;
         padding: 8px 16px;
         margin: 4px;
-      }"
+      }
+      "
     `);
   });
 
@@ -410,7 +419,8 @@ describe('Exported styled components', () => {
         & .v1560qbr-1-Button:hover {
           background: #0056b3;
         }
-      }"
+      }
+      "
     `);
   });
 

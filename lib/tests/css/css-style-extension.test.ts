@@ -41,8 +41,9 @@ describe('CSS style extension', () => {
 
       .v1560qbr-2-Card {
         background: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }"
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      "
     `);
   });
 
@@ -83,8 +84,9 @@ describe('CSS style extension', () => {
 
       .v1560qbr-2-extendedStyles {
         background: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      }"
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      "
     `);
   });
 
@@ -144,7 +146,8 @@ describe('CSS style extension', () => {
       .v1560qbr-3-PrimaryCard {
         background: #007bff;
         color: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -209,7 +212,8 @@ describe('CSS style extension', () => {
         color: white;
         border: none;
         cursor: pointer;
-      }"
+      }
+      "
     `);
   });
 });

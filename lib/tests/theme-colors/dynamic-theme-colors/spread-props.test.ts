@@ -51,7 +51,8 @@ describe('Dynamic Colors - Spread Props', () => {
       ".v1560qbr-2-Button {
         background: var(--v1560qbr-1);
         color: var(--v1560qbr-1-c);
-      }"
+      }
+      "
     `);
   });
 
@@ -242,7 +243,8 @@ describe('Dynamic Colors - Spread Props', () => {
       ".v1560qbr-2-Card {
         background: var(--v1560qbr-1);
         padding: 20px;
-      }"
+      }
+      "
     `);
   });
 });

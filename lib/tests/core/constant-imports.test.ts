@@ -38,7 +38,8 @@ describe('constant imports', () => {
         color: white;
         padding: 12px 24px;
         border: none;
-      }"
+      }
+      "
     `);
   });
 
@@ -78,7 +79,8 @@ describe('constant imports', () => {
         margin: 8px;
         border-radius: 8px;
         background: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -117,7 +119,8 @@ describe('constant imports', () => {
         font-size: 24px;
         font-weight: 600;
         margin-bottom: 16px;
-      }"
+      }
+      "
     `);
   });
 
@@ -153,7 +156,8 @@ describe('constant imports', () => {
         padding: 32px 16px;
         margin: 8px;
         border-width: 2px;
-      }"
+      }
+      "
     `);
   });
 
@@ -194,7 +198,8 @@ describe('constant imports', () => {
         background: #3b82f6;
         padding: 20px;
         border-radius: 8px;
-      }"
+      }
+      "
     `);
   });
 
@@ -231,7 +236,8 @@ describe('constant imports', () => {
         font-family: Inter, system-ui, sans-serif;
         font-weight: 400;
         line-height: 1.5;
-      }"
+      }
+      "
     `);
   });
 
@@ -296,13 +302,14 @@ describe('constant imports', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1s4vg6s-1 {
         border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
       .v1560qbr-1-Card {
         background: #10b981;
         padding: 24px;
-      }"
+      }
+      "
     `);
   });
 });

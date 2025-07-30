@@ -35,7 +35,8 @@ describe('scoped CSS variables', () => {
         padding: var(--v1560qbr-3-spacing);
         border-radius: var(--v1560qbr-4-border-radius);
         border: 1px solid var(--v1560qbr-2-primary-color);
-      }"
+      }
+      "
     `);
   });
 
@@ -66,7 +67,8 @@ describe('scoped CSS variables', () => {
 
         background: var(--v1560qbr-2);
         padding: var(--v1560qbr-3);
-      }"
+      }
+      "
     `);
   });
 
@@ -102,7 +104,8 @@ describe('scoped CSS variables', () => {
           background: var(--v1560qbr-2-button-color);
           opacity: 0.8;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -133,7 +136,8 @@ describe('scoped CSS variables', () => {
 
         color: var(--v1560qbr-2-text-color);
         font-size: var(--v1560qbr-3-font-size);
-      }"
+      }
+      "
     `);
   });
 
@@ -174,7 +178,8 @@ describe('scoped CSS variables', () => {
       ".v1560qbr-1-Card {
         background: var(--v1560qbr-2-color);
         padding: var(--v1560qbr-3-spacing);
-      }"
+      }
+      "
     `);
   });
 
@@ -213,7 +218,8 @@ describe('scoped CSS variables', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1 {
         background: var(--v1560qbr-2);
-      }"
+      }
+      "
     `);
   });
 
@@ -245,7 +251,8 @@ describe('scoped CSS variables', () => {
 
         background: var(--v1560qbr-2-primary);
         padding: var(--v1560qbr-3-spacing);
-      }"
+      }
+      "
     `);
   });
 
@@ -287,7 +294,8 @@ describe('scoped CSS variables', () => {
         .title {
           color: var(--v1560qbr-2-card-bg);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -321,7 +329,8 @@ describe('scoped CSS variables', () => {
         @media (max-width: 768px) {
           padding: var(--v1560qbr-3-mobile-spacing);
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -355,7 +364,8 @@ describe('scoped CSS variables', () => {
         --v1560qbr-4-primary-bg: #007bff;
         background: var(--v1560qbr-4-primary-bg);
         padding: var(--v1560qbr-2-base-padding);
-      }"
+      }
+      "
     `);
   });
 
@@ -384,14 +394,15 @@ describe('scoped CSS variables', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ":root {
-          --v1560qbr-2: #007bff;
-          --v1560qbr-3: 16px;
-        }
+        --v1560qbr-2: #007bff;
+        --v1560qbr-3: 16px;
+      }
 
-        body {
-          color: var(--v1560qbr-2);
-          font-size: var(--v1560qbr-3);
-        }"
+      body {
+        color: var(--v1560qbr-2);
+        font-size: var(--v1560qbr-3);
+      }
+      "
     `);
   });
 
@@ -424,11 +435,12 @@ describe('scoped CSS variables', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-css-prop-1 {
         --v1560qbr-2-card-bg: white;
-            --v1560qbr-3-card-padding: 20px;
+        --v1560qbr-3-card-padding: 20px;
 
-            background: var(--v1560qbr-2-card-bg);
-            padding: var(--v1560qbr-3-card-padding);
-      }"
+        background: var(--v1560qbr-2-card-bg);
+        padding: var(--v1560qbr-3-card-padding);
+      }
+      "
     `);
   });
 
@@ -498,7 +510,8 @@ describe('scoped CSS variables', () => {
         background: var(--v1560qbr-2-primary-color-light);
         padding: var(--v1560qbr-3-spacing-large-desktop);
         border-radius: var(--v1560qbr-4-border-radius-sm);
-      }"
+      }
+      "
     `);
   });
 
@@ -528,7 +541,8 @@ describe('scoped CSS variables', () => {
         background: var(--v1560qbr-2-scoped-var);
         color: var(--regular-var);
         border: 1px solid var(--global-color);
-      }"
+      }
+      "
     `);
   });
 });

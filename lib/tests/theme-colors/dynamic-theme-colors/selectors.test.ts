@@ -60,7 +60,8 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         &.v1560qbr-1-s1 {
           border: 2px solid black;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -123,11 +124,11 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         padding: 20px;
 
         .v1560qbr-1-c1 & {
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .v1560qbr-1-c0 & {
-          box-shadow: 0 2px 8px rgba(255,255,255,0.1);
+          box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
         }
 
         .v1560qbr-1-c2 & {
@@ -137,7 +138,8 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         .v1560qbr-1-c3 & {
           border: 1px solid #ccc;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -238,13 +240,14 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         }
 
         &.v1560qbr-1-s6 {
-          text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+          text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
         }
 
         &.v1560qbr-1-s7 {
           text-shadow: none;
         }
-      }"
+      }
+      "
     `);
   });
 
@@ -341,7 +344,8 @@ describe('Dynamic Colors - Conditional Selectors', () => {
             opacity: 0.7;
           }
         }
-      }"
+      }
+      "
     `);
   });
 });

@@ -25,7 +25,8 @@ describe('function evaluation - basic functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         width: 10px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -57,7 +58,8 @@ describe('function evaluation - basic functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         margin: 10px 20px 30px 40px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -95,7 +97,8 @@ describe('function evaluation - basic functionality', () => {
         justify-content: flex-start;
         align-items: center;
         gap: 10px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -133,7 +136,8 @@ describe('function evaluation - basic functionality', () => {
         padding: 0;
         box-sizing: border-box;
         color: red;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -163,7 +167,8 @@ describe('function evaluation - basic functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         border: 1px solid black;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -195,7 +200,8 @@ describe('function evaluation - basic functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         padding: large;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -231,7 +237,8 @@ describe('function evaluation - basic functionality', () => {
         font-size: 24px;
         width: 50%;
         background: red;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -260,8 +267,9 @@ describe('function evaluation - basic functionality', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
-        box-shadow: 2px 4px 8px rgba(0,0,0,0.3);
-      }"
+        box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.3);
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -308,7 +316,8 @@ describe('function evaluation - basic functionality', () => {
         border-radius: 4px;
         border: none;
         cursor: pointer;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -344,7 +353,8 @@ describe('function evaluation - basic functionality', () => {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 16px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -378,7 +388,8 @@ describe('function evaluation - basic functionality', () => {
       ".v1560qbr-1-style {
         background: secondary;
         opacity: 1;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -421,7 +432,8 @@ describe('function evaluation - basic functionality', () => {
         border-radius: 8px;
         padding: 16px;
         box-shadow: large;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -455,7 +467,8 @@ describe('function evaluation - basic functionality', () => {
       ".v1560qbr-1-style {
         transition: opacity 300ms ease-in-out;
         opacity: 0.5;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -489,7 +502,8 @@ describe('function evaluation - basic functionality', () => {
       ".v1560qbr-1-style {
         display: block;
         width: 100px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";
@@ -521,7 +535,8 @@ describe('function evaluation - basic functionality', () => {
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-style {
         margin: 16px;
-      }"
+      }
+      "
     `);
     expect(result.code).toMatchInlineSnapshot(`
       "const style = "v1560qbr-1-style";

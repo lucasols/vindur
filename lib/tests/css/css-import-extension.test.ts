@@ -49,7 +49,8 @@ describe('CSS import extension', () => {
         padding: 12px 24px;
         border-radius: 4px;
         font-weight: 500;
-      }"
+      }
+      "
     `);
   });
 
@@ -100,7 +101,8 @@ describe('CSS import extension', () => {
       .v1560qbr-1-Button {
         background: #007bff;
         color: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -176,7 +178,7 @@ describe('CSS import extension', () => {
 
       .v1560qbr-1-Card {
         background: white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
       .v1s4vg6s-1 {
@@ -196,7 +198,8 @@ describe('CSS import extension', () => {
       .v1560qbr-2-Button {
         background: #28a745;
         color: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -257,7 +260,8 @@ describe('CSS import extension', () => {
 
       .v1560qbr-2-Card {
         background: white;
-      }"
+      }
+      "
     `);
   });
 
@@ -333,7 +337,8 @@ describe('CSS import extension', () => {
 
       .v1560qbr-1-Container {
         background: #f8f9fa;
-      }"
+      }
+      "
     `);
   });
 
