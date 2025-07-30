@@ -159,6 +159,7 @@ export function createBaseConfig({
             },
           },
         ],
+        '@ls-stack/use-top-level-regex': ERROR,
 
         // eslint unicorn rules
         'unicorn/expiring-todo-comments': [

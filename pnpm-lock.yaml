@@ -22,8 +22,8 @@ catalogs:
       specifier: ^9.32.0
       version: 9.32.0
     '@ls-stack/extended-lint':
-      specifier: ^0.51.0
-      version: 0.51.0
+      specifier: ^0.52.0
+      version: 0.52.0
     '@ls-stack/utils':
       specifier: ^3.17.1
       version: 3.17.1
@@ -115,7 +115,7 @@ importers:
         version: 9.32.0
       '@ls-stack/extended-lint':
         specifier: 'catalog:'
-        version: 0.51.0(eslint@9.32.0(jiti@2.5.1))(typescript@5.9.1-rc)
+        version: 0.52.0(eslint@9.32.0(jiti@2.5.1))(typescript@5.9.1-rc)
       '@types/node':
         specifier: 'catalog:'
         version: 24.1.0
@@ -741,8 +741,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.29':
     resolution: {integrity: sha512-uw6guiW/gcAGPDhLmd77/6lW8QLeiV5RUTsAX46Db6oLhGaVj4lhnPwb184s1bkc8kdVg/+h988dro8GRDpmYQ==}
 
-  '@ls-stack/extended-lint@0.51.0':
-    resolution: {integrity: sha512-z4Ppbzk9sVnkCfrL10INX0krDjEh+i8jB9cOaFKUSm3QJf7bcJi6w5TMEG+6nYQgdkM6iUrJOO0/NxyRUnKkmw==}
+  '@ls-stack/extended-lint@0.52.0':
+    resolution: {integrity: sha512-p6XgieXDB0XSPtKHpfs9oQG27N7m41ydqWlmH0NNE910Pa4/rNkuvlWdk5iZh7R3lQiRhSYV0ZcZbk3h/nNA5g==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       eslint: ^9.9.1
@@ -2788,7 +2788,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.4
 
-  '@ls-stack/extended-lint@0.51.0(eslint@9.32.0(jiti@2.5.1))(typescript@5.9.1-rc)':
+  '@ls-stack/extended-lint@0.52.0(eslint@9.32.0(jiti@2.5.1))(typescript@5.9.1-rc)':
     dependencies:
       '@typescript-eslint/utils': 8.38.0(eslint@9.32.0(jiti@2.5.1))(typescript@5.9.1-rc)
       escape-string-regexp: 5.0.0
