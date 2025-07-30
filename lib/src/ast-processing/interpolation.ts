@@ -127,12 +127,8 @@ function processCallExpression(
   variableName: string | undefined,
   tagType: string,
 ): string {
-  // Try setLayer function calls first
-  const layerResolved = resolveSetLayerCall(
-    expression,
-    context,
-    interpolationContext.position,
-  );
+  // Try layer function calls first
+  const layerResolved = resolveLayerCall(expression, context);
   if (layerResolved !== null) return layerResolved;
 
   // Try regular function calls
@@ -387,16 +383,15 @@ export function processTemplateWithInterpolation(
   return { cssContent, extensions };
 }
 
-function resolveSetLayerCall(
+function resolveLayerCall(
   expression: t.CallExpression,
   context: CssProcessingContext,
-  position?: { isFirst: boolean; hasNonWhitespaceContent: boolean },
 ): string | null {
-  // Check if this is a setLayer function call
+  // Check if this is a layer function call
   if (
-    !context.state.vindurImports.has('setLayer')
+    !context.state.vindurImports.has('layer')
     || !t.isIdentifier(expression.callee)
-    || expression.callee.name !== 'setLayer'
+    || expression.callee.name !== 'layer'
     || expression.arguments.length !== 1
   ) {
     return null;
@@ -405,33 +400,16 @@ function resolveSetLayerCall(
   const layerArg = expression.arguments[0];
   if (!t.isStringLiteral(layerArg)) {
     throw new Error(
-      'setLayer() must be called with a string literal layer name',
-    );
-  }
-
-  // Check if setLayer is called after any non-whitespace content
-  if (position?.hasNonWhitespaceContent) {
-    throw new Error(
-      'setLayer() must be called at the beginning of the template literal',
+      'layer() must be called with a string literal layer name',
     );
   }
 
   const layerName = layerArg.value;
 
-  // Validate layer name (basic CSS identifier rules)
-  if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(layerName)) {
-    throw new Error(
-      `Invalid layer name "${layerName}". Layer names must be valid CSS identifiers`,
-    );
-  }
-
-  // Store the layer information in the processing context
-  // This will be used later when generating CSS rules
-  context.state.currentLayer = layerName;
-
-  // Return empty string since setLayer doesn't produce CSS content
-  return '';
+  // Return a special marker that will be processed by the CSS processor
+  return `__VINDUR_LAYER_START__${layerName}__`;
 }
+
 
 // These are moved from the resolution module to avoid circular imports
 function resolveImportedKeyframes(

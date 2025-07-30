@@ -68,16 +68,88 @@ export function generateCssRule(
       : className;
   }
 
-  const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
+  // Check for layer markers and split CSS accordingly
+  const layerMarkerPattern = /__VINDUR_LAYER_START__([^_]+)__\s*\{/g;
+  const layerMarkers = [...cleanedCss.matchAll(layerMarkerPattern)];
   
-  // Wrap in @layer if a layer is set
-  if (state.currentLayer) {
-    state.cssRules.push(`@layer ${state.currentLayer} {\n  ${cssRule}\n}`);
-    // Clear the current layer after use (per-component basis)
-    state.currentLayer = undefined;
-  } else {
-    state.cssRules.push(cssRule);
+  if (layerMarkers.length > 0) {
+    // Split CSS into layered and non-layered sections
+    const sections: Array<{layer: string | null, css: string}> = [];
+    let lastProcessedIndex = 0;
+    
+    // Process each layer marker
+    for (const match of layerMarkers) {
+      const layerName = match[1];
+      if (!layerName) continue;
+      
+      // Add any non-layered content before this layer
+      if (match.index > lastProcessedIndex) {
+        const nonLayeredCss = cleanedCss.substring(lastProcessedIndex, match.index).trim();
+        if (nonLayeredCss) {
+          sections.push({ layer: null, css: nonLayeredCss });
+        }
+      }
+      
+      // Find the start of the CSS content (after the opening brace)
+      const contentStart = match.index + match[0].length;
+      
+      // Find the matching closing brace using proper brace counting
+      let braceCount = 1;
+      let currentIndex = contentStart;
+      let contentEnd = -1;
+      
+      while (currentIndex < cleanedCss.length && braceCount > 0) {
+        const char = cleanedCss[currentIndex];
+        if (char === '{') {
+          braceCount++;
+        } else if (char === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            contentEnd = currentIndex;
+            break;
+          }
+        }
+        currentIndex++;
+      }
+      
+      if (contentEnd !== -1) {
+        const layerCss = cleanedCss.substring(contentStart, contentEnd).trim();
+        if (layerCss) {
+          sections.push({ layer: layerName, css: layerCss });
+        }
+        lastProcessedIndex = contentEnd + 1;
+      }
+    }
+    
+    // Add any remaining non-layered content after the last layer
+    if (lastProcessedIndex < cleanedCss.length) {
+      const remainingCss = cleanedCss.substring(lastProcessedIndex).trim();
+      if (remainingCss) {
+        sections.push({ layer: null, css: remainingCss });
+      }
+    }
+    
+    // Generate CSS rules for each section
+    for (const section of sections) {
+      if (section.layer) {
+        const cssRule = `.${className} {\n  ${section.css}\n}`;
+        const layerRule = `@layer ${section.layer} {\n  ${cssRule}\n}`;
+        state.cssRules.push(layerRule);
+      } else {
+        const cssRule = `.${className} {\n  ${section.css}\n}`;
+        state.cssRules.push(cssRule);
+      }
+    }
+    
+    // Add return statement at the end to avoid continue processing non-layered CSS
+    return extensions.length > 0 ?
+        `${extensions.join(' ')} ${className}`
+      : className;
   }
+  
+  // No layer markers, handle as before
+  const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
+  state.cssRules.push(cssRule);
   
   return extensions.length > 0 ?
       `${extensions.join(' ')} ${className}`

@@ -46,6 +46,11 @@
       "label": "build all",
       "type": "npm",
       "script": "build-all"
+    },
+    {
+      "label": "lib test update snapshots",
+      "type": "npm",
+      "script": "lib:test:update"
     }
   ]
 }

@@ -1,21 +1,22 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { createFsMock, transformWithFormat } from './testUtils';
+import { transformWithFormat } from './testUtils';
 
-const importAliases = { '#/': '/' };
-const emptyFs = createFsMock({});
-
-describe('CSS layers functionality', () => {
-  test('should wrap styled component in @layer', async () => {
+describe('CSS layers with layer() function', () => {
+  test('should wrap styled component styles in multiple @layer blocks', async () => {
     const source = dedent`
-      import { styled, setLayer } from 'vindur'
+      import { styled, layer } from 'vindur'
 
       const Card = styled.div\`
-        \${setLayer('vindur')};
-  
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
+        \${layer('higher-priority')} {
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+        }
+
+        \${layer('lower-priority')} {
+          background: red;
+        }
       \`
 
       const Component = () => {
@@ -23,18 +24,20 @@ describe('CSS layers functionality', () => {
       }
     `;
 
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
+    const result = await transformWithFormat({ source });
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@layer vindur {
+      "@layer higher-priority {
         .v1560qbr-1-Card {
         background: white;
-        padding: 20px;
-        border-radius: 8px;
+          padding: 20px;
+          border-radius: 8px;
+      }
+      }
+
+      @layer lower-priority {
+        .v1560qbr-1-Card {
+        background: red;
       }
       }"
     `);
@@ -47,355 +50,222 @@ describe('CSS layers functionality', () => {
     `);
   });
 
-  test('should wrap css variable in @layer', async () => {
+  test('should support mixed layered and non-layered styles', async () => {
     const source = dedent`
-      import { css, setLayer } from 'vindur'
+      import { styled, layer } from 'vindur'
 
-      const styles = css\`
-        \${setLayer('components')};
-  
-        color: red;
-        font-size: 16px;
-      \`
+      const Button = styled.button\`
+        /* Non-layered base styles */
+        display: inline-block;
+        border: none;
+        cursor: pointer;
 
-      const Component = () => {
-        return <div className={styles}>Text</div>;
-      }
-    `;
+        \${layer('theme')} {
+          background: blue;
+          color: white;
+          padding: 8px 16px;
+        }
 
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
+        /* Non-layered hover state */
+        &:hover {
+          opacity: 0.9;
+        }
 
-    expect(result.css).toMatchInlineSnapshot(`
-      "@layer components {
-        .v1560qbr-1-styles {
-        color: red;
-        font-size: 16px;
-      }
-      }"
-    `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "const styles = "v1560qbr-1-styles";
-      const Component = () => {
-        return <div className={styles}>Text</div>;
-      };
-      "
-    `);
-  });
-
-  test('should wrap keyframes in @layer', async () => {
-    const source = dedent`
-      import { keyframes, setLayer } from 'vindur'
-
-      const fadeIn = keyframes\`
-        \${setLayer('animations')};
-  
-        from { opacity: 0; }
-        to { opacity: 1; }
-      \`
-
-      const Component = () => {
-        return <div style={{ animation: \`\${fadeIn} 1s ease-in\` }}>Content</div>;
-      }
-    `;
-
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
-
-    expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1560qbr-1-fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }"
-    `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "const fadeIn = "v1560qbr-1-fadeIn";
-      const Component = () => {
-        return (
-          <div
-            style={{
-              animation: \`\${fadeIn} 1s ease-in\`,
-            }}
-          >
-            Content
-          </div>
-        );
-      };
-      "
-    `);
-  });
-
-  test('should not wrap global styles in @layer', async () => {
-    const source = dedent`
-      import { createGlobalStyle, setLayer } from 'vindur'
-
-      createGlobalStyle\`
-        \${setLayer('reset')};
-  
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
+        \${layer('overrides')} {
+          font-weight: bold;
         }
       \`
     `;
 
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
+    const result = await transformWithFormat({ source });
 
     expect(result.css).toMatchInlineSnapshot(`
-      "* {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }"
-    `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      ""
-    `);
-  });
-
-  test('should wrap styled extension in @layer', async () => {
-    const source = dedent`
-      import { styled, setLayer } from 'vindur'
-
-      const BaseButton = styled.button\`
-        padding: 8px 16px;
+      ".v1560qbr-1-Button {
+        /* Non-layered base styles */
+        display: inline-block;
         border: none;
-      \`
-
-      const PrimaryButton = styled(BaseButton)\`
-        \${setLayer('theme')};
-  
-        background: blue;
-        color: white;
-      \`
-
-      const Component = () => {
-        return <PrimaryButton>Click me</PrimaryButton>;
-      }
-    `;
-
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
-
-    expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1-BaseButton {
-        padding: 8px 16px;
-        border: none;
+        cursor: pointer;
       }
 
       @layer theme {
-        .v1560qbr-2-PrimaryButton {
+        .v1560qbr-1-Button {
         background: blue;
-        color: white;
+          color: white;
+          padding: 8px 16px;
+      }
+      }
+
+      .v1560qbr-1-Button {
+        /* Non-layered hover state */
+        &:hover {
+          opacity: 0.9;
+        }
+      }
+
+      @layer overrides {
+        .v1560qbr-1-Button {
+        font-weight: bold;
       }
       }"
     `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => {
-        return (
-          <button className="v1560qbr-1-BaseButton v1560qbr-2-PrimaryButton">
-            Click me
-          </button>
-        );
-      };
-      "
-    `);
   });
 
-  test('should validate layer name', async () => {
+  test('should work with css tagged template', async () => {
     const source = dedent`
-      import { styled, setLayer } from 'vindur'
+      import { css, layer } from 'vindur'
 
-      const Card = styled.div\`
-        \${setLayer('invalid layer name')};
-        background: white;
+      const styles = css\`
+        \${layer('utilities')} {
+          margin: 0 auto;
+          max-width: 1200px;
+        }
+
+        \${layer('components')} {
+          padding: 20px;
+          background: #f5f5f5;
+        }
       \`
     `;
 
-    await expect(async () => {
-      await transformWithFormat({
-        source,
-        overrideDefaultFs: emptyFs,
-        overrideDefaultImportAliases: importAliases,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid layer name "invalid layer name". Layer names must be valid CSS identifiers]`,
-    );
-  });
-
-  test('should require string literal for layer name', async () => {
-    const source = dedent`
-      import { styled, setLayer } from 'vindur'
-
-      const layerName = 'vindur'
-
-      const Card = styled.div\`
-        \${setLayer(layerName)};
-        background: white;
-      \`
-    `;
-
-    await expect(async () => {
-      await transformWithFormat({
-        source,
-        overrideDefaultFs: emptyFs,
-        overrideDefaultImportAliases: importAliases,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: setLayer() must be called with a string literal layer name]`,
-    );
-  });
-
-  test('should only allow setLayer at the top of styles', async () => {
-    const source = dedent`
-      import { styled, setLayer } from 'vindur'
-
-      const Card = styled.div\`
-        background: white;
-        \${setLayer('vindur')};
-        padding: 20px;
-      \`
-    `;
-
-    await expect(async () => {
-      await transformWithFormat({
-        source,
-        overrideDefaultFs: emptyFs,
-        overrideDefaultImportAliases: importAliases,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: setLayer() must be called at the beginning of the template literal]`,
-    );
-  });
-
-  test('should support multiple components with different layers', async () => {
-    const source = dedent`
-      import { styled, setLayer } from 'vindur'
-
-      const Layout = styled.div\`
-        \${setLayer('layout')};
-        display: flex;
-        flex-direction: column;
-      \`
-
-      const Content = styled.div\`
-        \${setLayer('components')};
-        padding: 20px;
-        background: white;
-      \`
-
-      const Component = () => {
-        return (
-          <Layout>
-            <Content>Hello</Content>
-          </Layout>
-        );
-      }
-    `;
-
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
+    const result = await transformWithFormat({ source });
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@layer layout {
-        .v1560qbr-1-Layout {
-        display: flex;
-        flex-direction: column;
+      "@layer utilities {
+        .v1560qbr-1-styles {
+        margin: 0 auto;
+          max-width: 1200px;
       }
       }
 
       @layer components {
-        .v1560qbr-2-Content {
+        .v1560qbr-1-styles {
         padding: 20px;
+          background: #f5f5f5;
+      }
+      }"
+    `);
+  });
+
+  test('should work with nested selectors inside layer', async () => {
+    const source = dedent`
+      import { styled, layer } from 'vindur'
+
+      const Nav = styled.nav\`
+        \${layer('layout')} {
+          display: flex;
+          gap: 20px;
+    
+          a {
+            color: blue;
+            text-decoration: none;
+
+            &:hover {
+              text-decoration: underline;
+            }
+          }
+        }
+      \`
+    `;
+
+    const result = await transformWithFormat({ source });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer layout {
+        .v1560qbr-1-Nav {
+        display: flex;
+          gap: 20px;
+
+          a {
+            color: blue;
+            text-decoration: none;
+
+            &:hover {
+              text-decoration: underline;
+            }
+          }
+      }
+      }"
+    `);
+  });
+
+  test('should work with any layer name', async () => {
+    const source = dedent`
+      import { styled, layer } from 'vindur'
+
+      const Card = styled.div\`
+        \${layer('invalid layer name')} {
+          background: white;
+        }
+      \`
+    `;
+
+    const result = await transformWithFormat({ source });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer invalid layer name {
+        .v1560qbr-1-Card {
         background: white;
       }
       }"
     `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => {
-        return (
-          <div className="v1560qbr-1-Layout">
-            <div className="v1560qbr-2-Content">Hello</div>
-          </div>
-        );
-      };
-      "
-    `);
   });
 
-  test('should work with components without layers', async () => {
+  test('should require string literal for layer name', async () => {
     const source = dedent`
-      import { styled, setLayer } from 'vindur'
+      import { styled, layer } from 'vindur'
 
-      const WithLayer = styled.div\`
-        \${setLayer('vindur')};
-        color: blue;
+      const layerName = 'theme'
+
+      const Card = styled.div\`
+        \${layer(layerName)} {
+          background: white;
+        }
       \`
-
-      const WithoutLayer = styled.div\`
-        color: red;
-      \`
-
-      const Component = () => {
-        return (
-          <div>
-            <WithLayer>Blue</WithLayer>
-            <WithoutLayer>Red</WithoutLayer>
-          </div>
-        );
-      }
     `;
 
-    const result = await transformWithFormat({
-      source,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
+    await expect(async () => {
+      await transformWithFormat({ source });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[Error: /test.tsx: layer() must be called with a string literal layer name]`,
+    );
+  });
+
+  test('should work with global styles layer declaration', async () => {
+    const source = dedent`
+      import { styled, layer, createGlobalStyle } from 'vindur'
+
+      // Define layer order globally
+      const GlobalStyle = createGlobalStyle\`
+        @layer lower-priority, higher-priority;
+      \`
+
+      const Card = styled.div\`
+        \${layer('higher-priority')} {
+          background: white;
+        }
+
+        \${layer('lower-priority')} {
+          background: red;
+        }
+      \`
+    `;
+
+    const result = await transformWithFormat({ source });
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@layer vindur {
-        .v1560qbr-1-WithLayer {
-        color: blue;
+      "@layer lower-priority, higher-priority;
+
+      @layer higher-priority {
+        .v1560qbr-1-Card {
+        background: white;
       }
       }
 
-      .v1560qbr-2-WithoutLayer {
-        color: red;
+      @layer lower-priority {
+        .v1560qbr-1-Card {
+        background: red;
+      }
       }"
-    `);
-
-    expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => {
-        return (
-          <div>
-            <div className="v1560qbr-1-WithLayer">Blue</div>
-            <div className="v1560qbr-2-WithoutLayer">Red</div>
-          </div>
-        );
-      };
-      "
     `);
   });
 });

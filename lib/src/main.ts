@@ -37,8 +37,8 @@ export function keyframes(
   throw new Error('keyframes cannot be called at runtime');
 }
 
-export function setLayer(_layerName: string): string {
-  throw new Error('setLayer cannot be called at runtime');
+export function layer(_layerName: string): string {
+  throw new Error('layer cannot be called at runtime');
 }
 
 export interface VindurAttributes {

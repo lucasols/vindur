@@ -11,6 +11,7 @@
     "lib:lint": "pnpm --filter vindur run lint",
     "lib:test": "pnpm --filter vindur run test",
     "lib:test:ui": "pnpm --filter vindur run test:ui",
+    "lib:test:update": "pnpm --filter vindur run test:update",
     "vite-plugin:test": "pnpm --filter vite-plugin run test",
     "e2e:test": "pnpm --filter e2e-tests run test",
     "e2e:test:ui": "pnpm --filter e2e-tests run test:ui",
