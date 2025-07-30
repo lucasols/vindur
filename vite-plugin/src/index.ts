@@ -191,6 +191,8 @@ function hasVindurStyles(code: string, id: string): boolean {
   return code.includes('vindur') && shouldTransform(id);
 }
 
+const VIRTUAL_CSS_ID_PREFIX_REGEX = /\.[jt]sx?$/;
+
 function getVirtualCssIdPrefix(id: string): string {
-  return id.replace(/\.[jt]sx?$/, '').replace(/\//g, '_');
+  return id.replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '').replace(/\//g, '_');
 }

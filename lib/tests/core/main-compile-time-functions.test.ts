@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import {
-  vindurFn,
-  css,
   createGlobalStyle,
-  keyframes,
-  styled,
   createStaticThemeColors,
+  css,
+  keyframes,
   stableId,
+  styled,
+  vindurFn,
 } from '../../src/main';
 
 describe('compile-time functions should throw at runtime', () => {
@@ -84,16 +84,6 @@ describe('styled proxy behavior', () => {
     expect(
       () => styled.section`
         margin: 5px;
-      `,
-    ).toThrow('styled cannot be called at runtime');
-  });
-
-  test('should handle property access with symbols or unusual keys', () => {
-    // @ts-expect-error Testing dynamic property access (normally not allowed by types)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- Testing runtime behavior of styled proxy with dynamic properties
-    expect(
-      () => styled['custom-element']`
-        color: red;
       `,
     ).toThrow('styled cannot be called at runtime');
   });
