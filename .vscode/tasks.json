@@ -51,6 +51,11 @@
       "label": "lib test update snapshots",
       "type": "npm",
       "script": "lib:test:update"
+    },
+    {
+      "label": "format all",
+      "type": "npm",
+      "script": "format-all"
     }
   ]
 }
