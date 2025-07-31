@@ -23,7 +23,9 @@
     "tsc": "tsc --noEmit",
     "eslint": "eslint src --max-warnings 0 --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "npm-publish": "pnpm publish --access=public",
+    "pre-publish": "../scripts/check-if-is-sync.sh && pnpm build"
   },
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
