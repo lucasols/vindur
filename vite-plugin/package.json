@@ -1,5 +1,5 @@
 {
-  "name": "@vindur/vite-plugin",
+  "name": "@vindur-css/vite-plugin",
   "version": "0.1.0",
   "description": "Vite plugin for Vindur CSS-in-JS library",
   "type": "module",
