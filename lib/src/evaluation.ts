@@ -1,14 +1,16 @@
+import { types as t } from '@babel/core';
 import type { OutputQuasi, TernaryConditionValue } from './types';
 import { TransformError } from './custom-errors';
 
 export function evaluateOutput(
   output: OutputQuasi[],
   args: Record<string, string | number | boolean | undefined>,
+  callLoc?: t.SourceLocation | null,
 ): string {
   let result = '';
 
   for (const quasi of output) {
-    result += evaluateQuasi(quasi, args);
+    result += evaluateQuasi(quasi, args, callLoc);
   }
 
   return result;
@@ -64,20 +66,24 @@ export function evaluateCondition(
 export function evaluateQuasi(
   quasi: OutputQuasi,
   args: Record<string, string | number | boolean | undefined>,
+  callLoc?: t.SourceLocation | null,
 ): string {
   if (quasi.type === 'string') {
     return quasi.value;
   } else if (quasi.type === 'arg') {
     const argValue = args[quasi.name];
     if (argValue === undefined) {
-      throw new TransformError(`Argument '${quasi.name}' is undefined`, null);
+      throw new TransformError(
+        `Argument '${quasi.name}' is undefined`,
+        callLoc,
+      );
     }
     return String(argValue);
   } else if (quasi.type === 'template') {
     // Evaluate each part of the template and concatenate
     let result = '';
     for (const part of quasi.parts) {
-      result += evaluateQuasi(part, args);
+      result += evaluateQuasi(part, args, callLoc);
     }
     return result;
   } else if (quasi.type === 'binary') {
@@ -145,9 +151,9 @@ export function evaluateQuasi(
     // quasi.type === 'ternary'
     const conditionResult = evaluateCondition(quasi.condition, args);
     if (conditionResult) {
-      return evaluateQuasi(quasi.ifTrue, args);
+      return evaluateQuasi(quasi.ifTrue, args, callLoc);
     } else {
-      return evaluateQuasi(quasi.ifFalse, args);
+      return evaluateQuasi(quasi.ifFalse, args, callLoc);
     }
   }
 }

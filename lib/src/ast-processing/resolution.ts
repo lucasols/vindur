@@ -170,7 +170,7 @@ export function resolveFunctionCall(
       }
     }
 
-    return evaluateOutput(compiledFn.output, argValues);
+    return evaluateOutput(compiledFn.output, argValues, callExpr.loc);
   } else {
     // Handle destructured object arguments
     if (args.length === 1 && t.isObjectExpression(args[0])) {
@@ -195,7 +195,7 @@ export function resolveFunctionCall(
         }
       }
 
-      return evaluateOutput(compiledFn.output, argValues);
+      return evaluateOutput(compiledFn.output, argValues, callExpr.loc);
     }
   }
 
