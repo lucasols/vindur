@@ -69,6 +69,12 @@ export function handleFunctionImports(
 
       importedFunctions.set(importedName, resolvedPath);
 
+      // Track this as a dependency for hot-reload
+      if (state.styleDependencies) {
+        state.styleDependencies.add(resolvedPath);
+        debug?.log(`[vindur:deps] Added import dependency: ${resolvedPath}`);
+      }
+
       // Check if this might be a dynamic color import and pre-load the external file
       // We'll load the file to check for dynamic color exports
       loadExternalDynamicColors(

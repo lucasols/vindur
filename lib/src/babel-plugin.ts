@@ -64,6 +64,7 @@ export type VindurPluginState = {
   potentiallyUndeclaredScopedVariables?: Set<string>; // Track variables used in CSS but not declared (may be provided via style props)
   elementsWithCssContext?: WeakSet<t.JSXElement>; // Track elements that have been processed by css prop handler
   currentLayer?: string; // Track the current CSS layer for the current styled component
+  styleDependencies?: Set<string>; // Track external files loaded during transformation (for hot-reload)
 };
 
 export type FunctionCache = {
@@ -88,9 +89,16 @@ function loadExternalFunction(
   filePath: string,
   functionName: string,
   compiledFunctions: FunctionCache,
+  styleDependencies?: Set<string>,
   debug?: DebugLogger,
   callLoc?: t.SourceLocation | null,
 ): CompiledFunction {
+  // Track this file as a dependency
+  if (styleDependencies) {
+    styleDependencies.add(filePath);
+    debug?.log(`[vindur:deps] Added dependency: ${filePath}`);
+  }
+
   // Check if already cached
   if (compiledFunctions[filePath]?.[functionName]) {
     debug?.log(
@@ -184,6 +192,31 @@ export function createVindurPlugin(
         handleVindurFnExport(path, exportHandlerContext);
       },
       VariableDeclarator(path) {
+        // Create wrapper for loadExternalFunction that tracks dependencies
+        function createLoadExternalFunctionWithDeps() {
+          return (
+            fsArg: PluginFS,
+            filePathArg: string,
+            functionName: string,
+            compiledFunctions: FunctionCache,
+            _styleDependencies?: Set<string>,
+            debugArg?: DebugLogger,
+            callLoc?: t.SourceLocation | null,
+          ) => {
+            return loadExternalFunction(
+              fsArg,
+              filePathArg,
+              functionName,
+              compiledFunctions,
+              state.styleDependencies,
+              debugArg,
+              callLoc,
+            );
+          };
+        }
+        const loadExternalFunctionWithDeps =
+          createLoadExternalFunctionWithDeps();
+
         // Create processing context
         const context: CssProcessingContext = {
           fs,
@@ -194,7 +227,7 @@ export function createVindurPlugin(
           path,
           debug,
           extractedFiles: new Map(),
-          loadExternalFunction,
+          loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
         const idIndexRef = { current: idIndex };
@@ -241,6 +274,31 @@ export function createVindurPlugin(
         }
       },
       TaggedTemplateExpression(path) {
+        // Create wrapper for loadExternalFunction that tracks dependencies
+        function createLoadExternalFunctionWithDeps() {
+          return (
+            fsArg: PluginFS,
+            filePathArg: string,
+            functionName: string,
+            compiledFunctions: FunctionCache,
+            _styleDependencies?: Set<string>,
+            debugArg?: DebugLogger,
+            callLoc?: t.SourceLocation | null,
+          ) => {
+            return loadExternalFunction(
+              fsArg,
+              filePathArg,
+              functionName,
+              compiledFunctions,
+              state.styleDependencies,
+              debugArg,
+              callLoc,
+            );
+          };
+        }
+        const loadExternalFunctionWithDeps =
+          createLoadExternalFunctionWithDeps();
+
         // Create processing context
         const context: CssProcessingContext = {
           fs,
@@ -251,7 +309,7 @@ export function createVindurPlugin(
           path,
           debug,
           extractedFiles: new Map(),
-          loadExternalFunction,
+          loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
         const classIndexRef = { current: idIndex };

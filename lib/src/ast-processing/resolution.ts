@@ -134,6 +134,7 @@ export function resolveFunctionCall(
     functionFilePath,
     functionName,
     context.compiledFunctions,
+    undefined, // styleDependencies will be passed by the wrapper
     context.debug,
     callExpr.loc,
   );

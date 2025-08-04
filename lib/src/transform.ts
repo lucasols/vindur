@@ -47,6 +47,7 @@ export function transform({
     keyframes: new Map(),
     potentiallyUndeclaredScopedVariables: new Set(),
     elementsWithCssContext: new WeakSet(),
+    styleDependencies: new Set<string>(),
   };
 
   if (!fileAbsPath.includes('/')) {
@@ -97,7 +98,7 @@ export function transform({
 
   return {
     css: pluginState.cssRules.join('\n\n'),
-    styleDependencies: [],
+    styleDependencies: [...(pluginState.styleDependencies || [])],
     code: finalCode,
     map: result.map,
   };

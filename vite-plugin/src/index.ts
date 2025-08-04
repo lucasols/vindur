@@ -22,6 +22,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
   const virtualCssModules = new Map<string, string>();
   const functionCache: TransformFunctionCache = {};
+  // Track which files depend on which external files (for hot-reload)
+  const fileDependencies = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
   let devServer: ViteDevServer | undefined;
 
   const fs: TransformFS = {
@@ -110,8 +112,20 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       }
 
       log(
-        `Transform completed for: ${id}, hasCSS: ${!!result.css}, codeLength: ${result.code.length}`,
+        `Transform completed for: ${id}, hasCSS: ${!!result.css}, codeLength: ${result.code.length}, dependencies: ${result.styleDependencies.length}`,
       );
+
+      // Track dependencies for hot-reload
+      for (const dependency of result.styleDependencies) {
+        if (!fileDependencies.has(dependency)) {
+          fileDependencies.set(dependency, new Set());
+        }
+        const dependentFiles = fileDependencies.get(dependency);
+        if (dependentFiles) {
+          dependentFiles.add(id);
+        }
+        log(`Tracked dependency: ${dependency} -> ${id}`);
+      }
 
       if (result.css) {
         log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
@@ -152,26 +166,24 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     handleHotUpdate({ file, modules }) {
       // Find and remove virtual CSS modules for this file
-      const virtualCssPrefix = `virtual:vindur-${getVirtualCssIdPrefix(file)}`;
+      const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(file)}.css`;
 
       const modulesToInvalidate = [...modules];
 
       let hasRelatedVirtualCss = false;
 
-      // Remove all virtual CSS modules that match this file
-      for (const [virtualCssId] of virtualCssModules) {
-        if (virtualCssId === virtualCssPrefix) {
-          virtualCssModules.delete(virtualCssId);
-          const cssModule = devServer?.moduleGraph.getModuleById(virtualCssId);
-          if (cssModule) {
-            modulesToInvalidate.push(cssModule);
-            hasRelatedVirtualCss = true;
-          }
-          if (debugLogs) {
-            this.info(
-              `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
-            );
-          }
+      // Remove virtual CSS module that matches this file
+      if (virtualCssModules.has(virtualCssId)) {
+        virtualCssModules.delete(virtualCssId);
+        const cssModule = devServer?.moduleGraph.getModuleById(virtualCssId);
+        if (cssModule) {
+          modulesToInvalidate.push(cssModule);
+          hasRelatedVirtualCss = true;
+        }
+        if (debugLogs) {
+          this.info(
+            `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
+          );
         }
       }
 
@@ -182,6 +194,57 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           this.info(
             `[vindur-plugin] Cleared function cache for hot update: ${file}`,
           );
+        }
+      }
+
+      // Find all modules that depend on this file using our own dependency tracking
+      // This is crucial for vindurFn and theme color hot-reload
+      const dependentFiles = fileDependencies.get(file);
+
+      if (dependentFiles && devServer?.moduleGraph) {
+        const moduleGraph = devServer.moduleGraph;
+
+        for (const dependentFile of dependentFiles) {
+          if (shouldTransform(dependentFile)) {
+            // Clear function cache for dependent modules
+            if (functionCache[dependentFile]) {
+              delete functionCache[dependentFile];
+              if (debugLogs) {
+                this.info(
+                  `[vindur-plugin] Cleared function cache for dependent: ${dependentFile}`,
+                );
+              }
+            }
+
+            // Clear virtual CSS for dependent modules
+            const dependentVirtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(dependentFile)}.css`;
+            if (virtualCssModules.has(dependentVirtualCssId)) {
+              virtualCssModules.delete(dependentVirtualCssId);
+              const dependentCssModule = moduleGraph.getModuleById(
+                dependentVirtualCssId,
+              );
+              if (dependentCssModule) {
+                modulesToInvalidate.push(dependentCssModule);
+                hasRelatedVirtualCss = true;
+              }
+              if (debugLogs) {
+                this.info(
+                  `[vindur-plugin] Cleared virtual CSS module for dependent: ${dependentVirtualCssId}`,
+                );
+              }
+            }
+
+            // Get the module from Vite's module graph and add to invalidation list
+            const dependentModule = moduleGraph.getModuleById(dependentFile);
+            if (dependentModule) {
+              modulesToInvalidate.push(dependentModule);
+              if (debugLogs) {
+                this.info(
+                  `[vindur-plugin] Added dependent module to invalidation list: ${dependentFile}`,
+                );
+              }
+            }
+          }
         }
       }
 
