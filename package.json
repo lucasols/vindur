@@ -37,5 +37,8 @@
     "prettier": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
+  },
+  "dependencies": {
+    "@ls-stack/node-utils": "^0.2.0"
   }
 }

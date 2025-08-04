@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vindur/vite-plugin": "workspace:*",
+    "@vindur-css/vite-plugin": "workspace:*",
     "@vitejs/plugin-react-swc": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",

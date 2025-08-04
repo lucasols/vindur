@@ -56,6 +56,47 @@
       "label": "format all",
       "type": "npm",
       "script": "format-all"
+    },
+    {
+      "label": "bump version and publish selected package",
+      "type": "shell",
+      "command": "node scripts/publishPackage.ts ${input:packageName} ${input:version}",
+      "group": "build",
+      "presentation": {
+        "clear": true
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "packageName",
+      "description": "Select package to publish",
+      "default": "vindur",
+      "type": "pickString",
+      "options": [
+        "vindur",
+        "vite-plugin"
+      ]
+    },
+    {
+      "id": "version",
+      "description": "Select version bump type",
+      "default": "patch",
+      "type": "pickString",
+      "options": [
+        {
+          "label": "patch",
+          "value": "patch"
+        },
+        {
+          "label": "minor",
+          "value": "minor"
+        },
+        {
+          "label": "major",
+          "value": "major"  
+        }
+      ]
     }
   ]
 }

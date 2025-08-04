@@ -109,6 +109,10 @@ catalogs:
 importers:
 
   .:
+    dependencies:
+      '@ls-stack/node-utils':
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
@@ -165,7 +169,7 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.1.6(@types/react@19.1.8)
-      '@vindur/vite-plugin':
+      '@vindur-css/vite-plugin':
         specifier: workspace:*
         version: link:../vite-plugin
       '@vitejs/plugin-react-swc':
@@ -210,7 +214,7 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.1.6(@types/react@19.1.8)
-      '@vindur/vite-plugin':
+      '@vindur-css/vite-plugin':
         specifier: workspace:*
         version: link:../vite-plugin
       '@vitejs/plugin-react':
@@ -747,6 +751,10 @@ packages:
     peerDependencies:
       eslint: ^9.9.1
       typescript: ^5.7.3
+
+  '@ls-stack/node-utils@0.2.0':
+    resolution: {integrity: sha512-NqVtO/F9SfHBSWXgc5FmC3KDnkcHNfrXIs7yzeCeVkduZYWsUscWMblK4eTmLvbGZYsmtscEtEiL/RijJJy1cw==}
+    engines: {node: '>=20.0.0'}
 
   '@ls-stack/utils@3.17.1':
     resolution: {integrity: sha512-CRBgBDttMPmpkvpeRPnwvq9PrDVdZRsW2KtIY/yguqGtfI3USA4B24FC/w8tSp9fHG4qxVGSpo3OgT+lba9KFQ==}
@@ -2799,6 +2807,8 @@ snapshots:
       zod: 3.25.76
     transitivePeerDependencies:
       - supports-color
+
+  '@ls-stack/node-utils@0.2.0': {}
 
   '@ls-stack/utils@3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
