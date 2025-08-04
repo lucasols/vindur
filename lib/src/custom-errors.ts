@@ -1,19 +1,9 @@
-type SourceLocation = {
-  start: {
-    column: number;
-    line: number;
-  };
-  end: {
-    column: number;
-    line: number;
-  };
-  filename: string;
-};
+import type { types as t } from '@babel/core';
 
 export class TransformError extends Error {
   loc: { column: number; line: number; filename?: string } | undefined;
 
-  constructor(message: string, loc: SourceLocation | null | undefined) {
+  constructor(message: string, loc: t.SourceLocation | null | undefined) {
     super(message);
     this.name = 'TransformError';
     if (loc) {
