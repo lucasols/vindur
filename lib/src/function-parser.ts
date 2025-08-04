@@ -1,8 +1,8 @@
 import { types as t } from '@babel/core';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
+import { parseTemplateLiteral } from './function-parser-quasi';
 import type { CompiledFunction, FunctionArg, OutputQuasi } from './types';
 import { filterWithNarrowing } from './utils';
-import { parseTemplateLiteral } from './function-parser-quasi';
 
 export function parseFunction(
   fnExpression: t.ArrowFunctionExpression | t.FunctionExpression,
@@ -179,9 +179,11 @@ function parseTemplateOutput(
   }
 }
 
+const INTERPOLATION_REGEX = /(\$\{[^}]+\})/;
+
 function parseStringWithInterpolation(str: string): OutputQuasi[] {
   const output: OutputQuasi[] = [];
-  const parts = str.split(/(\$\{[^}]+\})/);
+  const parts = str.split(INTERPOLATION_REGEX);
 
   for (const part of parts) {
     if (part.startsWith('${') && part.endsWith('}')) {

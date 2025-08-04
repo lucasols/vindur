@@ -543,4 +543,76 @@ describe('function evaluation - basic functionality', () => {
       "
     `);
   });
+
+  test('function with destructured optional object param', async () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
+
+      export const inline = vindurFn(({ justify = 'left', align = 'center', gap } = {}) => \`
+        display: flex;
+        justify-content: \${justify === 'left' ? 'flex-start' : justify === 'right' ? 'flex-end' : 'center'};
+        align-items: \${align === 'center' ? 'center' : 'flex-end'};
+        gap: \${gap}px;
+      \`)
+    `;
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { inline } from '#/functions'
+
+        const style = css\`
+          \${inline({ gap: 10 })};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 10px;
+      }
+      "
+    `);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
+  });
+
+  test('function with ternary returning a argument', async () => {
+    const fnFile = dedent`
+      import { vindurFn } from 'vindur'
+
+      export const spacing = vindurFn((type: 'margin' | 'padding' | 'm') => \`
+        \${type === 'm' ? 'margin' : type}: 16px;
+      \`)
+    `;
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { spacing } from '#/functions'
+
+        const style = css\`
+          \${spacing('padding')};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({ 'functions.ts': fnFile }),
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        padding: 16px;
+      }
+      "
+    `);
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
+  });
 });

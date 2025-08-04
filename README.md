@@ -661,7 +661,7 @@ const Component = () => {
 Generate deterministic, stable IDs with `stableId` or `createClassName` function, for using in styled components, CSS functions, and any other place where you may need stable IDs. The IDs will be compiled at build time.
 
 ```tsx
-import { css, styled, generateClassName, stableId } from 'vindur';
+import { css, styled, createClassName, stableId } from 'vindur';
 
 // stableId marker creates stable class names based on variable name
 export const elementClassName = createClassName();

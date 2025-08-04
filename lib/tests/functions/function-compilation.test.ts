@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('compile file with exported function', async () => {
   const result = await transformWithFormat({
@@ -35,4 +35,32 @@ test('compile file with exported function', async () => {
   `);
 
   expect(result.css).toMatchInlineSnapshot(`""`);
+});
+
+test('compile file with vindurFn function and css exports', async () => {
+  const fnFile = dedent`
+    import { vindurFn, css } from 'vindur'
+
+    export const spacing = vindurFn((size: number) => \`\${size}px\`)
+
+    export const spacingCss = css\`
+      margin: 16px;
+    \`
+  `;
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { spacingCss } from '#/utils'
+
+      const style = css\`
+        \${spacingCss};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot();
+
+  expect(result.code).toMatchInlineSnapshot();
 });
