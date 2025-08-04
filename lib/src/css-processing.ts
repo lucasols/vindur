@@ -38,6 +38,7 @@ export type CssProcessingContext = {
     functionName: string,
     compiledFunctions: Record<string, Record<string, CompiledFunction>>,
     debug?: { log: (message: string) => void },
+    callLoc?: t.SourceLocation | null,
   ) => CompiledFunction;
 };
 

@@ -89,6 +89,7 @@ function loadExternalFunction(
   functionName: string,
   compiledFunctions: FunctionCache,
   debug?: DebugLogger,
+  callLoc?: t.SourceLocation | null,
 ): CompiledFunction {
   // Check if already cached
   if (compiledFunctions[filePath]?.[functionName]) {
@@ -117,12 +118,12 @@ function loadExternalFunction(
     if (fileContent.includes(`export const ${functionName}`)) {
       throw new TransformError(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
-        null,
+        callLoc,
       );
     } else {
       throw new TransformError(
         `Function "${functionName}" not found in ${filePath}`,
-        null,
+        callLoc,
       );
     }
   }

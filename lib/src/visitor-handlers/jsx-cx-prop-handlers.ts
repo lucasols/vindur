@@ -177,7 +177,10 @@ function validateDollarPrefixRequirement(cxAttr: t.JSXAttribute): void {
 
   const expression = cxAttr.value.expression;
   if (!t.isObjectExpression(expression)) {
-    throw new TransformError('cx prop only accepts object expressions', null);
+    throw new TransformError(
+      'cx prop only accepts object expressions',
+      expression.loc,
+    );
   }
 
   const hasNonDollarPrefixedClasses = expression.properties.some((prop) => {
@@ -221,7 +224,10 @@ function validateAndExtractCxExpression(
 
   const expression = cxAttr.value.expression;
   if (!t.isObjectExpression(expression)) {
-    throw new TransformError('cx prop only accepts object expressions', null);
+    throw new TransformError(
+      'cx prop only accepts object expressions',
+      expression.loc,
+    );
   }
 
   return expression;

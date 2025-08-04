@@ -135,6 +135,7 @@ export function resolveFunctionCall(
     functionName,
     context.compiledFunctions,
     context.debug,
+    callExpr.loc,
   );
   const args = callExpr.arguments;
 
