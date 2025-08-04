@@ -39,6 +39,10 @@ export function handleLocalVindurFnError(
   }
 
   const functionName = path.node.id.name;
+
+  // Check if the vindurFn function is exported - if so, don't throw error
+  if (isVariableExported(functionName, path)) return false;
+
   throw new Error(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,

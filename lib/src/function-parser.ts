@@ -26,11 +26,22 @@ export function parseFunction(
 
   const params = fnExpression.params;
 
-  if (params.length === 1 && t.isObjectPattern(params[0])) {
+  // Handle destructured object parameter, with or without default value for the entire object
+  const objectPattern =
+    params.length === 1 && t.isObjectPattern(params[0]) ? params[0]
+    : (
+      params.length === 1
+      && t.isAssignmentPattern(params[0])
+      && t.isObjectPattern(params[0].left)
+    ) ?
+      params[0].left
+    : null;
+
+  if (objectPattern) {
     // Destructured object parameter
     const args: Record<string, FunctionArg> = {};
 
-    for (const prop of params[0].properties) {
+    for (const prop of objectPattern.properties) {
       if (
         t.isObjectProperty(prop)
         && t.isIdentifier(prop.key)
