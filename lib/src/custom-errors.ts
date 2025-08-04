@@ -15,6 +15,7 @@ export class TransformError extends Error {
 
   constructor(message: string, loc: SourceLocation | null | undefined) {
     super(message);
+    this.name = 'TransformError';
     if (loc) {
       this.loc = {
         column: loc.start.column,
