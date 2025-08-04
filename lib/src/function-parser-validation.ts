@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { TransformError } from './custom-errors';
 
 export function validateTemplateExpressionDuringParsing(
   expr: t.Expression | t.PrivateName,
@@ -19,8 +20,9 @@ export function validateTemplateExpressionDuringParsing(
         && !validParameterNames.has(expr.name)
         && !builtInIdentifiers.has(expr.name)
       ) {
-        throw new Error(
+        throw new TransformError(
           `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+          expr.loc,
         );
       }
       return;

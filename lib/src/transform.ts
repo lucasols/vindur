@@ -101,3 +101,5 @@ export function transform({
     map: result.map,
   };
 }
+
+export { TransformError } from './custom-errors';

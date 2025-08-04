@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
   transform,
+  TransformError,
   type TransformFS,
   type TransformFunctionCache,
   type VindurTransformResult,
@@ -17,7 +18,7 @@ export type VindurPluginOptions = {
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
-  const { debugLogs = false, importAliases = {}, sourcemap = false } = options;
+  const { debugLogs = false, importAliases = {}, sourcemap } = options;
 
   const virtualCssModules = new Map<string, string>();
   const functionCache: TransformFunctionCache = {};
@@ -26,14 +27,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
   };
-
-  const debug =
-    debugLogs ?
-      {
-        log: (message: string) => console.info(`[vindur] ${message}`),
-        warn: (message: string) => console.warn(`[vindur] ${message}`),
-      }
-    : undefined;
 
   return {
     name: 'vindur',
@@ -87,13 +80,28 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           fileAbsPath: id,
           source: code,
           dev: devServer?.config.command === 'serve',
-          debug,
+          debug:
+            debugLogs ?
+              {
+                log: (message: string) => console.info(`[vindur] ${message}`),
+                warn: (message: string) => console.warn(`[vindur] ${message}`),
+              }
+            : undefined,
           fs,
           transformFunctionCache: functionCache,
           importAliases,
-          sourcemap,
+          sourcemap: sourcemap ?? !!devServer,
         });
       } catch (error) {
+        if (error instanceof TransformError) {
+          return this.error({
+            code: 'VINDUR_TRANSFORM_FAILED',
+            id,
+            message: error.message,
+            loc: error.loc,
+          });
+        }
+
         return this.error({
           code: 'VINDUR_TRANSFORM_FAILED',
           id,
