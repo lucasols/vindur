@@ -9,6 +9,14 @@ import type {
   ImportedFunctions,
 } from '../babel-plugin';
 
+// Top-level regexes to avoid creating new RegExp objects on each function call
+const COLOR_REGEX = /color/i;
+const THEME_REGEX = /theme/i;
+const PALETTE_REGEX = /palette/i;
+const PRIMARY_REGEX = /primary/i;
+const SECONDARY_REGEX = /secondary/i;
+const ACCENT_REGEX = /accent/i;
+
 type ImportHandlerContext = {
   state: VindurPluginState;
   importedFunctions: ImportedFunctions;
@@ -88,12 +96,12 @@ function loadExternalDynamicColors(
 
     // For now, use pattern matching but be more inclusive
     const dynamicColorPatterns = [
-      /color/i,
-      /theme/i,
-      /palette/i,
-      /primary/i,
-      /secondary/i,
-      /accent/i,
+      COLOR_REGEX,
+      THEME_REGEX,
+      PALETTE_REGEX,
+      PRIMARY_REGEX,
+      SECONDARY_REGEX,
+      ACCENT_REGEX,
     ];
 
     const mightBeDynamicColor = dynamicColorPatterns.some(

@@ -102,7 +102,7 @@ export function handleJsxCssProp(
   } else {
     throw new TransformError(
       'Invalid css prop value. Only template literals and references to css function calls are supported',
-      cssAttr.value?.loc || cssAttr.loc,
+      cssAttr.value.loc || cssAttr.loc,
     );
   }
 

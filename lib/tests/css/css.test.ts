@@ -3,6 +3,10 @@ import { describe, expect, test } from 'vitest';
 import { transform } from '../../src/transform';
 import { createFsMock } from '../testUtils';
 
+// Top-level regexes to avoid creating new RegExp objects on each function call
+const CLASS_PATTERN_REGEX = /\.v[a-z0-9]+-1 \{/;
+const CLASS_NAME_REGEX = /^const style = "v[a-z0-9]+-1";$/;
+
 const importAliases = { '#/': '/' };
 
 const emptyFs = createFsMock({});
@@ -659,9 +663,9 @@ describe('corner cases', () => {
     });
 
     // Should contain the generated class name pattern and margin styles
-    expect(result.css).toMatch(/\.v[a-z0-9]+-1 \{/);
+    expect(result.css).toMatch(CLASS_PATTERN_REGEX);
     expect(result.css).toContain('margin: 1px;');
-    expect(result.code).toMatch(/^const style = "v[a-z0-9]+-1";$/);
+    expect(result.code).toMatch(CLASS_NAME_REGEX);
   });
 
   test('should handle direct css usage without assignment', () => {

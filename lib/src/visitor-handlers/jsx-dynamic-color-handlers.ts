@@ -12,6 +12,10 @@ import {
   handleArrayExpression,
 } from './jsx-utils';
 
+// Top-level regexes to avoid creating new RegExp objects on each function call
+const SET_REPLACE_REGEX = /\.set\([^)]+\)/;
+const COLOR_REPLACE_REGEX = /color/;
+
 function validateDynamicColorExpression(expression: t.Expression): void {
   if (
     t.isConditionalExpression(expression)
@@ -22,14 +26,14 @@ function validateDynamicColorExpression(expression: t.Expression): void {
       const test = generate(expression.test).code;
       const consequent = generate(expression.consequent).code;
       const alternate = generate(expression.alternate).code;
-      suggestedFix = `color.set(${test} ? ${consequent.replace(/\.set\([^)]+\)/, '').replace(/color/, "'#ff6b6b'")} : ${alternate === 'null' || alternate === 'undefined' ? alternate : "'#ff6b6b'"})`;
+      suggestedFix = `color.set(${test} ? ${consequent.replace(SET_REPLACE_REGEX, '').replace(COLOR_REPLACE_REGEX, "'#ff6b6b'")} : ${alternate === 'null' || alternate === 'undefined' ? alternate : "'#ff6b6b'"})`;
     } else if (
       t.isLogicalExpression(expression)
       && expression.operator === '&&'
     ) {
       const left = generate(expression.left).code;
       const right = generate(expression.right).code;
-      suggestedFix = `color.set(${left} ? ${right.replace(/\.set\([^)]+\)/, '').replace(/color/, "'#ff6b6b'")} : null)`;
+      suggestedFix = `color.set(${left} ? ${right.replace(SET_REPLACE_REGEX, '').replace(COLOR_REPLACE_REGEX, "'#ff6b6b'")} : null)`;
     }
     throw new TransformError(
       `Conditional dynamicColor is not supported. Use condition inside the set function instead: ${suggestedFix}`,
@@ -109,7 +113,7 @@ export function handleJsxDynamicColorProp(
   if (!t.isExpression(expr)) {
     throw new TransformError(
       'dynamicColor expression must be a valid expression',
-      dynamicColorAttr.value?.loc || dynamicColorAttr.loc,
+      dynamicColorAttr.value.loc || dynamicColorAttr.loc,
     );
   }
 

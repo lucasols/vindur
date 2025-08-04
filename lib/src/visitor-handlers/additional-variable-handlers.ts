@@ -2,6 +2,9 @@ import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
+
+// Top-level regex to avoid creating new RegExp objects on each function call
+const IDENTIFIER_REGEX = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 import { processGlobalStyle } from '../css-processing';
 import {
   isValidHexColorWithoutAlpha,
@@ -79,9 +82,7 @@ export function handleStaticThemeColorsAssignment(
   path.node.init = t.objectExpression(
     Object.entries(colors).map(([key, value]) =>
       t.objectProperty(
-        key.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/) ?
-          t.identifier(key)
-        : t.stringLiteral(key),
+        key.match(IDENTIFIER_REGEX) ? t.identifier(key) : t.stringLiteral(key),
         t.stringLiteral(value),
       ),
     ),

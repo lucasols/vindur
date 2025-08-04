@@ -1,6 +1,9 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 
+// Top-level regex to avoid creating new RegExp objects on each function call
+const HEX_REGEX = /^[0-9a-fA-F]+$/;
+
 // Helper function to validate hex colors without alpha
 export function isValidHexColorWithoutAlpha(color: string): boolean {
   // Must start with #
@@ -14,7 +17,7 @@ export function isValidHexColorWithoutAlpha(color: string): boolean {
   }
 
   // Must contain only valid hex characters
-  return /^[0-9a-fA-F]+$/.test(hex);
+  return HEX_REGEX.test(hex);
 }
 
 // Helper function to check if a variable is exported
