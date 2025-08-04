@@ -1,4 +1,5 @@
 import type { OutputQuasi, TernaryConditionValue } from './types';
+import { TransformError } from './custom-errors';
 
 export function evaluateOutput(
   output: OutputQuasi[],
@@ -69,7 +70,7 @@ export function evaluateQuasi(
   } else if (quasi.type === 'arg') {
     const argValue = args[quasi.name];
     if (argValue === undefined) {
-      throw new Error(`Argument '${quasi.name}' is undefined`);
+      throw new TransformError(`Argument '${quasi.name}' is undefined`, null);
     }
     return String(argValue);
   } else if (quasi.type === 'template') {
@@ -89,8 +90,9 @@ export function evaluateQuasi(
     // Check if left value is undefined
     if (leftValue === undefined) {
       const leftName = quasi.left.type === 'arg' ? quasi.left.name : 'literal';
-      throw new Error(
+      throw new TransformError(
         `Binary expression evaluation failed: left operand '${leftName}' is undefined`,
+        null,
       );
     }
 
@@ -98,15 +100,17 @@ export function evaluateQuasi(
     if (rightValue === undefined) {
       const rightName =
         quasi.right.type === 'arg' ? quasi.right.name : 'literal';
-      throw new Error(
+      throw new TransformError(
         `Binary expression evaluation failed: right operand '${rightName}' is undefined`,
+        null,
       );
     }
 
     // Check if both values are numbers
     if (typeof leftValue !== 'number' || typeof rightValue !== 'number') {
-      throw new Error(
+      throw new TransformError(
         `Binary expression evaluation failed: operands must be numbers`,
+        null,
       );
     }
 
@@ -123,15 +127,17 @@ export function evaluateQuasi(
         break;
       case '/':
         if (rightValue === 0) {
-          throw new Error(
+          throw new TransformError(
             `Binary expression evaluation failed: division by zero`,
+            null,
           );
         }
         result = leftValue / rightValue;
         break;
       default:
-        throw new Error(
+        throw new TransformError(
           `Binary expression evaluation failed: unsupported operator '${String(quasi.operator)}'`,
+          null,
         );
     }
     return result.toString();

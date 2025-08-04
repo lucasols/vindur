@@ -14,6 +14,7 @@ import {
 } from './resolution';
 import { resolveThemeColorExpression } from './theme-colors';
 import { isExtensionResult } from './interpolation.type-guards';
+import { TransformError } from '../custom-errors';
 
 function processIdentifierExpression(
   expression: t.Identifier,
@@ -57,8 +58,9 @@ function processIdentifierExpression(
 
   const varContext =
     variableName ? `... ${variableName} = ${tagType}` : tagType;
-  throw new Error(
+  throw new TransformError(
     `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
+    expression.loc,
   );
 }
 
@@ -90,7 +92,10 @@ function resolveImportedIdentifier(
   // If we have an imported function but it wasn't found in any resolver, throw an error
   const importedFilePath = context.importedFunctions.get(name);
   if (importedFilePath) {
-    throw new Error(`Function "${name}" not found in ${importedFilePath}`);
+    throw new TransformError(
+      `Function "${name}" not found in ${importedFilePath}`,
+      null,
+    );
   }
 
   return null;
@@ -111,8 +116,9 @@ function processArrowFunctionExpression(
   } else {
     const varContext =
       variableName ? `... ${variableName} = ${tagType}` : tagType;
-    throw new Error(
+    throw new TransformError(
       `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
+      expression.loc,
     );
   }
 }
@@ -149,8 +155,9 @@ function processCallExpression(
   const expressionSource = generate(expression).code;
   const varContext =
     variableName ? `... ${variableName} = ${tagType}` : tagType;
-  throw new Error(
+  throw new TransformError(
     `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
+    expression.loc,
   );
 }
 
@@ -167,8 +174,9 @@ function processBinaryExpression(
     const expressionSource = generate(expression).code;
     const varContext =
       variableName ? `... ${variableName} = ${tagType}` : tagType;
-    throw new Error(
+    throw new TransformError(
       `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
+      expression.loc,
     );
   }
 }
@@ -257,8 +265,9 @@ function processMemberExpression(
   const expressionSource = generate(expression).code;
   const varContext =
     variableName ? `... ${variableName} = ${tagType}` : tagType;
-  throw new Error(
+  throw new TransformError(
     `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+    expression.loc,
   );
 }
 
@@ -317,8 +326,9 @@ export function processInterpolationExpression(
     const expressionSource = generate(expression).code;
     const varContext =
       variableName ? `... ${variableName} = ${tagType}` : tagType;
-    throw new Error(
+    throw new TransformError(
       `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+      expression.loc,
     );
   }
 }
@@ -398,8 +408,11 @@ function resolveLayerCall(
   }
 
   const layerArg = expression.arguments[0];
-  if (!t.isStringLiteral(layerArg)) {
-    throw new Error('layer() must be called with a string literal layer name');
+  if (!layerArg || !t.isStringLiteral(layerArg)) {
+    throw new TransformError(
+      'layer() must be called with a string literal layer name',
+      layerArg?.loc || null,
+    );
   }
 
   const layerName = layerArg.value;
@@ -436,8 +449,9 @@ function resolveImportedKeyframes(
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(
+    throw new TransformError(
       `Failed to load keyframes "${keyframesName}" from ${keyframesFilePath}`,
+      null,
     );
   }
 }
@@ -469,7 +483,10 @@ function resolveImportedCss(
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(`Failed to load CSS "${cssName}" from ${cssFilePath}`);
+    throw new TransformError(
+      `Failed to load CSS "${cssName}" from ${cssFilePath}`,
+      null,
+    );
   }
 }
 
@@ -500,8 +517,9 @@ function resolveImportedConstantLocal(
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(
+    throw new TransformError(
       `Failed to load constant "${constantName}" from ${constantFilePath}`,
+      null,
     );
   }
 }

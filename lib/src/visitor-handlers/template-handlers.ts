@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import {
@@ -187,7 +188,8 @@ export function handleInlineStyledError(
   }
 
   // For other inline styled usage, we keep it as an error
-  throw new Error(
+  throw new TransformError(
     'Inline styled component usage is not supported. Please assign styled components to a variable first.',
+    path.node.loc,
   );
 }

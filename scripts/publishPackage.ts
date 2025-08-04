@@ -35,22 +35,23 @@ async function publishPackage(packageName: PackageName, version: Version) {
   }
 
   // Run tests for the package
-  await runCmdUnwrap(
-    'Test package',
-    ['pnpm', '--filter', fullPackageName, 'test'],
-    {
-      cwd: packagePath,
-    },
-  );
+  await runCmdUnwrap('Test package', [
+    'pnpm',
+    '--filter',
+    fullPackageName,
+    'test',
+  ]);
 
   // Run lint for the package
-  await runCmdUnwrap(
-    'Lint package',
-    ['pnpm', '--filter', fullPackageName, 'lint'],
-    {
-      cwd: packagePath,
-    },
-  );
+  await runCmdUnwrap('Lint package', [
+    'pnpm',
+    '--filter',
+    fullPackageName,
+    'lint',
+  ]);
+
+  // run e2e tests
+  await runCmdUnwrap('Run e2e tests', ['pnpm', 'e2e:test']);
 
   // Check if there are any changes to commit
   const gitStatus = await runCmdUnwrap('Check git status', [

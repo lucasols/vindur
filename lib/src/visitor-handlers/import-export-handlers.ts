@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { parseFunction } from '../function-parser';
@@ -154,8 +155,9 @@ export function handleVindurFnExport(
         transformFunctionCache[filePath] ??= {};
         transformFunctionCache[filePath][functionName] = compiledFn;
       } else {
-        throw new Error(
+        throw new TransformError(
           `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,
+          null,
         );
       }
     }

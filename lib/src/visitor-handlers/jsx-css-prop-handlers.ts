@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
@@ -55,7 +56,7 @@ export function handleJsxCssProp(
   }
 
   if (!cssAttr.value) {
-    throw new Error('css prop must have a value');
+    throw new TransformError('css prop must have a value', cssAttr.loc);
   }
 
   let cssClassName: string | t.Expression;
@@ -87,18 +88,21 @@ export function handleJsxCssProp(
         // Keep as variable reference for dynamic merging
         cssClassName = expression;
       } else {
-        throw new Error(
+        throw new TransformError(
           'Invalid css prop value. Only template literals and references to css function calls are supported',
+          expression.loc,
         );
       }
     } else {
-      throw new Error(
+      throw new TransformError(
         'Invalid css prop value. Only template literals and references to css function calls are supported',
+        expression.loc,
       );
     }
   } else {
-    throw new Error(
+    throw new TransformError(
       'Invalid css prop value. Only template literals and references to css function calls are supported',
+      cssAttr.value?.loc || cssAttr.loc,
     );
   }
 

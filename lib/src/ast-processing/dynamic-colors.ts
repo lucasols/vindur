@@ -1,6 +1,7 @@
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
 import { findWithNarrowing } from '../utils';
+import { TransformError } from '../custom-errors';
 
 export function resolveDynamicColorExpression(
   memberExpr: t.MemberExpression,
@@ -113,19 +114,31 @@ export function resolveDynamicColorCallExpression(
     switch (method) {
       case 'alpha':
         if (value === undefined)
-          throw new Error(`Method ${method} requires a numeric argument`);
+          throw new TransformError(
+            `Method ${method} requires a numeric argument`,
+            callExpr.loc,
+          );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${value * 100}%, transparent)`;
       case 'darker':
         if (value === undefined)
-          throw new Error(`Method ${method} requires a numeric argument`);
+          throw new TransformError(
+            `Method ${method} requires a numeric argument`,
+            callExpr.loc,
+          );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #000)`;
       case 'lighter':
         if (value === undefined)
-          throw new Error(`Method ${method} requires a numeric argument`);
+          throw new TransformError(
+            `Method ${method} requires a numeric argument`,
+            callExpr.loc,
+          );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #fff)`;
       case 'saturatedDarker':
         if (value === undefined)
-          throw new Error(`Method ${method} requires a numeric argument`);
+          throw new TransformError(
+            `Method ${method} requires a numeric argument`,
+            callExpr.loc,
+          );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, hsl(from var(--${dynamicColorId}) h 100% 20%))`;
       default:
         return null;
@@ -139,7 +152,10 @@ export function resolveDynamicColorCallExpression(
       switch (method) {
         case 'alpha':
           if (value === undefined)
-            throw new Error(`Method ${method} requires a numeric argument`);
+            throw new TransformError(
+              `Method ${method} requires a numeric argument`,
+              callExpr.loc,
+            );
           return `color-mix(in srgb, var(--${dynamicColorId}-c) ${value * 100}%, transparent)`;
         case 'optimal':
           // Handle `optimal()` with no arguments or `optimal({ alpha: 0.6 })`

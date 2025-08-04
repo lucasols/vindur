@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { generate } from '@babel/generator';
@@ -30,8 +31,9 @@ function validateDynamicColorExpression(expression: t.Expression): void {
       const right = generate(expression.right).code;
       suggestedFix = `color.set(${left} ? ${right.replace(/\.set\([^)]+\)/, '').replace(/color/, "'#ff6b6b'")} : null)`;
     }
-    throw new Error(
+    throw new TransformError(
       `Conditional dynamicColor is not supported. Use condition inside the set function instead: ${suggestedFix}`,
+      expression.loc,
     );
   }
 }
@@ -51,12 +53,18 @@ function handleCallExpression(
     const colorName = expr.callee.object.name;
     const dynamicColorId = context.state.dynamicColors?.get(colorName);
     if (!dynamicColorId) {
-      throw new Error(`Unknown dynamic color variable "${colorName}"`);
+      throw new TransformError(
+        `Unknown dynamic color variable "${colorName}"`,
+        expr.callee.loc,
+      );
     }
 
     const colorArg = expr.arguments[0];
     if (!colorArg || !t.isExpression(colorArg)) {
-      throw new Error('color.set() must have a valid color argument');
+      throw new TransformError(
+        'color.set() must have a valid color argument',
+        expr.loc,
+      );
     }
 
     handleDynamicColorSetCall(
@@ -91,12 +99,18 @@ export function handleJsxDynamicColorProp(
     !dynamicColorAttr.value
     || !t.isJSXExpressionContainer(dynamicColorAttr.value)
   ) {
-    throw new Error('dynamicColor prop must have a value');
+    throw new TransformError(
+      'dynamicColor prop must have a value',
+      dynamicColorAttr.loc,
+    );
   }
 
   const expr = dynamicColorAttr.value.expression;
   if (!t.isExpression(expr)) {
-    throw new Error('dynamicColor expression must be a valid expression');
+    throw new TransformError(
+      'dynamicColor expression must be a valid expression',
+      dynamicColorAttr.value?.loc || dynamicColorAttr.loc,
+    );
   }
 
   validateDynamicColorExpression(expr);
@@ -114,7 +128,10 @@ export function handleJsxDynamicColorProp(
   ): void {
     const dynamicColorId = ctx.state.dynamicColors?.get(expression.name);
     if (!dynamicColorId) {
-      throw new Error(`Unknown dynamic color variable "${expression.name}"`);
+      throw new TransformError(
+        `Unknown dynamic color variable "${expression.name}"`,
+        expression.loc,
+      );
     }
 
     let targetClassName: string | undefined;
@@ -467,8 +484,9 @@ export function handleJsxDynamicColorProp(
       context,
     );
   } else {
-    throw new Error(
+    throw new TransformError(
       'dynamicColor prop must be a single identifier or array of identifiers',
+      expr.loc,
     );
   }
 

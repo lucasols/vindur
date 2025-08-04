@@ -6,6 +6,7 @@ import type { CssProcessingContext } from './css-processing';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
+import { TransformError } from './custom-errors';
 import {
   handleFunctionImports,
   handleVindurFnExport,
@@ -114,11 +115,15 @@ function loadExternalFunction(
   if (!compiledFn) {
     // Check if function exists but is not properly wrapped with vindurFn
     if (fileContent.includes(`export const ${functionName}`)) {
-      throw new Error(
+      throw new TransformError(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
+        null,
       );
     } else {
-      throw new Error(`Function "${functionName}" not found in ${filePath}`);
+      throw new TransformError(
+        `Function "${functionName}" not found in ${filePath}`,
+        null,
+      );
     }
   }
 

@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import { types as t } from '@babel/core';
 import { murmur2 } from '@ls-stack/utils/hash';
 
@@ -87,15 +88,17 @@ export function extractStyleFlags(
           // For non-string-literal unions, we should ignore them or throw an error
           // According to the spec, we should throw an error for unsupported types
           const typeString = getTypeString(typeAnnotation);
-          throw new Error(
+          throw new TransformError(
             `Style flags only support boolean properties and string literal unions. Property "${propName}" has type "${typeString}".`,
+            member.loc,
           );
         }
       } else {
         // For non-boolean, non-union types, throw an error
         const typeString = getTypeString(typeAnnotation);
-        throw new Error(
+        throw new TransformError(
           `Style flags only support boolean properties and string literal unions. Property "${propName}" has type "${typeString}".`,
+          member.loc,
         );
       }
     }

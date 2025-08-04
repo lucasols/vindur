@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { generate } from '@babel/generator';
@@ -84,8 +85,9 @@ function handleJsxClassNameMerging(
       && !isDynamicColorSetPropsCall(attr.argument, context)
     ) {
       const expressionCode = generate(attr.argument).code;
-      throw new Error(
+      throw new TransformError(
         `Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`,
+        attr.loc,
       );
     }
   }

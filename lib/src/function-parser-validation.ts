@@ -76,17 +76,20 @@ export function validateTemplateExpressionDuringParsing(
       return;
     } else if (t.isCallExpression(expr)) {
       // Function calls are not allowed - suggests external dependencies
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+        expr.loc,
       );
     } else if (t.isMemberExpression(expr)) {
       // Member expressions suggest external dependencies
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+        expr.loc,
       );
     } else {
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
+        expr.loc,
       );
     }
   }
@@ -105,8 +108,9 @@ export function validateFunctionExpressionStructure(
       && !validParameterNames.has(expr.name)
       && !builtInIdentifiers.has(expr.name)
     ) {
-      throw new Error(
+      throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+        expr.loc,
       );
     }
   } else if (t.isConditionalExpression(expr)) {
@@ -163,17 +167,20 @@ export function validateFunctionExpressionStructure(
   ) {
     if (t.isCallExpression(expr)) {
       // Function calls are not allowed - suggests external dependencies
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+        expr.loc,
       );
     } else if (t.isMemberExpression(expr)) {
       // Member expressions suggest external dependencies
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+        expr.loc,
       );
     } else {
-      throw new Error(
+      throw new TransformError(
         `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
+        expr.loc,
       );
     }
   }

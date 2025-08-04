@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
@@ -90,8 +91,9 @@ export function handleArrayExpression(
   );
 
   if (colorElements.length === 0) {
-    throw new Error(
+    throw new TransformError(
       'dynamicColor array must contain at least one color identifier',
+      arrayExpr.loc,
     );
   }
 
@@ -99,7 +101,10 @@ export function handleArrayExpression(
   for (const colorEl of colorElements) {
     const dynamicColorId = ctx.state.dynamicColors?.get(colorEl.name);
     if (!dynamicColorId) {
-      throw new Error(`Unknown dynamic color variable "${colorEl.name}"`);
+      throw new TransformError(
+        `Unknown dynamic color variable "${colorEl.name}"`,
+        colorEl.loc,
+      );
     }
   }
 
@@ -172,7 +177,7 @@ export function buildNestedSetProps(params: {
 
   const lastColorElement = colorElements[colorElements.length - 1];
   if (!lastColorElement) {
-    throw new Error('No color elements found');
+    throw new TransformError('No color elements found', null);
   }
   let nestedSetProps: t.Expression = lastColorElement;
 

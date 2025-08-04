@@ -12,6 +12,7 @@ import {
   processScopedCssVariables,
   type ScopedVariableMap,
 } from './scoped-css-variables';
+import { TransformError } from './custom-errors';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -271,8 +272,9 @@ export function processStyledExtension(
   // Check if extending a styled component
   const extendedInfo = context.state.styledComponents.get(extendedName);
   if (!extendedInfo) {
-    throw new Error(
+    throw new TransformError(
       `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
+      null,
     );
   }
 

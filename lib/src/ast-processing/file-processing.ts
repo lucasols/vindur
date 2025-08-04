@@ -3,6 +3,7 @@ import { types as t } from '@babel/core';
 import { extractLiteralValue } from '../ast-utils';
 import { createVindurPlugin } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
+import { TransformError } from '../custom-errors';
 
 export function getOrExtractFileData(
   filePath: string,
@@ -220,8 +221,9 @@ export function resolveImportedConstant(
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(
+    throw new TransformError(
       `Failed to load constant "${constantName}" from ${constantFilePath}`,
+      null,
     );
   }
 }
@@ -253,8 +255,9 @@ export function resolveImportedThemeColors(
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error(
+    throw new TransformError(
       `Failed to load theme colors "${themeColorsName}" from ${themeColorsFilePath}`,
+      null,
     );
   }
 }

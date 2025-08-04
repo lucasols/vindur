@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
@@ -90,8 +91,9 @@ function validateCreateClassNameUsage(path: NodePath<t.CallExpression>): void {
 
   // Check if it's being destructured
   if (t.isVariableDeclarator(parent) && t.isObjectPattern(parent.id)) {
-    throw new Error(
+    throw new TransformError(
       'createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.',
+      path.node.loc,
     );
   }
 
@@ -110,15 +112,17 @@ function validateCreateClassNameUsage(path: NodePath<t.CallExpression>): void {
         !t.isProgram(declarationParent)
         && !t.isExportNamedDeclaration(declarationParent)
       ) {
-        throw new Error(
+        throw new TransformError(
           'createClassName() can only be used in variable declarations at the module root level.',
+          path.node.loc,
         );
       }
     }
   } else {
     // If it's not in a variable declarator, it's inline usage
-    throw new Error(
+    throw new TransformError(
       'createClassName() can only be used in variable declarations at the module root level, not inline.',
+      path.node.loc,
     );
   }
 }

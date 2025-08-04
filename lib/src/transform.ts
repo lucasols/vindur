@@ -5,6 +5,7 @@ import {
   type FunctionCache,
   type VindurPluginState,
 } from './babel-plugin';
+import { TransformError } from './custom-errors';
 
 export type VindurTransformResult = {
   css: string;
@@ -49,7 +50,7 @@ export function transform({
   };
 
   if (!fileAbsPath.includes('/')) {
-    throw new Error('fileAbsPath must be an absolute path');
+    throw new TransformError('fileAbsPath must be an absolute path', null);
   }
 
   const plugin = createVindurPlugin(
@@ -72,7 +73,7 @@ export function transform({
   });
 
   if (!result?.code && result?.code !== '') {
-    throw new Error('Transform failed');
+    throw new TransformError('Transform failed', null);
   }
 
   let finalCode = result.code;

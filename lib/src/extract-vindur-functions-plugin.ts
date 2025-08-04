@@ -2,6 +2,7 @@ import type { PluginObj } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { DebugLogger, FunctionCache } from './babel-plugin';
 import { parseFunction } from './function-parser';
+import { TransformError } from './custom-errors';
 
 export function createExtractVindurFunctionsPlugin(
   filePath: string,
@@ -40,8 +41,9 @@ export function createExtractVindurFunctionsPlugin(
                   `[vindur:cache] Cached function "${name}" in ${filePath}`,
                 );
               } else {
-                throw new Error(
+                throw new TransformError(
                   `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,
+                  declarator.loc,
                 );
               }
             }

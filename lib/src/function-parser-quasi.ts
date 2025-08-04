@@ -2,6 +2,7 @@ import { types as t } from '@babel/core';
 import type { OutputQuasi } from './types';
 import { parseTernaryCondition } from './function-parser-ternary';
 import { parseBinaryExpression } from './function-parser-binary';
+import { TransformError } from './custom-errors';
 
 export function parseQuasiFromExpression(
   expr: t.Expression,
@@ -18,8 +19,9 @@ export function parseQuasiFromExpression(
       && !validParameterNames.has(expr.name)
       && !builtInIdentifiers.has(expr.name)
     ) {
-      throw new Error(
+      throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
+        expr.loc,
       );
     }
     return { type: 'arg', name: expr.name };
@@ -66,18 +68,21 @@ export function parseQuasiFromExpression(
     // If parseBinaryExpression returns null, fall through to the error
   } else if (t.isCallExpression(expr)) {
     // Function calls are not allowed
-    throw new Error(
+    throw new TransformError(
       `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
+      expr.loc,
     );
   } else if (t.isMemberExpression(expr)) {
     // Member expressions suggest external dependencies
-    throw new Error(
+    throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
+      expr.loc,
     );
   }
 
-  throw new Error(
+  throw new TransformError(
     `vindurFn "${functionName}" contains unsupported expression type in ternary: ${expr.type}`,
+    expr.loc,
   );
 }
 

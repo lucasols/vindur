@@ -1,3 +1,4 @@
+import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
@@ -43,10 +44,10 @@ export function handleLocalVindurFnError(
   // Check if the vindurFn function is exported - if so, don't throw error
   if (isVariableExported(functionName, path)) return false;
 
-  throw new Error(
+  throw new TransformError(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,
-  );
+  null);
 }
 
 export function handleCssVariableAssignment(
@@ -135,9 +136,9 @@ function parseStyledElementTag(tag: t.Expression): StyledElementInfo | null {
     if (tag.arguments.length === 1 && t.isObjectExpression(tag.arguments[0])) {
       return { tagName, attrs: tag.arguments[0] };
     } else {
-      throw new Error(
+      throw new TransformError(
         'styled.*.attrs() must be called with exactly one object literal argument',
-      );
+      null);
     }
   }
   return null;
@@ -379,9 +380,9 @@ export function handleStyledExtensionAssignment(
   ) {
     // styled(Component)``
     if (!t.isIdentifier(tag.arguments[0])) {
-      throw new Error(
+      throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-      );
+      null);
     }
     extendedArg = tag.arguments[0];
   } else if (
@@ -396,17 +397,17 @@ export function handleStyledExtensionAssignment(
   ) {
     // styled(Component).attrs({...})``
     if (!t.isIdentifier(tag.callee.object.arguments[0])) {
-      throw new Error(
+      throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-      );
+      null);
     }
     extendedArg = tag.callee.object.arguments[0];
     if (tag.arguments.length === 1 && t.isObjectExpression(tag.arguments[0])) {
       attrs = tag.arguments[0];
     } else {
-      throw new Error(
+      throw new TransformError(
         'styled(Component).attrs() must be called with exactly one object literal argument',
-      );
+      null);
     }
   } else {
     return false;
@@ -430,9 +431,9 @@ export function handleStyledExtensionAssignment(
   // Get the extended component info for element inheritance
   const extendedInfo = context.state.styledComponents.get(extendedName);
   if (!extendedInfo) {
-    throw new Error(
+    throw new TransformError(
       `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
-    );
+    null);
   }
 
   // Extract attrs if present - preserve expressions for runtime evaluation
