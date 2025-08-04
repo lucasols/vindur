@@ -319,7 +319,7 @@ describe('keyframes cross-file imports', () => {
         }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Function "unknownAnimation" not found in /animations.ts]`,
+      `[TransformError: /test.tsx: Function "unknownAnimation" not found in /animations.ts]`,
     );
   });
 });

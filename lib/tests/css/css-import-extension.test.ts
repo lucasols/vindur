@@ -288,7 +288,7 @@ describe('CSS import extension', () => {
         }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Function "unknownStyles" not found in /styles.ts]`,
+      `[TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts]`,
     );
   });
 
@@ -367,7 +367,7 @@ describe('CSS import extension', () => {
         }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `[TransformError: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 
@@ -405,7 +405,7 @@ describe('CSS import extension', () => {
         }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `[TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 });

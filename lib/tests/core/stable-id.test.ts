@@ -161,7 +161,7 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.]`,
+      `[TransformError: /test.tsx: createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.]`,
     );
   });
 
@@ -182,7 +182,7 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: createClassName() can only be used in variable declarations at the module root level.]`,
+      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level.]`,
     );
   });
 
@@ -216,7 +216,7 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
     );
   });
 
@@ -232,7 +232,7 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
     );
   });
 
@@ -246,7 +246,7 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
     );
   });
 });

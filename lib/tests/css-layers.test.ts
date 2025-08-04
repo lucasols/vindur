@@ -231,7 +231,7 @@ describe('CSS layers with layer() function', () => {
     await expect(async () => {
       await transformWithFormat({ source });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: layer() must be called with a string literal layer name]`,
+      `[TransformError: /test.tsx: layer() must be called with a string literal layer name]`,
     );
   });
 

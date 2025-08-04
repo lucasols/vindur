@@ -214,7 +214,7 @@ describe('interpolation', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -267,7 +267,7 @@ describe('interpolation', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/undefined.ts: Invalid interpolation used at \`... style = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `[TransformError: /src/undefined.ts: Invalid interpolation used at \`... style = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 });
@@ -291,7 +291,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -313,7 +313,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/array.ts: Invalid interpolation used at \`... style = css\` ... \${colors[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/array.ts: Invalid interpolation used at \`... style = css\` ... \${colors[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -334,7 +334,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable and correctly imported with the configured aliases]`,
+      `[TransformError: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable and correctly imported with the configured aliases]`,
     );
   });
 
@@ -357,7 +357,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/conditional.ts: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/conditional.ts: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -380,7 +380,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/logical.ts: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/logical.ts: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -402,7 +402,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/unary.ts: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/unary.ts: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -423,7 +423,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/array-literal.ts: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/array-literal.ts: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -444,7 +444,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/button.ts: Invalid interpolation used at \`... buttonStyle = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/button.ts: Invalid interpolation used at \`... buttonStyle = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 
@@ -463,7 +463,7 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[Error: /src/direct.ts: Invalid interpolation used at \`css\` ... \${obj.value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `[TransformError: /src/direct.ts: Invalid interpolation used at \`css\` ... \${obj.value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
     );
   });
 });

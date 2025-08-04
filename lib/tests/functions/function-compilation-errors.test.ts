@@ -34,7 +34,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -64,7 +64,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -94,7 +94,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+        `[TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
       );
     });
 
@@ -125,7 +125,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
   });
@@ -155,7 +155,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "invalidOp" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "invalidOp" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported]`,
       );
     });
 
@@ -183,7 +183,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression]`,
       );
     });
 
@@ -211,7 +211,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained]`,
       );
     });
 
@@ -239,7 +239,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -267,7 +267,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -295,7 +295,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression]`,
       );
     });
 
@@ -323,7 +323,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression]`,
       );
     });
 
@@ -351,7 +351,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression]`,
       );
     });
 
@@ -379,7 +379,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "fnInBranch" contains function calls which are not supported - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "fnInBranch" contains function calls which are not supported - functions must be self-contained]`,
       );
     });
 
@@ -407,7 +407,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained]`,
       );
     });
 
@@ -435,7 +435,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: /functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression]`,
+        `[TransformError: /test.ts: /functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression]`,
       );
     });
   });
@@ -454,7 +454,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
+        `[TransformError: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
       );
     });
 
@@ -475,7 +475,7 @@ describe('function compilation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[Error: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
+        `[TransformError: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.]`,
       );
     });
   });

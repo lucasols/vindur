@@ -86,9 +86,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Method alpha requires a numeric argument]
-    `);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method alpha requires a numeric argument]`);
   });
 
   test('should throw error when darker() called without argument', async () => {
@@ -104,9 +102,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Method darker requires a numeric argument]
-    `);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method darker requires a numeric argument]`);
   });
 
   test('should throw error when lighter() called without argument', async () => {
@@ -122,9 +118,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Method lighter requires a numeric argument]
-    `);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method lighter requires a numeric argument]`);
   });
 
   test('should throw error when saturatedDarker() called without argument', async () => {
@@ -140,9 +134,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Method saturatedDarker requires a numeric argument]
-    `);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method saturatedDarker requires a numeric argument]`);
   });
 
   test('should throw error when contrast.alpha() called without argument', async () => {
@@ -158,8 +150,6 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [Error: /test.tsx: Method alpha requires a numeric argument]
-    `);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method alpha requires a numeric argument]`);
   });
 });

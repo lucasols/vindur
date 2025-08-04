@@ -143,7 +143,7 @@ describe('styled component references', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${UndefinedComponent}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `[TransformError: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${UndefinedComponent}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 
@@ -161,7 +161,7 @@ describe('styled component references', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${Container}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `[TransformError: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${Container}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
 

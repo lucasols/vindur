@@ -212,7 +212,7 @@ describe('withComponent', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Cannot call withComponent on "notAStyledComponent": it is not a styled component.]`,
+      `[TransformError: /test.tsx: Cannot call withComponent on "notAStyledComponent": it is not a styled component.]`,
     );
   });
 
@@ -229,7 +229,7 @@ describe('withComponent', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: withComponent() must be called with either a string literal element name or a component identifier.]`,
+      `[TransformError: /test.tsx: withComponent() must be called with either a string literal element name or a component identifier.]`,
     );
   });
 

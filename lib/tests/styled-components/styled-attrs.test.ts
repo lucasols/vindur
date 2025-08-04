@@ -449,7 +449,7 @@ describe('styled components - attrs functionality', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument]`,
+      `[TransformError: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument]`,
     );
   });
 
@@ -469,7 +469,7 @@ describe('styled components - attrs functionality', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument]`,
+      `[TransformError: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument]`,
     );
   });
 

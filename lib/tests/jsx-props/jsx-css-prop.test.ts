@@ -643,7 +643,7 @@ describe('JSX css prop', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[Error: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported]`,
+      `[TransformError: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported]`,
     );
   });
 });
