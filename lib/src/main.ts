@@ -42,9 +42,12 @@ export function layer(_layerName: string): string {
   throw new Error('layer cannot be called at runtime');
 }
 
-export interface VindurAttributes {
+interface VindurClassNameBasedAttributes {
   css?: CSSProp;
   cx?: Record<string, unknown>;
+}
+
+export interface VindurAttributes extends VindurClassNameBasedAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
@@ -82,38 +85,29 @@ type StyledTags = {
   [Key in keyof JSX.IntrinsicElements]: StyledFunction<Key>;
 };
 
-interface VindurAttributesWithClassName extends VindurAttributes {
-  className?: string;
-}
-
 type StyledFnReturn<T extends {}> = (
   strings: TemplateStringsArray,
   ...values: StyleInterpolationValues[]
 ) => FC<T>;
 
-type StyledFn = {
-  <
-    T extends {
-      className?: string;
-      style?: Record<string, unknown>;
-      cx?: never;
-    },
-  >(
-    component: ComponentType<T>,
-  ): StyledFnReturn<T & VindurAttributes>;
-
-  <T extends { className?: string; style?: never; cx?: never }>(
-    component: ComponentType<T>,
-  ): StyledFnReturn<T & Omit<VindurAttributes, 'dynamicColor'>>;
-
-  <T extends VindurAttributesWithClassName>(
-    component: ComponentType<T>,
-  ): StyledFnReturn<T>;
-};
+type StyledFn = <T extends {}>(
+  component: ComponentType<T>,
+) => keyof VindurAttributes extends keyof T ? StyledFnReturn<T>
+: 'className' | 'style' extends keyof T ? StyledFnReturn<T & VindurAttributes>
+: 'className' extends keyof T ?
+  StyledFnReturn<T & VindurClassNameBasedAttributes>
+: never;
 
 interface Styled extends StyledTags, StyledFn {}
 
-export const styled: Styled = {} as any;
+export const styled: Styled = new Proxy(
+  {},
+  {
+    get: (target, prop) => {
+      throw new Error(`styled cannot be called at runtime`);
+    },
+  },
+) as any;
 
 export function _vSC(
   tagOrComponent: string | ComponentType<any>,

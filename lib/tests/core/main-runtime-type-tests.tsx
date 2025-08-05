@@ -1,6 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access -- some tests need to be invalid */
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
-import { useRef, type CSSProperties } from 'react';
+import {
+  forwardRef,
+  useRef,
+  type ComponentProps,
+  type CSSProperties,
+} from 'react';
 import { createDynamicCssColor, styled } from '../../src/main';
 
 const { describe, test, expectTypesAre } = typingTest;
@@ -99,6 +105,11 @@ describe('main runtime', () => {
       text-align: center;
     `;
 
+    expectTypesAre<
+      ComponentProps<typeof StyledComponentExtended>,
+      ComponentProps<typeof StyledComponent>
+    >('equal');
+
     const inputRef = useRef<HTMLInputElement>(null);
 
     const inputElement = (
@@ -108,9 +119,10 @@ describe('main runtime', () => {
         value="test"
         onChange={() => {}}
         ref={inputRef}
-        // should have cx and css props from parent
+        // should have cx, css and dynamicColor props from parent
         css="test"
         cx={{ test: true }}
+        dynamicColor={dynamicColor.set('red')}
       />
     );
   });
@@ -160,9 +172,50 @@ describe('main runtime', () => {
       <Styled
         style={{ color: 'blue' }}
         className="test"
+        // should have css, cx and dynamicColor vindur attributes
+        css="test"
+        cx={{ test: true }}
+        dynamicColor={dynamicColor.set('red')}
+      />
+    );
+  });
+
+  test('styled components from custom components without className should not be supported', () => {
+    function Component() {
+      return <div />;
+    }
+
+    // @ts-expect-error when component not have `className` prop, styled() is not supported
+    const Styled = styled(Component)`
+      color: red;
+    `;
+  });
+
+  test('styled component from ForwardRef components', () => {
+    const Component = forwardRef<HTMLDivElement, { className?: string }>(
+      (props, ref) => {
+        return (
+          <div
+            ref={ref}
+            className={props.className}
+          />
+        );
+      },
+    );
+
+    const Styled = styled(Component)`
+      color: red;
+    `;
+
+    const divElement = (
+      <Styled
+        className="test"
+        ref={useRef<HTMLDivElement>(null)}
         // should have css and cx vindur attributes
         css="test"
         cx={{ test: true }}
+        // @ts-expect-error when component not have `style` prop, dynamicColor is not supported
+        dynamicColor={dynamicColor.set('red')}
       />
     );
   });

@@ -134,4 +134,30 @@ describe('styled component extension', () => {
       "
     `);
   });
+
+  test('extend from custom components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Component = ({ className }: { className?: string }) => (
+          <div className={className} />
+        )
+
+        const Styled = styled(Component)\`
+          color: red;
+        \`
+
+        const App = () => (
+          <Styled />
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.css).toMatchInlineSnapshot();
+
+    expect(result.code).toMatchInlineSnapshot();
+  });
 });
