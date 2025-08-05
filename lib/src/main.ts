@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- Unused variables in main.ts are runtime exports that may be used by consumers */
-
 import {
   createElement,
   forwardRef,
   type ComponentType,
   type CSSProperties,
+  type FC,
   type JSX,
 } from 'react';
 
@@ -16,23 +15,25 @@ export function vindurFn<TArgs extends unknown[], TReturn extends string>(
 
 export type CSSProp = string;
 
+type StyleInterpolationValues = string | number | (() => StyledComponent<any>);
+
 export function css(
   strings: TemplateStringsArray,
-  ...values: (string | number)[]
+  ...values: StyleInterpolationValues[]
 ): string {
   throw new Error('css cannot be called at runtime');
 }
 
 export function createGlobalStyle(
   strings: TemplateStringsArray,
-  ...values: (string | number)[]
+  ...values: StyleInterpolationValues[]
 ): void {
   throw new Error('createGlobalStyle cannot be called at runtime');
 }
 
 export function keyframes(
   strings: TemplateStringsArray,
-  ...values: (string | number)[]
+  ...values: StyleInterpolationValues[]
 ): string {
   throw new Error('keyframes cannot be called at runtime');
 }
@@ -47,68 +48,80 @@ export interface VindurAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
+type IntrinsicElementType = keyof JSX.IntrinsicElements;
+
+type StyledComponentProps<Tag extends IntrinsicElementType> =
+  JSX.IntrinsicElements[Tag] & VindurAttributes;
+
 type StyledComponent<
-  Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements,
-> = ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes> & {
+  Tag extends IntrinsicElementType,
+  ExtraProps extends {} = {},
+> = FC<StyledComponentProps<Tag> & ExtraProps> & {
   withComponent<NewTag extends keyof JSX.IntrinsicElements>(
     tag: NewTag,
-  ): ComponentType<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
+  ): FC<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+
   withComponent<C extends ComponentType<any>>(component: C): C;
 };
 
-type StyledFunction<
-  Tag extends keyof JSX.IntrinsicElements = keyof JSX.IntrinsicElements,
-> = {
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Empty object type needed for generic constraint
-  <T = {}>(
+type StyledFunction<Tag extends IntrinsicElementType> = {
+  <T extends {} = {}>(
     strings: TemplateStringsArray,
-    ...values: (string | number)[]
-  ): StyledComponent<Tag>
-    & ComponentType<JSX.IntrinsicElements[Tag] & VindurAttributes & T>;
+    ...values: StyleInterpolationValues[]
+  ): StyledComponent<Tag, T>;
+
   (
     strings: TemplateStringsArray,
-    ...values: (string | number)[]
+    ...values: StyleInterpolationValues[]
   ): StyledComponent<Tag>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Attributes can be any valid props
+
   attrs<A extends Record<string, any>>(attrs: A): StyledFunction<Tag>;
 };
 
-// Create a Proxy that handles all DOM element access dynamically
-const styledHandler = {
-  get: (_: unknown, tag: string): StyledFunction => {
-    const styledFn = (
-      strings: TemplateStringsArray,
-      ...values: (string | number)[]
-    ) => {
-      throw new Error('styled cannot be called at runtime');
-    };
-
-    // Add attrs method to the function
-    styledFn.attrs = () => {
-      throw new Error('styled.attrs cannot be called at runtime');
-    };
-
-    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
-    return styledFn as StyledFunction;
-  },
+type StyledTags = {
+  [Key in keyof JSX.IntrinsicElements]: StyledFunction<Key>;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Runtime fallback requires type assertion for compile-time transform
-export const styled: {
-  [Key in keyof JSX.IntrinsicElements]: StyledFunction<Key>;
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions, @typescript-eslint/no-explicit-any -- Runtime fallback requires type assertion for compile-time transform
-} = new Proxy({}, styledHandler) as any;
+interface VindurAttributesWithClassName extends VindurAttributes {
+  className?: string;
+}
+
+type StyledFnReturn<T extends {}> = (
+  strings: TemplateStringsArray,
+  ...values: StyleInterpolationValues[]
+) => FC<T>;
+
+type StyledFn = {
+  <
+    T extends {
+      className?: string;
+      style?: Record<string, unknown>;
+      cx?: never;
+    },
+  >(
+    component: ComponentType<T>,
+  ): StyledFnReturn<T & VindurAttributes>;
+
+  <T extends { className?: string; style?: never; cx?: never }>(
+    component: ComponentType<T>,
+  ): StyledFnReturn<T & Omit<VindurAttributes, 'dynamicColor'>>;
+
+  <T extends VindurAttributesWithClassName>(
+    component: ComponentType<T>,
+  ): StyledFnReturn<T>;
+};
+
+interface Styled extends StyledTags, StyledFn {}
+
+export const styled: Styled = {} as any;
 
 export function _vSC(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
   tagOrComponent: string | ComponentType<any>,
   className: string,
   attrs?: Record<string, string | number | boolean> | null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Return type must be flexible for any component props
 ): ComponentType<any> {
   // Runtime helper for exported styled components
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forwardRef requires any for generic component forwarding
+
   const Component = forwardRef<any, any>((props, ref) => {
     const { className: userClassName, ...rest } = props;
     const finalClassName =
@@ -148,10 +161,9 @@ export function _vCWM(
   baseClassName: string,
   elementType: string,
   attrs?: Record<string, string | number | boolean> | null,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic component type requires any for maximum flexibility
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forwardRef requires any for generic component forwarding
+
   const Component = forwardRef<any, any>((props, ref) => {
     const { className: userClassName, ...otherProps } = props;
 
@@ -236,7 +248,7 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 } {
   // At runtime, this function should never be called as it gets replaced during compilation
   // But we need to provide a valid runtime implementation for TypeScript
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- Runtime fallback requires type assertion for compile-time transform
+
   return colors as unknown as {
     [K in keyof C]: StaticColor<C[K]>;
   };

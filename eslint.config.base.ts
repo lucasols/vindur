@@ -21,13 +21,11 @@ export function createBaseConfig({
   extraIgnorePatterns,
 }: {
   globalRules?: Record<string, RuleEntry>;
-  extraRuleGroups?: [
-    {
-      plugins?: Record<string, any>;
-      files: string[];
-      rules: Record<string, RuleEntry>;
-    },
-  ];
+  extraRuleGroups?: {
+    plugins?: Record<string, any>;
+    files: string[];
+    rules: Record<string, RuleEntry>;
+  }[];
   extraIgnorePatterns?: string[];
 } = {}) {
   return tseslint.config(
