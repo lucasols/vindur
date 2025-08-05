@@ -1,4 +1,3 @@
-import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
@@ -7,12 +6,16 @@ import {
   processStyledExtension,
   processStyledTemplate,
 } from '../css-processing';
+import { TransformError } from '../custom-errors';
 import { isVariableExported } from './handler-utils';
 import {
   checkForMissingModifierStyles,
   extractStyleFlags,
   updateCssSelectorsForStyleFlags,
 } from './style-flags-utils';
+
+const LOWERCASE_START_REGEX = /^[a-z]/;
+const CAMEL_CASE_REGEX = /^[A-Z]/;
 
 type VariableHandlerContext = {
   context: CssProcessingContext;
@@ -47,7 +50,8 @@ export function handleLocalVindurFnError(
   throw new TransformError(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,
-  null);
+    path.node.loc,
+  );
 }
 
 export function handleCssVariableAssignment(
@@ -138,7 +142,8 @@ function parseStyledElementTag(tag: t.Expression): StyledElementInfo | null {
     } else {
       throw new TransformError(
         'styled.*.attrs() must be called with exactly one object literal argument',
-      null);
+        tag.loc,
+      );
     }
   }
   return null;
@@ -382,7 +387,8 @@ export function handleStyledExtensionAssignment(
     if (!t.isIdentifier(tag.arguments[0])) {
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-      null);
+        tag.loc,
+      );
     }
     extendedArg = tag.arguments[0];
   } else if (
@@ -399,7 +405,8 @@ export function handleStyledExtensionAssignment(
     if (!t.isIdentifier(tag.callee.object.arguments[0])) {
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-      null);
+        tag.loc,
+      );
     }
     extendedArg = tag.callee.object.arguments[0];
     if (tag.arguments.length === 1 && t.isObjectExpression(tag.arguments[0])) {
@@ -407,7 +414,8 @@ export function handleStyledExtensionAssignment(
     } else {
       throw new TransformError(
         'styled(Component).attrs() must be called with exactly one object literal argument',
-      null);
+        tag.loc,
+      );
     }
   } else {
     return false;
@@ -416,6 +424,11 @@ export function handleStyledExtensionAssignment(
   // Handle styled(Component)`` variable assignments
   const varName = path.node.id.name;
   const extendedName = extendedArg.name;
+
+  // Check if extending a non-component variable
+  const extendedInfo = context.state.styledComponents.get(extendedName);
+  validateExtendedComponent(extendedName, extendedInfo, path, extendedArg.loc);
+
   const result = processStyledExtension(
     path.node.init.quasi,
     context,
@@ -427,14 +440,6 @@ export function handleStyledExtensionAssignment(
     classIndex,
   );
   classIndex.current++;
-
-  // Get the extended component info for element inheritance
-  const extendedInfo = context.state.styledComponents.get(extendedName);
-  if (!extendedInfo) {
-    throw new TransformError(
-      `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
-    null);
-  }
 
   // Extract attrs if present - preserve expressions for runtime evaluation
   let attrsExpression: t.ObjectExpression | undefined;
@@ -450,9 +455,16 @@ export function handleStyledExtensionAssignment(
   // Components with attrs should always be treated as having intermediate components
   // Note: result.finalClassName already contains the concatenated class names from processStyledExtension
   const isExported = isVariableExported(varName, path);
+  const isExtendingRegularComponent = !extendedInfo;
+
+  // For regular components, we store the component name as the element
+  const element = extendedInfo ? extendedInfo.element : extendedName;
+
+  // Custom components don't need intermediate components unless exported or have attrs
   const hasIntermediateComponent = isExported || hasAttrs;
+
   context.state.styledComponents.set(varName, {
-    element: extendedInfo.element,
+    element,
     className: result.finalClassName,
     isExported: hasIntermediateComponent,
     attrs: hasAttrs,
@@ -464,7 +476,10 @@ export function handleStyledExtensionAssignment(
     // Transform to _vSC function call
     context.state.vindurImports.add('_vSC');
     const args: t.Expression[] = [
-      t.stringLiteral(extendedInfo.element),
+      // Use identifier for custom components, string literal for native elements
+      isExtendingRegularComponent || !element.match(LOWERCASE_START_REGEX) ?
+        t.identifier(element)
+      : t.stringLiteral(element),
       t.stringLiteral(result.finalClassName),
     ];
 
@@ -479,6 +494,51 @@ export function handleStyledExtensionAssignment(
   }
 
   return true;
+}
+
+function validateExtendedComponent(
+  extendedName: string,
+  extendedInfo:
+    | {
+        element: string;
+        className: string;
+        isExported: boolean;
+        styleFlags?: Array<{ propName: string; hashedClassName: string }>;
+        attrs?: boolean;
+        attrsExpression?: t.ObjectExpression;
+      }
+    | undefined,
+  path: NodePath<t.VariableDeclarator>,
+  extendedArgLoc?: t.SourceLocation | null,
+): void {
+  if (!extendedInfo) {
+    // Check if the identifier follows CamelCase convention for components
+    if (!CAMEL_CASE_REGEX.test(extendedName)) {
+      throw new TransformError(
+        `Cannot extend "${extendedName}": component names must start with an uppercase letter (CamelCase).`,
+        extendedArgLoc,
+      );
+    }
+
+    // Check if the extended identifier is a valid component
+    const binding = path.scope.getBinding(extendedName);
+    if (binding?.path.isVariableDeclarator()) {
+      const init = binding.path.node.init;
+      // If it's initialized with a literal or non-function expression, it's not a component
+      if (
+        init
+        && !t.isFunctionExpression(init)
+        && !t.isArrowFunctionExpression(init)
+        && !t.isCallExpression(init)
+        && !t.isIdentifier(init)
+      ) {
+        throw new TransformError(
+          `Cannot extend "${extendedName}": it is not a component or styled component.`,
+          extendedArgLoc,
+        );
+      }
+    }
+  }
 }
 
 export function handleKeyframesVariableAssignment(
@@ -521,12 +581,12 @@ export function handleKeyframesVariableAssignment(
 }
 
 export {
+  handleDynamicCssColorAssignment,
+  handleGlobalStyleVariableAssignment,
+  handleStaticThemeColorsAssignment,
+  handleWithComponentAssignment,
+} from './additional-variable-handlers';
+export {
   handleCreateClassNameCall,
   handleStableIdCall,
 } from './call-expression-handlers';
-export {
-  handleStaticThemeColorsAssignment,
-  handleDynamicCssColorAssignment,
-  handleWithComponentAssignment,
-  handleGlobalStyleVariableAssignment,
-} from './additional-variable-handlers';

@@ -58,7 +58,7 @@ describe('styled component extension', () => {
     `);
   });
 
-  test('should throw error when extending non-styled component', async () => {
+  test('should throw error when extending non-CamelCase identifier', async () => {
     const source = dedent`
       import { styled } from 'vindur'
 
@@ -75,7 +75,28 @@ describe('styled component extension', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: Cannot extend "notAStyledComponent": it is not a styled component. Only styled components can be extended.]`,
+      `[TransformError: /test.tsx: Cannot extend "notAStyledComponent": component names must start with an uppercase letter (CamelCase).]`,
+    );
+  });
+
+  test('should throw error when extending non-component variable with CamelCase', async () => {
+    const source = dedent`
+      import { styled } from 'vindur'
+
+      const NotAComponent = 'regular-variable'
+      const FailedExtension = styled(NotAComponent)\`
+        color: red;
+      \`
+    `;
+
+    await expect(async () => {
+      await transformWithFormat({
+        source,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `[TransformError: /test.tsx: Cannot extend "NotAComponent": it is not a component or styled component.]`,
     );
   });
 
@@ -156,8 +177,52 @@ describe('styled component extension', () => {
       overrideDefaultImportAliases: importAliases,
     });
 
-    expect(result.css).toMatchInlineSnapshot();
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Styled {
+        color: red;
+      }
+      "
+    `);
 
-    expect(result.code).toMatchInlineSnapshot();
+    expect(result.code).toMatchInlineSnapshot(`
+      "const Component = ({ className }: { className?: string }) => (
+        <div className={className} />
+      );
+      const App = () => <Component className="v1560qbr-1-Styled" />;
+      "
+    `);
+  });
+
+  test('extend from imported custom components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Component } from './Component'
+
+
+        const Styled = styled(Component)\`
+          color: red;
+        \`
+
+        const App = () => (
+          <Styled />
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Styled {
+        color: red;
+      }
+      "
+    `);
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { Component } from "./Component";
+      const App = () => <Component className="v1560qbr-1-Styled" />;
+      "
+    `);
   });
 });

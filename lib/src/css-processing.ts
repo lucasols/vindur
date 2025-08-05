@@ -12,7 +12,6 @@ import {
   processScopedCssVariables,
   type ScopedVariableMap,
 } from './scoped-css-variables';
-import { TransformError } from './custom-errors';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -273,12 +272,6 @@ export function processStyledExtension(
 
   // Check if extending a styled component
   const extendedInfo = context.state.styledComponents.get(extendedName);
-  if (!extendedInfo) {
-    throw new TransformError(
-      `Cannot extend "${extendedName}": it is not a styled component. Only styled components can be extended.`,
-      null,
-    );
-  }
 
   // Clean up CSS content and store the CSS rule
   const cleanedCss = cleanCss(scopedResult.processedCss);
@@ -305,9 +298,11 @@ export function processStyledExtension(
 
   // Extend the styled component - inherit element and merge classes
   const mergedClassName =
-    cleanedCss.trim() ?
-      `${extendedInfo.className} ${finalClassName}`
-    : extendedInfo.className;
+    extendedInfo ?
+      cleanedCss.trim() ?
+        `${extendedInfo.className} ${finalClassName}`
+      : extendedInfo.className
+    : finalClassName;
 
   return {
     cssContent: scopedResult.processedCss,
