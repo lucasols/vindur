@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "say 'Claude Code is awaiting your input'"
-          }
-        ]
-      }
     ]
   }
 }
