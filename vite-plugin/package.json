@@ -28,7 +28,8 @@
     "pre-publish": "../scripts/check-if-is-sync.sh && pnpm build"
   },
   "peerDependencies": {
-    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0",
+    "vindur": "*"
   },
   "devDependencies": {
     "@ls-stack/utils": "catalog:",
@@ -38,9 +39,7 @@
     "rollup": "^4.46.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
-  },
-  "dependencies": {
+    "vite": "catalog:",
     "vindur": "workspace:*"
   },
   "keywords": [

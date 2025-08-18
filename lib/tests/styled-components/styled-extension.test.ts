@@ -225,4 +225,37 @@ describe('styled component extension', () => {
       "
     `);
   });
+
+  test('extend from imported custom components from library', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Component } from 'react-dom'
+
+
+        const Styled = styled(Component)\`
+          color: red;
+        \`
+
+        const App = () => (
+          <Styled />
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Styled {
+        color: red;
+      }
+      "
+    `);
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { Component } from "react-dom";
+      const App = () => <Component className="v1560qbr-1-Styled" />;
+      "
+    `);
+  });
 });
