@@ -6,6 +6,7 @@ import type { FunctionArg } from '../types';
 import type { CssProcessingContext } from '../css-processing';
 import { resolveThemeColorCallExpression } from './theme-colors';
 import { resolveImportedConstant } from './file-processing';
+import { TransformError } from '../custom-errors';
 
 export function resolveVariable(
   variableName: string,
@@ -170,6 +171,12 @@ export function resolveFunctionCall(
         const { value, resolved } = extractArgumentValue(arg, context.path);
         if (resolved && value !== null) {
           argValues[paramName] = value;
+        } else if (!resolved && t.isArrayExpression(arg)) {
+          // Special error message for arrays with non-literal elements
+          throw new TransformError(
+            `Array argument for parameter '${paramName}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.`,
+            arg.loc,
+          );
         }
       }
     }
@@ -201,6 +208,12 @@ export function resolveFunctionCall(
             const value = extractLiteralValue(prop.value);
             if (value !== null) {
               argValues[key] = value;
+            } else if (t.isArrayExpression(prop.value)) {
+              // Special error message for arrays with non-literal elements
+              throw new TransformError(
+                `Array argument for parameter '${key}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.`,
+                prop.value.loc,
+              );
             }
           }
         }

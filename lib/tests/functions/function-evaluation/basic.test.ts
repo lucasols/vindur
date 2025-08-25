@@ -691,9 +691,9 @@ test('function with invalid array value', async () => {
       overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Array argument 'numArray' is undefined
+    [TransformError: /test.tsx: Array argument for parameter 'numArray' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.
     loc: {
-      "column": 4,
+      "column": 15,
       "filename": undefined,
       "line": 5,
     }]
