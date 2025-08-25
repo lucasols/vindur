@@ -1,8 +1,6 @@
-# CLAUDE.md
+This file provides guidance to Code Agents when working with code in this repository.
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Structure
+# Project Structure
 
 This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-JS library focused on performance. The project is organized into:
 
@@ -10,16 +8,16 @@ This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-
 - `app-test/` - React test application using Vite for development and testing
 - `notes/spec.md` - Feature specifications and roadmap
 
-## Running ts code
+# Running ts code
 
 The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
 
-## Development Commands
+# Development Commands
 
 **Important:** Use `pnpm` only, never `npx`.
 DO NOT USE `npx` to run commands, NEVER.
 
-### From Root
+## From Root
 
 ```bash
 pnpm test-all        # Run tests for all packages
@@ -28,7 +26,7 @@ pnpm lint-all        # Run eslint + tsc in all packages
 pnpm tsc-all         # TypeScript compilation check in all packages
 ```
 
-### Library (lib/)
+## Library (lib/)
 
 ```bash
 cd lib
@@ -39,7 +37,7 @@ pnpm tsc             # TypeScript compilation check
 pnpm build           # Build library
 ```
 
-### Vite Plugin (vite-plugin/)
+## Vite Plugin (vite-plugin/)
 
 ```bash
 cd vite-plugin
@@ -49,7 +47,7 @@ pnpm tsc             # TypeScript compilation check
 pnpm build           # Build plugin
 ```
 
-### E2E Tests (e2e-tests/)
+## E2E Tests (e2e-tests/)
 
 ```bash
 cd e2e-tests
@@ -59,9 +57,9 @@ pnpm lint            # TypeScript + ESLint
 pnpm tsc             # TypeScript compilation check
 ```
 
-## Architecture
+# Architecture
 
-### Core Transform Logic
+## Core Transform Logic
 
 The library centers around a Babel-based transform function in `lib/src/transform.ts` that:
 
@@ -69,14 +67,14 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Generates hashed class names
 - Returns both transformed JavaScript and extracted CSS
 
-### Build System
+## Build System
 
 - **tsup** for library building (ESM + CJS outputs)
 - **Vite** for test app development
 - **ESLint** with TypeScript integration
 - **pnpm** workspaces for monorepo management
 
-### Key Features (Planned)
+## Key Features (Planned)
 
 - `css` function for template literal styles
 - `styled.*` component functions
@@ -85,25 +83,25 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - JSX `cx` and `css` props
 - Global styles and media queries
 
-## Code Style Guidelines
+# Code Style Guidelines
 
 - Use types instead of interfaces
 
-## Plugin error handling
+# Plugin error handling
 
 - The plugin should be strict about errors in transform process, using the 'Fail Fast' approach, it should either be 100% successful or fail if a error or unexpected behavior, or unhandled case occurs, no fallback values or partial results should be returned. Only use warnings for optimization suggestions or such as removing unused code, etc.
 
 - Transform errors should use `TransformError` class, with properly set `loc` and `message`
 - IMPORTANT: Do not throw TransformError without a proper location! If is not possible to provide the exact error location, use the nearest available location.
 
-## Typesafety
+# Typesafety
 
 - Do not use `any`
 - Do not use `as Type` casts, except for `as const`
 - Do not use non-null assertions (`!`)
 - Avoid using optional parameters, use default values or `| undefined` instead
 
-## Code Organization
+# Code Organization
 
 - Abstract redundant types into a single type
 - Abstract redundant code into a single function
@@ -113,7 +111,7 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Do not use barrel files
 - NEVER use re-exports
 
-## Testing
+# Testing
 
 Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
 
@@ -163,7 +161,7 @@ pnpm test [...args]
 
 IMPORTANT: Playwright tests already have a 10s timeout configured
 
-### E2E Test Structure
+# E2E Test Structure
 
 E2E tests follow a consistent pattern for performance and maintainability:
 
@@ -208,7 +206,11 @@ test('should test feature A', async () => {
 });
 ```
 
-# transform tests
+## Debugging
+
+- The `test-results` and `test-runs` are auto generated directories from the `./tests` directory. Focus on the code inside `tests` to find bugs and issues.
+
+# Transform tests
 
 Tests for transform function should follow this structure:
 
@@ -238,9 +240,9 @@ test('should handle ...', async () => {
 });
 ```
 
-## Documentation Guidelines
+# Documentation
 
-### README.md
+## README.md
 
 The README.md serves as the main user documentation and should:
 
@@ -249,14 +251,14 @@ The README.md serves as the main user documentation and should:
 - **Use correct syntax** - ensure all examples use supported language features
 - Be concise and to the point, do not include unnecessary details or redundant information
 
-### ROADMAP.md
+## ROADMAP.md
 
 The ROADMAP.md tracks feature development:
 
 - **Use checkboxes** - `[x]` for completed, `[ ]` for planned
 - **Status indicators** - ✅ (completed), 🚧 (in progress), 🔮 (future)
 
-### Documentation Updates
+## Documentation Updates
 
 When implementing features:
 
