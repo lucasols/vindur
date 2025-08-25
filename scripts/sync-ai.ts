@@ -1,36 +1,30 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
+#!/usr/bin/env node
 
-const CLAUDE_MD_PATH = join(process.cwd(), 'CLAUDE.md');
-const GLOBAL_MDC_PATH = join(process.cwd(), '.cursor/rules/global.mdc');
+import { readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
-function syncAI() {
-  try {
-    const claudeContent = readFileSync(CLAUDE_MD_PATH, 'utf-8');
+const projectRoot = join(import.meta.dirname, '..');
+const claudeMdPath = join(projectRoot, 'CLAUDE.md');
+const cursorRulesPath = join(projectRoot, '.cursor/rules/global.mdc');
+const agentsMdPath = join(projectRoot, 'AGENTS.md');
 
-    // Add a header indicating this is generated from CLAUDE.md
-    const globalMdc = `---
+const globalHeader = `---
+description:
+globs:
 alwaysApply: true
 ---
+`;
 
-${claudeContent.replace(
-  `# CLAUDE.md
+try {
+  const claudeMdContent = readFileSync(claudeMdPath, 'utf-8');
+  const fullContent = globalHeader + claudeMdContent;
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.`,
-  '',
-)}`;
+  writeFileSync(cursorRulesPath, fullContent, 'utf-8');
+  writeFileSync(agentsMdPath, claudeMdContent, 'utf-8');
 
-    // Ensure the directory exists
-    mkdirSync(dirname(GLOBAL_MDC_PATH), { recursive: true });
-
-    writeFileSync(GLOBAL_MDC_PATH, globalMdc, 'utf-8');
-    console.log(
-      '✅ Synced AI guidelines to .cursor/rules/global.mdc successfully',
-    );
-  } catch (error) {
-    console.error('❌ Error syncing AI guidelines:', error);
-    process.exit(1);
-  }
+  console.info(' Successfully synced CLAUDE.md to .cursor/rules/global.mdc');
+  console.info(' Successfully synced CLAUDE.md to AGENTS.md');
+} catch (error) {
+  console.error('L Error syncing files:', error);
+  process.exit(1);
 }
-
-syncAI();
