@@ -51,6 +51,7 @@ export async function transformWithFormat({
 }: {
   source: string;
   overrideDefaultFs?: TransformFS;
+  /** @default false */
   production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
 }) {
