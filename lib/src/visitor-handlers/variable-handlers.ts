@@ -52,7 +52,7 @@ export function handleLocalVindurFnError(
   throw new TransformError(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,
-    path.node.loc,
+    notNullish(path.node.loc),
     handlerContext.filePath,
   );
 }
@@ -145,7 +145,7 @@ function parseStyledElementTag(tag: t.Expression): StyledElementInfo | null {
     } else {
       throw new TransformError(
         'styled.*.attrs() must be called with exactly one object literal argument',
-        tag.loc,
+        notNullish(tag.loc),
       );
     }
   }
@@ -390,7 +390,7 @@ export function handleStyledExtensionAssignment(
     if (!t.isIdentifier(tag.arguments[0])) {
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-        tag.loc,
+        notNullish(tag.loc),
       );
     }
     extendedArg = tag.arguments[0];
@@ -408,7 +408,7 @@ export function handleStyledExtensionAssignment(
     if (!t.isIdentifier(tag.callee.object.arguments[0])) {
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
-        tag.loc,
+        notNullish(tag.loc),
       );
     }
     extendedArg = tag.callee.object.arguments[0];
@@ -519,7 +519,7 @@ function validateExtendedComponent(
     if (!CAMEL_CASE_REGEX.test(extendedName)) {
       throw new TransformError(
         `Cannot extend "${extendedName}": component names must start with an uppercase letter (CamelCase).`,
-        extendedArgLoc,
+        notNullish(extendedArgLoc),
       );
     }
 
@@ -537,7 +537,7 @@ function validateExtendedComponent(
       ) {
         throw new TransformError(
           `Cannot extend "${extendedName}": it is not a component or styled component.`,
-          extendedArgLoc,
+          notNullish(extendedArgLoc),
         );
       }
     }

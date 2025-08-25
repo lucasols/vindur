@@ -1,5 +1,6 @@
 import type { PluginObj } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { DebugLogger, FunctionCache } from './babel-plugin';
 import { parseFunction } from './function-parser';
 import { TransformError } from './custom-errors';
@@ -43,7 +44,7 @@ export function createExtractVindurFunctionsPlugin(
               } else {
                 throw new TransformError(
                   `vindurFn must be called with a function expression, got ${typeof arg} in function "${declarator.id.name}"`,
-                  declarator.loc,
+                  notNullish(declarator.loc),
                 );
               }
             }

@@ -538,7 +538,7 @@ describe('Style Flags Transform Logic', () => {
             \`;
           `,
         }),
-      ).rejects.toThrow(
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
         'Style flags only support boolean properties and string literal unions. Property "count" has type "number".',
       );
     });

@@ -1,5 +1,6 @@
 import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
 import { generate } from '@babel/generator';
 import { filterWithNarrowing, findWithNarrowing } from '../utils';
@@ -37,7 +38,7 @@ function validateDynamicColorExpression(expression: t.Expression): void {
     }
     throw new TransformError(
       `Conditional dynamicColor is not supported. Use condition inside the set function instead: ${suggestedFix}`,
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 }
@@ -59,7 +60,7 @@ function handleCallExpression(
     if (!dynamicColorId) {
       throw new TransformError(
         `Unknown dynamic color variable "${colorName}"`,
-        expr.callee.loc,
+        notNullish(expr.callee.loc),
       );
     }
 
@@ -67,7 +68,7 @@ function handleCallExpression(
     if (!colorArg || !t.isExpression(colorArg)) {
       throw new TransformError(
         'color.set() must have a valid color argument',
-        expr.loc,
+        notNullish(expr.loc),
       );
     }
 
@@ -105,7 +106,7 @@ export function handleJsxDynamicColorProp(
   ) {
     throw new TransformError(
       'dynamicColor prop must have a value',
-      dynamicColorAttr.loc,
+      notNullish(dynamicColorAttr.loc),
     );
   }
 
@@ -113,7 +114,7 @@ export function handleJsxDynamicColorProp(
   if (!t.isExpression(expr)) {
     throw new TransformError(
       'dynamicColor expression must be a valid expression',
-      dynamicColorAttr.value.loc || dynamicColorAttr.loc,
+      notNullish(dynamicColorAttr.value.loc || dynamicColorAttr.loc),
     );
   }
 
@@ -134,7 +135,7 @@ export function handleJsxDynamicColorProp(
     if (!dynamicColorId) {
       throw new TransformError(
         `Unknown dynamic color variable "${expression.name}"`,
-        expression.loc,
+        notNullish(expression.loc),
       );
     }
 
@@ -490,7 +491,7 @@ export function handleJsxDynamicColorProp(
   } else {
     throw new TransformError(
       'dynamicColor prop must be a single identifier or array of identifiers',
-      expr.loc,
+      notNullish(expr.loc),
     );
   }
 

@@ -20,7 +20,7 @@ describe('JSX cx prop transformation', () => {
             }
           `,
         }),
-      ).rejects.toThrow(
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
         'cx prop is not supported on custom component "CustomComponent". The cx prop only works on native DOM elements (like div, span, button) and styled components.',
       );
     });
@@ -36,7 +36,9 @@ describe('JSX cx prop transformation', () => {
             }
           `,
         }),
-      ).rejects.toThrow('cx prop only accepts object expressions');
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
+        'cx prop only accepts object expressions',
+      );
     });
 
     test('should throw error for computed properties', async () => {
@@ -52,7 +54,7 @@ describe('JSX cx prop transformation', () => {
             }
           `,
         }),
-      ).rejects.toThrow(
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
         'cx prop object must only contain non-computed properties',
       );
     });

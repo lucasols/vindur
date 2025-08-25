@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { CssProcessingContext } from '../css-processing';
 import { TransformError } from '../custom-errors';
 import { findWithNarrowing } from '../utils';
@@ -116,28 +117,28 @@ export function resolveDynamicColorCallExpression(
         if (value === undefined)
           throw new TransformError(
             `Method ${method} requires a numeric argument`,
-            callExpr.loc,
+            notNullish(callExpr.loc),
           );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${value * 100}%, transparent)`;
       case 'darker':
         if (value === undefined)
           throw new TransformError(
             `Method ${method} requires a numeric argument`,
-            callExpr.loc,
+            notNullish(callExpr.loc),
           );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #000)`;
       case 'lighter':
         if (value === undefined)
           throw new TransformError(
             `Method ${method} requires a numeric argument`,
-            callExpr.loc,
+            notNullish(callExpr.loc),
           );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, #fff)`;
       case 'saturatedDarker':
         if (value === undefined)
           throw new TransformError(
             `Method ${method} requires a numeric argument`,
-            callExpr.loc,
+            notNullish(callExpr.loc),
           );
         return `color-mix(in srgb, var(--${dynamicColorId}) ${(1 - value) * 100}%, hsl(from var(--${dynamicColorId}) h 100% 20%))`;
       default:
@@ -154,7 +155,7 @@ export function resolveDynamicColorCallExpression(
           if (value === undefined)
             throw new TransformError(
               `Method ${method} requires a numeric argument`,
-              callExpr.loc,
+              notNullish(callExpr.loc),
             );
           return `color-mix(in srgb, var(--${dynamicColorId}-c) ${value * 100}%, transparent)`;
         case 'optimal':

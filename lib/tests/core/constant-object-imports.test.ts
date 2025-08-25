@@ -342,8 +342,15 @@ describe('constant object imports', () => {
           `,
         }),
       }),
-    ).rejects.toThrow(
-      'Nested property access is not supported, only one level property access is allowed',
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${theme.colors.primary}
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -371,8 +378,15 @@ describe('constant object imports', () => {
           `,
         }),
       }),
-    ).rejects.toThrow(
-      'Nested property access is not supported, only one level property access is allowed',
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${config.theme.spacing.large}
+      loc: {
+        "column": 12,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -398,8 +412,15 @@ describe('constant object imports', () => {
           `,
         }),
       }),
-    ).rejects.toThrow(
-      'Nested property access is not supported, only one level property access is allowed',
+    ).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... Button = styled\` ... \${theme.colors.primary}
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 });

@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { OutputQuasi, TernaryConditionValue } from './types';
 import { TransformError } from './custom-errors';
 
@@ -103,7 +104,7 @@ export function evaluateQuasi(
   } else if (quasi.type === 'template') {
     return evaluateTemplateQuasi(quasi, args, callLoc);
   } else if (quasi.type === 'binary') {
-    return evaluateBinaryQuasi(quasi, args);
+    return evaluateBinaryQuasi(quasi, args, callLoc);
   } else if (quasi.type === 'arrayMethod') {
     return evaluateArrayMethodQuasi(quasi, args, callLoc);
   } else if (quasi.type === 'arrayMap') {
@@ -131,7 +132,10 @@ function evaluateArgQuasi(
 ): string {
   const argValue = args[quasi.name];
   if (argValue === undefined) {
-    throw new TransformError(`Argument '${quasi.name}' is undefined`, callLoc);
+    throw new TransformError(
+      `Argument '${quasi.name}' is undefined`,
+      notNullish(callLoc),
+    );
   }
   return String(argValue);
 }
@@ -162,6 +166,7 @@ function evaluateBinaryQuasi(
     string,
     string | number | boolean | (string | number)[] | undefined
   >,
+  callLoc?: t.SourceLocation | null,
 ): string {
   const leftValue =
     quasi.left.type === 'arg' ? args[quasi.left.name]
@@ -177,7 +182,7 @@ function evaluateBinaryQuasi(
     const leftName = quasi.left.type === 'arg' ? quasi.left.name : 'literal';
     throw new TransformError(
       `Binary expression evaluation failed: left operand '${leftName}' is undefined`,
-      null,
+      notNullish(callLoc),
     );
   }
 
@@ -186,7 +191,7 @@ function evaluateBinaryQuasi(
     const rightName = quasi.right.type === 'arg' ? quasi.right.name : 'literal';
     throw new TransformError(
       `Binary expression evaluation failed: right operand '${rightName}' is undefined`,
-      null,
+      notNullish(callLoc),
     );
   }
 
@@ -194,7 +199,7 @@ function evaluateBinaryQuasi(
   if (typeof leftValue !== 'number' || typeof rightValue !== 'number') {
     throw new TransformError(
       `Binary expression evaluation failed: operands must be numbers`,
-      null,
+      notNullish(callLoc),
     );
   }
 
@@ -213,7 +218,7 @@ function evaluateBinaryQuasi(
       if (rightValue === 0) {
         throw new TransformError(
           `Binary expression evaluation failed: division by zero`,
-          null,
+          notNullish(callLoc),
         );
       }
       result = leftValue / rightValue;
@@ -221,7 +226,7 @@ function evaluateBinaryQuasi(
     default:
       throw new TransformError(
         `Binary expression evaluation failed: unsupported operator '${String(quasi.operator)}'`,
-        null,
+        notNullish(callLoc),
       );
   }
   return result.toString();
@@ -244,13 +249,13 @@ function evaluateArrayMethodQuasi(
   if (argValue === undefined) {
     throw new TransformError(
       `Array argument '${quasi.arg}' is undefined`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
   if (!Array.isArray(argValue)) {
     throw new TransformError(
       `Argument '${quasi.arg}' is not an array, cannot call ${quasi.method}()`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
 
@@ -275,13 +280,13 @@ function evaluateArrayMapQuasi(
   if (argValue === undefined) {
     throw new TransformError(
       `Array argument '${quasi.arg}' is undefined`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
   if (!Array.isArray(argValue)) {
     throw new TransformError(
       `Argument '${quasi.arg}' is not an array, cannot call map()`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
 
@@ -315,13 +320,13 @@ function evaluateMapJoinQuasi(
   if (argValue === undefined) {
     throw new TransformError(
       `Array argument '${quasi.arg}' is undefined`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
   if (!Array.isArray(argValue)) {
     throw new TransformError(
       `Argument '${quasi.arg}' is not an array, cannot call map().join()`,
-      callLoc,
+      notNullish(callLoc),
     );
   }
 

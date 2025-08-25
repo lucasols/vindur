@@ -1,5 +1,6 @@
 import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { extractLiteralValue } from '../ast-utils';
 import { createVindurPlugin } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
@@ -256,7 +257,7 @@ export function resolveImportedConstant(
     }
     throw new TransformError(
       `Failed to load constant "${constantName}" from ${constantFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
     );
   }
 }
@@ -290,7 +291,7 @@ export function resolveImportedThemeColors(
     }
     throw new TransformError(
       `Failed to load theme colors "${themeColorsName}" from ${themeColorsFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
     );
   }
 }

@@ -32,7 +32,14 @@ describe('Binary Expression Error Handling', () => {
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      "Binary expression evaluation failed: left operand 'multiplier' is undefined",
+      `
+      [TransformError: /main.ts: Binary expression evaluation failed: left operand 'multiplier' is undefined
+      loc: {
+        "column": 20,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 
@@ -65,7 +72,14 @@ describe('Binary Expression Error Handling', () => {
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      'Binary expression evaluation failed: operands must be numbers',
+      `
+      [TransformError: /main.ts: Binary expression evaluation failed: operands must be numbers
+      loc: {
+        "column": 20,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 
@@ -98,7 +112,14 @@ describe('Binary Expression Error Handling', () => {
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      'Binary expression evaluation failed: division by zero',
+      `
+      [TransformError: /main.ts: Binary expression evaluation failed: division by zero
+      loc: {
+        "column": 20,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 });

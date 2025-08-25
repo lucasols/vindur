@@ -804,7 +804,9 @@ describe('createStaticThemeColors', () => {
           })
         `;
 
-        await expect(transformWithFormat({ source })).rejects.toThrow(
+        await expect(
+          transformWithFormat({ source }),
+        ).rejects.toThrowErrorMatchingInlineSnapshot(
           `Invalid color "${color}" for "invalid". Theme colors must be valid hex colors without alpha`,
         );
       }

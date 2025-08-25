@@ -1,5 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { VindurPluginState } from '../babel-plugin';
 import { TransformError } from '../custom-errors';
 import { findWithNarrowing } from '../utils';
@@ -96,7 +97,7 @@ function validateElementType(
     if (cxAttr) {
       throw new TransformError(
         `cx prop is not supported on custom component "${elementName}". The cx prop only works on native DOM elements (like div, span, button) and styled components.`,
-        null,
+        notNullish(path.node.loc),
       );
     }
   }
@@ -171,7 +172,7 @@ function validateDollarPrefixRequirement(cxAttr: t.JSXAttribute): void {
   if (!cxAttr.value || !t.isJSXExpressionContainer(cxAttr.value)) {
     throw new TransformError(
       'cx prop must be an expression container with an object',
-      cxAttr.loc,
+      notNullish(cxAttr.loc),
     );
   }
 
@@ -179,7 +180,7 @@ function validateDollarPrefixRequirement(cxAttr: t.JSXAttribute): void {
   if (!t.isObjectExpression(expression)) {
     throw new TransformError(
       'cx prop only accepts object expressions',
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 
@@ -203,7 +204,7 @@ function validateDollarPrefixRequirement(cxAttr: t.JSXAttribute): void {
   if (hasNonDollarPrefixedClasses) {
     throw new TransformError(
       "cx prop on plain DOM elements requires classes to use $ prefix (e.g., $className) when not used with css prop or styled components. This ensures you're referencing external CSS classes.",
-      cxAttr.loc,
+      notNullish(cxAttr.loc),
     );
   }
 }
@@ -212,13 +213,16 @@ function validateAndExtractCxExpression(
   cxAttr: t.JSXAttribute,
 ): t.ObjectExpression {
   if (!cxAttr.value) {
-    throw new TransformError('cx prop must have a value', cxAttr.loc);
+    throw new TransformError(
+      'cx prop must have a value',
+      notNullish(cxAttr.loc),
+    );
   }
 
   if (!t.isJSXExpressionContainer(cxAttr.value)) {
     throw new TransformError(
       'cx prop must be an expression container with an object',
-      cxAttr.loc,
+      notNullish(cxAttr.loc),
     );
   }
 
@@ -226,7 +230,7 @@ function validateAndExtractCxExpression(
   if (!t.isObjectExpression(expression)) {
     throw new TransformError(
       'cx prop only accepts object expressions',
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 
@@ -258,7 +262,7 @@ function processCxObjectExpression(
     if (!t.isObjectProperty(prop) || prop.computed) {
       throw new TransformError(
         'cx prop object must only contain non-computed properties',
-        prop.loc,
+        notNullish(prop.loc),
       );
     }
 
@@ -270,7 +274,7 @@ function processCxObjectExpression(
     } else {
       throw new TransformError(
         'cx prop object keys must be strings or identifiers',
-        prop.loc,
+        notNullish(prop.loc),
       );
     }
 

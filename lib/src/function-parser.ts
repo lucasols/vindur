@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { extractLiteralValue, getLiteralValueType } from './ast-utils';
 import { parseTemplateLiteral } from './function-parser-quasi';
 import type { CompiledFunction, FunctionArg, OutputQuasi } from './types';
@@ -16,7 +17,7 @@ export function parseFunction(
   if (fnExpression.async) {
     throw new TransformError(
       `vindurFn "${name}" cannot be async - functions must be synchronous for compile-time evaluation`,
-      fnExpression.loc,
+      notNullish(fnExpression.loc),
       filename,
     );
   }
@@ -25,7 +26,7 @@ export function parseFunction(
   if (fnExpression.generator) {
     throw new TransformError(
       `vindurFn "${name}" cannot be a generator function - functions must return simple template strings`,
-      fnExpression.loc,
+      notNullish(fnExpression.loc),
       filename,
     );
   }
@@ -147,7 +148,7 @@ function parseTemplateOutput(
     if (statements.length !== 1) {
       throw new TransformError(
         `vindurFn "${functionName}" body is too complex - functions must contain only a single return statement or be arrow functions with template literals`,
-        body.loc,
+        notNullish(body.loc),
         filename,
       );
     }
@@ -156,7 +157,7 @@ function parseTemplateOutput(
     if (!statement || !t.isReturnStatement(statement)) {
       throw new TransformError(
         `vindurFn "${functionName}" body must contain only a return statement`,
-        statement?.loc || body.loc,
+        notNullish(statement?.loc || body.loc),
         filename,
       );
     }
@@ -164,7 +165,7 @@ function parseTemplateOutput(
     if (!statement.argument) {
       throw new TransformError(
         `vindurFn "${functionName}" return statement must return a value`,
-        statement.loc,
+        notNullish(statement.loc),
         filename,
       );
     }
@@ -183,20 +184,20 @@ function parseTemplateOutput(
       // Function calls in return position are not allowed
       throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-        statement.argument.loc,
+        notNullish(statement.argument.loc),
         filename,
       );
     } else if (t.isMemberExpression(statement.argument)) {
       // Member expressions suggest external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-        statement.argument.loc,
+        notNullish(statement.argument.loc),
         filename,
       );
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" must return a template literal or string literal, got ${statement.argument.type}`,
-        statement.argument.loc,
+        notNullish(statement.argument.loc),
         filename,
       );
     }
@@ -204,20 +205,20 @@ function parseTemplateOutput(
     // Function calls in return position are not allowed
     throw new TransformError(
       `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-      body.loc,
+      notNullish(body.loc),
       filename,
     );
   } else if (t.isMemberExpression(body)) {
     // Member expressions suggest external dependencies
     throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-      body.loc,
+      notNullish(body.loc),
       filename,
     );
   } else {
     throw new TransformError(
       `vindurFn "${functionName}" must return a template literal or string literal, got ${body.type}`,
-      body.loc,
+      notNullish(body.loc),
       filename,
     );
   }

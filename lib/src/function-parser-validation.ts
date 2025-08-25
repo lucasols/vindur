@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { TransformError } from './custom-errors';
 
 export function validateTemplateExpressionDuringParsing(
@@ -22,7 +23,7 @@ export function validateTemplateExpressionDuringParsing(
       ) {
         throw new TransformError(
           `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-          expr.loc,
+          notNullish(expr.loc),
         );
       }
       return;
@@ -78,18 +79,18 @@ export function validateTemplateExpressionDuringParsing(
       // Function calls are not allowed - suggests external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     } else if (t.isMemberExpression(expr)) {
       // Member expressions suggest external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     }
   }
@@ -110,7 +111,7 @@ export function validateFunctionExpressionStructure(
     ) {
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     }
   } else if (t.isConditionalExpression(expr)) {
@@ -169,18 +170,18 @@ export function validateFunctionExpressionStructure(
       // Function calls are not allowed - suggests external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     } else if (t.isMemberExpression(expr)) {
       // Member expressions suggest external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" contains unsupported expression type: ${expr.type}`,
-        expr.loc,
+        notNullish(expr.loc),
       );
     }
   }

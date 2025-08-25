@@ -1,5 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { extractArgumentValue, extractLiteralValue } from '../ast-utils';
 import type { CssProcessingContext } from '../css-processing';
 import { TransformError } from '../custom-errors';
@@ -175,13 +176,13 @@ export function resolveFunctionCall(
           // Special error message for arrays with non-literal elements
           throw new TransformError(
             `Array argument for parameter '${paramName}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.`,
-            arg.loc,
+            notNullish(arg.loc),
           );
         } else if (!resolved) {
           // Strict error handling: fail for ANY unresolvable argument
           throw new TransformError(
             `Argument for parameter '${paramName}' cannot be statically analyzed. vindurFn arguments must be literal values or resolvable constants.`,
-            arg.loc,
+            notNullish(arg.loc),
           );
         }
       }
@@ -218,13 +219,13 @@ export function resolveFunctionCall(
               // Special error message for arrays with non-literal elements
               throw new TransformError(
                 `Array argument for parameter '${key}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.`,
-                prop.value.loc,
+                notNullish(prop.value.loc),
               );
             } else {
               // Strict error handling: fail for ANY unresolvable argument
               throw new TransformError(
                 `Argument for parameter '${key}' cannot be statically analyzed. vindurFn arguments must be literal values or resolvable constants.`,
-                prop.value.loc,
+                notNullish(prop.value.loc),
               );
             }
           }

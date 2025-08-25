@@ -1,5 +1,6 @@
 import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
 import { generate } from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
@@ -87,7 +88,7 @@ function handleJsxClassNameMerging(
       const expressionCode = generate(attr.argument).code;
       throw new TransformError(
         `Unsupported spread expression "${expressionCode}" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.`,
-        attr.loc,
+        notNullish(attr.loc),
       );
     }
   }

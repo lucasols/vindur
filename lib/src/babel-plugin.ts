@@ -1,6 +1,7 @@
 import type { PluginObj } from '@babel/core';
 import * as babel from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
@@ -135,13 +136,13 @@ function loadExternalFunction(
     if (fileContent.includes(`export const ${functionName}`)) {
       throw new TransformError(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
-        callLoc,
+        notNullish(callLoc),
         filePath,
       );
     } else {
       throw new TransformError(
         `Function "${functionName}" not found in ${filePath}`,
-        callLoc,
+        notNullish(callLoc),
         filePath,
       );
     }
@@ -293,7 +294,7 @@ export function createVindurPlugin(
               compiledFunctions,
               state.styleDependencies,
               debugArg,
-              callLoc,
+              notNullish(callLoc),
             );
           };
         }
@@ -377,7 +378,7 @@ export function createVindurPlugin(
               compiledFunctions,
               state.styleDependencies,
               debugArg,
-              callLoc,
+              notNullish(callLoc),
             );
           };
         }

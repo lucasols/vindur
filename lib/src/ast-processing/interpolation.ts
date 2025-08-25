@@ -1,5 +1,6 @@
 import { types as t } from '@babel/core';
 import { generate } from '@babel/generator';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { extractLiteralValue, isLiteralExpression } from '../ast-utils';
 import type { CssProcessingContext } from '../css-processing';
 import {
@@ -60,7 +61,7 @@ function processIdentifierExpression(
     variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new TransformError(
     `Invalid interpolation used at \`${varContext}\` ... \${${expression.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported`,
-    expression.loc,
+    notNullish(expression.loc),
   );
 }
 
@@ -94,7 +95,7 @@ function resolveImportedIdentifier(
   if (importedFilePath) {
     throw new TransformError(
       `Function "${name}" not found in ${importedFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
       importedFilePath,
     );
   }
@@ -119,7 +120,7 @@ function processArrowFunctionExpression(
       variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new TransformError(
       `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 }
@@ -158,7 +159,7 @@ function processCallExpression(
     variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new TransformError(
     `Unresolved function call at \`${varContext}\` ... \${${expressionSource}}, function must be statically analyzable and correctly imported with the configured aliases`,
-    expression.loc,
+    notNullish(expression.loc),
   );
 }
 
@@ -177,7 +178,7 @@ function processBinaryExpression(
       variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new TransformError(
       `Unresolved binary expression at \`${varContext}\` ... \${${expressionSource}}, only simple arithmetic with constants is supported`,
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 }
@@ -272,7 +273,7 @@ function processMemberExpression(
         variableName ? `... ${variableName} = ${tagType}` : tagType;
       throw new TransformError(
         `Nested property access is not supported, only one level property access is allowed at \`${varContext}\` ... \${${expressionSource}}`,
-        expression.loc,
+        notNullish(expression.loc),
       );
     }
 
@@ -285,7 +286,7 @@ function processMemberExpression(
         objectName,
         propertyName,
         context,
-        expression.loc,
+        notNullish(expression.loc),
       );
       if (objectPropertyValue !== null) {
         return String(objectPropertyValue);
@@ -298,7 +299,7 @@ function processMemberExpression(
     variableName ? `... ${variableName} = ${tagType}` : tagType;
   throw new TransformError(
     `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-    expression.loc,
+    notNullish(expression.loc),
   );
 }
 
@@ -359,7 +360,7 @@ export function processInterpolationExpression(
       variableName ? `... ${variableName} = ${tagType}` : tagType;
     throw new TransformError(
       `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-      expression.loc,
+      notNullish(expression.loc),
     );
   }
 }
@@ -442,7 +443,7 @@ function resolveLayerCall(
   if (!layerArg || !t.isStringLiteral(layerArg)) {
     throw new TransformError(
       'layer() must be called with a string literal layer name',
-      layerArg?.loc || null,
+      notNullish(layerArg?.loc || context.path.node.loc),
     );
   }
 
@@ -482,7 +483,7 @@ function resolveImportedKeyframes(
     }
     throw new TransformError(
       `Failed to load keyframes "${keyframesName}" from ${keyframesFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
     );
   }
 }
@@ -516,7 +517,7 @@ function resolveImportedCss(
     }
     throw new TransformError(
       `Failed to load CSS "${cssName}" from ${cssFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
     );
   }
 }
@@ -550,7 +551,7 @@ function resolveImportedConstantLocal(
     }
     throw new TransformError(
       `Failed to load constant "${constantName}" from ${constantFilePath}`,
-      null,
+      notNullish(context.path.node.loc),
     );
   }
 }
@@ -590,7 +591,7 @@ function resolveImportedObjectProperty(
     }
     throw new TransformError(
       `Failed to load object "${objectName}" from ${objectFilePath}`,
-      loc,
+      notNullish(loc),
     );
   }
 }

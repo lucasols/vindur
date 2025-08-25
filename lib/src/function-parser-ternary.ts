@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { TernaryConditionValue } from './types';
 import { isValidComparisonOperator } from './function-parser.type-guards';
 import { TransformError } from './custom-errors';
@@ -19,7 +20,7 @@ export function parseTernaryCondition(
     if (!t.isExpression(test.left) || !t.isExpression(test.right)) {
       throw new TransformError(
         `vindurFn "${functionName}" contains invalid binary expression in ternary condition`,
-        test.loc,
+        notNullish(test.loc),
         filename,
       );
     }
@@ -43,7 +44,7 @@ export function parseTernaryCondition(
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" contains unsupported comparison operator "${operator}" - only ===, !==, >, <, >=, <= are supported`,
-        test.loc,
+        notNullish(test.loc),
         filename,
       );
     }
@@ -58,7 +59,7 @@ export function parseTernaryCondition(
     ) {
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${test.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-        test.loc,
+        notNullish(test.loc),
         filename,
       );
     }
@@ -84,7 +85,7 @@ export function parseTernaryCondition(
       if (validParameterNames && !validParameterNames.has(argName)) {
         throw new TransformError(
           `Invalid argument in Array.isArray() call: "${argName}" is not a valid parameter`,
-          test.loc,
+          notNullish(test.loc),
           filename,
         );
       }
@@ -97,7 +98,7 @@ export function parseTernaryCondition(
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" contains unsupported function call in ternary condition - only Array.isArray() is supported`,
-        test.loc,
+        notNullish(test.loc),
         filename,
       );
     }
@@ -105,7 +106,7 @@ export function parseTernaryCondition(
 
   throw new TransformError(
     `vindurFn "${functionName}" contains unsupported ternary condition type: ${test.type}`,
-    test.loc,
+    notNullish(test.loc),
     filename,
   );
 }
@@ -126,7 +127,7 @@ export function parseConditionValue(
     ) {
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-        expr.loc,
+        notNullish(expr.loc),
         filename,
       );
     }
@@ -141,21 +142,21 @@ export function parseConditionValue(
     // Function calls are not allowed
     throw new TransformError(
       `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-      expr.loc,
+      notNullish(expr.loc),
       filename,
     );
   } else if (t.isMemberExpression(expr)) {
     // Member expressions suggest external dependencies
     throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-      expr.loc,
+      notNullish(expr.loc),
       filename,
     );
   }
 
   throw new TransformError(
     `vindurFn "${functionName}" contains unsupported condition value type: ${expr.type}`,
-    expr.loc,
+    notNullish(expr.loc),
     filename,
   );
 }

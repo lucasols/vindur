@@ -1,4 +1,5 @@
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { OutputQuasi } from './types';
 import { parseTernaryCondition } from './function-parser-ternary';
 import { parseBinaryExpression } from './function-parser-binary';
@@ -24,7 +25,7 @@ export function parseQuasiFromExpression(
     ) {
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
-        expr.loc,
+        notNullish(expr.loc),
         filename,
       );
     }
@@ -96,7 +97,7 @@ export function parseQuasiFromExpression(
       } else {
         throw new TransformError(
           `vindurFn "${functionName}" contains unsupported array method "${methodName}" - only .map() and .join() are supported`,
-          expr.loc,
+          notNullish(expr.loc),
           filename,
         );
       }
@@ -104,7 +105,7 @@ export function parseQuasiFromExpression(
       // Other function calls are not allowed
       throw new TransformError(
         `vindurFn "${functionName}" contains unsupported function calls - only array methods like .map() and .join() are supported`,
-        expr.loc,
+        notNullish(expr.loc),
         filename,
       );
     }
@@ -112,14 +113,14 @@ export function parseQuasiFromExpression(
     // Member expressions suggest external dependencies
     throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
-      expr.loc,
+      notNullish(expr.loc),
       filename,
     );
   }
 
   throw new TransformError(
     `vindurFn "${functionName}" contains unsupported expression type in ternary: ${expr.type}`,
-    expr.loc,
+    notNullish(expr.loc),
     filename,
   );
 }
@@ -164,7 +165,11 @@ function parseJoinCall(
     !t.isMemberExpression(expr.callee)
     || !t.isIdentifier(expr.callee.property)
   ) {
-    throw new TransformError(`Invalid join call structure`, expr.loc, filename);
+    throw new TransformError(
+      `Invalid join call structure`,
+      notNullish(expr.loc),
+      filename,
+    );
   }
 
   // Extract separator argument (default to comma)
@@ -174,7 +179,7 @@ function parseJoinCall(
   } else if (expr.arguments.length > 1) {
     throw new TransformError(
       `Array.join() method only supports a single string argument`,
-      expr.loc,
+      notNullish(expr.loc),
       filename,
     );
   }
@@ -187,7 +192,7 @@ function parseJoinCall(
     if (validParameterNames && !validParameterNames.has(argName)) {
       throw new TransformError(
         `Invalid object in method call: "${argName}" is not a valid parameter`,
-        expr.loc,
+        notNullish(expr.loc),
         filename,
       );
     }
@@ -216,7 +221,7 @@ function parseJoinCall(
       if (validParameterNames && !validParameterNames.has(argName)) {
         throw new TransformError(
           `Invalid object in chained method call: "${argName}" is not a valid parameter`,
-          expr.loc,
+          notNullish(expr.loc),
           filename,
         );
       }
@@ -236,7 +241,7 @@ function parseJoinCall(
 
   throw new TransformError(
     `Unsupported join call - can only call .join() on array parameters or .map() results`,
-    expr.loc,
+    notNullish(expr.loc),
     filename,
   );
 }
@@ -251,7 +256,11 @@ function parseMapCall(
     !t.isMemberExpression(expr.callee)
     || !t.isIdentifier(expr.callee.object)
   ) {
-    throw new TransformError(`Invalid map call structure`, expr.loc, filename);
+    throw new TransformError(
+      `Invalid map call structure`,
+      notNullish(expr.loc),
+      filename,
+    );
   }
 
   const argName = expr.callee.object.name;
@@ -260,7 +269,7 @@ function parseMapCall(
   if (validParameterNames && !validParameterNames.has(argName)) {
     throw new TransformError(
       `Invalid object in method call: "${argName}" is not a valid parameter`,
-      expr.loc,
+      notNullish(expr.loc),
       filename,
     );
   }
@@ -285,7 +294,7 @@ function parseMapFunction(
   if (mapCall.arguments.length !== 1) {
     throw new TransformError(
       `Array.map() method requires exactly one argument`,
-      mapCall.loc,
+      notNullish(mapCall.loc),
       filename,
     );
   }
@@ -296,7 +305,7 @@ function parseMapFunction(
   if (!t.isArrowFunctionExpression(callback)) {
     throw new TransformError(
       `Array.map() callback must be an arrow function`,
-      callback?.loc || mapCall.loc,
+      notNullish(callback?.loc || mapCall.loc),
       filename,
     );
   }
@@ -305,7 +314,7 @@ function parseMapFunction(
   if (callback.params.length !== 1 || !t.isIdentifier(callback.params[0])) {
     throw new TransformError(
       `Array.map() callback must have exactly one parameter`,
-      callback.loc,
+      notNullish(callback.loc),
       filename,
     );
   }
@@ -316,7 +325,7 @@ function parseMapFunction(
   if (!t.isTemplateLiteral(callback.body)) {
     throw new TransformError(
       `Array.map() callback must return a template literal (e.g., \`\${n}ms\`)`,
-      callback.body.loc || callback.loc,
+      notNullish(callback.body.loc || callback.loc),
       filename,
     );
   }

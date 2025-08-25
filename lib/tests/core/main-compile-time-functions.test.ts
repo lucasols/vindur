@@ -13,7 +13,9 @@ describe('compile-time functions should throw at runtime', () => {
   test('vindurFn should throw error at runtime', () => {
     const fn = (color: string) => `color: ${color}`;
 
-    expect(() => vindurFn(fn)).toThrow('vindurFn cannot be called at runtime');
+    expect(() => vindurFn(fn)).toThrowErrorMatchingInlineSnapshot(
+      `[Error: vindurFn cannot be called at runtime]`,
+    );
   });
 
   test('css should throw error at runtime', () => {
@@ -21,18 +23,22 @@ describe('compile-time functions should throw at runtime', () => {
       () => css`
         color: red;
       `,
-    ).toThrow('css cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: css cannot be called at runtime]`);
   });
 
   test('createGlobalStyle should throw error at runtime', () => {
-    expect(() => createGlobalStyle`body { margin: 0 }`).toThrow(
-      'createGlobalStyle cannot be called at runtime',
+    expect(
+      () => createGlobalStyle`body { margin: 0 }`,
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: createGlobalStyle cannot be called at runtime]`,
     );
   });
 
   test('keyframes should throw error at runtime', () => {
-    expect(() => keyframes`from { opacity: 0 } to { opacity: 1 }`).toThrow(
-      'keyframes cannot be called at runtime',
+    expect(
+      () => keyframes`from { opacity: 0 } to { opacity: 1 }`,
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: keyframes cannot be called at runtime]`,
     );
   });
 
@@ -41,7 +47,7 @@ describe('compile-time functions should throw at runtime', () => {
       () => styled.div`
         color: blue;
       `,
-    ).toThrow('styled cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
   });
 
   test('styled with custom element should throw error at runtime', () => {
@@ -49,7 +55,7 @@ describe('compile-time functions should throw at runtime', () => {
       () => styled.button`
         background: red;
       `,
-    ).toThrow('styled cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
   });
 
   test('createStaticThemeColors should return input at runtime', () => {
@@ -64,7 +70,9 @@ describe('compile-time functions should throw at runtime', () => {
   });
 
   test('stableId should throw error at runtime', () => {
-    expect(() => stableId()).toThrow('stableId cannot be called at runtime');
+    expect(() => stableId()).toThrowErrorMatchingInlineSnapshot(
+      `[Error: stableId cannot be called at runtime]`,
+    );
   });
 });
 
@@ -75,17 +83,17 @@ describe('styled proxy behavior', () => {
       () => styled.span`
         color: green;
       `,
-    ).toThrow('styled cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
     expect(
       () => styled.article`
         padding: 10px;
       `,
-    ).toThrow('styled cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
     expect(
       () => styled.section`
         margin: 5px;
       `,
-    ).toThrow('styled cannot be called at runtime');
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
   });
 });
 
@@ -98,9 +106,9 @@ describe('function signatures and types', () => {
       `color: ${color}; font-size: ${size}px`;
 
     // All should throw at runtime but have correct types
-    expect(() => vindurFn(stringFn)).toThrow();
-    expect(() => vindurFn(numberFn)).toThrow();
-    expect(() => vindurFn(multiFn)).toThrow();
+    expect(() => vindurFn(stringFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
+    expect(() => vindurFn(numberFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
+    expect(() => vindurFn(multiFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
   });
 
   test('css should accept template literal arguments', () => {
@@ -113,7 +121,7 @@ describe('function signatures and types', () => {
         color: ${color};
         font-size: ${size}px;
       `,
-    ).toThrow();
+    ).toThrowErrorMatchingInlineSnapshot(`[Error: css cannot be called at runtime]`);
   });
 
   test('createStaticThemeColors should preserve type structure', () => {

@@ -1,5 +1,6 @@
 import { TransformError } from '../custom-errors';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 
 type StyleFlag =
@@ -90,7 +91,7 @@ export function extractStyleFlags(
           const typeString = getTypeString(typeAnnotation);
           throw new TransformError(
             `Style flags only support boolean properties and string literal unions. Property "${propName}" has type "${typeString}".`,
-            member.loc,
+            notNullish(member.loc),
           );
         }
       } else {
@@ -98,7 +99,7 @@ export function extractStyleFlags(
         const typeString = getTypeString(typeAnnotation);
         throw new TransformError(
           `Style flags only support boolean properties and string literal unions. Property "${propName}" has type "${typeString}".`,
-          member.loc,
+          notNullish(member.loc),
         );
       }
     }

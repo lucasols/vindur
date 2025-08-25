@@ -198,7 +198,14 @@ describe('Path Resolution', () => {
           fs: mockFS,
           importAliases: { '@theme': '/design/theme' },
         });
-      }).toThrow();
+      }).toThrowErrorMatchingInlineSnapshot(`
+        [TransformError: /main.ts: Unresolved function call at \`... button = css\` ... \${spacing(1)}, function must be statically analyzable and correctly imported with the configured aliases
+        loc: {
+          "column": 22,
+          "filename": undefined,
+          "line": 6,
+        }]
+      `);
     });
   });
 });

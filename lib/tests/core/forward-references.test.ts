@@ -162,7 +162,7 @@ describe('forward references', () => {
           \`
         `,
       });
-    }).rejects.toThrow(
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
       'Forward reference to undefined styled component: UndefinedComponent',
     );
   });
@@ -182,7 +182,9 @@ describe('forward references', () => {
           \`
         `,
       });
-    }).rejects.toThrow('Invalid arrow function in interpolation');
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      'Invalid arrow function in interpolation',
+    );
   });
 
   test('should work with nested forward references', async () => {

@@ -1,5 +1,6 @@
 import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
 import {
   processStyledTemplate,
@@ -190,6 +191,6 @@ export function handleInlineStyledError(
   // For other inline styled usage, we keep it as an error
   throw new TransformError(
     'Inline styled component usage is not supported. Please assign styled components to a variable first.',
-    path.node.loc,
+    notNullish(path.node.loc),
   );
 }

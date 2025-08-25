@@ -1,5 +1,6 @@
 import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
 import type { VindurPluginState } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
@@ -56,7 +57,10 @@ export function handleJsxCssProp(
   }
 
   if (!cssAttr.value) {
-    throw new TransformError('css prop must have a value', cssAttr.loc);
+    throw new TransformError(
+      'css prop must have a value',
+      notNullish(cssAttr.loc),
+    );
   }
 
   let cssClassName: string | t.Expression;
@@ -90,19 +94,19 @@ export function handleJsxCssProp(
       } else {
         throw new TransformError(
           'Invalid css prop value. Only template literals and references to css function calls are supported',
-          expression.loc,
+          notNullish(expression.loc),
         );
       }
     } else {
       throw new TransformError(
         'Invalid css prop value. Only template literals and references to css function calls are supported',
-        expression.loc,
+        notNullish(expression.loc),
       );
     }
   } else {
     throw new TransformError(
       'Invalid css prop value. Only template literals and references to css function calls are supported',
-      cssAttr.value.loc || cssAttr.loc,
+      notNullish(cssAttr.value.loc || cssAttr.loc),
     );
   }
 
