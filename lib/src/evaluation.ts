@@ -29,6 +29,12 @@ export function evaluateCondition(
   const leftValue = left.type === 'arg' ? args[left.name] : left.value;
   const rightValue = right.type === 'arg' ? args[right.name] : right.value;
 
+  // Special case: handle truthiness checks (identifier === true)
+  if (operator === '===' && right.type === 'boolean' && right.value === true) {
+    // Convert to JavaScript truthiness check
+    return !!leftValue;
+  }
+
   switch (operator) {
     case '===':
       return leftValue === rightValue;

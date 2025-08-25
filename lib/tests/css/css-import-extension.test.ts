@@ -451,7 +451,7 @@ describe('CSS import extension', () => {
       }
 
       .v1560qbr-1-Card {
-        margin: 2px;
+        margin: 1px;
       }
       "
     `);
@@ -499,7 +499,7 @@ describe('CSS import extension', () => {
       }
 
       .v1560qbr-1-Card {
-        margin: 1px;
+        margin: 2px;
       }
       "
     `);

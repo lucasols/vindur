@@ -174,7 +174,10 @@ export function resolveFunctionCall(
     return evaluateOutput(compiledFn.output, argValues, callExpr.loc);
   } else {
     // Handle destructured object arguments
-    if (args.length === 1 && t.isObjectExpression(args[0])) {
+    if (
+      args.length === 0
+      || (args.length === 1 && t.isObjectExpression(args[0]))
+    ) {
       const argValues: Record<string, string | number | boolean | undefined> =
         {};
 
@@ -185,13 +188,15 @@ export function resolveFunctionCall(
         }
       }
 
-      // Override with provided values
-      for (const prop of args[0].properties) {
-        if (t.isObjectProperty(prop) && t.isIdentifier(prop.key)) {
-          const key = prop.key.name;
-          const value = extractLiteralValue(prop.value);
-          if (value !== null) {
-            argValues[key] = value;
+      // Override with provided values if an argument was passed
+      if (args.length === 1 && t.isObjectExpression(args[0])) {
+        for (const prop of args[0].properties) {
+          if (t.isObjectProperty(prop) && t.isIdentifier(prop.key)) {
+            const key = prop.key.name;
+            const value = extractLiteralValue(prop.value);
+            if (value !== null) {
+              argValues[key] = value;
+            }
           }
         }
       }
