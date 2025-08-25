@@ -1,5 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { CssProcessingContext } from '../css-processing';
 import {
   processKeyframes,
@@ -416,7 +417,7 @@ export function handleStyledExtensionAssignment(
     } else {
       throw new TransformError(
         'styled(Component).attrs() must be called with exactly one object literal argument',
-        tag.loc,
+        notNullish(tag.loc),
       );
     }
   } else {
