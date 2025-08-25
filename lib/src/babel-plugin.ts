@@ -236,6 +236,7 @@ export function createVindurPlugin(
           dev,
           fileHash,
           classIndex: idIndexRef,
+          filePath,
         };
 
         // Try each handler in order - they return true if they handled the node

@@ -22,6 +22,7 @@ type VariableHandlerContext = {
   dev: boolean;
   fileHash: string;
   classIndex: { current: number };
+  filePath: string;
 };
 
 export function handleLocalVindurFnError(
@@ -51,6 +52,7 @@ export function handleLocalVindurFnError(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,
     path.node.loc,
+    handlerContext.filePath,
   );
 }
 
