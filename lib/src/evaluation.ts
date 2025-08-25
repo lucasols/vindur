@@ -26,8 +26,14 @@ export function evaluateCondition(
 ): boolean {
   const [left, operator, right] = condition;
 
-  const leftValue = left.type === 'arg' ? args[left.name] : left.value;
-  const rightValue = right.type === 'arg' ? args[right.name] : right.value;
+  const leftValue =
+    left.type === 'arg' ? args[left.name]
+    : left.type === 'isArray' ? args[left.arg]
+    : left.value;
+  const rightValue =
+    right.type === 'arg' ? args[right.name]
+    : right.type === 'isArray' ? args[right.arg]
+    : right.value;
 
   // Special case: handle truthiness checks (identifier === true)
   if (operator === '===' && right.type === 'boolean' && right.value === true) {
@@ -102,9 +108,13 @@ export function evaluateQuasi(
   } else if (quasi.type === 'binary') {
     // Handle binary expressions like `multiplier * 8`
     const leftValue =
-      quasi.left.type === 'arg' ? args[quasi.left.name] : quasi.left.value;
+      quasi.left.type === 'arg' ? args[quasi.left.name]
+      : quasi.left.type === 'isArray' ? args[quasi.left.arg]
+      : quasi.left.value;
     const rightValue =
-      quasi.right.type === 'arg' ? args[quasi.right.name] : quasi.right.value;
+      quasi.right.type === 'arg' ? args[quasi.right.name]
+      : quasi.right.type === 'isArray' ? args[quasi.right.arg]
+      : quasi.right.value;
 
     // Check if left value is undefined
     if (leftValue === undefined) {
@@ -176,14 +186,8 @@ export function evaluateQuasi(
       );
     }
 
-    if (quasi.method === 'join') {
-      return argValue.join(quasi.separator);
-    } else {
-      throw new TransformError(
-        `Unsupported array method: ${quasi.method}`,
-        callLoc,
-      );
-    }
+    // Currently only 'join' is supported
+    return argValue.join(quasi.separator);
   } else {
     // quasi.type === 'ternary'
     const conditionResult = evaluateCondition(quasi.condition, args);

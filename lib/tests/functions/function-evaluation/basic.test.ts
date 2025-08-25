@@ -625,24 +625,13 @@ test('function arrays and join as arguments', async () => {
       ({
         duration = 'medium',
         easing = 'in-out',
-        delay = 0,
+        numArray = [0, 1, 2],
         property,
       }: {
-        duration?: 'medium' | 'slow' | 'fast';
-        easing?: 'in-out' | 'out' | 'in' | 'linear';
-        delay?: number;
+        numArray?: number[];
         property?: string | string[];
       } = {}) =>
-        \`transition: \${
-          duration === 'medium' ? 0.24
-          : duration === 'slow' ? 0.36
-          : 0.12
-        }s \${
-          easing === 'in-out' ? 'cubic-bezier(0.4, 0.0, 0.2, 1)'
-          : easing === 'out' ? 'cubic-bezier(0.0, 0.0, 0.2, 1)'
-          : easing === 'in' ? 'cubic-bezier(0.4, 0.0, 1, 1)'
-          : 'linear'
-        }\${delay ? \` \${delay}ms\` : ''};
+        \`\${numArray ? \`transition: \${numArray.map(n => \`\${n}ms\`).join(', ')};\` : ''};
         \${property ? \`transition-property: \${Array.isArray(property) ? property.join(', ') : property};\` : ''}
       \`,
     );
@@ -654,7 +643,7 @@ test('function arrays and join as arguments', async () => {
       import { transition } from '#/utils'
 
       const Container = styled.div\`
-        \${transition({ property: ['opacity', 'transform'] })};
+        \${transition({ property: ['opacity', 'transform'], numArray: [100, 200, 300] })};
       \`
 
       const Component: FC = () => {
@@ -666,7 +655,7 @@ test('function arrays and join as arguments', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Container {
-      transition: 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: 100ms, 200ms, 300ms;
       transition-property: opacity, transform;
     }
     "
@@ -678,4 +667,28 @@ test('function arrays and join as arguments', async () => {
     };
     "
   `);
+});
+
+test('function with invalid array value', async () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur';
+
+    export const transition = vindurFn((numArray: number[]) => \`
+      transition: \${numArray.join(', ')}ms;
+    \`)
+  `;
+
+  expect(() =>
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { transition } from '#/utils'
+
+        const Container = styled.div\`
+          \${transition([1, { object: 'invalid' }, 3])};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
+    }),
+  ).toThrowErrorMatchingInlineSnapshot();
 });
