@@ -72,3 +72,55 @@ test('compile file with vindurFn function and css exports', async () => {
     "
   `);
 });
+
+test('valid function to css', async () => {
+  const fnFile = dedent`
+    import { vindurFn } from 'vindur';
+
+    export const transition = vindurFn(
+      ({
+        duration = 'medium',
+        easing = 'in-out',
+        delay = 0,
+        property,
+      }: {
+        duration?: 'medium' | 'slow' | 'fast';
+        easing?: 'in-out' | 'out' | 'in' | 'linear';
+        delay?: number;
+        property?: string;
+      } = {}) =>
+        \`transition: \${
+          duration === 'medium' ? 0.24
+          : duration === 'slow' ? 0.36
+          : 0.12
+        }s \${
+          easing === 'in-out' ? 'cubic-bezier(0.4, 0.0, 0.2, 1)'
+          : easing === 'out' ? 'cubic-bezier(0.0, 0.0, 0.2, 1)'
+          : easing === 'in' ? 'cubic-bezier(0.4, 0.0, 1, 1)'
+          : 'linear'
+        }\${delay ? \` \${delay}ms\` : ''};
+        \${property ? \`transition-property: \${property};\` : ''}
+      \`,
+    );
+  `;
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { transition } from '#/utils'
+
+      const Container = styled.div\`
+        \${transition()};
+      \`
+
+      const Component: FC = () => {
+        return <Container />
+      }
+    `,
+    overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot();
+
+  expect(result.code).toMatchInlineSnapshot();
+});
