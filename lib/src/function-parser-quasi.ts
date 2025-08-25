@@ -80,12 +80,50 @@ export function parseQuasiFromExpression(
     }
     // If parseBinaryExpression returns null, fall through to the error
   } else if (t.isCallExpression(expr)) {
-    // Function calls are not allowed
-    throw new TransformError(
-      `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
-      expr.loc,
-      filename,
-    );
+    // Handle array method calls (specifically .join())
+    if (
+      t.isMemberExpression(expr.callee)
+      && t.isIdentifier(expr.callee.object)
+      && t.isIdentifier(expr.callee.property)
+      && expr.callee.property.name === 'join'
+    ) {
+      const argName = expr.callee.object.name;
+
+      // Validate that the object is a valid parameter
+      if (validParameterNames && !validParameterNames.has(argName)) {
+        throw new TransformError(
+          `Invalid object in method call: "${argName}" is not a valid parameter`,
+          expr.loc,
+          filename,
+        );
+      }
+
+      // Extract separator argument (default to comma)
+      let separator = ', ';
+      if (expr.arguments.length === 1 && t.isStringLiteral(expr.arguments[0])) {
+        separator = expr.arguments[0].value;
+      } else if (expr.arguments.length > 1) {
+        throw new TransformError(
+          `Array.join() method only supports a single string argument`,
+          expr.loc,
+          filename,
+        );
+      }
+
+      return {
+        type: 'arrayMethod',
+        arg: argName,
+        method: 'join',
+        separator,
+      };
+    } else {
+      // Other function calls are not allowed
+      throw new TransformError(
+        `vindurFn "${functionName}" contains unsupported function calls - only array methods like .join() are supported`,
+        expr.loc,
+        filename,
+      );
+    }
   } else if (t.isMemberExpression(expr)) {
     // Member expressions suggest external dependencies
     throw new TransformError(

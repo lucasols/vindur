@@ -147,7 +147,10 @@ export function resolveFunctionCall(
 
   if (compiledFn.type === 'positional') {
     // Handle positional arguments - need to map to parameter names
-    const argValues: Record<string, string | number | boolean | undefined> = {};
+    const argValues: Record<
+      string,
+      string | number | boolean | string[] | undefined
+    > = {};
 
     // Get parameter names from the compiled function
     const paramNames = getParameterNames(compiledFn);
@@ -178,8 +181,10 @@ export function resolveFunctionCall(
       args.length === 0
       || (args.length === 1 && t.isObjectExpression(args[0]))
     ) {
-      const argValues: Record<string, string | number | boolean | undefined> =
-        {};
+      const argValues: Record<
+        string,
+        string | number | boolean | string[] | undefined
+      > = {};
 
       // Add default values first
       for (const [name, argDef] of Object.entries(compiledFn.args)) {

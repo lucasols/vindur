@@ -5,7 +5,7 @@ import { TransformError } from './custom-errors';
 
 type TernaryCondition = [
   TernaryConditionValue,
-  '===' | '!==' | '>' | '<' | '>=' | '<=',
+  '===' | '!==' | '>' | '<' | '>=' | '<=' | 'isArray',
   TernaryConditionValue,
 ];
 
@@ -67,6 +67,40 @@ export function parseTernaryCondition(
       '===',
       { type: 'boolean', value: true },
     ];
+  } else if (t.isCallExpression(test)) {
+    // Handle Array.isArray() calls
+    if (
+      t.isMemberExpression(test.callee)
+      && t.isIdentifier(test.callee.object)
+      && test.callee.object.name === 'Array'
+      && t.isIdentifier(test.callee.property)
+      && test.callee.property.name === 'isArray'
+      && test.arguments.length === 1
+      && t.isIdentifier(test.arguments[0])
+    ) {
+      const argName = test.arguments[0].name;
+
+      // Validate that the argument is a valid parameter
+      if (validParameterNames && !validParameterNames.has(argName)) {
+        throw new TransformError(
+          `Invalid argument in Array.isArray() call: "${argName}" is not a valid parameter`,
+          test.loc,
+          filename,
+        );
+      }
+
+      return [
+        { type: 'isArray', arg: argName },
+        'isArray',
+        { type: 'boolean', value: true },
+      ];
+    } else {
+      throw new TransformError(
+        `vindurFn "${functionName}" contains unsupported function call in ternary condition - only Array.isArray() is supported`,
+        test.loc,
+        filename,
+      );
+    }
   }
 
   throw new TransformError(

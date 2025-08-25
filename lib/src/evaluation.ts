@@ -4,7 +4,7 @@ import { TransformError } from './custom-errors';
 
 export function evaluateOutput(
   output: OutputQuasi[],
-  args: Record<string, string | number | boolean | undefined>,
+  args: Record<string, string | number | boolean | string[] | undefined>,
   callLoc?: t.SourceLocation | null,
 ): string {
   let result = '';
@@ -19,10 +19,10 @@ export function evaluateOutput(
 export function evaluateCondition(
   condition: [
     TernaryConditionValue,
-    '===' | '!==' | '>' | '<' | '>=' | '<=',
+    '===' | '!==' | '>' | '<' | '>=' | '<=' | 'isArray',
     TernaryConditionValue,
   ],
-  args: Record<string, string | number | boolean | undefined>,
+  args: Record<string, string | number | boolean | string[] | undefined>,
 ): boolean {
   const [left, operator, right] = condition;
 
@@ -64,6 +64,13 @@ export function evaluateCondition(
         && typeof rightValue === 'number'
         && leftValue <= rightValue
       );
+    case 'isArray':
+      // Handle Array.isArray() condition
+      if (left.type === 'isArray') {
+        const argValue = args[left.arg];
+        return Array.isArray(argValue);
+      }
+      return false;
     default:
       return false;
   }
@@ -71,7 +78,7 @@ export function evaluateCondition(
 
 export function evaluateQuasi(
   quasi: OutputQuasi,
-  args: Record<string, string | number | boolean | undefined>,
+  args: Record<string, string | number | boolean | string[] | undefined>,
   callLoc?: t.SourceLocation | null,
 ): string {
   if (quasi.type === 'string') {
@@ -153,6 +160,30 @@ export function evaluateQuasi(
         );
     }
     return result.toString();
+  } else if (quasi.type === 'arrayMethod') {
+    // Handle array method calls
+    const argValue = args[quasi.arg];
+    if (argValue === undefined) {
+      throw new TransformError(
+        `Array argument '${quasi.arg}' is undefined`,
+        callLoc,
+      );
+    }
+    if (!Array.isArray(argValue)) {
+      throw new TransformError(
+        `Argument '${quasi.arg}' is not an array, cannot call ${quasi.method}()`,
+        callLoc,
+      );
+    }
+
+    if (quasi.method === 'join') {
+      return argValue.join(quasi.separator);
+    } else {
+      throw new TransformError(
+        `Unsupported array method: ${quasi.method}`,
+        callLoc,
+      );
+    }
   } else {
     // quasi.type === 'ternary'
     const conditionResult = evaluateCondition(quasi.condition, args);

@@ -1,6 +1,7 @@
 export type TernaryConditionValue =
   | { type: 'string' | 'number' | 'boolean'; value: string | number | boolean }
-  | { type: 'arg'; name: string };
+  | { type: 'arg'; name: string }
+  | { type: 'isArray'; arg: string };
 
 export type OutputQuasi =
   | { type: 'string'; value: string }
@@ -10,7 +11,7 @@ export type OutputQuasi =
       type: 'ternary';
       condition: [
         TernaryConditionValue,
-        '===' | '!==' | '>' | '<' | '>=' | '<=',
+        '===' | '!==' | '>' | '<' | '>=' | '<=' | 'isArray',
         TernaryConditionValue,
       ];
       ifTrue: OutputQuasi;
@@ -21,12 +22,18 @@ export type OutputQuasi =
       operator: '+' | '-' | '*' | '/';
       left: TernaryConditionValue;
       right: TernaryConditionValue;
+    }
+  | {
+      type: 'arrayMethod';
+      arg: string;
+      method: 'join';
+      separator: string;
     };
 
 export type FunctionArg = {
   name?: string; // Parameter name for positional args
-  type: 'string' | 'number' | 'boolean';
-  defaultValue: string | number | boolean | undefined;
+  type: 'string' | 'number' | 'boolean' | 'array';
+  defaultValue: string | number | boolean | string[] | undefined;
   optional?: boolean; // Whether the parameter is optional
 };
 

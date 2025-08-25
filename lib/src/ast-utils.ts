@@ -1,21 +1,35 @@
 import { types as t, type NodePath } from '@babel/core';
 export { isLiteralExpression } from './ast-utils.type-guards';
 
-export type FunctionValueTypes = 'string' | 'number' | 'boolean';
+export type FunctionValueTypes = 'string' | 'number' | 'boolean' | 'array';
 
 // Utility functions for AST node handling
 export function extractLiteralValue(
   node: t.Node,
-): string | number | boolean | null {
+): string | number | boolean | string[] | null {
   if (t.isStringLiteral(node)) return node.value;
   if (t.isNumericLiteral(node)) return node.value;
   if (t.isBooleanLiteral(node)) return node.value;
+  if (t.isArrayExpression(node)) {
+    // Extract array of string literals
+    const elements: string[] = [];
+    for (const element of node.elements) {
+      if (element && t.isStringLiteral(element)) {
+        elements.push(element.value);
+      } else if (element) {
+        // Non-string array elements are not supported
+        return null;
+      }
+    }
+    return elements;
+  }
   return null;
 }
 
 export function getLiteralValueType(
-  value: string | number | boolean | null,
+  value: string | number | boolean | string[] | null,
 ): FunctionValueTypes {
+  if (Array.isArray(value)) return 'array';
   const type = typeof value;
   return type === 'string' || type === 'number' || type === 'boolean' ?
       type
@@ -25,7 +39,7 @@ export function getLiteralValueType(
 export function extractArgumentValue(
   arg: t.Expression,
   path?: NodePath,
-): { value: string | number | boolean | null; resolved: boolean } {
+): { value: string | number | boolean | string[] | null; resolved: boolean } {
   // First try to get literal value
   const literalValue = extractLiteralValue(arg);
   if (literalValue !== null) {
