@@ -1,4 +1,9 @@
 {
   "typescript.preferences.includePackageJsonAutoImports": "on",
-  "eslint.workingDirectories": [{ "mode": "auto" }]
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ],
+  "cSpell.words": ["guam"]
 }

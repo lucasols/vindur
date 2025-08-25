@@ -408,4 +408,100 @@ describe('CSS import extension', () => {
       `[TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
     );
   });
+
+  test('should allow importing css and functions from another file', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+        import { baseStyles, getSpacing } from '#/utils'
+
+        const Card = styled.div\`
+          \${baseStyles};
+          margin: \${getSpacing()};
+        \`
+
+        const App = () => <Card>Content</Card>
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'utils.ts': dedent`
+          import { css, vindurFn } from 'vindur'
+
+          export const baseStyles = css\`
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+          \`
+
+          export const getSpacing = vindurFn(({ multiplier }: { multiplier?: number } = {}) => \`\${multiplier ? '2' : '1'}px\`)
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const App = () => <div className="v1i9guam-1 v1560qbr-1-Card">Content</div>;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1i9guam-1 {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background: white;
+      }
+
+      .v1560qbr-1-Card {
+        margin: 2px;
+      }
+      "
+    `);
+  });
+
+  test('should allow importing css and functions from another file with arguments', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+        import { baseStyles, getSpacing } from '#/utils'
+
+        const Card = styled.div\`
+          \${baseStyles};
+          margin: \${getSpacing({ multiplier: 2 })};
+        \`
+
+        const App = () => <Card>Content</Card>
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'utils.ts': dedent`
+          import { css, vindurFn } from 'vindur'
+
+          export const baseStyles = css\`
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+          \`
+
+          export const getSpacing = vindurFn(({ multiplier }: { multiplier?: number } = {}) => \`\${multiplier ? '2' : '1'}px\`)
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const App = () => <div className="v1i9guam-1 v1560qbr-1-Card">Content</div>;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1i9guam-1 {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background: white;
+      }
+
+      .v1560qbr-1-Card {
+        margin: 1px;
+      }
+      "
+    `);
+  });
 });
