@@ -6,6 +6,7 @@ export function parseBinaryExpression(
   expr: t.BinaryExpression,
   functionName: string,
   validParameterNames?: Set<string>,
+  filename?: string,
 ): OutputQuasi | null {
   const { left, right, operator } = expr;
 
@@ -22,6 +23,7 @@ export function parseBinaryExpression(
     left,
     functionName,
     validParameterNames,
+    filename,
   );
 
   // Parse right operand
@@ -29,6 +31,7 @@ export function parseBinaryExpression(
     right,
     functionName,
     validParameterNames,
+    filename,
   );
 
   if (

@@ -8,6 +8,7 @@ import { TransformError } from './custom-errors';
 export function parseFunction(
   fnExpression: t.ArrowFunctionExpression | t.FunctionExpression,
   functionName?: string,
+  filename?: string,
 ): CompiledFunction {
   const name = functionName ?? 'unknown';
 
@@ -16,6 +17,7 @@ export function parseFunction(
     throw new TransformError(
       `vindurFn "${name}" cannot be async - functions must be synchronous for compile-time evaluation`,
       fnExpression.loc,
+      filename,
     );
   }
 
@@ -24,6 +26,7 @@ export function parseFunction(
     throw new TransformError(
       `vindurFn "${name}" cannot be a generator function - functions must return simple template strings`,
       fnExpression.loc,
+      filename,
     );
   }
 
@@ -75,6 +78,7 @@ export function parseFunction(
       fnExpression.body,
       name,
       validParameterNames,
+      filename,
     );
     return { type: 'destructured', args, output };
   }
@@ -116,6 +120,7 @@ export function parseFunction(
     fnExpression.body,
     name,
     validParameterNames,
+    filename,
   );
   return { type: 'positional', args, output };
 }
@@ -124,9 +129,15 @@ function parseTemplateOutput(
   body: t.BlockStatement | t.Expression,
   functionName: string,
   validParameterNames?: Set<string>,
+  filename?: string,
 ): OutputQuasi[] {
   if (t.isTemplateLiteral(body)) {
-    return parseTemplateLiteral(body, functionName, validParameterNames);
+    return parseTemplateLiteral(
+      body,
+      functionName,
+      validParameterNames,
+      filename,
+    );
   } else if (t.isStringLiteral(body)) {
     // Parse string literal with ${} interpolations
     return parseStringWithInterpolation(body.value);
@@ -137,6 +148,7 @@ function parseTemplateOutput(
       throw new TransformError(
         `vindurFn "${functionName}" body is too complex - functions must contain only a single return statement or be arrow functions with template literals`,
         body.loc,
+        filename,
       );
     }
 
@@ -145,6 +157,7 @@ function parseTemplateOutput(
       throw new TransformError(
         `vindurFn "${functionName}" body must contain only a return statement`,
         statement?.loc || body.loc,
+        filename,
       );
     }
 
@@ -152,6 +165,7 @@ function parseTemplateOutput(
       throw new TransformError(
         `vindurFn "${functionName}" return statement must return a value`,
         statement.loc,
+        filename,
       );
     }
 
@@ -161,6 +175,7 @@ function parseTemplateOutput(
         statement.argument,
         functionName,
         validParameterNames,
+        filename,
       );
     } else if (t.isStringLiteral(statement.argument)) {
       return parseStringWithInterpolation(statement.argument.value);
@@ -169,17 +184,20 @@ function parseTemplateOutput(
       throw new TransformError(
         `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
         statement.argument.loc,
+        filename,
       );
     } else if (t.isMemberExpression(statement.argument)) {
       // Member expressions suggest external dependencies
       throw new TransformError(
         `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
         statement.argument.loc,
+        filename,
       );
     } else {
       throw new TransformError(
         `vindurFn "${functionName}" must return a template literal or string literal, got ${statement.argument.type}`,
         statement.argument.loc,
+        filename,
       );
     }
   } else if (t.isCallExpression(body)) {
@@ -187,17 +205,20 @@ function parseTemplateOutput(
     throw new TransformError(
       `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
       body.loc,
+      filename,
     );
   } else if (t.isMemberExpression(body)) {
     // Member expressions suggest external dependencies
     throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
       body.loc,
+      filename,
     );
   } else {
     throw new TransformError(
       `vindurFn "${functionName}" must return a template literal or string literal, got ${body.type}`,
       body.loc,
+      filename,
     );
   }
 }

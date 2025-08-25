@@ -32,7 +32,7 @@ export function createExtractVindurFunctionsPlugin(
                 || t.isFunctionExpression(arg)
               ) {
                 const name = declarator.id.name;
-                const compiledFn = parseFunction(arg, name);
+                const compiledFn = parseFunction(arg, name, filePath);
 
                 compiledFunctions[filePath] ??= {};
                 compiledFunctions[filePath][name] = compiledFn;

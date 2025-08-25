@@ -8,6 +8,7 @@ export function parseQuasiFromExpression(
   expr: t.Expression,
   functionName: string,
   validParameterNames?: Set<string>,
+  filename?: string,
 ): OutputQuasi {
   if (t.isStringLiteral(expr)) {
     return { type: 'string', value: expr.value };
@@ -22,12 +23,18 @@ export function parseQuasiFromExpression(
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         expr.loc,
+        filename,
       );
     }
     return { type: 'arg', name: expr.name };
   } else if (t.isTemplateLiteral(expr)) {
     // Handle template literals in ternary expressions
-    const parts = parseTemplateLiteral(expr, functionName, validParameterNames);
+    const parts = parseTemplateLiteral(
+      expr,
+      functionName,
+      validParameterNames,
+      filename,
+    );
 
     // If it's a single string part, return it directly
     if (parts.length === 1 && parts[0]?.type === 'string') {
@@ -42,16 +49,19 @@ export function parseQuasiFromExpression(
       expr.test,
       functionName,
       validParameterNames,
+      filename,
     );
     const ifTrue = parseQuasiFromExpression(
       expr.consequent,
       functionName,
       validParameterNames,
+      filename,
     );
     const ifFalse = parseQuasiFromExpression(
       expr.alternate,
       functionName,
       validParameterNames,
+      filename,
     );
 
     return { type: 'ternary', condition, ifTrue, ifFalse };
@@ -61,6 +71,7 @@ export function parseQuasiFromExpression(
       expr,
       functionName,
       validParameterNames,
+      filename,
     );
     if (binaryResult) {
       return binaryResult;
@@ -71,18 +82,21 @@ export function parseQuasiFromExpression(
     throw new TransformError(
       `vindurFn "${functionName}" contains function calls which are not supported - functions must be self-contained`,
       expr.loc,
+      filename,
     );
   } else if (t.isMemberExpression(expr)) {
     // Member expressions suggest external dependencies
     throw new TransformError(
       `vindurFn "${functionName}" contains member expressions which suggest external dependencies - functions must be self-contained`,
       expr.loc,
+      filename,
     );
   }
 
   throw new TransformError(
     `vindurFn "${functionName}" contains unsupported expression type in ternary: ${expr.type}`,
     expr.loc,
+    filename,
   );
 }
 
@@ -90,6 +104,7 @@ export function parseTemplateLiteral(
   template: t.TemplateLiteral,
   functionName: string,
   validParameterNames?: Set<string>,
+  filename?: string,
 ): OutputQuasi[] {
   const output: OutputQuasi[] = [];
 
@@ -106,6 +121,7 @@ export function parseTemplateLiteral(
         expr,
         functionName,
         validParameterNames,
+        filename,
       );
       output.push(quasiFromExpr);
     }
