@@ -382,4 +382,350 @@ describe('imported file hash generation', () => {
       "
     `);
   });
+
+  test('should handle cx prop with sequential hash indices', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const styles = css\`
+          display: flex;
+        \`
+
+        const App = () => (
+          <div 
+            className={styles}
+            cx={{ active: true, loading: false, disabled: true }}
+          />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      const styles = "v1560qbr-1-styles";
+      const App = () => (
+        <div
+          className={
+            styles +
+            " " +
+            cx({
+              "v1560qbr-2-active": true,
+              "v1560qbr-3-loading": false,
+              "v1560qbr-4-disabled": true,
+            })
+          }
+        />
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-styles {
+        display: flex;
+      }
+      "
+    `);
+  });
+
+  test('should handle css prop with proper hash generation', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const baseStyles = css\`
+          padding: 8px;
+        \`
+
+        const App = () => (
+          <div 
+            css={\`
+              color: red;
+              \${baseStyles};
+            \`}
+          />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const baseStyles = "v1560qbr-1-baseStyles";
+      const App = () => (
+        <div className="v1560qbr-1-baseStyles v1560qbr-2-css-prop-2" />
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-baseStyles {
+        padding: 8px;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should handle createGlobalStyle with hash generation', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, css } from 'vindur'
+
+        const globalStyles = createGlobalStyle\`
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        \`
+
+        const localStyles = css\`
+          color: blue;
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const localStyles = "v1560qbr-1-localStyles";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "body {
+        margin: 0;
+        padding: 0;
+      }
+
+      .v1560qbr-1-localStyles {
+        color: blue;
+      }
+      "
+    `);
+  });
+
+  test('should handle scoped CSS variables with hash generation', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const styles = css\`
+          ---primaryColor: #007bff;
+          ---fontSize: 16px;
+          color: var(---primaryColor);
+          font-size: var(---fontSize);
+        \`
+
+        const otherStyles = css\`
+          ---spacing: 8px;
+          margin: var(---spacing);
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const styles = "v1560qbr-1-styles";
+      const otherStyles = "v1560qbr-4-otherStyles";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-styles {
+        --v1560qbr-2-primaryColor: #007bff;
+        --v1560qbr-3-fontSize: 16px;
+        color: var(--v1560qbr-2-primaryColor);
+        font-size: var(--v1560qbr-3-fontSize);
+      }
+
+      .v1560qbr-4-otherStyles {
+        --v1560qbr-5-spacing: 8px;
+        margin: var(--v1560qbr-5-spacing);
+      }
+      "
+    `);
+  });
+
+  test('should handle stableId with hash generation', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { stableId, css } from 'vindur'
+
+        const uniqueId = stableId()
+        const anotherId = stableId()
+
+        const styles = css\`
+          color: red;
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const uniqueId = "v1560qbr-uniqueId-1";
+      const anotherId = "v1560qbr-anotherId-2";
+      const styles = "v1560qbr-3-styles";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-3-styles {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should reuse same index for identical names within file', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const App1 = () => (
+          <div cx={{ $active: true, $loading: false }} />
+        )
+
+        const App2 = () => (
+          <div cx={{ $active: true, $disabled: true }} />
+        )
+
+        const styles = css\`
+          color: blue;
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      const App1 = () => (
+        <div
+          className={cx({
+            active: true,
+            loading: false,
+          })}
+        />
+      );
+      const App2 = () => (
+        <div
+          className={cx({
+            active: true,
+            disabled: true,
+          })}
+        />
+      );
+      const styles = "v1560qbr-1-styles";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-styles {
+        color: blue;
+      }
+      "
+    `);
+  });
+
+  test('should handle mixed direct usage with proper sequential indices', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled, keyframes, createDynamicCssColor, createGlobalStyle } from 'vindur'
+
+        // Index 1
+        const globalStyles = createGlobalStyle\`
+          * { box-sizing: border-box; }
+        \`
+
+        // Index 2  
+        const fadeIn = keyframes\`
+          from { opacity: 0; }
+          to { opacity: 1; }
+        \`
+
+        // Index 3
+        const themeColor = createDynamicCssColor()
+
+        // Index 4
+        const Button = styled.button\`
+          padding: 12px;
+          animation: \${fadeIn} 0.3s;
+          color: \${themeColor.var};
+        \`
+
+        // Index 5
+        const containerStyles = css\`
+          display: flex;
+          gap: 16px;
+        \`
+
+        const App = () => (
+          <div 
+            className={containerStyles}
+            cx={{ active: true }}
+          >
+            <Button dynamicColor={themeColor.set('#red')} />
+          </div>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, cx } from "vindur";
+
+      // Index 1
+
+      // Index 2
+      const fadeIn = "v1560qbr-1-fadeIn";
+
+      // Index 3
+      const themeColor = createDynamicCssColor("v1560qbr-2", true);
+
+      // Index 4
+
+      // Index 5
+      const containerStyles = "v1560qbr-4-containerStyles";
+      const App = () => (
+        <div
+          className={
+            containerStyles +
+            " " +
+            cx({
+              "v1560qbr-5-active": true,
+            })
+          }
+        >
+          <button
+            {...themeColor._sp("#red", {
+              className: "v1560qbr-3-Button",
+            })}
+          />
+        </div>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "* {
+        box-sizing: border-box;
+      }
+
+      @keyframes v1560qbr-1-fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      .v1560qbr-3-Button {
+        padding: 12px;
+        animation: v1560qbr-1-fadeIn 0.3s;
+        color: var(--v1560qbr-2);
+      }
+
+      .v1560qbr-4-containerStyles {
+        display: flex;
+        gap: 16px;
+      }
+      "
+    `);
+  });
 });
