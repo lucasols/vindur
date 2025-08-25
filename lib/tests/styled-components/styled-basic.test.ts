@@ -222,7 +222,14 @@ describe('styled components - basic functionality', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.]`,
+      `
+      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      loc: {
+        "column": 9,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 });

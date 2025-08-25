@@ -86,7 +86,14 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method alpha requires a numeric argument]`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Method alpha requires a numeric argument
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `);
   });
 
   test('should throw error when darker() called without argument', async () => {
@@ -102,7 +109,14 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method darker requires a numeric argument]`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Method darker requires a numeric argument
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `);
   });
 
   test('should throw error when lighter() called without argument', async () => {
@@ -118,7 +132,14 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method lighter requires a numeric argument]`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Method lighter requires a numeric argument
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `);
   });
 
   test('should throw error when saturatedDarker() called without argument', async () => {
@@ -134,7 +155,14 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method saturatedDarker requires a numeric argument]`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Method saturatedDarker requires a numeric argument
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `);
   });
 
   test('should throw error when contrast.alpha() called without argument', async () => {
@@ -150,6 +178,13 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           \`
         `,
       }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`[TransformError: /test.tsx: Method alpha requires a numeric argument]`);
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Method alpha requires a numeric argument
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `);
   });
 });

@@ -218,7 +218,14 @@ describe('interpolation', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 7,
+      }]
+    `,
     );
   });
 
@@ -271,7 +278,14 @@ describe('interpolation', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/undefined.ts: Invalid interpolation used at \`... style = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+      `
+      [TransformError: /src/undefined.ts: Invalid interpolation used at \`... style = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 });
@@ -295,7 +309,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -317,7 +338,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/array.ts: Invalid interpolation used at \`... style = css\` ... \${colors[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/array.ts: Invalid interpolation used at \`... style = css\` ... \${colors[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -338,7 +366,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable and correctly imported with the configured aliases]`,
+      `
+      [TransformError: /src/function.ts: Unresolved function call at \`... style = css\` ... \${Math.max(10, 20)}, function must be statically analyzable and correctly imported with the configured aliases
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -361,7 +396,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/conditional.ts: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/conditional.ts: Invalid interpolation used at \`... style = css\` ... \${a > b ? a : b}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 
@@ -384,7 +426,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/logical.ts: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/logical.ts: Invalid interpolation used at \`... style = css\` ... \${visible && enabled ? 'block' : 'none'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 
@@ -406,7 +455,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/unary.ts: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/unary.ts: Invalid interpolation used at \`... style = css\` ... \${!condition ? 'none' : 'block'}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -427,7 +483,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/array-literal.ts: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/array-literal.ts: Invalid interpolation used at \`... style = css\` ... \${['red', 'blue'][0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 16,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -448,7 +511,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/button.ts: Invalid interpolation used at \`... buttonStyle = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/button.ts: Invalid interpolation used at \`... buttonStyle = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 11,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -467,7 +537,14 @@ describe('error handling', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /src/direct.ts: Invalid interpolation used at \`css\` ... \${obj.value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported]`,
+      `
+      [TransformError: /src/direct.ts: Invalid interpolation used at \`css\` ... \${obj.value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: {
+        "column": 25,
+        "filename": undefined,
+        "line": 3,
+      }]
+    `,
     );
   });
 });

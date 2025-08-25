@@ -1,19 +1,9 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transform, TransformError } from '../../src/transform';
+import { transform } from '../../src/transform';
 import { createFsMock } from '../testUtils';
 
 const importAliases = { '#/': '/' };
-
-expect.addSnapshotSerializer({
-  serialize(val: TransformError, config, indentation, depth, refs, printer) {
-    // `printer` is a function that serializes a value using existing plugins.
-    return `[TransformError: ${val.message}\nloc: ${printer(val.loc, config, indentation, depth, refs)}]`;
-  },
-  test(val) {
-    return val instanceof TransformError;
-  },
-});
 
 describe('function compilation errors', () => {
   describe('variable references', () => {

@@ -55,7 +55,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+      `
+      [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -81,7 +88,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function]`,
+      `
+      [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
     );
   });
 
@@ -107,7 +121,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: /functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"]`,
+      `
+      [TransformError: /test.ts: /functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -139,7 +160,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: /functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals]`,
+      `
+      [TransformError: /test.ts: /functions.ts: vindurFn "complexFn" body is too complex - functions must contain only a single return statement or be arrow functions with template literals
+      loc: {
+        "column": 52,
+        "filename": "/functions.ts",
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -165,7 +193,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: /functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation]`,
+      `
+      [TransformError: /test.ts: /functions.ts: vindurFn "asyncFn" cannot be async - functions must be synchronous for compile-time evaluation
+      loc: {
+        "column": 32,
+        "filename": "/functions.ts",
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -193,7 +228,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: /functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings]`,
+      `
+      [TransformError: /test.ts: /functions.ts: vindurFn "generatorFn" cannot be a generator function - functions must return simple template strings
+      loc: {
+        "column": 36,
+        "filename": "/functions.ts",
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -220,7 +262,14 @@ describe('function evaluation errors', () => {
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.ts: /functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained]`,
+      `
+      [TransformError: /test.ts: /functions.ts: vindurFn "externalFn" contains function calls which are not supported - functions must be self-contained
+      loc: {
+        "column": 53,
+        "filename": "/functions.ts",
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -243,7 +292,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+        `
+        [TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+        loc: {
+          "column": 11,
+          "filename": undefined,
+          "line": 7,
+        }]
+      `,
       );
     });
 
@@ -264,7 +320,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+        `
+        [TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+        loc: {
+          "column": 11,
+          "filename": undefined,
+          "line": 6,
+        }]
+      `,
       );
     });
 
@@ -287,7 +350,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+        `
+        [TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${a}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+        loc: {
+          "column": 11,
+          "filename": undefined,
+          "line": 8,
+        }]
+      `,
       );
     });
 
@@ -309,7 +379,14 @@ describe('function evaluation errors', () => {
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
-        `[TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported]`,
+        `
+        [TransformError: /test.ts: Invalid interpolation used at \`... style = css\` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+        loc: {
+          "column": 11,
+          "filename": undefined,
+          "line": 7,
+        }]
+      `,
       );
     });
   });

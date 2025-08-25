@@ -464,7 +464,12 @@ describe('handle spread props', () => {
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Unsupported spread expression "isDisabled && {
         disabled: true
-      }" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.]
+      }" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.
+      loc: {
+        "column": 6,
+        "filename": undefined,
+        "line": 12,
+      }]
     `);
   });
 });

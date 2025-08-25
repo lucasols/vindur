@@ -259,7 +259,10 @@ describe('constant imports', () => {
         }),
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: Function "unknownConstant" not found in /constants.ts]`,
+      `
+      [TransformError: /test.tsx: Function "unknownConstant" not found in /constants.ts
+      loc: undefined]
+    `,
     );
   });
 

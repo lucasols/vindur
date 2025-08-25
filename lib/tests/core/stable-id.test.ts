@@ -161,7 +161,14 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.]`,
+      `
+      [TransformError: /test.tsx: createClassName() cannot be used with destructuring assignment. Use a regular variable assignment instead.
+      loc: {
+        "column": 35,
+        "filename": undefined,
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -182,7 +189,14 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level.]`,
+      `
+      [TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level.
+      loc: {
+        "column": 20,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -216,7 +230,14 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `
+      [TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.
+      loc: {
+        "column": 35,
+        "filename": undefined,
+        "line": 3,
+      }]
+    `,
     );
   });
 
@@ -232,7 +253,14 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `
+      [TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 4,
+      }]
+    `,
     );
   });
 
@@ -246,7 +274,14 @@ describe('createClassName', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
-      `[TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.]`,
+      `
+      [TransformError: /test.tsx: createClassName() can only be used in variable declarations at the module root level, not inline.
+      loc: {
+        "column": 27,
+        "filename": undefined,
+        "line": 3,
+      }]
+    `,
     );
   });
 });
