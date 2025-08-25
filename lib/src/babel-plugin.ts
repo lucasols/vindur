@@ -127,11 +127,13 @@ function loadExternalFunction(
       throw new TransformError(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
         callLoc,
+        filePath,
       );
     } else {
       throw new TransformError(
         `Function "${functionName}" not found in ${filePath}`,
         callLoc,
+        filePath,
       );
     }
   }

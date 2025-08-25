@@ -59,7 +59,7 @@ describe('function evaluation errors', () => {
       [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
       loc: {
         "column": 4,
-        "filename": undefined,
+        "filename": "/functions.ts",
         "line": 5,
       }]
     `,
@@ -92,7 +92,7 @@ describe('function evaluation errors', () => {
       [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
       loc: {
         "column": 4,
-        "filename": undefined,
+        "filename": "/functions.ts",
         "line": 5,
       }]
     `,

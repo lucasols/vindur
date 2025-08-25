@@ -95,6 +95,7 @@ function resolveImportedIdentifier(
     throw new TransformError(
       `Function "${name}" not found in ${importedFilePath}`,
       null,
+      importedFilePath,
     );
   }
 
