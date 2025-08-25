@@ -28,12 +28,25 @@ export type OutputQuasi =
       arg: string;
       method: 'join';
       separator: string;
+    }
+  | {
+      type: 'mapJoin';
+      arg: string;
+      mapParam: string;
+      mapTemplate: OutputQuasi[];
+      joinSeparator: string;
+    }
+  | {
+      type: 'arrayMap';
+      arg: string;
+      mapParam: string;
+      mapTemplate: OutputQuasi[];
     };
 
 export type FunctionArg = {
   name?: string; // Parameter name for positional args
   type: 'string' | 'number' | 'boolean' | 'array';
-  defaultValue: string | number | boolean | string[] | undefined;
+  defaultValue: string | number | boolean | (string | number)[] | undefined;
   optional?: boolean; // Whether the parameter is optional
 };
 

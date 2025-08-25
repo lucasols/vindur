@@ -678,7 +678,7 @@ test('function with invalid array value', async () => {
     \`)
   `;
 
-  expect(() =>
+  await expect(() =>
     transformWithFormat({
       source: dedent`
         import { styled } from 'vindur'
@@ -690,5 +690,33 @@ test('function with invalid array value', async () => {
       `,
       overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
     }),
-  ).toThrowErrorMatchingInlineSnapshot();
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Array argument 'numArray' is undefined
+    loc: {
+      "column": 4,
+      "filename": undefined,
+      "line": 5,
+    }]
+  `);
+
+  await expect(() =>
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { invalid } from 'test'
+
+        const Container = styled.div\`
+          \${transition([1, invalid, 3])};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... Container = styled\` ... \${transition([1, invalid, 3])}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: {
+      "column": 4,
+      "filename": undefined,
+      "line": 5,
+    }]
+  `);
 });

@@ -464,7 +464,7 @@ describe('function compilation errors', () => {
         });
       }).toThrowErrorMatchingInlineSnapshot(
         `
-        [TransformError: /test.ts: /functions.ts: vindurFn "fnInBranch" contains unsupported function calls - only array methods like .join() are supported
+        [TransformError: /test.ts: /functions.ts: vindurFn "fnInBranch" contains unsupported function calls - only array methods like .map() and .join() are supported
         loc: {
           "column": 20,
           "filename": "/functions.ts",

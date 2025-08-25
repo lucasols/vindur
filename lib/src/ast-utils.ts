@@ -6,18 +6,20 @@ export type FunctionValueTypes = 'string' | 'number' | 'boolean' | 'array';
 // Utility functions for AST node handling
 export function extractLiteralValue(
   node: t.Node,
-): string | number | boolean | string[] | null {
+): string | number | boolean | (string | number)[] | null {
   if (t.isStringLiteral(node)) return node.value;
   if (t.isNumericLiteral(node)) return node.value;
   if (t.isBooleanLiteral(node)) return node.value;
   if (t.isArrayExpression(node)) {
-    // Extract array of string literals
-    const elements: string[] = [];
+    // Extract array of literals (string or number)
+    const elements: (string | number)[] = [];
     for (const element of node.elements) {
       if (element && t.isStringLiteral(element)) {
         elements.push(element.value);
+      } else if (element && t.isNumericLiteral(element)) {
+        elements.push(element.value);
       } else if (element) {
-        // Non-string array elements are not supported
+        // Non-literal array elements are not supported
         return null;
       }
     }
@@ -27,7 +29,7 @@ export function extractLiteralValue(
 }
 
 export function getLiteralValueType(
-  value: string | number | boolean | string[] | null,
+  value: string | number | boolean | (string | number)[] | null,
 ): FunctionValueTypes {
   if (Array.isArray(value)) return 'array';
   const type = typeof value;
@@ -39,7 +41,10 @@ export function getLiteralValueType(
 export function extractArgumentValue(
   arg: t.Expression,
   path?: NodePath,
-): { value: string | number | boolean | string[] | null; resolved: boolean } {
+): {
+  value: string | number | boolean | (string | number)[] | null;
+  resolved: boolean;
+} {
   // First try to get literal value
   const literalValue = extractLiteralValue(arg);
   if (literalValue !== null) {

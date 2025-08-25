@@ -149,7 +149,7 @@ export function resolveFunctionCall(
     // Handle positional arguments - need to map to parameter names
     const argValues: Record<
       string,
-      string | number | boolean | string[] | undefined
+      string | number | boolean | (string | number)[] | undefined
     > = {};
 
     // Get parameter names from the compiled function
@@ -183,7 +183,7 @@ export function resolveFunctionCall(
     ) {
       const argValues: Record<
         string,
-        string | number | boolean | string[] | undefined
+        string | number | boolean | (string | number)[] | undefined
       > = {};
 
       // Add default values first

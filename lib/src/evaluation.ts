@@ -4,7 +4,10 @@ import { TransformError } from './custom-errors';
 
 export function evaluateOutput(
   output: OutputQuasi[],
-  args: Record<string, string | number | boolean | string[] | undefined>,
+  args: Record<
+    string,
+    string | number | boolean | (string | number)[] | undefined
+  >,
   callLoc?: t.SourceLocation | null,
 ): string {
   let result = '';
@@ -22,7 +25,10 @@ export function evaluateCondition(
     '===' | '!==' | '>' | '<' | '>=' | '<=' | 'isArray',
     TernaryConditionValue,
   ],
-  args: Record<string, string | number | boolean | string[] | undefined>,
+  args: Record<
+    string,
+    string | number | boolean | (string | number)[] | undefined
+  >,
 ): boolean {
   const [left, operator, right] = condition;
 
@@ -84,7 +90,10 @@ export function evaluateCondition(
 
 export function evaluateQuasi(
   quasi: OutputQuasi,
-  args: Record<string, string | number | boolean | string[] | undefined>,
+  args: Record<
+    string,
+    string | number | boolean | (string | number)[] | undefined
+  >,
   callLoc?: t.SourceLocation | null,
 ): string {
   if (quasi.type === 'string') {
@@ -188,6 +197,59 @@ export function evaluateQuasi(
 
     // Currently only 'join' is supported
     return argValue.join(quasi.separator);
+  } else if (quasi.type === 'arrayMap') {
+    // Handle array.map() calls
+    const argValue = args[quasi.arg];
+    if (argValue === undefined) {
+      throw new TransformError(
+        `Array argument '${quasi.arg}' is undefined`,
+        callLoc,
+      );
+    }
+    if (!Array.isArray(argValue)) {
+      throw new TransformError(
+        `Argument '${quasi.arg}' is not an array, cannot call map()`,
+        callLoc,
+      );
+    }
+
+    // Apply the map transformation to each element
+    const mappedResults: string[] = [];
+    for (const element of argValue) {
+      // Create args for the map callback
+      const mapArgs = { [quasi.mapParam]: element };
+      const mappedValue = evaluateOutput(quasi.mapTemplate, mapArgs, callLoc);
+      mappedResults.push(mappedValue);
+    }
+
+    return mappedResults.join(','); // Default behavior for standalone map
+  } else if (quasi.type === 'mapJoin') {
+    // Handle chained array.map().join() calls
+    const argValue = args[quasi.arg];
+    if (argValue === undefined) {
+      throw new TransformError(
+        `Array argument '${quasi.arg}' is undefined`,
+        callLoc,
+      );
+    }
+    if (!Array.isArray(argValue)) {
+      throw new TransformError(
+        `Argument '${quasi.arg}' is not an array, cannot call map().join()`,
+        callLoc,
+      );
+    }
+
+    // Apply the map transformation to each element
+    const mappedResults: string[] = [];
+    for (const element of argValue) {
+      // Create args for the map callback
+      const mapArgs = { [quasi.mapParam]: element };
+      const mappedValue = evaluateOutput(quasi.mapTemplate, mapArgs, callLoc);
+      mappedResults.push(mappedValue);
+    }
+
+    // Join with the specified separator
+    return mappedResults.join(quasi.joinSeparator);
   } else {
     // quasi.type === 'ternary'
     const conditionResult = evaluateCondition(quasi.condition, args);
