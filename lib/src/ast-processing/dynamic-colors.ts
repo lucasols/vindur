@@ -1,7 +1,7 @@
 import { types as t } from '@babel/core';
 import type { CssProcessingContext } from '../css-processing';
-import { findWithNarrowing } from '../utils';
 import { TransformError } from '../custom-errors';
+import { findWithNarrowing } from '../utils';
 
 export function resolveDynamicColorExpression(
   memberExpr: t.MemberExpression,

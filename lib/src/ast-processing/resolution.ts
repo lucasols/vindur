@@ -1,12 +1,12 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { extractArgumentValue, extractLiteralValue } from '../ast-utils';
+import type { CssProcessingContext } from '../css-processing';
+import { TransformError } from '../custom-errors';
 import { evaluateOutput } from '../evaluation';
 import type { FunctionArg } from '../types';
-import type { CssProcessingContext } from '../css-processing';
-import { resolveThemeColorCallExpression } from './theme-colors';
 import { resolveImportedConstant } from './file-processing';
-import { TransformError } from '../custom-errors';
+import { resolveThemeColorCallExpression } from './theme-colors';
 
 export function resolveVariable(
   variableName: string,

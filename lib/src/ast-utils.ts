@@ -48,7 +48,7 @@ export function extractArgumentValue(
 } {
   // First try to get literal value
   const literalValue = extractLiteralValue(arg);
-  if (literalValue !== null || literalValue === undefined) {
+  if (literalValue !== null) {
     return { value: literalValue, resolved: true };
   }
 
