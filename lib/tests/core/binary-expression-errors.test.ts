@@ -31,7 +31,7 @@ describe('Binary Expression Error Handling', () => {
         fs: mockFS,
         importAliases: { '@utils': '/src/utils' },
       });
-    }).toThrow(
+    }).toThrowErrorMatchingInlineSnapshot(
       "Binary expression evaluation failed: left operand 'multiplier' is undefined",
     );
   });
@@ -64,7 +64,9 @@ describe('Binary Expression Error Handling', () => {
         fs: mockFS,
         importAliases: { '@utils': '/src/utils' },
       });
-    }).toThrow('Binary expression evaluation failed: operands must be numbers');
+    }).toThrowErrorMatchingInlineSnapshot(
+      'Binary expression evaluation failed: operands must be numbers',
+    );
   });
 
   it('should throw error for division by zero', () => {
@@ -95,6 +97,8 @@ describe('Binary Expression Error Handling', () => {
         fs: mockFS,
         importAliases: { '@utils': '/src/utils' },
       });
-    }).toThrow('Binary expression evaluation failed: division by zero');
+    }).toThrowErrorMatchingInlineSnapshot(
+      'Binary expression evaluation failed: division by zero',
+    );
   });
 });
