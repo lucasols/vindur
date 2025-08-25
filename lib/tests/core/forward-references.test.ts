@@ -163,7 +163,9 @@ describe('forward references', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      'Forward reference to undefined styled component: UndefinedComponent',
+      `
+      [TransformError: /test.tsx: Forward reference to undefined styled component: UndefinedComponent. Make sure the component is defined in the same file.]
+    `,
     );
   });
 
@@ -183,7 +185,14 @@ describe('forward references', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
-      'Invalid arrow function in interpolation',
+      `
+      [TransformError: /test.tsx: Invalid arrow function in interpolation at \`... Card = styled\`. Only simple forward references like \${() => Component} are supported
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
     );
   });
 

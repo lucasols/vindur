@@ -539,7 +539,14 @@ describe('Style Flags Transform Logic', () => {
           `,
         }),
       ).rejects.toThrowErrorMatchingInlineSnapshot(
-        'Style flags only support boolean properties and string literal unions. Property "count" has type "number".',
+        `
+        [TransformError: /test.tsx: Style flags only support boolean properties and string literal unions. Property "count" has type "number".
+        loc: {
+          "column": 2,
+          "filename": undefined,
+          "line": 4,
+        }]
+      `,
       );
     });
 

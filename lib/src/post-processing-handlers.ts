@@ -1,6 +1,7 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
+import { TransformError } from './custom-errors';
 
 type PostProcessingContext = {
   state: VindurPluginState;
@@ -9,7 +10,16 @@ type PostProcessingContext = {
   importAliasesArray: [string, string][];
 };
 
-export function resolveForwardReferences(state: VindurPluginState): void {
+export function resolveForwardReferences(
+  state: VindurPluginState,
+  filePath: string,
+): void {
+  const defaultLoc: t.SourceLocation = {
+    start: { line: 1, column: 0, index: 0 },
+    end: { line: 1, column: 0, index: 0 },
+    filename: filePath,
+    identifierName: undefined,
+  };
   state.cssRules = state.cssRules.map((cssRule) => {
     let resolvedRule = cssRule;
     // Find all forward reference placeholders
@@ -18,7 +28,11 @@ export function resolveForwardReferences(state: VindurPluginState): void {
     while ((match = forwardRefRegex.exec(cssRule)) !== null) {
       const componentName = match[1];
       if (!componentName) {
-        throw new Error('Invalid forward reference placeholder found');
+        throw new TransformError(
+          'Invalid forward reference placeholder found',
+          defaultLoc,
+          filePath,
+        );
       }
       const styledComponent = state.styledComponents.get(componentName);
       if (styledComponent) {
@@ -28,8 +42,10 @@ export function resolveForwardReferences(state: VindurPluginState): void {
           `.${styledComponent.className}`,
         );
       } else {
-        throw new Error(
+        throw new TransformError(
           `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`,
+          defaultLoc,
+          filePath,
         );
       }
     }
@@ -203,9 +219,10 @@ export function cleanupImports(
 export function performPostProcessing(
   file: { path: NodePath },
   context: PostProcessingContext,
+  filePath: string,
 ): void {
   // Step 1: Resolve forward references in CSS rules
-  resolveForwardReferences(context.state);
+  resolveForwardReferences(context.state, filePath);
 
   // Step 2: Clean up imports
   cleanupImports(file, context);

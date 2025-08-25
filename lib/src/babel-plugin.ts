@@ -4,14 +4,14 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
-import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
+import { TransformError } from './custom-errors';
 import {
   createExtractVindurFeaturesPlugin,
   type ExtractedVindurFeatures,
 } from './extract-vindur-features-plugin';
+import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
-import { TransformError } from './custom-errors';
 import {
   handleFunctionImports,
   handleVindurFnExport,
@@ -20,8 +20,8 @@ import {
 import { handleJsxCssProp } from './visitor-handlers/jsx-css-prop-handlers';
 import { handleJsxCxProp } from './visitor-handlers/jsx-cx-prop-handlers';
 import { handleJsxDynamicColorProp } from './visitor-handlers/jsx-dynamic-color-handlers';
-import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
 import { handleJsxStyleProp } from './visitor-handlers/jsx-style-prop-handlers';
+import { handleJsxStyledComponent } from './visitor-handlers/jsx-styled-handlers';
 import {
   handleCssTaggedTemplate,
   handleGlobalStyleTaggedTemplate,
@@ -494,7 +494,7 @@ export function createVindurPlugin(
         importAliasesArray,
       };
 
-      performPostProcessing(file, postProcessingContext);
+      performPostProcessing(file, postProcessingContext, filePath);
     },
   };
 }

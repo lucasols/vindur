@@ -262,9 +262,9 @@ describe('constant imports', () => {
       `
       [TransformError: /test.tsx: Function "unknownConstant" not found in /constants.ts
       loc: {
-        "column": 0,
+        "column": 6,
         "filename": "/constants.ts",
-        "line": 0,
+        "line": 4,
       }]
     `,
     );

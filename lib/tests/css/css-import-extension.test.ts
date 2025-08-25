@@ -291,9 +291,9 @@ describe('CSS import extension', () => {
       `
       [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
       loc: {
-        "column": 0,
+        "column": 6,
         "filename": "/styles.ts",
-        "line": 0,
+        "line": 4,
       }]
     `,
     );

@@ -322,9 +322,9 @@ describe('keyframes cross-file imports', () => {
       `
       [TransformError: /test.tsx: Function "unknownAnimation" not found in /animations.ts
       loc: {
-        "column": 0,
+        "column": 6,
         "filename": "/animations.ts",
-        "line": 0,
+        "line": 4,
       }]
     `,
     );
