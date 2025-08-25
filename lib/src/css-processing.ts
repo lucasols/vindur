@@ -28,6 +28,7 @@ export type CssProcessingContext = {
       cssVariables: Map<string, string>;
       keyframes: Map<string, string>;
       constants: Map<string, string | number>;
+      objectConstants: Map<string, Record<string, string | number>>;
       themeColors: Map<string, Record<string, string>>;
     }
   >;

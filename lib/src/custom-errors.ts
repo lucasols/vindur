@@ -14,4 +14,8 @@ export class TransformError extends Error {
       };
     }
   }
+
+  toString() {
+    return `[TransformError: ${this.message}]`;
+  }
 }

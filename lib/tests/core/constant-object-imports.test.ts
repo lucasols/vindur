@@ -29,12 +29,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style = "v1560qbr-1";
+      "const style = "v1560qbr-1-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style {
         color: red;
         @media (max-width: 768px) {
           color: blue;
@@ -73,12 +73,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style = "v1560qbr-1";
+      "const style = "v1560qbr-1-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style {
         color: red;
         @media (max-width: 768px) {
           font-size: 14px;
@@ -161,12 +161,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style = "v1560qbr-1";
+      "const style = "v1560qbr-1-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style {
         background-color: #007bff;
         color: #ffffff;
         border: 1px solid #dee2e6;
@@ -205,12 +205,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style = "v1560qbr-1";
+      "const style = "v1560qbr-1-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style {
         background: #007bff;
         padding: 24px;
         margin: 8px;
@@ -248,12 +248,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const style = "v1560qbr-1";
+      "const style = "v1560qbr-1-style";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-style {
         &:hover {
           color: blue;
         }
@@ -299,12 +299,12 @@ describe('constant object imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1560qbr-1">Content</div>;
+      "const App = () => <div className="v1560qbr-1-css-prop-1">Content</div>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1560qbr-1 {
+      ".v1560qbr-1-css-prop-1 {
         padding: 16px;
         background: white;
         @media (max-width: 768px) {

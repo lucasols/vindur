@@ -262,6 +262,36 @@ function processMemberExpression(
   );
   if (createClassNameResolved !== null) return createClassNameResolved;
 
+  // Try object property access
+  if (t.isIdentifier(expression.property) && !expression.computed) {
+    // Check for nested property access and throw error
+    if (t.isMemberExpression(expression.object)) {
+      const expressionSource = generate(expression).code;
+      const varContext =
+        variableName ? `... ${variableName} = ${tagType}` : tagType;
+      throw new TransformError(
+        `Nested property access is not supported, only one level property access is allowed at \`${varContext}\` ... \${${expressionSource}}`,
+        expression.loc,
+      );
+    }
+
+    // Only handle simple identifier.property access
+    if (t.isIdentifier(expression.object)) {
+      const objectName = expression.object.name;
+      const propertyName = expression.property.name;
+
+      const objectPropertyValue = resolveImportedObjectProperty(
+        objectName,
+        propertyName,
+        context,
+        expression.loc,
+      );
+      if (objectPropertyValue !== null) {
+        return String(objectPropertyValue);
+      }
+    }
+  }
+
   const expressionSource = generate(expression).code;
   const varContext =
     variableName ? `... ${variableName} = ${tagType}` : tagType;
@@ -520,6 +550,46 @@ function resolveImportedConstantLocal(
     throw new TransformError(
       `Failed to load constant "${constantName}" from ${constantFilePath}`,
       null,
+    );
+  }
+}
+
+function resolveImportedObjectProperty(
+  objectName: string,
+  propertyName: string,
+  context: CssProcessingContext,
+  loc?: t.SourceLocation | null,
+): string | number | null {
+  // Check if this object is imported from another file
+  const objectFilePath = context.importedFunctions.get(objectName);
+
+  if (!objectFilePath) return null;
+
+  // Load and process the external file to extract objects
+  try {
+    const extractedData = getOrExtractFileData(objectFilePath, context);
+
+    // Look for the specific object in the external file
+    const objectValue = extractedData.objectConstants.get(objectName);
+    if (objectValue !== undefined) {
+      // Check if the property exists on the object
+      const propertyValue = objectValue[propertyName];
+      if (propertyValue !== undefined) {
+        // Mark this object as used (for import cleanup)
+        context.usedFunctions.add(objectName);
+        return propertyValue;
+      }
+    }
+
+    // Return null if not found (allow other resolvers to try)
+    return null;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new TransformError(
+      `Failed to load object "${objectName}" from ${objectFilePath}`,
+      loc,
     );
   }
 }

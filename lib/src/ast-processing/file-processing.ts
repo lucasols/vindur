@@ -12,6 +12,7 @@ export function getOrExtractFileData(
   cssVariables: Map<string, string>;
   keyframes: Map<string, string>;
   constants: Map<string, string | number>;
+  objectConstants: Map<string, Record<string, string | number>>;
   themeColors: Map<string, Record<string, string>>;
 } {
   // Check cache first
@@ -35,11 +36,18 @@ export function getOrExtractFileData(
   // Create maps to collect constants during transform
   const allConstants = new Map<string, string | number>();
   const exportedConstants = new Map<string, string | number>();
+  const allObjectConstants = new Map<string, Record<string, string | number>>();
+  const exportedObjectConstants = new Map<
+    string,
+    Record<string, string | number>
+  >();
 
   // Create a combined plugin that extracts both constants and CSS in one pass
   const constantsExtractorPlugin = createConstantsExtractorPlugin(
     allConstants,
     exportedConstants,
+    allObjectConstants,
+    exportedObjectConstants,
   );
 
   const vindurPlugin = createVindurPlugin(
@@ -65,6 +73,9 @@ export function getOrExtractFileData(
     context.debug.log(
       `Extracted constants from ${filePath}: ${JSON.stringify(Array.from(exportedConstants.entries()))}`,
     );
+    context.debug.log(
+      `Extracted object constants from ${filePath}: ${JSON.stringify(Array.from(exportedObjectConstants.entries()))}`,
+    );
   }
 
   // Create the result object
@@ -72,6 +83,7 @@ export function getOrExtractFileData(
     cssVariables: new Map(tempState.cssVariables),
     keyframes: new Map(tempState.keyframes),
     constants: exportedConstants,
+    objectConstants: exportedObjectConstants,
     themeColors: new Map(tempState.themeColors),
   };
 
@@ -87,6 +99,8 @@ export function getOrExtractFileData(
 function createConstantsExtractorPlugin(
   allConstants: Map<string, string | number>,
   exportedConstants: Map<string, string | number>,
+  allObjectConstants: Map<string, Record<string, string | number>>,
+  exportedObjectConstants: Map<string, Record<string, string | number>>,
 ): babel.PluginObj {
   return {
     name: 'extract-constants',
@@ -111,6 +125,12 @@ function createConstantsExtractorPlugin(
                 );
                 if (resolvedValue !== null) {
                   allConstants.set(variableName, resolvedValue);
+                }
+              } else if (t.isObjectExpression(declarator.init)) {
+                // Extract object literal with string/number properties
+                const objectValue = extractObjectLiteral(declarator.init);
+                if (objectValue !== null) {
+                  allObjectConstants.set(variableName, objectValue);
                 }
               }
             }
@@ -145,12 +165,24 @@ function createConstantsExtractorPlugin(
                     allConstants.set(variableName, resolvedValue);
                     exportedConstants.set(variableName, resolvedValue);
                   }
+                } else if (t.isObjectExpression(declarator.init)) {
+                  // Handle object literals in export declarations
+                  const objectValue = extractObjectLiteral(declarator.init);
+                  if (objectValue !== null) {
+                    allObjectConstants.set(variableName, objectValue);
+                    exportedObjectConstants.set(variableName, objectValue);
+                  }
                 }
               } else {
                 // Look for it in allConstants if it was declared separately
                 const value = allConstants.get(variableName);
                 if (value !== undefined) {
                   exportedConstants.set(variableName, value);
+                }
+                // Look for it in allObjectConstants if it was declared separately
+                const objectValue = allObjectConstants.get(variableName);
+                if (objectValue !== undefined) {
+                  exportedObjectConstants.set(variableName, objectValue);
                 }
               }
             }
@@ -260,4 +292,40 @@ export function resolveImportedThemeColors(
       null,
     );
   }
+}
+
+function extractObjectLiteral(
+  objectExpression: t.ObjectExpression,
+): Record<string, string | number> | null {
+  const result: Record<string, string | number> = {};
+
+  for (const property of objectExpression.properties) {
+    if (
+      t.isObjectProperty(property)
+      && !property.computed
+      && (t.isIdentifier(property.key) || t.isStringLiteral(property.key))
+    ) {
+      // Get the property key
+      const key =
+        t.isIdentifier(property.key) ? property.key.name : property.key.value;
+
+      // Extract the literal value
+      const value = extractLiteralValue(property.value);
+
+      if (
+        value !== null
+        && (typeof value === 'string' || typeof value === 'number')
+      ) {
+        result[key] = value;
+      } else {
+        // If any property is not a literal, reject the entire object
+        return null;
+      }
+    } else {
+      // If any property is computed or not simple, reject the entire object
+      return null;
+    }
+  }
+
+  return result;
 }
