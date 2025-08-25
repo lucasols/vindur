@@ -93,7 +93,7 @@ describe('dynamic color imports', () => {
       `,
       overrideDefaultFs: createFsMock({
         'theme.ts': dedent`
-          import { createDynamicCssColor } from 'vindur'
+          import { createDynamicCssColor, css } from 'vindur'
           export const testCss = css\`
             color: test;
           \`

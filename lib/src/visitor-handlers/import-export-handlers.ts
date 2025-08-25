@@ -90,7 +90,7 @@ export function handleFunctionImports(
 
       // Check if this is a dynamic color and add it to state if so
       const cachedColors = dynamicColorCache[resolvedPath];
-      if (cachedColors && cachedColors[importedName]) {
+      if (cachedColors?.[importedName]) {
         // Initialize dynamicColors map if it doesn't exist
         if (!state.dynamicColors) {
           state.dynamicColors = new Map();

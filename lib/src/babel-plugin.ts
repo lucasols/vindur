@@ -4,7 +4,10 @@ import { types as t } from '@babel/core';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
-import { createExtractDynamicColorsPlugin } from './extract-dynamic-colors-plugin';
+import {
+  createExtractVindurFeaturesPlugin,
+  type ExtractedVindurFeatures,
+} from './extract-vindur-features-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
 import { TransformError } from './custom-errors';
@@ -166,17 +169,41 @@ export function loadExternalDynamicColors(
     return;
   }
 
-  // Load and parse the external file to extract dynamic colors
+  // Load and parse the external file using extraction-only plugin
   const fileContent = fs.readFile(filePath);
 
-  // Parse the file to extract dynamic colors
+  // Create extracted features container
+  const extractedFeatures: ExtractedVindurFeatures = {
+    cssVariables: new Map(),
+    keyframes: new Map(),
+    dynamicColors: new Map(),
+    themeColors: new Map(),
+    styledComponents: new Map(),
+  };
+
+  // Use the general extraction plugin to get all features with accurate indices
+  const extractionPlugin = createExtractVindurFeaturesPlugin(
+    filePath,
+    extractedFeatures,
+    debug,
+  );
+
   babel.transformSync(fileContent, {
     filename: filePath,
-    plugins: [
-      createExtractDynamicColorsPlugin(filePath, dynamicColorCache, debug),
-    ],
+    plugins: [extractionPlugin],
     parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
   });
+
+  // Extract dynamic color mappings from the extracted features
+  if (extractedFeatures.dynamicColors.size > 0) {
+    dynamicColorCache[filePath] ??= {};
+    for (const [varName, hashId] of extractedFeatures.dynamicColors) {
+      dynamicColorCache[filePath][varName] = hashId;
+      debug?.log(
+        `[vindur:dynamic-colors] Cached dynamic color "${varName}" -> "${hashId}" from ${filePath}`,
+      );
+    }
+  }
 
   debug?.log(
     `[vindur:dynamic-colors] Processed dynamic colors from ${filePath}`,
