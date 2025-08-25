@@ -4,6 +4,7 @@ import { types as t } from '@babel/core';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
+import { createExtractDynamicColorsPlugin } from './extract-dynamic-colors-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
 import { TransformError } from './custom-errors';
@@ -71,6 +72,10 @@ export type FunctionCache = {
   [filePath: string]: { [functionName: string]: CompiledFunction };
 };
 
+export type DynamicColorCache = {
+  [filePath: string]: { [varName: string]: string };
+};
+
 export type PluginFS = { readFile: (path: string) => string };
 
 export type ImportedFunctions = Map<string, string>;
@@ -81,6 +86,7 @@ export type VindurPluginOptions = {
   filePath: string;
   fs: PluginFS;
   transformFunctionCache: FunctionCache;
+  dynamicColorCache: DynamicColorCache;
   importAliases: Record<string, string>;
 };
 
@@ -141,6 +147,42 @@ function loadExternalFunction(
   return compiledFn;
 }
 
+export function loadExternalDynamicColors(
+  fs: PluginFS,
+  filePath: string,
+  dynamicColorCache: DynamicColorCache,
+  styleDependencies?: Set<string>,
+  debug?: DebugLogger,
+): void {
+  // Track this file as a dependency
+  if (styleDependencies) {
+    styleDependencies.add(filePath);
+    debug?.log(`[vindur:deps] Added dependency: ${filePath}`);
+  }
+
+  // Check if already processed
+  if (dynamicColorCache[filePath]) {
+    debug?.log(`[vindur:dynamic-colors] Cache HIT for file ${filePath}`);
+    return;
+  }
+
+  // Load and parse the external file to extract dynamic colors
+  const fileContent = fs.readFile(filePath);
+
+  // Parse the file to extract dynamic colors
+  babel.transformSync(fileContent, {
+    filename: filePath,
+    plugins: [
+      createExtractDynamicColorsPlugin(filePath, dynamicColorCache, debug),
+    ],
+    parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+  });
+
+  debug?.log(
+    `[vindur:dynamic-colors] Processed dynamic colors from ${filePath}`,
+  );
+}
+
 export function createVindurPlugin(
   options: VindurPluginOptions,
   state: VindurPluginState,
@@ -151,6 +193,7 @@ export function createVindurPlugin(
     filePath,
     fs,
     transformFunctionCache,
+    dynamicColorCache,
     importAliases = {},
   } = options;
 
@@ -166,17 +209,25 @@ export function createVindurPlugin(
   // Initialize compiledFunctions for current file if not exists
   transformFunctionCache[filePath] ??= {};
 
+  // Initialize dynamicColorCache for current file if not exists
+  dynamicColorCache[filePath] ??= {};
+
   const importAliasesArray = Object.entries(importAliases);
 
   return {
     name: 'vindur-css-transform',
     visitor: {
       ImportDeclaration(path) {
+        const classIndexRef = { current: idIndex };
         const importHandlerContext = {
           state,
           importedFunctions,
           debug,
           importAliasesArray,
+          fileHash,
+          classIndex: classIndexRef,
+          fs,
+          dynamicColorCache,
         };
 
         if (path.node.source.value === 'vindur') {
@@ -184,6 +235,9 @@ export function createVindurPlugin(
         } else {
           handleFunctionImports(path, importHandlerContext);
         }
+
+        // Update idIndex from the reference
+        idIndex = classIndexRef.current;
       },
       ExportNamedDeclaration(path) {
         const exportHandlerContext = {
@@ -223,6 +277,7 @@ export function createVindurPlugin(
         const context: CssProcessingContext = {
           fs,
           compiledFunctions: transformFunctionCache,
+          dynamicColorCache,
           importedFunctions,
           usedFunctions,
           state,
@@ -306,6 +361,7 @@ export function createVindurPlugin(
         const context: CssProcessingContext = {
           fs,
           compiledFunctions: transformFunctionCache,
+          dynamicColorCache,
           importedFunctions,
           usedFunctions,
           state,
@@ -351,6 +407,7 @@ export function createVindurPlugin(
           cssProcessingContext: () => ({
             fs,
             compiledFunctions: transformFunctionCache,
+            dynamicColorCache,
             importedFunctions,
             usedFunctions,
             state,

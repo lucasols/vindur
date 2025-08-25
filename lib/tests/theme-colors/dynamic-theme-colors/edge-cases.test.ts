@@ -56,14 +56,14 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Button {
-        background: var(--v1560qbr-2);
-        color: var(--v1560qbr-2-c);
+        background: var(--vip4ilp-1);
+        color: var(--vip4ilp-1-c);
 
-        &.v1560qbr-2-s0 {
+        &.vip4ilp-1-s0 {
           border: 1px solid white;
         }
 
-        .v1560qbr-2-c1 & {
+        .vip4ilp-1-c1 & {
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
       }

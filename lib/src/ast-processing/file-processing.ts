@@ -56,6 +56,7 @@ export function getOrExtractFileData(
       dev: false, // Use production mode for external files
       fs: context.fs,
       transformFunctionCache: context.compiledFunctions,
+      dynamicColorCache: context.dynamicColorCache,
       importAliases: {}, // External files don't need alias resolution for their own processing
     },
     tempState,

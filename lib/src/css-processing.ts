@@ -3,6 +3,7 @@ import { types as t } from '@babel/core';
 import { processTemplateWithInterpolation } from './ast-processing';
 import type {
   DebugLogger,
+  DynamicColorCache,
   FunctionCache,
   VindurPluginState,
 } from './babel-plugin';
@@ -16,6 +17,7 @@ import {
 export type CssProcessingContext = {
   fs: TransformFS;
   compiledFunctions: FunctionCache;
+  dynamicColorCache: DynamicColorCache;
   importedFunctions: Map<string, string>;
   usedFunctions: Set<string>;
   state: VindurPluginState;

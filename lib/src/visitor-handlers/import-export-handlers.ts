@@ -1,27 +1,25 @@
-import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import { parseFunction } from '../function-parser';
 import type {
   DebugLogger,
-  VindurPluginState,
+  DynamicColorCache,
   FunctionCache,
   ImportedFunctions,
+  VindurPluginState,
 } from '../babel-plugin';
-
-// Top-level regexes to avoid creating new RegExp objects on each function call
-const COLOR_REGEX = /color/i;
-const THEME_REGEX = /theme/i;
-const PALETTE_REGEX = /palette/i;
-const PRIMARY_REGEX = /primary/i;
-const SECONDARY_REGEX = /secondary/i;
-const ACCENT_REGEX = /accent/i;
+import { loadExternalDynamicColors } from '../babel-plugin';
+import { TransformError } from '../custom-errors';
+import { parseFunction } from '../function-parser';
 
 type ImportHandlerContext = {
   state: VindurPluginState;
   importedFunctions: ImportedFunctions;
   debug?: DebugLogger;
   importAliasesArray: [string, string][];
+  fileHash: string;
+  classIndex: { current: number };
+  fs: { readFile: (path: string) => string };
+  dynamicColorCache: DynamicColorCache;
 };
 
 type ExportHandlerContext = {
@@ -48,8 +46,14 @@ export function handleFunctionImports(
   path: NodePath<t.ImportDeclaration>,
   handlerContext: ImportHandlerContext,
 ): void {
-  const { state, importedFunctions, debug, importAliasesArray } =
-    handlerContext;
+  const {
+    state,
+    importedFunctions,
+    debug,
+    importAliasesArray,
+    fs,
+    dynamicColorCache,
+  } = handlerContext;
 
   const source = path.node.source.value;
 
@@ -61,6 +65,15 @@ export function handleFunctionImports(
   }
 
   debug?.log(`[vindur:import] ${source} resolved to ${resolvedPath}`);
+
+  // Load external dynamic colors from this file
+  loadExternalDynamicColors(
+    fs,
+    resolvedPath,
+    dynamicColorCache,
+    state.styleDependencies,
+    debug,
+  );
 
   for (const specifier of path.node.specifiers) {
     if (t.isImportSpecifier(specifier) && t.isIdentifier(specifier.imported)) {
@@ -75,66 +88,23 @@ export function handleFunctionImports(
         debug?.log(`[vindur:deps] Added import dependency: ${resolvedPath}`);
       }
 
-      // Check if this might be a dynamic color import and pre-load the external file
-      // We'll load the file to check for dynamic color exports
-      loadExternalDynamicColors(
-        resolvedPath,
-        importedName,
-        localName,
-        state,
-        debug,
-      );
-    }
-  }
-}
+      // Check if this is a dynamic color and add it to state if so
+      const cachedColors = dynamicColorCache[resolvedPath];
+      if (cachedColors && cachedColors[importedName]) {
+        // Initialize dynamicColors map if it doesn't exist
+        if (!state.dynamicColors) {
+          state.dynamicColors = new Map();
+        }
 
-// Function to load external files and detect exported dynamic colors
-function loadExternalDynamicColors(
-  filePath: string,
-  importedName: string,
-  localName: string,
-  state: VindurPluginState,
-  debug?: DebugLogger,
-): void {
-  try {
-    // For the test case, we know themeColor should be treated as a dynamic color
-    // In a real implementation, we'd parse the external file to detect createDynamicCssColor exports
+        // Use the hash ID from the external file
+        const externalHashId = cachedColors[importedName];
+        state.dynamicColors.set(localName, externalHashId);
 
-    // For now, use pattern matching but be more inclusive
-    const dynamicColorPatterns = [
-      COLOR_REGEX,
-      THEME_REGEX,
-      PALETTE_REGEX,
-      PRIMARY_REGEX,
-      SECONDARY_REGEX,
-      ACCENT_REGEX,
-    ];
-
-    const mightBeDynamicColor = dynamicColorPatterns.some(
-      (pattern) => pattern.test(importedName) || pattern.test(localName),
-    );
-
-    if (mightBeDynamicColor) {
-      // Generate a proper hash ID for the imported dynamic color
-      // Use the same format as local dynamic colors
-      const hashId = `v1560qbr-2`; // Use a predictable ID for imported colors for now
-
-      // Initialize dynamicColors map if it doesn't exist
-      if (!state.dynamicColors) {
-        state.dynamicColors = new Map();
+        debug?.log(
+          `[vindur:dynamic-color] Imported dynamic color: ${localName} -> ${externalHashId} (from ${resolvedPath})`,
+        );
       }
-
-      // Add the imported dynamic color to state
-      state.dynamicColors.set(localName, hashId);
-
-      debug?.log(
-        `[vindur:dynamic-color] Detected dynamic color import: ${localName} -> ${hashId}`,
-      );
     }
-  } catch (error) {
-    debug?.log(
-      `[vindur:dynamic-color] Error loading external dynamic colors from ${filePath}: ${String(error)}`,
-    );
   }
 }
 

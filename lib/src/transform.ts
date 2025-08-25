@@ -2,6 +2,7 @@ import * as babel from '@babel/core';
 import {
   createVindurPlugin,
   type DebugLogger,
+  type DynamicColorCache,
   type FunctionCache,
   type VindurPluginState,
 } from './babel-plugin';
@@ -17,6 +18,7 @@ export type VindurTransformResult = {
 export type TransformFS = { readFile: (fileAbsPath: string) => string };
 
 export type TransformFunctionCache = FunctionCache;
+export type TransformDynamicColorCache = DynamicColorCache;
 
 export type TransformOptions = {
   fileAbsPath: string;
@@ -25,6 +27,7 @@ export type TransformOptions = {
   debug?: DebugLogger;
   fs: TransformFS;
   transformFunctionCache?: TransformFunctionCache;
+  transformDynamicColorCache?: TransformDynamicColorCache;
   importAliases: Record<string, string>;
   sourcemap?: boolean;
 };
@@ -36,6 +39,7 @@ export function transform({
   debug,
   fs,
   transformFunctionCache = {},
+  transformDynamicColorCache = {},
   importAliases,
   sourcemap = false,
 }: TransformOptions): VindurTransformResult {
@@ -61,6 +65,7 @@ export function transform({
       debug,
       fs,
       transformFunctionCache,
+      dynamicColorCache: transformDynamicColorCache,
       importAliases,
     },
     pluginState,

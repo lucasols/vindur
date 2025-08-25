@@ -34,7 +34,7 @@ describe('dynamic color imports', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-styles {
-        color: var(--v1560qbr-2);
+        color: var(--vip4ilp-1);
       }
       "
     `);
@@ -71,8 +71,8 @@ describe('dynamic color imports', () => {
     `);
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-styles {
-        color: var(--hardcoded-hash-id);
-        background: var(--hardcoded-hash-id);
+        color: var(--vip4ilp-1);
+        background: var(--vip4ilp-2);
         border: 1px solid var(--v1560qbr-1);
       }
       "
@@ -94,6 +94,9 @@ describe('dynamic color imports', () => {
       overrideDefaultFs: createFsMock({
         'theme.ts': dedent`
           import { createDynamicCssColor } from 'vindur'
+          export const testCss = css\`
+            color: test;
+          \`
           export const brandColor = createDynamicCssColor()
         `,
       }),
@@ -109,7 +112,7 @@ describe('dynamic color imports', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1 {
-        color: var(--hardcoded-hash-id);
+        color: var(--vckpm80-2);
       }
       "
     `);
