@@ -120,7 +120,17 @@ test('valid function to css', async () => {
     overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
   });
 
-  expect(result.css).toMatchInlineSnapshot();
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Container {
+      transition: 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    "
+  `);
 
-  expect(result.code).toMatchInlineSnapshot();
+  expect(result.code).toMatchInlineSnapshot(`
+    "const Component: FC = () => {
+      return <div className="v1560qbr-1-Container" />;
+    };
+    "
+  `);
 });

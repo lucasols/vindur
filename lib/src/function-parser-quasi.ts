@@ -12,6 +12,8 @@ export function parseQuasiFromExpression(
 ): OutputQuasi {
   if (t.isStringLiteral(expr)) {
     return { type: 'string', value: expr.value };
+  } else if (t.isNumericLiteral(expr)) {
+    return { type: 'string', value: String(expr.value) };
   } else if (t.isIdentifier(expr)) {
     // Validate that the identifier is a valid parameter or built-in
     const builtInIdentifiers = new Set(['undefined', 'null', 'true', 'false']);
