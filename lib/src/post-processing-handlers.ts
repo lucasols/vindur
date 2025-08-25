@@ -1,8 +1,6 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
-import { notNullish } from '@ls-stack/utils/assertions';
 import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
-import { TransformError } from './custom-errors';
 
 type PostProcessingContext = {
   state: VindurPluginState;
@@ -20,13 +18,7 @@ export function resolveForwardReferences(state: VindurPluginState): void {
     while ((match = forwardRefRegex.exec(cssRule)) !== null) {
       const componentName = match[1];
       if (!componentName) {
-        throw new TransformError(
-          'Invalid forward reference placeholder found',
-          {
-            start: { line: 1, column: 1, index: 0 },
-            end: { line: 1, column: 1, index: 0 },
-          },
-        );
+        throw new Error('Invalid forward reference placeholder found');
       }
       const styledComponent = state.styledComponents.get(componentName);
       if (styledComponent) {
@@ -36,12 +28,8 @@ export function resolveForwardReferences(state: VindurPluginState): void {
           `.${styledComponent.className}`,
         );
       } else {
-        throw new TransformError(
+        throw new Error(
           `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`,
-          {
-            start: { line: 1, column: 1, index: 0 },
-            end: { line: 1, column: 1, index: 0 },
-          },
         );
       }
     }

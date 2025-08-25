@@ -1,5 +1,4 @@
 import * as babel from '@babel/core';
-import { notNullish } from '@ls-stack/utils/assertions';
 import {
   createVindurPlugin,
   type DebugLogger,
@@ -7,7 +6,6 @@ import {
   type FunctionCache,
   type VindurPluginState,
 } from './babel-plugin';
-import { TransformError } from './custom-errors';
 
 export type VindurTransformResult = {
   css: string;
@@ -56,11 +54,7 @@ export function transform({
   };
 
   if (!fileAbsPath.includes('/')) {
-    throw new TransformError('fileAbsPath must be an absolute path', {
-      start: { line: 1, column: 1, index: 0 },
-      end: { line: 1, column: 1, index: 0 },
-      filename: fileAbsPath,
-    });
+    throw new Error('fileAbsPath must be an absolute path');
   }
 
   const plugin = createVindurPlugin(
@@ -84,11 +78,7 @@ export function transform({
   });
 
   if (!result?.code && result?.code !== '') {
-    throw new TransformError('Transform failed', {
-      start: { line: 1, column: 1, index: 0 },
-      end: { line: 1, column: 1, index: 0 },
-      filename: fileAbsPath,
-    });
+    throw new Error('Transform failed');
   }
 
   let finalCode = result.code;
