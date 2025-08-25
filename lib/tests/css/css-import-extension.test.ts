@@ -290,7 +290,11 @@ describe('CSS import extension', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
-      loc: undefined]
+      loc: {
+        "column": 0,
+        "filename": "/styles.ts",
+        "line": 0,
+      }]
     `,
     );
   });

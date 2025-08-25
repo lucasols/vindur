@@ -16,6 +16,12 @@ export class TransformError extends Error {
         line: loc.start.line,
         filename: filename ?? loc.filename,
       };
+    } else if (filename) {
+      this.loc = {
+        column: 0,
+        line: 0,
+        filename,
+      };
     }
   }
 
