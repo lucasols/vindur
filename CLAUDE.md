@@ -91,7 +91,7 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 
 ## Plugin error handling
 
-- The plugin should be strict about errors, it should either be 100% successful or fail if a error or unexpected behavior, or unhandled case occurs, no fallback values or partial results should be returned
+- The plugin should be strict about errors in transform process, using the 'Fail Fast' approach, it should either be 100% successful or fail if a error or unexpected behavior, or unhandled case occurs, no fallback values or partial results should be returned. Only use warnings for optimization suggestions or such as removing unused code, etc.
 
 - Transform errors should use `TransformError` class, with properly set `loc` and `message`
 
