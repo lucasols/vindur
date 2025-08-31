@@ -1,6 +1,7 @@
 {
   "vindur": {
-    "0.5.3": "a0419c3be658c0a12c5a17977330edd742f867f4787dd6e90b0a9eb815925a8a"
+    "0.5.3": "a0419c3be658c0a12c5a17977330edd742f867f4787dd6e90b0a9eb815925a8a",
+    "0.5.4": "130fcc23284dbe92d68397eceab5519749f21117cc1b72df222593e918f937b3"
   },
   "@vindur-css/vite-plugin": {
     "0.3.2": "d75a7d6664b1c8490bbd0836ee9775a5fc8aed28befa6ba862f2e67bc1e06d2d"
