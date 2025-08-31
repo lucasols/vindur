@@ -18,7 +18,7 @@
     "e2e:eslint": "pnpm --filter e2e-tests run eslint",
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",
-    "run-app-test": "pnpm --filter vindur-test-app dev",
+    "run-app-test": "pnpm build-all && pnpm --filter vindur-test-app dev",
     "app-test:build": "pnpm --filter vindur-test-app run build",
     "clean-empty-folders": "node scripts/remove-empty-folders.ts"
   },

@@ -3,7 +3,7 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 
-type StyleFlag =
+export type StyleFlag =
   | { propName: string; hashedClassName: string; type: 'boolean' }
   | {
       propName: string;

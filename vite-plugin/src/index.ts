@@ -8,6 +8,7 @@ import {
   type VindurTransformResult,
 } from 'vindur/transform';
 import { type Plugin, type ViteDevServer } from 'vite';
+import type { SourceMapInput } from 'rollup';
 
 export type VindurPluginOptions = {
   debugLogs?: boolean;
@@ -20,7 +21,8 @@ const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
 
-  const virtualCssModules = new Map<string, string>();
+  type CssVirtualModule = { code: string; map: SourceMapInput | null };
+  const virtualCssModules = new Map<string, CssVirtualModule>();
   const functionCache: TransformFunctionCache = {};
   // Track which files depend on which external files (for hot-reload)
   const fileDependencies = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
@@ -53,7 +55,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         if (debugLogs) {
           this.info(`[vindur-plugin] Loading virtual CSS module: ${id}`);
         }
-        return virtualCssModules.get(id);
+        const mod = virtualCssModules.get(id);
+        if (!mod) return null;
+        return { code: mod.code, map: mod.map ?? undefined };
       }
       return null;
     },
@@ -134,7 +138,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(id)}.css`;
 
         // Store CSS content in virtual module cache
-        virtualCssModules.set(virtualCssId, result.css);
+        virtualCssModules.set(virtualCssId, { code: result.css, map: result.cssMap ?? null });
         log(`Stored virtual CSS module: ${virtualCssId}`);
 
         // Add CSS import to the transformed code
@@ -249,7 +253,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         }
       }
 
-      return hasRelatedVirtualCss ? modulesToInvalidate : undefined;
+      // If we added any modules beyond the original list, return them to trigger HMR
+      const didAddModules = modulesToInvalidate.length > modules.length;
+      return hasRelatedVirtualCss || didAddModules ? modulesToInvalidate : undefined;
     },
   };
 }

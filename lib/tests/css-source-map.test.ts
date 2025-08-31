@@ -1,5 +1,5 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { SourceMapConsumer } from 'source-map';
+import { SourceMapConsumer, type RawSourceMap } from 'source-map';
 import { describe, expect, test } from 'vitest';
 import { transform } from '../src/transform';
 import { createFsMock } from './testUtils';
@@ -7,39 +7,9 @@ import { createFsMock } from './testUtils';
 const importAliases = { '#/': '/' };
 const emptyFs = createFsMock({});
 
-// Helper function to find template literal positions in source code
-function findTemplateLiteralPositions(
-  source: string,
-  templateContent: string,
-): Array<{ line: number; column: number }> {
-  const positions: Array<{ line: number; column: number }> = [];
-  const lines = source.split('\n');
-
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex];
-    if (!line) continue;
-
-    // Look for template literal syntax with the content
-    const templateRegex = /`([^`]*)`/g;
-    let match;
-
-    while ((match = templateRegex.exec(line)) !== null) {
-      const templateText = match[1];
-      if (templateText && templateContent.includes(templateText.trim())) {
-        positions.push({
-          line: lineIndex, // 0-based line numbers
-          column: match.index || 0, // Position of the backtick
-        });
-      }
-    }
-  }
-
-  return positions;
-}
-
 // Helper function to verify source map mappings
 async function verifySourceMapMapping(
-  sourceMap: { sources: string[]; sourcesContent?: string[]; mappings: string },
+  sourceMap: RawSourceMap,
   expectedSourceLine: number,
   expectedSourceColumn: number,
   generatedLine: number = 0, // First line of generated CSS
@@ -212,9 +182,9 @@ describe('CSS source maps', () => {
         l.includes('const headerStyle = css`'),
       );
       const secondTemplateColumn =
-        (secondTemplateLine >= 0
-          ? sourceLines[secondTemplateLine]?.indexOf('`')
-          : 0) || 0;
+        (secondTemplateLine >= 0 ?
+          sourceLines[secondTemplateLine]?.indexOf('`')
+        : 0) || 0;
 
       const cssLines = (result.css || '').split('\n');
       const secondRuleStartLine = cssLines.findIndex((l) =>
