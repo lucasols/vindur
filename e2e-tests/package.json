@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "test": "playwright test",
+    "test": "pnpm build-vite-plugin && playwright test",
+    "build-vite-plugin": "cd ../vite-plugin && pnpm build",
     "test:ui": "playwright test --ui",
     "show-report": "playwright show-report",
     "start-vite": "tsm ./utils/startVite.ts",
