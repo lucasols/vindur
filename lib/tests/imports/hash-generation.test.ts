@@ -104,7 +104,9 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const mainStyles = "v1s4vg6s-1-buttonStyles v1560qbr-1-mainStyles";
+      "import "#/styles";
+      import "#/animations";
+      const mainStyles = "v1s4vg6s-1-buttonStyles v1560qbr-1-mainStyles";
       "
     `);
 
@@ -314,7 +316,8 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const appStyles =
+      "import "#/layouts";
+      const appStyles =
         "v17amvo7-1-headerStyles v17amvo7-5-complexLayout v1560qbr-1-appStyles";
       "
     `);

@@ -34,7 +34,8 @@ test('should extend CSS styles imported from another file', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const styles = "v1s4vg6s-1-baseStyles v1560qbr-1-styles";
+    "import "#/styles";
+    const styles = "v1s4vg6s-1-baseStyles v1560qbr-1-styles";
     const App = () => <div className={styles}>Hello</div>;
     "
   `);
@@ -93,7 +94,8 @@ test('should extend CSS styles in styled components from imports', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const App = () => (
+    "import "#/styles";
+    const App = () => (
       <button className="v1s4vg6s-1-buttonBase v1560qbr-1-Button">Click me</button>
     );
     "
@@ -155,7 +157,8 @@ test('should handle multiple imported CSS extensions', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const App = () => (
+    "import "#/styles";
+    const App = () => (
       <div className="v1s4vg6s-1-baseLayout v1560qbr-1-Card">
         <button className="v1s4vg6s-2-buttonStyles v1560qbr-2-Button">
           Submit
@@ -213,7 +216,8 @@ test('should handle mixed local and imported CSS extensions', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const localStyles = "v1560qbr-1-localStyles";
+    "import "#/styles";
+    const localStyles = "v1560qbr-1-localStyles";
     const App = () => (
       <div className="v1s4vg6s-1-baseLayout v1560qbr-1-localStyles v1560qbr-2-Card">
         Content
@@ -299,7 +303,8 @@ test('should handle CSS extension with variable interpolation in external file',
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const App = () => (
+    "import "#/styles";
+    const App = () => (
       <div className="v1s4vg6s-1-responsiveLayout v1560qbr-1-Container">
         Content
       </div>
@@ -426,7 +431,8 @@ test('should allow importing css and functions from another file', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const App = () => (
+    "import "#/utils";
+    const App = () => (
       <div className="v1i9guam-1-baseStyles v1560qbr-1-Card">Content</div>
     );
     "
@@ -470,7 +476,8 @@ test('should allow importing css and functions from another file with arguments'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const App = () => (
+    "import "#/utils";
+    const App = () => (
       <div className="v1i9guam-1-baseStyles v1560qbr-1-Card">Content</div>
     );
     "

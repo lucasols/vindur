@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, relative } from 'node:path';
+import type { SourceMapInput } from 'rollup';
 import {
   transform,
   TransformError,
@@ -8,7 +9,6 @@ import {
   type VindurTransformResult,
 } from 'vindur/transform';
 import { type Plugin, type ViteDevServer } from 'vite';
-import type { SourceMapInput } from 'rollup';
 
 export type VindurPluginOptions = {
   debugLogs?: boolean;
@@ -17,6 +17,7 @@ export type VindurPluginOptions = {
 };
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
+const VIRTUAL_PREFIX = 'virtual:vindur-';
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
@@ -41,26 +42,31 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     },
 
     resolveId(id) {
-      if (virtualCssModules.has(id)) {
-        if (debugLogs) {
-          this.info(`[vindur-plugin] Resolving virtual CSS module: ${id}`);
-        }
-        return id;
+      const qIndex = id.indexOf('?');
+      const base = qIndex === -1 ? id : id.slice(0, qIndex);
+      if (base.startsWith(VIRTUAL_PREFIX)) {
+        const resolved = `\u0000${base}`;
+        if (debugLogs) this.info(`[vindur-plugin] resolveId -> ${resolved}`);
+        return resolved;
       }
       return null;
     },
 
     load(id) {
-      if (virtualCssModules.has(id)) {
-        if (debugLogs) {
-          this.info(`[vindur-plugin] Loading virtual CSS module: ${id}`);
+      const noPrefix = id.startsWith('\u0000') ? id.slice(1) : id;
+      const qIndex = noPrefix.indexOf('?');
+      const clean = qIndex === -1 ? noPrefix : noPrefix.slice(0, qIndex);
+      if (clean.startsWith(VIRTUAL_PREFIX)) {
+        const mod = virtualCssModules.get(clean);
+        if (!mod) {
+          if (debugLogs) this.info(`[vindur-plugin] load (empty): ${clean}`);
+          return { code: '', map: null };
         }
-        const mod = virtualCssModules.get(id);
-        if (!mod) return null;
         let code = mod.code;
         if (mod.map) {
-          // Inline the sourcemap for better DX in dev tools and tests
-          const base64 = Buffer.from(JSON.stringify(mod.map), 'utf-8').toString('base64');
+          const base64 = Buffer.from(JSON.stringify(mod.map), 'utf-8').toString(
+            'base64',
+          );
           code = `${code}\n/*# sourceMappingURL=data:application/json;base64,${base64} */`;
         }
         return { code, map: mod.map ?? undefined };
@@ -144,7 +150,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(id)}.css`;
 
         // Store CSS content in virtual module cache
-        virtualCssModules.set(virtualCssId, { code: result.css, map: result.cssMap ?? null });
+        virtualCssModules.set(virtualCssId, {
+          code: result.css,
+          map: result.cssMap ?? null,
+        });
         log(`Stored virtual CSS module: ${virtualCssId}`);
 
         // Add CSS import to the transformed code
@@ -153,7 +162,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
         // Reload the module to apply the new CSS
         if (devServer?.moduleGraph) {
-          const module = devServer.moduleGraph.getModuleById(virtualCssId);
+          const resolvedCssId = `\0${virtualCssId}`;
+          const module = devServer.moduleGraph.getModuleById(resolvedCssId);
 
           if (module) {
             log(`Reloading module: ${virtualCssId}`);
@@ -186,7 +196,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       // Remove virtual CSS module that matches this file
       if (virtualCssModules.has(virtualCssId)) {
         virtualCssModules.delete(virtualCssId);
-        const cssModule = devServer?.moduleGraph.getModuleById(virtualCssId);
+        const cssModule = devServer?.moduleGraph.getModuleById(
+          `\0${virtualCssId}`,
+        );
         if (cssModule) {
           modulesToInvalidate.push(cssModule);
           hasRelatedVirtualCss = true;
@@ -232,7 +244,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             if (virtualCssModules.has(dependentVirtualCssId)) {
               virtualCssModules.delete(dependentVirtualCssId);
               const dependentCssModule = moduleGraph.getModuleById(
-                dependentVirtualCssId,
+                `\0${dependentVirtualCssId}`,
               );
               if (dependentCssModule) {
                 modulesToInvalidate.push(dependentCssModule);
@@ -261,7 +273,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
       // If we added any modules beyond the original list, return them to trigger HMR
       const didAddModules = modulesToInvalidate.length > modules.length;
-      return hasRelatedVirtualCss || didAddModules ? modulesToInvalidate : undefined;
+      return hasRelatedVirtualCss || didAddModules ? modulesToInvalidate : (
+          undefined
+        );
     },
   };
 }
@@ -279,5 +293,7 @@ const VIRTUAL_CSS_ID_PREFIX_REGEX = /\.[jt]sx?$/;
 
 function getVirtualCssIdPrefix(id: string): string {
   const relativePath = relative(process.cwd(), id);
-  return relativePath.replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '').replace(/\//g, '_');
+  return relativePath
+    .replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '')
+    .replace(/\//g, '_');
 }

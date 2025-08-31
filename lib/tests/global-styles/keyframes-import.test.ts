@@ -34,7 +34,8 @@ describe('keyframes cross-file imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const animatedStyle = "v1560qbr-1-animatedStyle";
+      "import "#/animations";
+      const animatedStyle = "v1560qbr-1-animatedStyle";
       "
     `);
 
@@ -79,7 +80,10 @@ describe('keyframes cross-file imports', () => {
       }),
     });
 
-    expect(result.code).toMatchInlineSnapshot(`""`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "import "#/animations";
+      "
+    `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Card {
@@ -129,7 +133,8 @@ describe('keyframes cross-file imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const animatedStyle = "v1560qbr-1-animatedStyle";
+      "import "#/animations";
+      const animatedStyle = "v1560qbr-1-animatedStyle";
       "
     `);
 
@@ -170,7 +175,10 @@ describe('keyframes cross-file imports', () => {
       }),
     });
 
-    expect(result.code).toMatchInlineSnapshot(`""`);
+    expect(result.code).toMatchInlineSnapshot(`
+      "import "#/animations";
+      "
+    `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Slider {
@@ -208,7 +216,8 @@ describe('keyframes cross-file imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const localBounce = "v1560qbr-1-localBounce";
+      "import "#/animations";
+      const localBounce = "v1560qbr-1-localBounce";
       "
     `);
 

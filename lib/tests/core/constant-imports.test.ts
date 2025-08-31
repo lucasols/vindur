@@ -302,7 +302,8 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => (
+      "import "#/styles";
+      const App = () => (
         <div className="v1s4vg6s-1-baseStyles v1560qbr-1-Card">Content</div>
       );
       "

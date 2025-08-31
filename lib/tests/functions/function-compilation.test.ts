@@ -58,7 +58,8 @@ test('compile file with vindurFn function and css exports', async () => {
   expect(result.css).toMatchInlineSnapshot(`""`);
 
   expect(result.code).toMatchInlineSnapshot(`
-    "const style = "v1i9guam-1-spacingCss v1560qbr-1-style";
+    "import "#/utils";
+    const style = "v1i9guam-1-spacingCss v1560qbr-1-style";
     "
   `);
 });
