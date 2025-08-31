@@ -162,6 +162,10 @@ export function handleFunctionImportCleanup(
 
   // Filter out unused function imports and dynamic color imports
   const unusedSpecifiers: t.ImportSpecifier[] = [];
+  // Track if we removed any specifiers that were used at compile-time
+  // In such cases, we must keep a side-effect import so Vite processes
+  // the imported module and emits its CSS (e.g., css and keyframes exports).
+  let removedCompiledTimeSpecifiers = false;
   const usedSpecifiers: t.ImportSpecifier[] = [];
 
   for (const specifier of path.node.specifiers) {
@@ -175,6 +179,20 @@ export function handleFunctionImportCleanup(
         && context.usedFunctions.has(importedName)
       ) {
         unusedSpecifiers.push(specifier);
+        // Determine if this compiled-time usage corresponds to CSS or keyframes,
+        // which require keeping a side-effect import so the external file is
+        // still transformed by Vite and its CSS emitted.
+        const filePathForImport = context.importedFunctions.get(importedName);
+        const extracted = filePathForImport
+          ? context.state.extractedFiles?.get(filePathForImport)
+          : undefined;
+        if (
+          extracted &&
+          (extracted.cssVariables.has(importedName)
+            || extracted.keyframes.has(importedName))
+        ) {
+          removedCompiledTimeSpecifiers = true;
+        }
       }
       // Remove dynamic colors that were imported and used (they're compiled away)
       else if (context.state.dynamicColors?.has(localName)) {
@@ -189,8 +207,15 @@ export function handleFunctionImportCleanup(
 
   if (unusedSpecifiers.length > 0) {
     if (usedSpecifiers.length === 0) {
-      // Remove the entire import statement if no functions are used
-      path.remove();
+      // If we removed specifiers that were used at compile-time, keep
+      // a bare side-effect import so Vite still loads and transforms
+      // the imported file (ensuring its CSS is emitted).
+      if (removedCompiledTimeSpecifiers) {
+        path.node.specifiers = [];
+      } else {
+        // Remove the entire import when nothing remains and no CSS processing depends on it
+        path.remove();
+      }
     } else {
       // Remove only unused specifiers
       path.node.specifiers = usedSpecifiers;
@@ -206,12 +231,11 @@ export function cleanupImports(
 ): void {
   file.path.traverse({
     ImportDeclaration(path) {
-      // Try vindur imports first
-      if (handleVindurImportCleanup(path, context.state)) {
-        return;
-      }
+      // Ensure required vindur imports exist (e.g., cx)
+      if (handleVindurImportCleanup(path, context.state)) return;
 
-      // Then try function imports
+      // Convert compile-time-only imports into side-effect imports so Vite
+      // still processes external files and emits their CSS.
       handleFunctionImportCleanup(path, context);
     },
   });
