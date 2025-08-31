@@ -302,17 +302,14 @@ describe('constant imports', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const App = () => <div className="v1s4vg6s-1 v1560qbr-1-Card">Content</div>;
+      "const App = () => (
+        <div className="v1s4vg6s-1-baseStyles v1560qbr-1-Card">Content</div>
+      );
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1s4vg6s-1 {
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
-
-      .v1560qbr-1-Card {
+      ".v1560qbr-1-Card {
         background: #10b981;
         padding: 24px;
       }

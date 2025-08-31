@@ -51,15 +51,17 @@ export async function transformWithFormat({
   overrideDefaultFs: fs = createFsMock({}),
   overrideDefaultImportAliases: importAliases = { '#/': '/' },
   production,
+  sourcePath = '/test.tsx',
 }: {
   source: string;
   overrideDefaultFs?: TransformFS;
   /** @default false */
   production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
+  sourcePath?: string;
 }) {
   const result = transform({
-    fileAbsPath: '/test.tsx',
+    fileAbsPath: sourcePath,
     fs,
     importAliases,
     source,

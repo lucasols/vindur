@@ -24,6 +24,8 @@ export type CssProcessingContext = {
   state: VindurPluginState;
   path: NodePath;
   debug?: DebugLogger;
+  // Whether current transform is in dev mode (affects class naming in external extraction)
+  dev: boolean;
   // Cache for external file extractions to prevent duplicate processing
   extractedFiles: Map<
     string,

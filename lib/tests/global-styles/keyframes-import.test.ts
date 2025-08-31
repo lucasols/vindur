@@ -39,19 +39,8 @@ describe('keyframes cross-file imports', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1gz5uqy-1 {
-        from {
-          opacity: 0;
-          transform: translateY(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      .v1560qbr-1-animatedStyle {
-        animation: v1gz5uqy-1 0.3s ease-in-out;
+      ".v1560qbr-1-animatedStyle {
+        animation: v1gz5uqy-1-fadeIn 0.3s ease-in-out;
         background: white;
       }
       "
@@ -93,29 +82,11 @@ describe('keyframes cross-file imports', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1gz5uqy-1 {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      @keyframes v1gz5uqy-2 {
-        from {
-          transform: translateY(10px);
-        }
-        to {
-          transform: translateY(0);
-        }
-      }
-
-      .v1560qbr-1-Card {
-        animation: v1gz5uqy-1 0.3s ease-in-out;
+      ".v1560qbr-1-Card {
+        animation: v1gz5uqy-1-fadeIn 0.3s ease-in-out;
 
         &:hover {
-          animation: v1gz5uqy-2 0.2s ease-out;
+          animation: v1gz5uqy-2-slideUp 0.2s ease-out;
         }
       }
       "
@@ -163,25 +134,8 @@ describe('keyframes cross-file imports', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1gz5uqy-1 {
-        0% {
-          transform: scale(0.3);
-          opacity: 0;
-        }
-        50% {
-          transform: scale(1.05);
-        }
-        70% {
-          transform: scale(0.9);
-        }
-        100% {
-          transform: scale(1);
-          opacity: 1;
-        }
-      }
-
-      .v1560qbr-1-animatedStyle {
-        animation: v1gz5uqy-1 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      ".v1560qbr-1-animatedStyle {
+        animation: v1gz5uqy-1-bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         background: #f0f0f0;
       }
       "
@@ -219,17 +173,8 @@ describe('keyframes cross-file imports', () => {
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
-      "@keyframes v1gz5uqy-1 {
-        from {
-          transform: translateX(-200px);
-        }
-        to {
-          transform: translateX(0);
-        }
-      }
-
-      .v1560qbr-1-Slider {
-        animation: v1gz5uqy-1 1s ease-in-out;
+      ".v1560qbr-1-Slider {
+        animation: v1gz5uqy-1-customSlide 1s ease-in-out;
       }
       "
     `);
@@ -278,18 +223,9 @@ describe('keyframes cross-file imports', () => {
         }
       }
 
-      @keyframes v1gz5uqy-1 {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
       .v1560qbr-2-Component {
         animation:
-          v1gz5uqy-1 0.3s ease-in,
+          v1gz5uqy-1-fadeIn 0.3s ease-in,
           v1560qbr-1-localBounce 0.6s ease-in-out infinite;
       }
       "

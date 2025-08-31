@@ -48,7 +48,7 @@ describe('imported file hash generation', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { StyledButton } from "#/components";
-      const containerStyles = "v1vylsmj-1 v1560qbr-1-containerStyles";
+      const containerStyles = "v1vylsmj-1-baseStyles v1560qbr-1-containerStyles";
       const App = () => (
         <StyledButton
           className={containerStyles}
@@ -59,27 +59,8 @@ describe('imported file hash generation', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1vylsmj-1 {
-        display: flex;
-        align-items: center;
-      }
-
-      @keyframes v1vylsmj-2 {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      .v1vylsmj-4 {
-        padding: 16px;
-        border-radius: 8px;
-      }
-
-      .v1560qbr-1-containerStyles {
-        animation: v1vylsmj-2 0.3s;
+      ".v1560qbr-1-containerStyles {
+        animation: v1vylsmj-2-fadeAnimation 0.3s;
         color: var(--v1vylsmj-3);
       }
       "
@@ -123,27 +104,13 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const mainStyles = "v1s4vg6s-1 v1560qbr-1-mainStyles";
+      "const mainStyles = "v1s4vg6s-1-buttonStyles v1560qbr-1-mainStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v1s4vg6s-1 {
-        padding: 12px 24px;
-        border: 1px solid #ddd;
-      }
-
-      @keyframes v1gz5uqy-1 {
-        from {
-          transform: translateX(-100%);
-        }
-        to {
-          transform: translateX(0);
-        }
-      }
-
-      .v1560qbr-1-mainStyles {
-        animation: v1gz5uqy-1 0.5s;
+      ".v1560qbr-1-mainStyles {
+        animation: v1gz5uqy-1-slideIn 0.5s;
         background: var(--vip4ilp-1);
       }
       "
@@ -347,36 +314,13 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const appStyles = "v17amvo7-1 v17amvo7-5 v1560qbr-1-appStyles";
+      "const appStyles =
+        "v17amvo7-1-headerStyles v17amvo7-5-complexLayout v1560qbr-1-appStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
-      ".v17amvo7-1 {
-        height: 60px;
-        background: white;
-      }
-
-      @keyframes v17amvo7-2 {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      .v17amvo7-4 {
-        max-width: 1200px;
-        margin: 0 auto;
-      }
-
-      .v17amvo7-5 {
-        animation: v17amvo7-2 0.3s;
-        color: var(--v17amvo7-3);
-      }
-
-      .v1560qbr-1-appStyles {
+      ".v1560qbr-1-appStyles {
         min-height: 100vh;
       }
       "

@@ -23,6 +23,9 @@ export function getOrExtractFileData(
   // Load and extract data from file
   const fileContent = context.fs.readFile(filePath);
 
+  // Track this file as a style dependency for HMR/rebuilds
+  context.state.styleDependencies?.add(filePath);
+
   // Create a temporary state to capture both CSS variables and keyframes from external file
   const tempState = {
     cssRules: [],
@@ -55,7 +58,8 @@ export function getOrExtractFileData(
     {
       filePath,
       sourceContent: fileContent, // Pass the source content for source map generation
-      dev: false, // Use production mode for external files
+      // Use same dev mode as the current transform to keep class naming consistent
+      dev: context.dev,
       fs: context.fs,
       transformFunctionCache: context.compiledFunctions,
       dynamicColorCache: context.dynamicColorCache,
@@ -90,8 +94,8 @@ export function getOrExtractFileData(
     themeColors: new Map(tempState.themeColors),
   };
 
-  // Add the CSS rules from the external file to the main CSS output
-  context.state.cssRules.push(...tempState.cssRules);
+  // Do NOT merge external CSS into the current file CSS output.
+  // The external file will emit its own CSS. We only carry class names here.
 
   // Cache the result
   context.extractedFiles.set(filePath, result);

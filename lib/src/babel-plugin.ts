@@ -72,6 +72,17 @@ export type VindurPluginState = {
   sourceContent?: string; // Track source content for source map generation
   currentLayer?: string; // Track the current CSS layer for the current styled component
   styleDependencies?: Set<string>; // Track external files loaded during transformation (for hot-reload)
+  // Cache extraction results across a single transform to avoid duplicate CSS emission
+  extractedFiles?: Map<
+    string,
+    {
+      cssVariables: Map<string, string>;
+      keyframes: Map<string, string>;
+      constants: Map<string, string | number>;
+      objectConstants: Map<string, Record<string, string | number>>;
+      themeColors: Map<string, Record<string, string>>;
+    }
+  >;
 };
 
 export type FunctionCache = {
@@ -315,7 +326,8 @@ export function createVindurPlugin(
           state,
           path,
           debug,
-          extractedFiles: new Map(),
+          dev,
+          extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -399,7 +411,8 @@ export function createVindurPlugin(
           state,
           path,
           debug,
-          extractedFiles: new Map(),
+          dev,
+          extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -447,7 +460,8 @@ export function createVindurPlugin(
             state,
             path,
             debug,
-            extractedFiles: new Map(),
+            dev,
+            extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
             loadExternalFunction,
           }),
           filePath,
@@ -491,6 +505,7 @@ export function createVindurPlugin(
       state.cssVariables.clear();
       state.keyframes.clear();
       state.sourceContent = sourceContent;
+      state.extractedFiles = new Map();
       idIndex = 1;
       usedFunctions.clear();
       importedFunctions.clear();
