@@ -6,6 +6,16 @@ test('should extend CSS styles imported from another file', async ({
   browser,
 }) => {
   const pageDev = await browser.newPage();
+  
+  pageDev.on('pageerror', err => {
+    console.error('Page error:', err.message);
+  });
+  
+  pageDev.on('console', msg => {
+    if (msg.type() === 'error') {
+      console.error('Console error:', msg.text());
+    }
+  });
   const envDev = await startEnv('css-import-extension-tests', {
     'styles.ts': dedent`
       import { css, vindurFn } from "vindur";
@@ -82,6 +92,16 @@ test('should extend CSS styles imported from another file (prod build)', async (
   browser,
 }) => {
   const pageProd = await browser.newPage();
+  
+  pageProd.on('pageerror', err => {
+    console.error('Page error:', err.message);
+  });
+  
+  pageProd.on('console', msg => {
+    if (msg.type() === 'error') {
+      console.error('Console error:', msg.text());
+    }
+  });
   const envProd = await startEnvProd('css-import-extension-tests-prod', {
     'styles.ts': dedent`
       import { css, vindurFn } from "vindur";

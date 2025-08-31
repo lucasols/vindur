@@ -10,7 +10,9 @@ import {
 export function vindurFn<TArgs extends unknown[], TReturn extends string>(
   fn: (...args: TArgs) => TReturn,
 ): (...args: TArgs) => TReturn {
-  throw new Error('vindurFn cannot be called at runtime');
+  return () => {
+    throw new Error('vindurFn cannot be called at runtime');
+  };
 }
 
 export type CSSProp = string;
