@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { extname } from 'node:path';
+import { extname, relative } from 'node:path';
 import {
   transform,
   TransformError,
@@ -266,5 +266,6 @@ function hasVindurStyles(code: string, id: string): boolean {
 const VIRTUAL_CSS_ID_PREFIX_REGEX = /\.[jt]sx?$/;
 
 function getVirtualCssIdPrefix(id: string): string {
-  return id.replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '').replace(/\//g, '_');
+  const relativePath = relative(process.cwd(), id);
+  return relativePath.replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '').replace(/\//g, '_');
 }
