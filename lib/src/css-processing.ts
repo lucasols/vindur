@@ -35,7 +35,7 @@ export type CssProcessingContext = {
     }
   >;
   loadExternalFunction: (
-    fs: { readFile: (path: string) => string },
+    fs: { readFile: (path: string) => string; exists: (path: string) => boolean },
     filePath: string,
     functionName: string,
     compiledFunctions: Record<string, Record<string, CompiledFunction>>,
