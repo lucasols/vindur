@@ -8,19 +8,22 @@ import {
   processGlobalStyle,
 } from '../css-processing';
 import type { CssProcessingContext } from '../css-processing';
+import { createLocationFromTemplateLiteral } from '../css-source-map';
 
 type TaggedTemplateHandlerContext = {
   context: CssProcessingContext;
   dev: boolean;
   fileHash: string;
   classIndex: { current: number };
+  sourceFilePath: string;
+  sourceContent: string;
 };
 
 export function handleCssTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
 
   if (
     !context.state.vindurImports.has('css')
@@ -30,6 +33,12 @@ export function handleCssTaggedTemplate(
     return false;
   }
 
+  const location = createLocationFromTemplateLiteral(
+    path.node.quasi,
+    sourceFilePath,
+    sourceContent,
+  );
+  
   const result = processStyledTemplate(
     path.node.quasi,
     context,
@@ -39,6 +48,7 @@ export function handleCssTaggedTemplate(
     fileHash,
     classIndex.current,
     classIndex,
+    location,
   );
   classIndex.current++;
 
@@ -68,7 +78,7 @@ export function handleKeyframesTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
 
   if (
     !context.state.vindurImports.has('keyframes')
@@ -78,6 +88,12 @@ export function handleKeyframesTaggedTemplate(
     return false;
   }
 
+  const location = createLocationFromTemplateLiteral(
+    path.node.quasi,
+    sourceFilePath,
+    sourceContent,
+  );
+
   const result = processKeyframes(
     path.node.quasi,
     context,
@@ -85,6 +101,7 @@ export function handleKeyframesTaggedTemplate(
     dev,
     fileHash,
     classIndex.current,
+    location,
   );
   classIndex.current++;
 
@@ -98,7 +115,7 @@ export function handleGlobalStyleTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
 
   if (
     !context.state.vindurImports.has('createGlobalStyle')
@@ -108,11 +125,18 @@ export function handleGlobalStyleTaggedTemplate(
     return false;
   }
 
+  const location = createLocationFromTemplateLiteral(
+    path.node.quasi,
+    sourceFilePath,
+    sourceContent,
+  );
+
   const result = processGlobalStyle(
     path.node.quasi,
     context,
     fileHash,
     classIndex,
+    location,
   );
 
   // Inject warnings for scoped variables in dev mode

@@ -29,9 +29,9 @@ export function generateMissingCssClassWarnings(
     // Look for &.originalClassName patterns
     const hasClass = state.cssRules.some(
       (rule) =>
-        rule
-        && rule.includes(`.${styledInfo.className}`)
-        && rule.includes(`&.${mapping.original}`),
+        rule?.css
+        && rule.css.includes(`.${styledInfo.className}`)
+        && rule.css.includes(`&.${mapping.original}`),
     );
 
     if (!hasClass) {
@@ -85,8 +85,8 @@ export function updateStyledComponentCss(
   // Update CSS rules that contain the styled component's class name
   for (let i = 0; i < state.cssRules.length; i++) {
     const rule = state.cssRules[i];
-    if (rule?.includes(`.${styledInfo.className}`)) {
-      let updatedRule = rule;
+    if (rule?.css.includes(`.${styledInfo.className}`)) {
+      let updatedRule = rule.css;
       for (const mapping of classNameMappings) {
         // Replace &.className with &.hashedClassName
         const selectorPattern = new RegExp(
@@ -98,7 +98,7 @@ export function updateStyledComponentCss(
           `&.${mapping.hashed}`,
         );
       }
-      state.cssRules[i] = updatedRule;
+      state.cssRules[i] = { ...rule, css: updatedRule };
     }
   }
 }
@@ -139,14 +139,14 @@ export function updateCssRulesForElement(
   // We'll look for CSS rules that match this pattern and contain our selectors
   for (let i = 0; i < state.cssRules.length; i++) {
     const rule = state.cssRules[i];
-    if (rule?.includes('css-prop-')) {
+    if (rule?.css.includes('css-prop-')) {
       // Check if this rule contains any of our original class names
       const hasMatchingSelector = classNameMappings.some((mapping) =>
-        rule.includes(`&.${mapping.original}`),
+        rule.css.includes(`&.${mapping.original}`),
       );
 
       if (hasMatchingSelector) {
-        let updatedRule = rule;
+        let updatedRule = rule.css;
         for (const mapping of classNameMappings) {
           const selectorPattern = new RegExp(
             `&\\.${escapeRegExp(mapping.original)}\\b`,
@@ -157,7 +157,7 @@ export function updateCssRulesForElement(
             `&.${mapping.hashed}`,
           );
         }
-        state.cssRules[i] = updatedRule;
+        state.cssRules[i] = { ...rule, css: updatedRule };
       }
     }
   }
@@ -171,8 +171,8 @@ function updateCssRulesByClassName(
   // Update CSS rules that contain the CSS variable's class name
   for (let i = 0; i < state.cssRules.length; i++) {
     const rule = state.cssRules[i];
-    if (rule?.includes(`.${cssClassName}`)) {
-      let updatedRule = rule;
+    if (rule?.css.includes(`.${cssClassName}`)) {
+      let updatedRule = rule.css;
       for (const mapping of classNameMappings) {
         // Replace &.className with &.hashedClassName
         const selectorPattern = new RegExp(
@@ -184,7 +184,7 @@ function updateCssRulesByClassName(
           `&.${mapping.hashed}`,
         );
       }
-      state.cssRules[i] = updatedRule;
+      state.cssRules[i] = { ...rule, css: updatedRule };
     }
   }
 }

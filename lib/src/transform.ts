@@ -1,4 +1,5 @@
 import * as babel from '@babel/core';
+import type { RawSourceMap } from 'source-map';
 import {
   createVindurPlugin,
   type DebugLogger,
@@ -6,9 +7,11 @@ import {
   type FunctionCache,
   type VindurPluginState,
 } from './babel-plugin';
+import { CssSourceMapGenerator } from './css-source-map';
 
 export type VindurTransformResult = {
   css: string;
+  cssMap?: RawSourceMap | null;
   styleDependencies: string[];
   code: string;
   map?: babel.BabelFileResult['map'] | null | undefined;
@@ -63,6 +66,7 @@ export function transform({
   const plugin = createVindurPlugin(
     {
       filePath: fileAbsPath,
+      sourceContent: source,
       dev,
       debug,
       fs,
@@ -75,9 +79,14 @@ export function transform({
 
   const result = babel.transformSync(source, {
     plugins: [plugin],
-    parserOpts: { sourceType: 'module', plugins: ['typescript', 'jsx'] },
+    parserOpts: { 
+      sourceType: 'module', 
+      plugins: ['typescript', 'jsx'],
+      ranges: true, // Enable ranges for better location info
+    },
     filename: fileAbsPath,
     sourceMaps: sourcemap,
+    compact: false, // Don't compress - helps with location preservation
   });
 
   if (!result?.code && result?.code !== '') {
@@ -103,8 +112,40 @@ export function transform({
     }
   }
 
+  // Generate CSS and source map
+  let css = '';
+  let cssMap: RawSourceMap | null = null;
+  
+  if (pluginState.cssRules.length > 0) {
+    if (sourcemap) {
+      // Generate CSS with source map
+      const cssGenerator = new CssSourceMapGenerator(`${fileAbsPath.split('/').pop()}.css`);
+      
+      for (const cssRule of pluginState.cssRules) {
+        // For now, generate source map without location info to test the basic structure
+        const basicCssRule = {
+          css: cssRule.css,
+          location: {
+            source: fileAbsPath,
+            sourceContent: source,
+            start: { line: 0, column: 0 },
+            end: { line: 0, column: 0 },
+          },
+        };
+        cssGenerator.addCssRule(basicCssRule);
+      }
+      
+      css = pluginState.cssRules.map(rule => rule.css).join('\n\n');
+      cssMap = cssGenerator.toJSON();
+    } else {
+      // Just concatenate CSS without source maps
+      css = pluginState.cssRules.map(rule => rule.css).join('\n\n');
+    }
+  }
+
   return {
-    css: pluginState.cssRules.join('\n\n'),
+    css,
+    cssMap,
     styleDependencies: [...(pluginState.styleDependencies || [])],
     code: finalCode,
     map: result.map,

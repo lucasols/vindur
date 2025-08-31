@@ -13,6 +13,7 @@ import {
   processScopedCssVariables,
   type ScopedVariableMap,
 } from './scoped-css-variables';
+import type { CssRuleLocation, CssRuleWithLocation } from './css-source-map';
 
 export type CssProcessingContext = {
   fs: TransformFS;
@@ -76,6 +77,7 @@ export function generateCssRule(
   cssContent: string,
   extensions: string[],
   state: VindurPluginState,
+  location?: CssRuleLocation,
 ): string {
   const cleanedCss = cleanCss(cssContent);
   if (!cleanedCss.trim()) {
@@ -152,10 +154,10 @@ export function generateCssRule(
       if (section.layer) {
         const cssRule = `.${className} {\n  ${section.css}\n}`;
         const layerRule = `@layer ${section.layer} {\n  ${cssRule}\n}`;
-        state.cssRules.push(layerRule);
+        state.cssRules.push({ css: layerRule, location });
       } else {
         const cssRule = `.${className} {\n  ${section.css}\n}`;
-        state.cssRules.push(cssRule);
+        state.cssRules.push({ css: cssRule, location });
       }
     }
 
@@ -167,7 +169,7 @@ export function generateCssRule(
 
   // No layer markers, handle as before
   const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
-  state.cssRules.push(cssRule);
+  state.cssRules.push({ css: cssRule, location });
 
   return extensions.length > 0 ?
       `${extensions.join(' ')} ${className}`
@@ -183,6 +185,7 @@ export function processStyledTemplate(
   fileHash: string,
   classIndex: number,
   classIndexRef?: { current: number },
+  location?: CssRuleLocation,
 ): CssProcessingResult {
   const { cssContent, extensions } = processCssTemplate(
     quasi,
@@ -220,6 +223,7 @@ export function processStyledTemplate(
     scopedResult.processedCss,
     extensions,
     context.state,
+    location,
   );
 
   return {
@@ -240,6 +244,7 @@ export function processStyledExtension(
   fileHash: string,
   classIndex: number,
   classIndexRef?: { current: number },
+  location?: CssRuleLocation,
 ): CssProcessingResult {
   const { cssContent, extensions } = processCssTemplate(
     quasi,
@@ -283,13 +288,14 @@ export function processStyledExtension(
 
     // Wrap in @layer if a layer is set
     if (context.state.currentLayer) {
-      context.state.cssRules.push(
-        `@layer ${context.state.currentLayer} {\n  ${cssRule}\n}`,
-      );
+      context.state.cssRules.push({
+        css: `@layer ${context.state.currentLayer} {\n  ${cssRule}\n}`,
+        location
+      });
       // Clear the current layer after use (per-component basis)
       context.state.currentLayer = undefined;
     } else {
-      context.state.cssRules.push(cssRule);
+      context.state.cssRules.push({ css: cssRule, location });
     }
   }
 
@@ -320,6 +326,7 @@ export function processGlobalStyle(
   context: CssProcessingContext,
   fileHash: string,
   classIndexRef?: { current: number },
+  location?: CssRuleLocation,
 ): { warnings?: string[] } {
   const { cssContent } = processCssTemplate(
     quasi,
@@ -355,7 +362,7 @@ export function processGlobalStyle(
   // Global styles should not be wrapped in layers
   const cleanedCss = cleanCss(scopedResult.processedCss);
   if (cleanedCss.trim()) {
-    context.state.cssRules.push(cleanedCss);
+    context.state.cssRules.push({ css: cleanedCss, location });
     // Clear any layer state since global styles don't use layers
     context.state.currentLayer = undefined;
   }
@@ -370,6 +377,7 @@ export function processKeyframes(
   dev: boolean,
   fileHash: string,
   classIndex: number,
+  location?: CssRuleLocation,
 ): CssProcessingResult {
   const { cssContent } = processCssTemplate(
     quasi,
@@ -399,7 +407,7 @@ export function processKeyframes(
   const cleanedCss = cleanCss(cssContent);
   const keyframesRule = `@keyframes ${animationName} {\n  ${cleanedCss}\n}`;
 
-  context.state.cssRules.push(keyframesRule);
+  context.state.cssRules.push({ css: keyframesRule, location });
   // Clear any layer state since keyframes don't use layers
   context.state.currentLayer = undefined;
 

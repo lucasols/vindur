@@ -54,6 +54,7 @@ export function getOrExtractFileData(
   const vindurPlugin = createVindurPlugin(
     {
       filePath,
+      sourceContent: fileContent, // Pass the source content for source map generation
       dev: false, // Use production mode for external files
       fs: context.fs,
       transformFunctionCache: context.compiledFunctions,

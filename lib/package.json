@@ -46,7 +46,8 @@
   "dependencies": {
     "colord": "catalog:",
     "@babel/core": "catalog:",
-    "@babel/generator": "catalog:"
+    "@babel/generator": "catalog:",
+    "source-map": "catalog:"
   },
   "devDependencies": {
     "@ls-stack/utils": "catalog:",

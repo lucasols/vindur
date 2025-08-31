@@ -12,6 +12,7 @@ import {
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
+import type { CssRuleWithLocation } from './css-source-map';
 import {
   handleFunctionImports,
   handleVindurFnExport,
@@ -48,7 +49,7 @@ export type DebugLogger = {
 };
 
 export type VindurPluginState = {
-  cssRules: string[];
+  cssRules: CssRuleWithLocation[];
   vindurImports: Set<string>;
   styledComponents: Map<
     string,
@@ -88,6 +89,7 @@ export type VindurPluginOptions = {
   dev?: boolean;
   debug?: DebugLogger;
   filePath: string;
+  sourceContent: string;
   fs: PluginFS;
   transformFunctionCache: FunctionCache;
   dynamicColorCache: DynamicColorCache;
@@ -219,6 +221,7 @@ export function createVindurPlugin(
     dev = false,
     debug,
     filePath,
+    sourceContent,
     fs,
     transformFunctionCache,
     dynamicColorCache,
@@ -405,6 +408,8 @@ export function createVindurPlugin(
           dev,
           fileHash,
           classIndex: classIndexRef,
+          sourceFilePath: filePath,
+          sourceContent,
         };
 
         // Try each handler in order - they return true if they handled the node

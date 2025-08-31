@@ -20,7 +20,8 @@ export function resolveForwardReferences(
     filename: filePath,
     identifierName: undefined,
   };
-  state.cssRules = state.cssRules.map((cssRule) => {
+  state.cssRules = state.cssRules.map((cssRuleObj) => {
+    const cssRule = cssRuleObj.css;
     let resolvedRule = cssRule;
     // Find all forward reference placeholders
     const forwardRefRegex = /__FORWARD_REF__(\w+)__/g;
@@ -49,7 +50,7 @@ export function resolveForwardReferences(
         );
       }
     }
-    return resolvedRule;
+    return { ...cssRuleObj, css: resolvedRule };
   });
 }
 
