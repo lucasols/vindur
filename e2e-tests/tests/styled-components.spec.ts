@@ -10,7 +10,7 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   env = await startEnv('styled-components-tests', {
-    'components.tsx': dedent`
+    'components.ts': dedent`
       import { styled } from "vindur";
 
       export const ExportedButton = styled.button\`
