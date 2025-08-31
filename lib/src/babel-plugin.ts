@@ -48,6 +48,14 @@ export type DebugLogger = {
   warn?: (message: string) => void;
 };
 
+export type ExtractedFileRecord = {
+  cssVariables: Map<string, string>;
+  keyframes: Map<string, string>;
+  constants: Map<string, string | number>;
+  objectConstants: Map<string, Record<string, string | number>>;
+  themeColors: Map<string, Record<string, string>>;
+};
+
 export type VindurPluginState = {
   cssRules: CssRuleWithLocation[];
   vindurImports: Set<string>;
@@ -73,16 +81,7 @@ export type VindurPluginState = {
   currentLayer?: string; // Track the current CSS layer for the current styled component
   styleDependencies?: Set<string>; // Track external files loaded during transformation (for hot-reload)
   // Cache extraction results across a single transform to avoid duplicate CSS emission
-  extractedFiles?: Map<
-    string,
-    {
-      cssVariables: Map<string, string>;
-      keyframes: Map<string, string>;
-      constants: Map<string, string | number>;
-      objectConstants: Map<string, Record<string, string | number>>;
-      themeColors: Map<string, Record<string, string>>;
-    }
-  >;
+  extractedFiles?: Map<string, ExtractedFileRecord>;
 };
 
 export type FunctionCache = {
@@ -327,7 +326,9 @@ export function createVindurPlugin(
           path,
           debug,
           dev,
-          extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
+          extractedFiles:
+            state.extractedFiles ??
+            (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -412,7 +413,9 @@ export function createVindurPlugin(
           path,
           debug,
           dev,
-          extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
+          extractedFiles:
+            state.extractedFiles ??
+            (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -461,7 +464,9 @@ export function createVindurPlugin(
             path,
             debug,
             dev,
-            extractedFiles: state.extractedFiles ?? (state.extractedFiles = new Map()),
+            extractedFiles:
+              state.extractedFiles ??
+              (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
             loadExternalFunction,
           }),
           filePath,
@@ -505,7 +510,7 @@ export function createVindurPlugin(
       state.cssVariables.clear();
       state.keyframes.clear();
       state.sourceContent = sourceContent;
-      state.extractedFiles = new Map();
+      state.extractedFiles = new Map<string, ExtractedFileRecord>();
       idIndex = 1;
       usedFunctions.clear();
       importedFunctions.clear();
