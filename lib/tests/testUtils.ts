@@ -36,6 +36,9 @@ export function createFsMock(files: FileTree): TransformFS {
 
       return file;
     },
+    exists: (filePath: string) => {
+      return fileMap[filePath] !== undefined;
+    },
   };
 }
 

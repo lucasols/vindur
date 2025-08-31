@@ -80,7 +80,7 @@ export type DynamicColorCache = {
   [filePath: string]: { [varName: string]: string };
 };
 
-export type PluginFS = { readFile: (path: string) => string };
+export type PluginFS = { readFile: (path: string) => string; exists: (path: string) => boolean };
 
 export type ImportedFunctions = Map<string, string>;
 

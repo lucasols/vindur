@@ -19,7 +19,7 @@ type ImportHandlerContext = {
   importAliasesArray: [string, string][];
   fileHash: string;
   classIndex: { current: number };
-  fs: { readFile: (path: string) => string };
+  fs: { readFile: (path: string) => string; exists: (path: string) => boolean };
   dynamicColorCache: DynamicColorCache;
 };
 
@@ -58,7 +58,7 @@ export function handleFunctionImports(
 
   const source = path.node.source.value;
 
-  const resolvedPath = resolveImportPath(source, importAliasesArray);
+  const resolvedPath = resolveImportPath(source, importAliasesArray, fs);
 
   if (resolvedPath === null) {
     debug?.log(`[vindur:import] ${source} is not an alias import, skipping`);
@@ -149,16 +149,34 @@ export function handleVindurFnExport(
   }
 }
 
+const PASCAL_CASE_REGEX = /^[A-Z][A-Za-z0-9]*$/;
+
 // Helper function to resolve import paths
 function resolveImportPath(
   source: string,
   importAliases: [string, string][],
+  fs: { readFile: (path: string) => string; exists: (path: string) => boolean },
 ): string | null {
   // Check for alias imports
   for (const [alias, aliasPath] of importAliases) {
     if (source.startsWith(alias)) {
       const resolvedPath = source.replace(alias, aliasPath);
-      return `${resolvedPath}.ts`;
+
+      // Determine if the import is PascalCase (likely a React component)
+      const isPascalCase = PASCAL_CASE_REGEX.test(
+        resolvedPath.split('/').pop() || '',
+      );
+
+      // Try multiple extensions in order of preference
+      const extensions = isPascalCase ? ['.tsx', '.ts'] : ['.ts', '.tsx'];
+
+      for (const ext of extensions) {
+        const fullPath = `${resolvedPath}${ext}`;
+        if (fs.exists(fullPath)) return fullPath;
+      }
+
+      // If no file found with any extension, throw error
+      throw new Error(`File not found: ${resolvedPath}.ts`);
     }
   }
 

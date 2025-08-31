@@ -10,17 +10,12 @@ test('compile file with exported function', async () => {
       // Just test that importing vindurFn functions works
       console.log('Spacing function imported successfully')
     `,
-    overrideDefaultFs: {
-      readFile: (path: string) => {
-        if (path === '/utils.ts') {
-          return dedent`
-            import { vindurFn } from 'vindur'
-            export const spacing = vindurFn((size: number) => \`\${size}px\`)
-          `;
-        }
-        throw new Error(`File not found: ${path}`);
-      },
-    },
+    overrideDefaultFs: createFsMock({
+      'utils.ts': dedent`
+        import { vindurFn } from 'vindur'
+        export const spacing = vindurFn((size: number) => \`\${size}px\`)
+      `,
+    }),
     overrideDefaultImportAliases: {
       '@/': '/',
     },

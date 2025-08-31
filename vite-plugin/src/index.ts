@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
   transform,
@@ -28,6 +28,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
+    exists: (fileAbsPath: string) => existsSync(fileAbsPath),
   };
 
   return {

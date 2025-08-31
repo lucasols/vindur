@@ -14,7 +14,10 @@ export type VindurTransformResult = {
   map?: babel.BabelFileResult['map'] | null | undefined;
 };
 
-export type TransformFS = { readFile: (fileAbsPath: string) => string };
+export type TransformFS = { 
+  readFile: (fileAbsPath: string) => string;
+  exists: (fileAbsPath: string) => boolean;
+};
 
 export type TransformFunctionCache = FunctionCache;
 export type TransformDynamicColorCache = DynamicColorCache;
