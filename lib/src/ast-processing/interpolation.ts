@@ -14,19 +14,18 @@ import {
   resolveVariable,
 } from './resolution';
 import { resolveThemeColorExpression } from './theme-colors';
-import { isExtensionResult } from './interpolation.type-guards';
 import { TransformError } from '../custom-errors';
 
 function processIdentifierExpression(
   expression: t.Identifier,
   context: CssProcessingContext,
   interpolationContext: {
-    isExtension?: boolean;
+    isInPropertyContext?: boolean;
     dev?: boolean;
   },
   variableName: string | undefined,
   tagType: string,
-): string | { type: 'extension'; className: string } {
+): string {
   // Check if this identifier refers to a styled component
   const styledComponent = context.state.styledComponents.get(expression.name);
   if (styledComponent) return `.${styledComponent.className}`;
@@ -34,10 +33,12 @@ function processIdentifierExpression(
   // Check if this identifier refers to a CSS variable
   const cssVariable = context.state.cssVariables.get(expression.name);
   if (cssVariable) {
-    if (interpolationContext.isExtension) {
-      return { type: 'extension', className: cssVariable };
+    if (interpolationContext.isInPropertyContext) {
+      // In property context (like within CSS rules), return CSS content for inlining
+      return cssVariable.cssContent;
     } else {
-      return `.${cssVariable}`;
+      // In selector context, return CSS selector
+      return `.${cssVariable.className}`;
     }
   }
 
@@ -68,21 +69,15 @@ function processIdentifierExpression(
 function resolveImportedIdentifier(
   name: string,
   context: CssProcessingContext,
-  interpolationContext: { isExtension?: boolean; dev?: boolean },
-): string | { type: 'extension'; className: string } | null {
+  interpolationContext: { isInPropertyContext?: boolean; dev?: boolean },
+): string | null {
   // Check if this identifier refers to an imported keyframes
   const importedKeyframes = resolveImportedKeyframes(name, context);
   if (importedKeyframes !== null) return importedKeyframes;
 
   // Check if this identifier refers to an imported CSS variable
-  const importedCss = resolveImportedCss(name, context);
-  if (importedCss !== null) {
-    if (interpolationContext.isExtension) {
-      return { type: 'extension', className: importedCss };
-    } else {
-      return `.${importedCss}`;
-    }
-  }
+  const importedCss = resolveImportedCss(name, context, interpolationContext);
+  if (importedCss !== null) return importedCss;
 
   // Check if this identifier refers to an imported constant
   const importedConstant = resolveImportedConstantLocal(name, context);
@@ -129,6 +124,7 @@ function processCallExpression(
   expression: t.CallExpression,
   context: CssProcessingContext,
   interpolationContext: {
+    isInPropertyContext?: boolean;
     dev?: boolean;
     position?: { isFirst: boolean; hasNonWhitespaceContent: boolean };
   },
@@ -241,7 +237,7 @@ function resolveCreateClassNameMemberExpression(
 function processMemberExpression(
   expression: t.MemberExpression,
   context: CssProcessingContext,
-  interpolationContext: { dev?: boolean },
+  interpolationContext: { isInPropertyContext?: boolean; dev?: boolean },
   variableName: string | undefined,
   tagType: string,
 ): string {
@@ -309,11 +305,11 @@ export function processInterpolationExpression(
   variableName: string | undefined,
   tagType: string,
   interpolationContext: {
-    isExtension?: boolean;
+    isInPropertyContext?: boolean;
     dev?: boolean;
     position?: { isFirst: boolean; hasNonWhitespaceContent: boolean };
   } = {},
-): string | { type: 'extension'; className: string } {
+): string {
   if (t.isIdentifier(expression)) {
     return processIdentifierExpression(
       expression,
@@ -373,7 +369,6 @@ export function processTemplateWithInterpolation(
   dev: boolean = false,
 ) {
   let cssContent = '';
-  const extensions: string[] = [];
   let hasNonWhitespaceContent = false;
 
   // Process template literal with interpolations
@@ -394,7 +389,10 @@ export function processTemplateWithInterpolation(
       if (expression && t.isExpression(expression)) {
         // Check context around interpolation
         const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
-        const isExtension = nextPart.trimStart().startsWith(';');
+        
+        // Simple logic: if followed by semicolon, interpolate CSS content directly
+        // Otherwise, use as selector
+        const followedBySemicolon = nextPart.trimStart().startsWith(';');
 
         const resolvedExpression = processInterpolationExpression(
           expression,
@@ -402,27 +400,22 @@ export function processTemplateWithInterpolation(
           variableName,
           tagType.includes('styled') ? 'styled' : 'css',
           {
-            isExtension,
+            isInPropertyContext: followedBySemicolon,
             dev,
             position: { isFirst: i === 0, hasNonWhitespaceContent },
           },
         );
 
-        if (typeof resolvedExpression === 'string') {
-          cssContent += resolvedExpression;
-          // After processing any interpolation, we have content
-          if (resolvedExpression.trim() !== '') {
-            hasNonWhitespaceContent = true;
-          }
-        } else if (isExtensionResult(resolvedExpression)) {
-          // Handle extension - store for later class combination
-          extensions.push(resolvedExpression.className);
+        cssContent += resolvedExpression;
+        // After processing any interpolation, we have content
+        if (resolvedExpression.trim() !== '') {
+          hasNonWhitespaceContent = true;
         }
       }
     }
   }
 
-  return { cssContent, extensions };
+  return { cssContent, extensions: [] };
 }
 
 function resolveLayerCall(
@@ -491,6 +484,7 @@ function resolveImportedKeyframes(
 function resolveImportedCss(
   cssName: string,
   context: CssProcessingContext,
+  interpolationContext: { isInPropertyContext?: boolean; dev?: boolean },
 ): string | null {
   // Check if this CSS is imported from another file
   const cssFilePath = context.importedFunctions.get(cssName);
@@ -502,11 +496,17 @@ function resolveImportedCss(
     const extractedData = getOrExtractFileData(cssFilePath, context);
 
     // Look for the specific CSS variable in the external file
-    const cssClassName = extractedData.cssVariables.get(cssName);
-    if (cssClassName) {
+    const cssVariableInfo = extractedData.cssVariables.get(cssName);
+    if (cssVariableInfo) {
       // Mark this CSS as used (for import cleanup)
       context.usedFunctions.add(cssName);
-      return cssClassName;
+      if (interpolationContext.isInPropertyContext) {
+        // In property context (like within CSS rules), return CSS content for inlining
+        return cssVariableInfo.cssContent;
+      } else {
+        // In selector context, return CSS selector
+        return `.${cssVariableInfo.className}`;
+      }
     }
 
     // Return null if not found (allow other resolvers to try)

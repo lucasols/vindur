@@ -48,7 +48,7 @@ describe('imported file hash generation', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { StyledButton } from "#/components";
-      const containerStyles = "v1vylsmj-1-baseStyles v1560qbr-1-containerStyles";
+      const containerStyles = "v1560qbr-1-containerStyles";
       const App = () => (
         <StyledButton
           className={containerStyles}
@@ -60,6 +60,8 @@ describe('imported file hash generation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-containerStyles {
+        display: flex;
+        align-items: center;
         animation: v1vylsmj-2-fadeAnimation 0.3s;
         color: var(--v1vylsmj-3);
       }
@@ -106,12 +108,14 @@ describe('imported file hash generation', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import "#/styles";
       import "#/animations";
-      const mainStyles = "v1s4vg6s-1-buttonStyles v1560qbr-1-mainStyles";
+      const mainStyles = "v1560qbr-1-mainStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-mainStyles {
+        padding: 12px 24px;
+        border: 1px solid #ddd;
         animation: v1gz5uqy-1-slideIn 0.5s;
         background: var(--vip4ilp-1);
       }
@@ -317,13 +321,16 @@ describe('imported file hash generation', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import "#/layouts";
-      const appStyles =
-        "v17amvo7-1-headerStyles v17amvo7-5-complexLayout v1560qbr-1-appStyles";
+      const appStyles = "v1560qbr-1-appStyles";
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-appStyles {
+        height: 60px;
+        background: white;
+        animation: v17amvo7-2-fadeIn 0.3s;
+        color: var(--v17amvo7-3);
         min-height: 100vh;
       }
       "
@@ -397,9 +404,7 @@ describe('imported file hash generation', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const baseStyles = "v1560qbr-1-baseStyles";
-      const App = () => (
-        <div className="v1560qbr-1-baseStyles v1560qbr-2-css-prop-2" />
-      );
+      const App = () => <div className="v1560qbr-2-css-prop-2" />;
       "
     `);
 
@@ -410,6 +415,8 @@ describe('imported file hash generation', () => {
 
       .v1560qbr-2-css-prop-2 {
         color: red;
+
+        padding: 8px;
       }
       "
     `);

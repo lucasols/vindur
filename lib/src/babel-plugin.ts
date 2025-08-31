@@ -48,8 +48,13 @@ export type DebugLogger = {
   warn?: (message: string) => void;
 };
 
+export type CssVariableInfo = {
+  className: string;
+  cssContent: string;
+};
+
 export type ExtractedFileRecord = {
-  cssVariables: Map<string, string>;
+  cssVariables: Map<string, CssVariableInfo>;
   keyframes: Map<string, string>;
   constants: Map<string, string | number>;
   objectConstants: Map<string, Record<string, string | number>>;
@@ -70,7 +75,7 @@ export type VindurPluginState = {
       attrsExpression?: t.ObjectExpression; // The original attrs expression
     }
   >;
-  cssVariables: Map<string, string>; // Track css tagged template variables
+  cssVariables: Map<string, CssVariableInfo>; // Track css tagged template variables
   keyframes: Map<string, string>; // Track keyframes animation names
   themeColors?: Map<string, Record<string, string>>; // Track createStaticThemeColors variables
   dynamicColors?: Map<string, string>; // Track createDynamicCssColor variables

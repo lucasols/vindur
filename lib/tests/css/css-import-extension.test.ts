@@ -35,13 +35,16 @@ test('should extend CSS styles imported from another file', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/styles";
-    const styles = "v1s4vg6s-1-baseStyles v1560qbr-1-styles";
+    const styles = "v1560qbr-1-styles";
     const App = () => <div className={styles}>Hello</div>;
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-styles {
+      display: flex;
+      align-items: center;
+      background: white;
       padding: 12px 24px;
       border-radius: 4px;
       font-weight: 500;
@@ -95,14 +98,16 @@ test('should extend CSS styles in styled components from imports', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/styles";
-    const App = () => (
-      <button className="v1s4vg6s-1-buttonBase v1560qbr-1-Button">Click me</button>
-    );
+    const App = () => <button className="v1560qbr-1-Button">Click me</button>;
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
       background: #007bff;
       color: white;
     }
@@ -159,10 +164,8 @@ test('should handle multiple imported CSS extensions', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/styles";
     const App = () => (
-      <div className="v1s4vg6s-1-baseLayout v1560qbr-1-Card">
-        <button className="v1s4vg6s-2-buttonStyles v1560qbr-2-Button">
-          Submit
-        </button>
+      <div className="v1560qbr-1-Card">
+        <button className="v1560qbr-2-Button">Submit</button>
       </div>
     );
     "
@@ -170,11 +173,19 @@ test('should handle multiple imported CSS extensions', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Card {
+      padding: 20px;
+      border-radius: 8px;
+      margin: 16px;
       background: white;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .v1560qbr-2-Button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
       background: #28a745;
       color: white;
     }
@@ -218,11 +229,7 @@ test('should handle mixed local and imported CSS extensions', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/styles";
     const localStyles = "v1560qbr-1-localStyles";
-    const App = () => (
-      <div className="v1s4vg6s-1-baseLayout v1560qbr-1-localStyles v1560qbr-2-Card">
-        Content
-      </div>
-    );
+    const App = () => <div className="v1560qbr-2-Card">Content</div>;
     "
   `);
 
@@ -233,6 +240,12 @@ test('should handle mixed local and imported CSS extensions', async () => {
     }
 
     .v1560qbr-2-Card {
+      padding: 16px;
+      border-radius: 8px;
+      margin: 8px;
+
+      border: 2px solid #ddd;
+      transition: all 0.3s ease;
       background: white;
     }
     "
@@ -304,16 +317,15 @@ test('should handle CSS extension with variable interpolation in external file',
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/styles";
-    const App = () => (
-      <div className="v1s4vg6s-1-responsiveLayout v1560qbr-1-Container">
-        Content
-      </div>
-    );
+    const App = () => <div className="v1560qbr-1-Container">Content</div>;
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Container {
+      max-width: 1200px;
+      padding: 20px;
+      margin: 0 auto;
       background: #f8f9fa;
     }
     "
@@ -432,14 +444,15 @@ test('should allow importing css and functions from another file', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/utils";
-    const App = () => (
-      <div className="v1i9guam-1-baseStyles v1560qbr-1-Card">Content</div>
-    );
+    const App = () => <div className="v1560qbr-1-Card">Content</div>;
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Card {
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      background: white;
       margin: 1px;
     }
     "
@@ -477,14 +490,15 @@ test('should allow importing css and functions from another file with arguments'
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/utils";
-    const App = () => (
-      <div className="v1i9guam-1-baseStyles v1560qbr-1-Card">Content</div>
-    );
+    const App = () => <div className="v1560qbr-1-Card">Content</div>;
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Card {
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      background: white;
       margin: 2px;
     }
     "

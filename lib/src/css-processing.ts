@@ -30,7 +30,7 @@ export type CssProcessingContext = {
   extractedFiles: Map<
     string,
     {
-      cssVariables: Map<string, string>;
+      cssVariables: Map<string, import('./babel-plugin').CssVariableInfo>;
       keyframes: Map<string, string>;
       constants: Map<string, string | number>;
       objectConstants: Map<string, Record<string, string | number>>;
@@ -164,18 +164,14 @@ export function generateCssRule(
     }
 
     // Add return statement at the end to avoid continue processing non-layered CSS
-    return extensions.length > 0 ?
-        `${extensions.join(' ')} ${className}`
-      : className;
+    return className;
   }
 
   // No layer markers, handle as before
   const cssRule = `.${className} {\n  ${cleanedCss}\n}`;
   state.cssRules.push({ css: cssRule, location });
 
-  return extensions.length > 0 ?
-      `${extensions.join(' ')} ${className}`
-    : className;
+  return className;
 }
 
 export function processStyledTemplate(
@@ -220,7 +216,7 @@ export function processStyledTemplate(
   }
 
   const className = generateClassName(dev, fileHash, classIndex, variableName);
-  const finalClassName = generateCssRule(
+  generateCssRule(
     className,
     scopedResult.processedCss,
     extensions,
@@ -231,7 +227,7 @@ export function processStyledTemplate(
   return {
     cssContent: scopedResult.processedCss,
     extensions,
-    finalClassName,
+    finalClassName: className,
     scopedVariables: context.state.scopedVariables,
     warnings: scopedResult.warnings,
   };
@@ -301,19 +297,13 @@ export function processStyledExtension(
     }
   }
 
-  // Handle extensions first
-  let finalClassName = className;
-  if (extensions.length > 0) {
-    finalClassName = `${extensions.join(' ')} ${className}`;
-  }
-
   // Extend the styled component - inherit element and merge classes
   const mergedClassName =
     extendedInfo ?
       cleanedCss.trim() ?
-        `${extendedInfo.className} ${finalClassName}`
+        `${extendedInfo.className} ${className}`
       : extendedInfo.className
-    : finalClassName;
+    : className;
 
   return {
     cssContent: scopedResult.processedCss,

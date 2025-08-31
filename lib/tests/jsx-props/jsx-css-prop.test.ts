@@ -261,11 +261,7 @@ describe('JSX css prop', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const baseStyles = "v1560qbr-1-baseStyles";
-      const App = () => (
-        <div className="v1560qbr-1-baseStyles v1560qbr-2-css-prop-2">
-          Card Content
-        </div>
-      );
+      const App = () => <div className="v1560qbr-2-css-prop-2">Card Content</div>;
       "
     `);
 
@@ -277,6 +273,9 @@ describe('JSX css prop', () => {
       }
 
       .v1560qbr-2-css-prop-2 {
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
         background: white;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }

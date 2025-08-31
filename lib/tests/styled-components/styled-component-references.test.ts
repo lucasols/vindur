@@ -365,7 +365,7 @@ describe('styled component references', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const baseLayout = "v1560qbr-2-baseLayout";
-      const interactiveLayout = "v1560qbr-2-baseLayout v1560qbr-3-interactiveLayout";
+      const interactiveLayout = "v1560qbr-3-interactiveLayout";
       const App = () => (
         <div className={interactiveLayout}>
           <button className="v1560qbr-1-Button">Click me</button>
@@ -387,6 +387,9 @@ describe('styled component references', () => {
       }
 
       .v1560qbr-3-interactiveLayout {
+        display: flex;
+        gap: 16px;
+
         .v1560qbr-1-Button:hover {
           background: darkblue;
         }

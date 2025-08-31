@@ -4,7 +4,7 @@ import { murmur2 } from '@ls-stack/utils/hash';
 import type { DebugLogger } from './babel-plugin';
 
 export type ExtractedVindurFeatures = {
-  cssVariables: Map<string, string>;
+  cssVariables: Map<string, import('./babel-plugin').CssVariableInfo>;
   keyframes: Map<string, string>;
   dynamicColors: Map<string, string>;
   themeColors: Map<string, Record<string, string>>;
@@ -193,7 +193,10 @@ export function createExtractVindurFeaturesPlugin(
                 if (processedVariables.has(varName)) return;
 
                 const className = `${fileHash}-${idIndex}`;
-                extractedFeatures.cssVariables.set(varName, className);
+                extractedFeatures.cssVariables.set(varName, {
+                  className,
+                  cssContent: '', // Content will be populated during actual transform
+                });
                 processedVariables.add(varName);
                 processedTemplates.add(templateExpr); // Mark template as processed
                 logIndexConsumption(
@@ -261,7 +264,10 @@ export function createExtractVindurFeaturesPlugin(
                 && declarator.init.tag.name === 'css'
               ) {
                 const className = `${fileHash}-${idIndex}`;
-                extractedFeatures.cssVariables.set(varName, className);
+                extractedFeatures.cssVariables.set(varName, {
+                  className,
+                  cssContent: '', // Content will be populated during actual transform
+                });
                 processedVariables.add(varName); // Mark as processed
                 processedTemplates.add(declarator.init); // Mark template as processed
                 logIndexConsumption(

@@ -125,9 +125,9 @@ export function updateCssRulesForElement(
 
     // Check if this references a CSS variable
     if (t.isIdentifier(expression)) {
-      const cssClassName = state.cssVariables.get(expression.name);
-      if (cssClassName) {
-        updateCssRulesByClassName(cssClassName, classNameMappings, state);
+      const cssVariable = state.cssVariables.get(expression.name);
+      if (cssVariable) {
+        updateCssRulesByClassName(cssVariable.className, classNameMappings, state);
         return;
       }
     }

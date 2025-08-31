@@ -55,11 +55,16 @@ test('compile file with vindurFn function and css exports', async () => {
     overrideDefaultFs: createFsMock({ 'utils.ts': fnFile }),
   });
 
-  expect(result.css).toMatchInlineSnapshot(`""`);
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      margin: 16px;
+    }
+    "
+  `);
 
   expect(result.code).toMatchInlineSnapshot(`
     "import "#/utils";
-    const style = "v1i9guam-1-spacingCss v1560qbr-1-style";
+    const style = "v1560qbr-1-style";
     "
   `);
 });

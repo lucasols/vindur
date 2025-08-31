@@ -10,7 +10,7 @@ export function getOrExtractFileData(
   filePath: string,
   context: CssProcessingContext,
 ): {
-  cssVariables: Map<string, string>;
+  cssVariables: Map<string, import('../babel-plugin').CssVariableInfo>;
   keyframes: Map<string, string>;
   constants: Map<string, string | number>;
   objectConstants: Map<string, Record<string, string | number>>;
@@ -31,7 +31,7 @@ export function getOrExtractFileData(
     cssRules: [],
     vindurImports: new Set<string>(),
     styledComponents: new Map(),
-    cssVariables: new Map<string, string>(),
+    cssVariables: new Map<string, import('../babel-plugin').CssVariableInfo>(),
     keyframes: new Map<string, string>(),
     themeColors: new Map<string, Record<string, string>>(),
     potentiallyUndeclaredScopedVariables: new Set<string>(),

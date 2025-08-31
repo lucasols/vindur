@@ -100,7 +100,10 @@ export function handleCssVariableAssignment(
   classIndex.current++;
 
   // Track the CSS variable for future reference
-  context.state.cssVariables.set(varName, result.finalClassName);
+  context.state.cssVariables.set(varName, {
+    className: result.finalClassName,
+    cssContent: result.cssContent,
+  });
 
   // Inject warnings for scoped variables in dev mode
   if (dev && result.warnings && result.warnings.length > 0) {

@@ -303,14 +303,14 @@ describe('constant imports', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import "#/styles";
-      const App = () => (
-        <div className="v1s4vg6s-1-baseStyles v1560qbr-1-Card">Content</div>
-      );
+      const App = () => <div className="v1560qbr-1-Card">Content</div>;
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Card {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         background: #10b981;
         padding: 24px;
       }

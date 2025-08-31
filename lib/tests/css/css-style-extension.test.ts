@@ -26,9 +26,7 @@ describe('CSS style extension', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const baseStyles = "v1560qbr-1-baseStyles";
-      const App = () => (
-        <div className="v1560qbr-1-baseStyles v1560qbr-2-Card">Hello</div>
-      );
+      const App = () => <div className="v1560qbr-2-Card">Hello</div>;
       "
     `);
 
@@ -40,6 +38,9 @@ describe('CSS style extension', () => {
       }
 
       .v1560qbr-2-Card {
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
         background: white;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
@@ -70,7 +71,7 @@ describe('CSS style extension', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const baseStyles = "v1560qbr-1-baseStyles";
-      const extendedStyles = "v1560qbr-1-baseStyles v1560qbr-2-extendedStyles";
+      const extendedStyles = "v1560qbr-2-extendedStyles";
       const App = () => <div className={extendedStyles}>Hello</div>;
       "
     `);
@@ -83,6 +84,9 @@ describe('CSS style extension', () => {
       }
 
       .v1560qbr-2-extendedStyles {
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
         background: white;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
@@ -125,8 +129,8 @@ describe('CSS style extension', () => {
       "const baseStyles = "v1560qbr-1-baseStyles";
       const App = () => (
         <div>
-          <div className="v1560qbr-1-baseStyles v1560qbr-2-Card">Card</div>
-          <div className="v1560qbr-1-baseStyles v1560qbr-3-PrimaryCard">Primary</div>
+          <div className="v1560qbr-2-Card">Card</div>
+          <div className="v1560qbr-3-PrimaryCard">Primary</div>
         </div>
       );
       "
@@ -139,11 +143,15 @@ describe('CSS style extension', () => {
       }
 
       .v1560qbr-2-Card {
+        padding: 16px;
+        border-radius: 8px;
         background: white;
         border: 1px solid #ddd;
       }
 
       .v1560qbr-3-PrimaryCard {
+        padding: 16px;
+        border-radius: 8px;
         background: #007bff;
         color: white;
       }
@@ -202,9 +210,7 @@ describe('CSS style extension', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "const baseStyles = "v1560qbr-1-baseStyles";
       const primaryColor = "#007bff";
-      const App = () => (
-        <button className="v1560qbr-1-baseStyles v1560qbr-2-Button">Click me</button>
-      );
+      const App = () => <button className="v1560qbr-2-Button">Click me</button>;
       "
     `);
 
@@ -215,11 +221,87 @@ describe('CSS style extension', () => {
       }
 
       .v1560qbr-2-Button {
+        padding: 16px;
+        border-radius: 8px;
         background: #007bff;
         color: white;
         border: none;
         cursor: pointer;
       }
+      "
+    `);
+  });
+
+  test('should handle CSS extension in nested selectors', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const fillContainer = css\`
+          position: relative;
+          height: var(--icon-size, 24px);
+          width: var(--icon-size, 24px);
+        \`
+
+        const Container = styled.div\`
+          position: relative;
+          height: var(--icon-size, 24px);
+          width: var(--icon-size, 24px);
+
+          :where(&) {
+            color: currentColor;
+          }
+
+          svg {
+            display: block;
+            \${fillContainer};
+          }
+
+          &.inline {
+            display: inline-block;
+            vertical-align: middle;
+          }
+        \`
+
+        const App = () => <Container />
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-fillContainer {
+        position: relative;
+        height: var(--icon-size, 24px);
+        width: var(--icon-size, 24px);
+      }
+
+      .v1560qbr-2-Container {
+        position: relative;
+        height: var(--icon-size, 24px);
+        width: var(--icon-size, 24px);
+
+        :where(&) {
+          color: currentColor;
+        }
+
+        svg {
+          display: block;
+
+          position: relative;
+          height: var(--icon-size, 24px);
+          width: var(--icon-size, 24px);
+        }
+
+        &.inline {
+          display: inline-block;
+          vertical-align: middle;
+        }
+      }
+      "
+    `);
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const fillContainer = "v1560qbr-1-fillContainer";
+      const App = () => <div className="v1560qbr-2-Container" />;
       "
     `);
   });
