@@ -50,6 +50,14 @@ async function publishPackage(packageName: PackageName, version: Version) {
     'lint',
   ]);
 
+  // build vite plugin to run e2e tests
+  await runCmdUnwrap('Build vite plugin', [
+    'pnpm',
+    '--filter',
+    'vite-plugin',
+    'build',
+  ]);
+
   // run e2e tests
   await runCmdUnwrap('Run e2e tests', ['pnpm', 'e2e:test']);
 
