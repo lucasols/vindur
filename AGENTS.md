@@ -240,6 +240,10 @@ test('should handle ...', async () => {
 });
 ```
 
+DON'T DO THIS:
+
+- using `toContain` instead of `toMatchInlineSnapshot`
+
 # Documentation
 
 ## README.md
