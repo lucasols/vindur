@@ -69,6 +69,7 @@ export type VindurPluginState = {
   scopedVariables?: Map<string, { index: number; originalName: string }>; // Track scoped CSS variables at file level
   potentiallyUndeclaredScopedVariables?: Set<string>; // Track variables used in CSS but not declared (may be provided via style props)
   elementsWithCssContext?: WeakSet<t.JSXElement>; // Track elements that have been processed by css prop handler
+  sourceContent?: string; // Track source content for source map generation
   currentLayer?: string; // Track the current CSS layer for the current styled component
   styleDependencies?: Set<string>; // Track external files loaded during transformation (for hot-reload)
 };
@@ -449,6 +450,8 @@ export function createVindurPlugin(
             extractedFiles: new Map(),
             loadExternalFunction,
           }),
+          filePath,
+          sourceContent,
         });
 
         // Handle cx prop (before styled component transformation)
@@ -487,6 +490,7 @@ export function createVindurPlugin(
       state.styledComponents.clear();
       state.cssVariables.clear();
       state.keyframes.clear();
+      state.sourceContent = sourceContent;
       idIndex = 1;
       usedFunctions.clear();
       importedFunctions.clear();

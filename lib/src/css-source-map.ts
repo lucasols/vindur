@@ -107,9 +107,7 @@ export function createLocationFromTemplateLiteral(
   sourceFilePath: string,
   sourceContent: string,
 ): CssRuleLocation | undefined {
-  if (!quasi.loc) {
-    return undefined;
-  }
+  if (!quasi.loc) return undefined;
 
   return {
     source: sourceFilePath,

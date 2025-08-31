@@ -150,13 +150,13 @@ function getTypeString(typeNode: t.TSType): string {
  */
 export function updateCssSelectorsForStyleFlags(
   styleFlags: StyleFlag[],
-  cssRules: string[],
+  cssRules: Array<{ css: string }>,
   styledClassName: string,
 ): void {
   for (let i = 0; i < cssRules.length; i++) {
     const rule = cssRules[i];
-    if (rule?.includes(styledClassName)) {
-      let updatedRule = rule;
+    if (rule?.css.includes(styledClassName)) {
+      let updatedRule = rule.css;
 
       for (const styleProp of styleFlags) {
         if (styleProp.type === 'boolean') {
@@ -184,7 +184,7 @@ export function updateCssSelectorsForStyleFlags(
         }
       }
 
-      cssRules[i] = updatedRule;
+      cssRules[i] = { ...rule, css: updatedRule };
     }
   }
 }
@@ -194,7 +194,7 @@ export function updateCssSelectorsForStyleFlags(
  */
 export function checkForMissingModifierStyles(
   styleFlags: StyleFlag[],
-  cssRules: string[],
+  cssRules: Array<{ css: string }>,
   styledClassName: string,
 ): Array<{ propName: string; original: string; expected: string }> {
   const missingSelectors: Array<{
@@ -204,11 +204,11 @@ export function checkForMissingModifierStyles(
   }> = [];
 
   // Find the CSS rule for this styled component
-  const relevantRule = cssRules.find((rule) => rule.includes(styledClassName));
+  const relevantRule = cssRules.find((rule) => rule.css.includes(styledClassName));
   if (!relevantRule) return missingSelectors;
 
   // Remove CSS comments to avoid false positives
-  const ruleWithoutComments = relevantRule.replace(/\/\*[\s\S]*?\*\//g, '');
+  const ruleWithoutComments = relevantRule.css.replace(/\/\*[\s\S]*?\*\//g, '');
 
   for (const styleProp of styleFlags) {
     if (styleProp.type === 'boolean') {

@@ -13,7 +13,7 @@ import {
   processScopedCssVariables,
   type ScopedVariableMap,
 } from './scoped-css-variables';
-import type { CssRuleLocation, CssRuleWithLocation } from './css-source-map';
+import type { CssRuleLocation } from './css-source-map';
 
 export type CssProcessingContext = {
   fs: TransformFS;

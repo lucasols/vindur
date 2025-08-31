@@ -14,6 +14,7 @@ import {
   extractStyleFlags,
   updateCssSelectorsForStyleFlags,
 } from './style-flags-utils';
+import { createLocationFromTemplateLiteral } from '../css-source-map';
 
 const LOWERCASE_START_REGEX = /^[a-z]/;
 const CAMEL_CASE_REGEX = /^[A-Z]/;
@@ -61,7 +62,7 @@ export function handleCssVariableAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
     !context.state.vindurImports.has('css')
@@ -75,6 +76,15 @@ export function handleCssVariableAssignment(
   }
 
   const varName = path.node.id.name;
+  
+  // Capture location information from the template literal
+  const sourceContent = context.state.sourceContent || '';
+  const location = createLocationFromTemplateLiteral(
+    path.node.init.quasi,
+    filePath,
+    sourceContent,
+  );
+  
   const result = processStyledTemplate(
     path.node.init.quasi,
     context,
@@ -84,6 +94,7 @@ export function handleCssVariableAssignment(
     fileHash,
     classIndex.current,
     classIndex,
+    location,
   );
   classIndex.current++;
 
@@ -269,7 +280,7 @@ export function handleStyledElementAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
     !context.state.vindurImports.has('styled')
@@ -291,6 +302,14 @@ export function handleStyledElementAssignment(
   const typeParameters = path.node.init.typeParameters;
   const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev);
 
+  // Capture location information from the template literal
+  const sourceContent = context.state.sourceContent || '';
+  const location = createLocationFromTemplateLiteral(
+    path.node.init.quasi,
+    filePath,
+    sourceContent,
+  );
+
   const result = processStyledTemplate(
     path.node.init.quasi,
     context,
@@ -300,6 +319,7 @@ export function handleStyledElementAssignment(
     fileHash,
     classIndex.current,
     classIndex,
+    location,
   );
   classIndex.current++;
 
@@ -364,7 +384,7 @@ export function handleStyledExtensionAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
     !context.state.vindurImports.has('styled')
@@ -432,6 +452,14 @@ export function handleStyledExtensionAssignment(
   const extendedInfo = context.state.styledComponents.get(extendedName);
   validateExtendedComponent(extendedName, extendedInfo, path, extendedArg.loc);
 
+  // Capture location information from the template literal
+  const sourceContent = context.state.sourceContent || '';
+  const location = createLocationFromTemplateLiteral(
+    path.node.init.quasi,
+    filePath,
+    sourceContent,
+  );
+
   const result = processStyledExtension(
     path.node.init.quasi,
     context,
@@ -441,6 +469,7 @@ export function handleStyledExtensionAssignment(
     fileHash,
     classIndex.current,
     classIndex,
+    location,
   );
   classIndex.current++;
 
@@ -548,7 +577,7 @@ export function handleKeyframesVariableAssignment(
   path: NodePath<t.VariableDeclarator>,
   handlerContext: VariableHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex } = handlerContext;
+  const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
     !context.state.vindurImports.has('keyframes')
@@ -562,6 +591,14 @@ export function handleKeyframesVariableAssignment(
 
   const varName = t.isIdentifier(path.node.id) ? path.node.id.name : undefined;
 
+  // Capture location information from the template literal
+  const sourceContent = context.state.sourceContent || '';
+  const location = createLocationFromTemplateLiteral(
+    path.node.init.quasi,
+    filePath,
+    sourceContent,
+  );
+
   const result = processKeyframes(
     path.node.init.quasi,
     context,
@@ -569,6 +606,7 @@ export function handleKeyframesVariableAssignment(
     dev,
     fileHash,
     classIndex.current,
+    location,
   );
   classIndex.current++;
 

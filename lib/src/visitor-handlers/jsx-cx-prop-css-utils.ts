@@ -29,8 +29,7 @@ export function generateMissingCssClassWarnings(
     // Look for &.originalClassName patterns
     const hasClass = state.cssRules.some(
       (rule) =>
-        rule?.css
-        && rule.css.includes(`.${styledInfo.className}`)
+        rule.css.includes(`.${styledInfo.className}`)
         && rule.css.includes(`&.${mapping.original}`),
     );
 

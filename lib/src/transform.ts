@@ -122,17 +122,7 @@ export function transform({
       const cssGenerator = new CssSourceMapGenerator(`${fileAbsPath.split('/').pop()}.css`);
       
       for (const cssRule of pluginState.cssRules) {
-        // For now, generate source map without location info to test the basic structure
-        const basicCssRule = {
-          css: cssRule.css,
-          location: {
-            source: fileAbsPath,
-            sourceContent: source,
-            start: { line: 0, column: 0 },
-            end: { line: 0, column: 0 },
-          },
-        };
-        cssGenerator.addCssRule(basicCssRule);
+        cssGenerator.addCssRule(cssRule);
       }
       
       css = pluginState.cssRules.map(rule => rule.css).join('\n\n');

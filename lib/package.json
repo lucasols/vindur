@@ -44,12 +44,13 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "colord": "catalog:",
     "@babel/core": "catalog:",
     "@babel/generator": "catalog:",
+    "colord": "catalog:",
     "source-map": "catalog:"
   },
   "devDependencies": {
+    "@jridgewell/trace-mapping": "^0.3.30",
     "@ls-stack/utils": "catalog:",
     "@types/babel__core": "catalog:",
     "@types/babel__generator": "catalog:",

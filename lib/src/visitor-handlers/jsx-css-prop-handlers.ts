@@ -6,6 +6,7 @@ import type { VindurPluginState } from '../babel-plugin';
 import type { CssProcessingContext } from '../css-processing';
 import { processStyledTemplate } from '../css-processing';
 import { filterWithNarrowing, findWithNarrowing } from '../utils';
+import { createLocationFromTemplateLiteral } from '../css-source-map';
 
 export function handleJsxCssProp(
   path: NodePath<t.JSXElement>,
@@ -15,6 +16,8 @@ export function handleJsxCssProp(
     fileHash: string;
     classIndex: () => number;
     cssProcessingContext: () => CssProcessingContext;
+    filePath: string;
+    sourceContent: string;
   },
 ): boolean {
   if (!t.isJSXIdentifier(path.node.openingElement.name)) {
@@ -74,6 +77,14 @@ export function handleJsxCssProp(
       const variableName = `css-prop-${classIndex}`;
       // Create a reference object that can be mutated by processStyledTemplate
       const classIndexRef = { current: classIndex };
+      
+      // Capture location information from the template literal
+      const location = createLocationFromTemplateLiteral(
+        expression,
+        context.filePath,
+        context.sourceContent,
+      );
+      
       const result = processStyledTemplate(
         expression,
         context.cssProcessingContext(),
@@ -83,6 +94,7 @@ export function handleJsxCssProp(
         context.fileHash,
         classIndex,
         classIndexRef,
+        location,
       );
       cssClassName = result.finalClassName;
     } else if (t.isIdentifier(expression)) {

@@ -189,6 +189,13 @@ export function handleInlineStyledError(
     // Handle export default styled.div`...`
     const tagName = path.node.tag.property.name;
 
+    const { sourceFilePath, sourceContent } = handlerContext;
+    const location = createLocationFromTemplateLiteral(
+      path.node.quasi,
+      sourceFilePath,
+      sourceContent,
+    );
+
     const result = processStyledTemplate(
       path.node.quasi,
       context,
@@ -198,6 +205,7 @@ export function handleInlineStyledError(
       fileHash,
       classIndex.current,
       classIndex,
+      location,
     );
     classIndex.current++;
 
