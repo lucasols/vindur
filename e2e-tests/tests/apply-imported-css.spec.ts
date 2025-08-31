@@ -1,15 +1,12 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { expect, test, type Page } from '@playwright/test';
-import { startEnv, startEnvProd, type TestEnv } from '../utils/startEnv';
+import { expect, test } from '@playwright/test';
+import { startEnv, startEnvProd } from '../utils/startEnv';
 
-test.describe.configure({ mode: 'serial' });
-
-let env: TestEnv;
-let page: Page;
-
-test.beforeAll(async ({ browser }) => {
-  page = await browser.newPage();
-  env = await startEnv('css-import-extension-tests', {
+test('should extend CSS styles imported from another file', async ({
+  browser,
+}) => {
+  const pageDev = await browser.newPage();
+  const envDev = await startEnv('css-import-extension-tests', {
     'styles.ts': dedent`
       import { css } from "vindur";
 
@@ -38,16 +35,9 @@ test.beforeAll(async ({ browser }) => {
     `,
   });
 
-  await page.goto(env.baseUrl);
-});
+  await pageDev.goto(envDev.baseUrl);
 
-test.afterAll(async () => {
-  await page.close();
-  await env.cleanup();
-});
-
-test('should extend CSS styles imported from another file', async () => {
-  const el = page.getByTestId('extended');
+  const el = pageDev.getByTestId('extended');
 
   // Imported base styles
   await expect(el).toHaveCSS('display', 'flex');
@@ -58,6 +48,9 @@ test('should extend CSS styles imported from another file', async () => {
   await expect(el).toHaveCSS('padding', '12px 24px');
   await expect(el).toHaveCSS('border-radius', '4px');
   await expect(el).toHaveCSS('font-weight', '500');
+
+  await pageDev.close();
+  await envDev.cleanup();
 });
 
 test('should extend CSS styles imported from another file (prod build)', async ({
