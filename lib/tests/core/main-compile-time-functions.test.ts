@@ -10,10 +10,17 @@ import {
 } from '../../src/main';
 
 describe('compile-time functions should throw at runtime', () => {
-  test('vindurFn should throw error at runtime', () => {
-    const fn = (color: string) => `color: ${color}`;
+  test('just calling vindurFn should not throw', () => {
+    expect(() => {
+      const _fn = vindurFn((color: string) => `color: ${color}`);
+    }).not.toThrow();
+  });
 
-    expect(() => vindurFn(fn)).toThrowErrorMatchingInlineSnapshot(
+  test('vindurFn should throw error at runtime', () => {
+    expect(() => {
+      const fn = vindurFn((color: string) => `color: ${color}`);
+      fn('red');
+    }).toThrowErrorMatchingInlineSnapshot(
       `[Error: vindurFn cannot be called at runtime]`,
     );
   });
@@ -23,7 +30,9 @@ describe('compile-time functions should throw at runtime', () => {
       () => css`
         color: red;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: css cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: css cannot be called at runtime]`,
+    );
   });
 
   test('createGlobalStyle should throw error at runtime', () => {
@@ -47,7 +56,9 @@ describe('compile-time functions should throw at runtime', () => {
       () => styled.div`
         color: blue;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: styled cannot be called at runtime]`,
+    );
   });
 
   test('styled with custom element should throw error at runtime', () => {
@@ -55,7 +66,9 @@ describe('compile-time functions should throw at runtime', () => {
       () => styled.button`
         background: red;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: styled cannot be called at runtime]`,
+    );
   });
 
   test('createStaticThemeColors should return input at runtime', () => {
@@ -83,32 +96,52 @@ describe('styled proxy behavior', () => {
       () => styled.span`
         color: green;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: styled cannot be called at runtime]`,
+    );
     expect(
       () => styled.article`
         padding: 10px;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: styled cannot be called at runtime]`,
+    );
     expect(
       () => styled.section`
         margin: 5px;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: styled cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: styled cannot be called at runtime]`,
+    );
   });
 });
 
 describe('function signatures and types', () => {
   test('vindurFn should accept generic function types', () => {
     // These should compile without errors (testing type signatures)
-    const stringFn = (text: string) => `content: "${text}"`;
-    const numberFn = (size: number) => `font-size: ${size}px`;
-    const multiFn = (color: string, size: number) =>
-      `color: ${color}; font-size: ${size}px`;
 
     // All should throw at runtime but have correct types
-    expect(() => vindurFn(stringFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
-    expect(() => vindurFn(numberFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
-    expect(() => vindurFn(multiFn)).toThrowErrorMatchingInlineSnapshot(`[Error: vindurFn cannot be called at runtime]`);
+    expect(() => {
+      const fn = vindurFn((text: string) => `content: "${text}"`);
+      fn('test');
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: vindurFn cannot be called at runtime]`,
+    );
+    expect(() => {
+      const fn = vindurFn((size: number) => `font-size: ${size}px`);
+      fn(10);
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: vindurFn cannot be called at runtime]`,
+    );
+    expect(() => {
+      const fn = vindurFn(
+        (color: string, size: number) =>
+          `color: ${color}; font-size: ${size}px`,
+      );
+      fn('red', 10);
+    }).toThrowErrorMatchingInlineSnapshot(
+      `[Error: vindurFn cannot be called at runtime]`,
+    );
   });
 
   test('css should accept template literal arguments', () => {
@@ -121,7 +154,9 @@ describe('function signatures and types', () => {
         color: ${color};
         font-size: ${size}px;
       `,
-    ).toThrowErrorMatchingInlineSnapshot(`[Error: css cannot be called at runtime]`);
+    ).toThrowErrorMatchingInlineSnapshot(
+      `[Error: css cannot be called at runtime]`,
+    );
   });
 
   test('createStaticThemeColors should preserve type structure', () => {
