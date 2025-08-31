@@ -60,39 +60,38 @@ test('should extend CSS styles imported from another file', async () => {
   await expect(el).toHaveCSS('font-weight', '500');
 });
 
-test('should extend CSS styles imported from another file (prod build)', async ({ browser }) => {
+test('should extend CSS styles imported from another file (prod build)', async ({
+  browser,
+}) => {
   const pageProd = await browser.newPage();
-  const envProd = await startEnvProd(
-    'css-import-extension-tests-prod',
-    {
-      'styles.ts': dedent`
-        import { css } from "vindur";
+  const envProd = await startEnvProd('css-import-extension-tests-prod', {
+    'styles.ts': dedent`
+      import { css } from "vindur";
 
-        export const baseStyles = css\`
-          display: flex;
-          align-items: center;
-          background: white;
-        \`;
-      `,
-      'App.tsx': dedent`
-        import { css } from "vindur";
-        import { baseStyles } from "#src/styles";
+      export const baseStyles = css\`
+        display: flex;
+        align-items: center;
+        background: white;
+      \`;
+    `,
+    'App.tsx': dedent`
+      import { css } from "vindur";
+      import { baseStyles } from "#src/styles";
 
-        const styles = css\`
-          \${baseStyles};
-          padding: 12px 24px;
-          border-radius: 4px;
-          font-weight: 500;
-        \`;
+      const styles = css\`
+        \${baseStyles};
+        padding: 12px 24px;
+        border-radius: 4px;
+        font-weight: 500;
+      \`;
 
-        export default function App() {
-          return (
-            <div data-testid="extended" className={styles}>Hello</div>
-          );
-        }
-      `,
-    },
-  );
+      export default function App() {
+        return (
+          <div data-testid="extended" className={styles}>Hello</div>
+        );
+      }
+    `,
+  });
 
   await pageProd.goto(envProd.baseUrl);
 
