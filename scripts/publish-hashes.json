@@ -1,4 +1,6 @@
 {
-  "vindur": {},
+  "vindur": {
+    "0.5.3": "a0419c3be658c0a12c5a17977330edd742f867f4787dd6e90b0a9eb815925a8a"
+  },
   "@vindur-css/vite-plugin": {}
 }
