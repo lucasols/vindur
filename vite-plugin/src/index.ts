@@ -57,7 +57,13 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         }
         const mod = virtualCssModules.get(id);
         if (!mod) return null;
-        return { code: mod.code, map: mod.map ?? undefined };
+        let code = mod.code;
+        if (mod.map) {
+          // Inline the sourcemap for better DX in dev tools and tests
+          const base64 = Buffer.from(JSON.stringify(mod.map), 'utf-8').toString('base64');
+          code = `${code}\n/*# sourceMappingURL=data:application/json;base64,${base64} */`;
+        }
+        return { code, map: mod.map ?? undefined };
       }
       return null;
     },
