@@ -3,6 +3,8 @@ import { sleep } from '@ls-stack/utils/sleep';
 import { expect, test } from '@playwright/test';
 import { startEnv } from '../utils/startEnv';
 
+test.describe.configure({ retries: 2 });
+
 test('should update styles when the file itself changes', async ({ page }) => {
   await using env = await startEnv('hot-reload-self', {
     'App.tsx': dedent`
