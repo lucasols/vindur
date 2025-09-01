@@ -485,3 +485,184 @@ test('support basic interpolation and arithmetic calculations in object properti
     "
   `);
 });
+
+test('should throw error for missing property on imported object', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { mq } from '#/breakpoints'
+
+        const style = css\`
+          color: red;
+          \${mq.nonExistentBreakpoint} {
+            color: blue;
+          }
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'breakpoints.ts': dedent`
+          export const mobileThreshold = 599;
+
+          export const mq = {
+            mobile: '@media (max-width: 599px)',
+            desktop: '@media (min-width: 600px)'
+          }
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+      [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
+  );
+});
+
+test('should throw error for object not found in imported file', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { notExported } from '#/breakpoints'
+
+        const style = css\`
+          color: red;
+          \${notExported.mobile} {
+            color: blue;
+          }
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'breakpoints.ts': dedent`
+          export const mobileThreshold = 599;
+
+          export const mq = {
+            mobile: '@media (max-width: 599px)',
+            desktop: '@media (min-width: 600px)'
+          }
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+      [TransformError: /test.tsx: Object "notExported" not found in /breakpoints.ts
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
+  );
+});
+
+test('should not extract objects with unresolvable template literals', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { mq } from '#/breakpoints'
+
+        const style = css\`
+          color: red;
+          \${mq.mobile} {
+            color: blue;
+          }
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'breakpoints.ts': dedent`
+          export const undefinedVar = 'someValue';
+
+          export const mq = {
+            mobile: \`@media (max-width: \${undefinedVariable}px)\`,
+            desktop: '@media (min-width: 600px)'
+          }
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+      [TransformError: /test.tsx: Object "mq" not found in /breakpoints.ts
+      loc: {
+        "column": 4,
+        "filename": undefined,
+        "line": 6,
+      }]
+    `,
+  );
+});
+
+test('should throw error for invalid arithmetic with non-numeric values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { spacing } from '#/constants'
+
+        const style = css\`
+          padding: \${spacing.base + spacing.unit}px;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'constants.ts': dedent`
+          export const spacing = {
+            base: 16,
+            unit: 'px' // This is a string, can't add to number
+          }
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+      [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${spacing.base + spacing.unit}, only simple arithmetic with constants is supported
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
+  );
+});
+
+test('should throw error for arithmetic with undefined imported constants', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { spacing, baseSize } from '#/constants'
+
+        const style = css\`
+          padding: \${baseSize * 2}px;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'constants.ts': dedent`
+          export const spacing = {
+            small: 8,
+            large: 24
+          }
+          // baseSize is not exported
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+      [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${baseSize * 2}, only simple arithmetic with constants is supported
+      loc: {
+        "column": 13,
+        "filename": undefined,
+        "line": 5,
+      }]
+    `,
+  );
+});
