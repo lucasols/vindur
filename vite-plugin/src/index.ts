@@ -193,9 +193,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
       let hasRelatedVirtualCss = false;
 
-      // Remove virtual CSS module that matches this file
+      // Find virtual CSS module that matches this file for invalidation
       if (virtualCssModules.has(virtualCssId)) {
-        virtualCssModules.delete(virtualCssId);
         const cssModule = devServer?.moduleGraph.getModuleById(
           `\0${virtualCssId}`,
         );
@@ -205,7 +204,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         }
         if (debugLogs) {
           this.info(
-            `[vindur-plugin] Cleared virtual CSS module for hot update: ${virtualCssId}`,
+            `[vindur-plugin] Marked virtual CSS module for hot update: ${virtualCssId}`,
           );
         }
       }
@@ -239,10 +238,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
               }
             }
 
-            // Clear virtual CSS for dependent modules
+            // Mark virtual CSS for dependent modules for invalidation
             const dependentVirtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(dependentFile)}.css`;
             if (virtualCssModules.has(dependentVirtualCssId)) {
-              virtualCssModules.delete(dependentVirtualCssId);
               const dependentCssModule = moduleGraph.getModuleById(
                 `\0${dependentVirtualCssId}`,
               );
@@ -252,7 +250,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
               }
               if (debugLogs) {
                 this.info(
-                  `[vindur-plugin] Cleared virtual CSS module for dependent: ${dependentVirtualCssId}`,
+                  `[vindur-plugin] Marked virtual CSS module for dependent hot update: ${dependentVirtualCssId}`,
                 );
               }
             }
