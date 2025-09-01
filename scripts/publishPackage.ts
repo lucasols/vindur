@@ -1,7 +1,13 @@
 import { runCmdUnwrap } from '@ls-stack/node-utils/runShellCmd';
 import { createHash } from 'crypto';
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'fs';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +50,7 @@ async function generateDirectoryHash(dirPath: string): Promise<string> {
   // Recursively collect all files with their content
   function collectFiles(currentPath: string, relativePath = '') {
     const items = readdirSync(currentPath).sort(); // Sort for consistent ordering
-    
+
     for (const item of items) {
       const fullPath = join(currentPath, item);
       const itemRelativePath = relativePath ? join(relativePath, item) : item;
@@ -64,9 +70,9 @@ async function generateDirectoryHash(dirPath: string): Promise<string> {
   for (const filePath of files) {
     const fullPath = join(dirPath, filePath);
     const content = readFileSync(fullPath);
-    
+
     hash.update(filePath); // Include file path in hash
-    hash.update(content);  // Include file content in hash
+    hash.update(content); // Include file content in hash
   }
 
   return hash.digest('hex');
@@ -79,7 +85,7 @@ function readPublishHashes(): PublishHashesData {
   if (!existsSync(PUBLISH_HASHES_FILE)) {
     return {
       vindur: {},
-      '@vindur-css/vite-plugin': {}
+      '@vindur-css/vite-plugin': {},
     };
   }
 
@@ -90,7 +96,7 @@ function readPublishHashes(): PublishHashesData {
     console.warn('⚠️  Could not read publish hashes file, starting fresh');
     return {
       vindur: {},
-      '@vindur-css/vite-plugin': {}
+      '@vindur-css/vite-plugin': {},
     };
   }
 }
@@ -105,7 +111,11 @@ function writePublishHashes(data: PublishHashesData): void {
 /**
  * Check if the current hash has already been published
  */
-async function checkHashBeforePublish(packageName: string, currentHash: string, force = false): Promise<void> {
+async function checkHashBeforePublish(
+  packageName: string,
+  currentHash: string,
+  force = false,
+): Promise<void> {
   const hashes = readPublishHashes();
   const packageHashes = hashes[packageName as keyof PublishHashesData];
 
@@ -113,17 +123,23 @@ async function checkHashBeforePublish(packageName: string, currentHash: string, 
   for (const [version, hash] of Object.entries(packageHashes)) {
     if (hash === currentHash) {
       if (force) {
-        console.warn(`⚠️  This build has already been published as ${packageName}@${version}`);
+        console.warn(
+          `⚠️  This build has already been published as ${packageName}@${version}`,
+        );
         console.warn(`   Hash: ${currentHash}`);
         console.warn('   Force flag enabled - proceeding with publish anyway.');
         return;
       }
-      
-      console.error(`❌ This build has already been published as ${packageName}@${version}`);
+
+      console.error(
+        `❌ This build has already been published as ${packageName}@${version}`,
+      );
       console.error(`   Hash: ${currentHash}`);
       console.error('   No changes detected in the build output.');
       console.error('   Make code changes before attempting to publish.');
-      console.error('   Or use --force flag to publish anyway: node scripts/publishPackage.ts <package> <version> --force');
+      console.error(
+        '   Or use --force flag to publish anyway: node scripts/publishPackage.ts <package> <version> --force',
+      );
       process.exit(1);
     }
   }
@@ -134,14 +150,22 @@ async function checkHashBeforePublish(packageName: string, currentHash: string, 
 /**
  * Save hash after successful publish
  */
-function savePublishHash(packageName: string, version: string, hash: string): void {
+function savePublishHash(
+  packageName: string,
+  version: string,
+  hash: string,
+): void {
   const hashes = readPublishHashes();
   hashes[packageName as keyof PublishHashesData][version] = hash;
   writePublishHashes(hashes);
   console.log(`📝 Saved publish hash for ${packageName}@${version}`);
 }
 
-async function publishPackage(packageName: PackageName, version: Version, force = false) {
+async function publishPackage(
+  packageName: PackageName,
+  version: Version,
+  force = false,
+) {
   await checkIfIsSync();
 
   const packagePath = packageName === 'vindur' ? './lib' : './vite-plugin';
@@ -173,6 +197,8 @@ async function publishPackage(packageName: PackageName, version: Version, force 
     fullPackageName,
     'lint',
   ]);
+
+  process.env.CI = 'true';
 
   // run e2e tests
   await runCmdUnwrap('Run e2e tests', ['pnpm', 'e2e:test']);
@@ -230,11 +256,15 @@ async function publishPackage(packageName: PackageName, version: Version, force 
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
   const publishedVersion = packageJson.version;
   savePublishHash(fullPackageName, publishedVersion, currentHash);
-  
+
   // Commit the updated publish hashes
-  await commitChanges(`chore: update publish hashes for ${fullPackageName}@${publishedVersion}`);
-  
-  console.log(`🎉 Successfully published ${fullPackageName}@${publishedVersion}`);
+  await commitChanges(
+    `chore: update publish hashes for ${fullPackageName}@${publishedVersion}`,
+  );
+
+  console.log(
+    `🎉 Successfully published ${fullPackageName}@${publishedVersion}`,
+  );
 }
 
 async function checkIfIsSync() {
