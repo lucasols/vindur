@@ -181,10 +181,11 @@ export function handleFunctionImportCleanup(
         // Check if this was a keyframe that needs its definition to be emitted
         // from the external file (CSS variables are inlined so don't need this)
         const filePathForImport = context.importedFunctions.get(importedName);
-        const extracted = filePathForImport
-          ? context.state.extractedFiles?.get(filePathForImport)
+        const extracted =
+          filePathForImport ?
+            context.state.extractedFiles?.get(filePathForImport)
           : undefined;
-        if (extracted && extracted.keyframes.has(importedName)) {
+        if (extracted?.keyframes.has(importedName)) {
           removedKeyframesSpecifiers = true;
         }
       }
@@ -201,14 +202,14 @@ export function handleFunctionImportCleanup(
 
   if (unusedSpecifiers.length > 0) {
     if (usedSpecifiers.length === 0) {
-      // If we removed keyframes, keep a side-effect import so Vite 
+      // If we removed keyframes, keep a side-effect import so Vite
       // still processes the external file and emits the @keyframes definitions
       if (removedKeyframesSpecifiers) {
         path.node.specifiers = [];
         // Remove from styleDependencies since it's now only a side-effect import
-        const resolvedPath = resolveImportPath(source, context.importAliasesArray);
-        if (resolvedPath && context.state.styleDependencies) {
-          context.state.styleDependencies.delete(resolvedPath);
+        const resolved = resolveImportPath(source, context.importAliasesArray);
+        if (resolved && context.state.styleDependencies) {
+          context.state.styleDependencies.delete(resolved);
         }
       } else {
         // Remove the entire import when all specifiers are compile-time only
