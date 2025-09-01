@@ -134,8 +134,8 @@ function createConstantsExtractorPlugin(
                   allConstants.set(variableName, resolvedValue);
                 }
               } else if (t.isObjectExpression(declarator.init)) {
-                // Extract object literal with string/number properties
-                const objectValue = extractObjectLiteral(declarator.init);
+                // Extract object literal with string/number properties and template literals
+                const objectValue = extractObjectLiteral(declarator.init, allConstants);
                 if (objectValue !== null) {
                   allObjectConstants.set(variableName, objectValue);
                 }
@@ -174,7 +174,7 @@ function createConstantsExtractorPlugin(
                   }
                 } else if (t.isObjectExpression(declarator.init)) {
                   // Handle object literals in export declarations
-                  const objectValue = extractObjectLiteral(declarator.init);
+                  const objectValue = extractObjectLiteral(declarator.init, allConstants);
                   if (objectValue !== null) {
                     allObjectConstants.set(variableName, objectValue);
                     exportedObjectConstants.set(variableName, objectValue);
@@ -204,7 +204,8 @@ function resolveTemplateLiteralWithConstants(
   templateLiteral: t.TemplateLiteral,
   constants: Map<string, string | number>,
 ): string | null {
-  // Try to resolve the template literal
+  // This function is used during file extraction phase where we want to be lenient
+  // and only collect what we can resolve. Returning null is appropriate here.
   let result = '';
 
   for (let i = 0; i < templateLiteral.quasis.length; i++) {
@@ -220,17 +221,88 @@ function resolveTemplateLiteralWithConstants(
         if (constantValue !== undefined) {
           result += String(constantValue);
         } else {
-          // Can't resolve this expression
+          // Can't resolve this expression - return null to reject the entire object
           return null;
         }
+      } else if (t.isBinaryExpression(expression)) {
+        // Try to resolve binary expressions with constants
+        const resolvedValue = resolveBinaryExpressionWithConstants(
+          expression,
+          constants,
+        );
+        if (resolvedValue !== null) {
+          result += String(resolvedValue);
+        } else {
+          // Can't resolve this binary expression - return null to reject the entire object
+          return null;
+        }
+      } else if (t.isNumericLiteral(expression)) {
+        result += String(expression.value);
+      } else if (t.isStringLiteral(expression)) {
+        result += expression.value;
       } else {
-        // Can't resolve non-identifier expressions
+        // Can't resolve other expression types - return null to reject the entire object
         return null;
       }
     }
   }
 
   return result;
+}
+
+function resolveBinaryExpressionWithConstants(
+  expression: t.BinaryExpression,
+  constants: Map<string, string | number>,
+): number | null {
+  // Check that both sides are expressions (not private names)
+  if (!t.isExpression(expression.left) || !t.isExpression(expression.right)) {
+    return null;
+  }
+
+  const left = resolveExpressionValue(expression.left, constants);
+  const right = resolveExpressionValue(expression.right, constants);
+
+  if (left === null || right === null) {
+    return null;
+  }
+
+  // Only support arithmetic operations on numbers
+  if (typeof left !== 'number' || typeof right !== 'number') {
+    return null;
+  }
+
+  switch (expression.operator) {
+    case '+':
+      return left + right;
+    case '-':
+      return left - right;
+    case '*':
+      return left * right;
+    case '/':
+      return left / right;
+    case '%':
+      return left % right;
+    default:
+      // Don't support comparison or logical operators
+      return null;
+  }
+}
+
+function resolveExpressionValue(
+  expression: t.Expression,
+  constants: Map<string, string | number>,
+): string | number | null {
+  if (t.isIdentifier(expression)) {
+    const value = constants.get(expression.name);
+    return value !== undefined ? value : null;
+  } else if (t.isNumericLiteral(expression)) {
+    return expression.value;
+  } else if (t.isStringLiteral(expression)) {
+    return expression.value;
+  } else {
+    // Don't support other expression types for arithmetic
+    return null;
+  }
 }
 
 export function resolveImportedConstant(
@@ -303,6 +375,7 @@ export function resolveImportedThemeColors(
 
 function extractObjectLiteral(
   objectExpression: t.ObjectExpression,
+  constants?: Map<string, string | number>,
 ): Record<string, string | number> | null {
   const result: Record<string, string | number> = {};
 
@@ -324,8 +397,20 @@ function extractObjectLiteral(
         && (typeof value === 'string' || typeof value === 'number')
       ) {
         result[key] = value;
+      } else if (t.isTemplateLiteral(property.value) && constants) {
+        // Try to resolve template literal with constants
+        const resolvedValue = resolveTemplateLiteralWithConstants(
+          property.value,
+          constants,
+        );
+        if (resolvedValue !== null) {
+          result[key] = resolvedValue;
+        } else {
+          // If template literal can't be resolved, reject the entire object
+          return null;
+        }
       } else {
-        // If any property is not a literal, reject the entire object
+        // If any property is not a literal or resolvable template, reject the entire object
         return null;
       }
     } else {

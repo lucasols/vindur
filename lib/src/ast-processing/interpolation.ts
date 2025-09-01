@@ -580,11 +580,20 @@ function resolveImportedObjectProperty(
         // Mark this object as used (for import cleanup)
         context.usedFunctions.add(objectName);
         return propertyValue;
+      } else {
+        // Fail fast: property not found on imported object
+        throw new TransformError(
+          `Property "${propertyName}" not found on imported object "${objectName}" from ${objectFilePath}`,
+          notNullish(loc),
+        );
       }
+    } else {
+      // Fail fast: object not found in imported file
+      throw new TransformError(
+        `Object "${objectName}" not found in ${objectFilePath}`,
+        notNullish(loc),
+      );
     }
-
-    // Return null if not found (allow other resolvers to try)
-    return null;
   } catch (error) {
     if (error instanceof Error) {
       throw error;
