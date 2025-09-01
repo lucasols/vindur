@@ -175,6 +175,8 @@ export async function startEnv(
 
   function createFile(relativePath: string, content: string): TempFile {
     const filePath = path.join(testRunDirPath, relativePath);
+    const dirPath = path.dirname(filePath);
+    mkdirSync(dirPath, { recursive: true });
     writeFileSync(filePath, content);
     return getFile(relativePath);
   }
@@ -333,6 +335,8 @@ export async function startEnvProd(
 
   function createFile(relativePath: string, content: string): TempFile {
     const filePath = path.join(testRunDirPath, relativePath);
+    const dirPath = path.dirname(filePath);
+    mkdirSync(dirPath, { recursive: true });
     writeFileSync(filePath, content);
     return getFile(relativePath);
   }
