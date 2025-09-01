@@ -162,10 +162,9 @@ export function handleFunctionImportCleanup(
 
   // Filter out unused function imports and dynamic color imports
   const unusedSpecifiers: t.ImportSpecifier[] = [];
-  // Track if we removed any specifiers that were used at compile-time
-  // In such cases, we must keep a side-effect import so Vite processes
-  // the imported module and emits its CSS (e.g., css and keyframes exports).
-  let removedCompiledTimeSpecifiers = false;
+  // Track if we removed any keyframes that need their definitions to be emitted
+  // from the external file (CSS variables are inlined so don't need this)
+  let removedKeyframesSpecifiers = false;
   const usedSpecifiers: t.ImportSpecifier[] = [];
 
   for (const specifier of path.node.specifiers) {
@@ -179,19 +178,14 @@ export function handleFunctionImportCleanup(
         && context.usedFunctions.has(importedName)
       ) {
         unusedSpecifiers.push(specifier);
-        // Determine if this compiled-time usage corresponds to CSS or keyframes,
-        // which require keeping a side-effect import so the external file is
-        // still transformed by Vite and its CSS emitted.
+        // Check if this was a keyframe that needs its definition to be emitted
+        // from the external file (CSS variables are inlined so don't need this)
         const filePathForImport = context.importedFunctions.get(importedName);
         const extracted = filePathForImport
           ? context.state.extractedFiles?.get(filePathForImport)
           : undefined;
-        if (
-          extracted &&
-          (extracted.cssVariables.has(importedName)
-            || extracted.keyframes.has(importedName))
-        ) {
-          removedCompiledTimeSpecifiers = true;
+        if (extracted && extracted.keyframes.has(importedName)) {
+          removedKeyframesSpecifiers = true;
         }
       }
       // Remove dynamic colors that were imported and used (they're compiled away)
@@ -207,13 +201,17 @@ export function handleFunctionImportCleanup(
 
   if (unusedSpecifiers.length > 0) {
     if (usedSpecifiers.length === 0) {
-      // If we removed specifiers that were used at compile-time, keep
-      // a bare side-effect import so Vite still loads and transforms
-      // the imported file (ensuring its CSS is emitted).
-      if (removedCompiledTimeSpecifiers) {
+      // If we removed keyframes, keep a side-effect import so Vite 
+      // still processes the external file and emits the @keyframes definitions
+      if (removedKeyframesSpecifiers) {
         path.node.specifiers = [];
+        // Remove from styleDependencies since it's now only a side-effect import
+        const resolvedPath = resolveImportPath(source, context.importAliasesArray);
+        if (resolvedPath && context.state.styleDependencies) {
+          context.state.styleDependencies.delete(resolvedPath);
+        }
       } else {
-        // Remove the entire import when nothing remains and no CSS processing depends on it
+        // Remove the entire import when all specifiers are compile-time only
         path.remove();
       }
     } else {

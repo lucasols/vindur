@@ -46,6 +46,8 @@ describe('keyframes cross-file imports', () => {
       }
       "
     `);
+
+    expect(result.styleDependencies).toMatchInlineSnapshot(`[]`);
   });
 
   test('should handle multiple imported keyframes', async () => {

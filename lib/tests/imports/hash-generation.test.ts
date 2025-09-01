@@ -106,8 +106,7 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import "#/styles";
-      import "#/animations";
+      "import "#/animations";
       const mainStyles = "v1560qbr-1-mainStyles";
       "
     `);
@@ -320,8 +319,7 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import "#/layouts";
-      const appStyles = "v1560qbr-1-appStyles";
+      "const appStyles = "v1560qbr-1-appStyles";
       "
     `);
 

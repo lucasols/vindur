@@ -63,8 +63,7 @@ test('compile file with vindurFn function and css exports', async () => {
   `);
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import "#/utils";
-    const style = "v1560qbr-1-style";
+    "const style = "v1560qbr-1-style";
     "
   `);
 });
