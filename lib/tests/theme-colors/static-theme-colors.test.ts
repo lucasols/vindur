@@ -35,7 +35,9 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => {
+      "import { colors } from '#/theme';
+
+      const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -593,8 +595,6 @@ describe('createStaticThemeColors', () => {
     `);
   });
 
-  
-
   test('should transform static theme colors in production mode without CSS variables', async () => {
     const fs = createFsMock({
       'theme.ts': dedent`
@@ -663,6 +663,4 @@ describe('createStaticThemeColors', () => {
       "
     `);
   });
-
-  
 });

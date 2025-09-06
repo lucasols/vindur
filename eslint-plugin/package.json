@@ -1,0 +1,54 @@
+{
+  "name": "@vindur/eslint-plugin",
+  "description": "ESLint plugin for Vindur CSS-in-JS transform errors and warnings",
+  "version": "0.1.0",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "pnpm tsc && pnpm eslint",
+    "tsc": "tsc --noEmit",
+    "eslint": "CI=true eslint --color src/ tests/ --max-warnings 0 --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "tsup"
+  },
+  "files": [
+    "dist",
+    "*.d.ts"
+  ],
+  "repository": "github:lucasols/vindur",
+  "author": "Lucas Santos",
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "vindur": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@ls-stack/utils": "catalog:",
+    "@types/eslint": "^9.6.1",
+    "@types/node": "catalog:",
+    "@vitest/ui": "catalog:",
+    "eslint": "catalog:",
+    "eslint-vitest-rule-tester": "^2.2.1",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  }
+}

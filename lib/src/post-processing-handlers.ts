@@ -172,10 +172,15 @@ export function handleFunctionImportCleanup(
       const importedName = specifier.imported.name;
       const localName = specifier.local.name;
 
+      // Check if this is a theme colors import that might be used at runtime
+      const isThemeColorsImport = context.state.themeColors?.has(localName);
+
       // Remove functions that were used during CSS processing (they're compiled away)
+      // BUT preserve theme colors as they can be used at runtime
       if (
         context.importedFunctions.has(importedName)
         && context.usedFunctions.has(importedName)
+        && !isThemeColorsImport
       ) {
         unusedSpecifiers.push(specifier);
         // Check if this was a keyframe that needs its definition to be emitted

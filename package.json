@@ -1,7 +1,7 @@
 {
   "scripts": {
     "test-all": "pnpm -r --no-bail run test",
-    "build-all": "pnpm --filter vindur run build && pnpm --filter vite-plugin run build",
+    "build-all": "pnpm --filter vindur run build && pnpm --filter vite-plugin run build && pnpm --filter @vindur/eslint-plugin run build",
     "lint-all": "pnpm -r --no-bail run lint",
     "tsc-all": "pnpm -r --no-bail run tsc",
     "lint-tsc-all": "pnpm run build-all && pnpm run tsc-all && pnpm run eslint-all && pnpm run app-test:build",
@@ -16,6 +16,9 @@
     "e2e:test": "pnpm --filter e2e-tests run test",
     "e2e:test:ui": "pnpm --filter e2e-tests run test:ui",
     "e2e:eslint": "pnpm --filter e2e-tests run eslint",
+    "eslint-plugin:test": "pnpm --filter @vindur/eslint-plugin run test",
+    "eslint-plugin:lint": "pnpm --filter @vindur/eslint-plugin run lint",
+    "eslint-plugin:build": "pnpm --filter @vindur/eslint-plugin run build",
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",
     "run-app-test": "pnpm build-all && pnpm --filter vindur-test-app dev",

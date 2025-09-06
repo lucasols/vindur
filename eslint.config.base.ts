@@ -123,6 +123,7 @@ export function createBaseConfig({
           ERROR,
           { assertionStyle: 'never' },
         ],
+        '@typescript-eslint/no-deprecated': ERROR,
 
         /* vitest */
         'vitest/expect-expect': ERROR_IN_CI,

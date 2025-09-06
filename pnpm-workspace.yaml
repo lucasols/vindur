@@ -3,6 +3,7 @@ packages:
   - lib
   - vite-plugin
   - e2e-tests
+  - eslint-plugin
 
 catalog:
   '@babel/core': ^7.28.0
