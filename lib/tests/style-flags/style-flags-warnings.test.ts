@@ -27,12 +27,11 @@ describe('Style Flags Warning System', () => {
 
       expect(compactSnapshot(warnings)).toMatchInlineSnapshot(
         `
-          [
-            {
-              "loc": "current_file:3:6",
-              "message": "Warning: Missing modifier styles for "&.active" in Button",
-            },
-          ]
+          "
+          - TransformWarning#:
+              message: 'Warning: Missing modifier styles for "&.active" in Button'
+              loc: 'current_file:3:6'
+          "
         `,
       );
       expect(result.code).toMatchInlineSnapshot(`
@@ -47,7 +46,7 @@ describe('Style Flags Warning System', () => {
     });
 
     test('should warn for multiple missing boolean selectors', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -63,19 +62,23 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.featured" in Card',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.highlighted" in Card',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.collapsed" in Card',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.featured" in Card'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.highlighted" in Card'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.collapsed" in Card'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Card = _vCWM(
@@ -94,7 +97,7 @@ describe('Style Flags Warning System', () => {
 
   describe('Missing String Union Modifier Styles', () => {
     test('should warn for missing string union selectors', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -108,16 +111,20 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.size-small" in Button',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.size-large" in Button',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-small" in Button'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-large" in Button'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Button = _vCWM([["size", "vr4ikfs-size"]], "v1560qbr-1-Button", "button");
@@ -126,7 +133,7 @@ describe('Style Flags Warning System', () => {
     });
 
     test('should warn for partially missing string union selectors', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -145,20 +152,21 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.variant-secondary" in Widget',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.variant-danger" in Widget',
-      );
-      // Should NOT warn for variant-primary since it exists
-      expect(warnings).not.toContain(
-        'Warning: Missing modifier styles for "&.variant-primary" in Widget',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.variant-secondary" in Widget'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.variant-danger" in Widget'
+            loc: 'current_file:3:6'
+        "
+      `);
+
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Widget = _vCWM(
@@ -171,7 +179,7 @@ describe('Style Flags Warning System', () => {
     });
 
     test('should warn for multiple string union props with missing selectors', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -186,22 +194,26 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.size-small" in Component',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.size-large" in Component',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.theme-light" in Component',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.theme-dark" in Component',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-small" in Component'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-large" in Component'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.theme-light" in Component'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.theme-dark" in Component'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Component = _vCWM(
@@ -219,7 +231,7 @@ describe('Style Flags Warning System', () => {
 
   describe('Mixed Boolean and String Union Missing Styles', () => {
     test('should warn for mixed missing selectors', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -245,31 +257,26 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      // Should warn for missing selectors
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.disabled" in ComplexButton',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.size-large" in ComplexButton',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.variant-primary" in ComplexButton',
-      );
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.variant-secondary" in ComplexButton',
-      );
-
-      // Should NOT warn for present selectors
-      expect(warnings).not.toContain(
-        'Warning: Missing modifier styles for "&.active" in ComplexButton',
-      );
-      expect(warnings).not.toContain(
-        'Warning: Missing modifier styles for "&.size-small" in ComplexButton',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.disabled" in ComplexButton'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-large" in ComplexButton'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.variant-primary" in ComplexButton'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.variant-secondary" in ComplexButton'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const ComplexButton = _vCWM(
@@ -301,13 +308,13 @@ describe('Style Flags Warning System', () => {
         \`;
       `;
 
-      const devWarnings: string[] = [];
-      const prodWarnings: string[] = [];
+      const devWarnings: TransformWarning[] = [];
+      const prodWarnings: TransformWarning[] = [];
 
       const devResult = await transformWithFormat({
         source: sourceCode,
         onWarning: (warning) => {
-          devWarnings.push(warning.message);
+          devWarnings.push(warning);
         },
       });
 
@@ -315,20 +322,24 @@ describe('Style Flags Warning System', () => {
         source: sourceCode,
         production: true,
         onWarning: (warning) => {
-          prodWarnings.push(warning.message);
+          prodWarnings.push(warning);
         },
       });
 
       // Dev mode should have warnings
-      expect(devWarnings).toContain(
-        'Warning: Missing modifier styles for "&.active" in Button',
-      );
-      expect(devWarnings).toContain(
-        'Warning: Missing modifier styles for "&.size-small" in Button',
-      );
-      expect(devWarnings).toContain(
-        'Warning: Missing modifier styles for "&.size-large" in Button',
-      );
+      expect(compactSnapshot(devWarnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.active" in Button'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-small" in Button'
+            loc: 'current_file:3:6'
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.size-large" in Button'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(devResult.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Button = _vCWM(
@@ -422,6 +433,7 @@ describe('Style Flags Warning System', () => {
 
   describe('Edge Cases', () => {
     test('should handle components with no style flags gracefully', async () => {
+      const warnings: TransformWarning[] = [];
       const result = await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur';
@@ -431,16 +443,18 @@ describe('Style Flags Warning System', () => {
             background: blue;
           \`;
         `,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
       });
 
       // Should not contain warnings for components without style flags
-      expect(result.code).not.toContain('console.warn');
-      expect(result.code).not.toContain('Missing modifier styles');
+      expect(warnings.length).toBe(0);
       expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should handle complex selectors and nested styles', async () => {
-      const warnings: string[] = [];
+      const warnings: TransformWarning[] = [];
 
       const result = await transformWithFormat({
         source: dedent`
@@ -463,13 +477,17 @@ describe('Style Flags Warning System', () => {
           \`;
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.highlighted" in Card',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.highlighted" in Card'
+            loc: 'current_file:3:6'
+        "
+      `);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Card = _vCWM(
@@ -482,6 +500,7 @@ describe('Style Flags Warning System', () => {
     });
 
     test('should handle hashed selectors in CSS correctly', async () => {
+      const warnings: TransformWarning[] = [];
       const result = await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur';
@@ -497,11 +516,13 @@ describe('Style Flags Warning System', () => {
             }
           \`;
         `,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
       });
 
       // Should NOT warn because the selector exists
-      expect(result.code).not.toContain('console.warn');
-      expect(result.code).not.toContain('Missing modifier styles');
+      expect(warnings.length).toBe(0);
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
         const Button = _vCWM(
