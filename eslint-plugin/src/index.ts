@@ -17,7 +17,7 @@ type PluginType = {
         '@vindur': unknown;
       };
       rules: {
-        '@vindur/check-transform': 'error';
+        '@vindur/check-transform': ['error'] | ['error', VindurPluginOptions];
       };
     };
   };
@@ -41,7 +41,7 @@ plugin.configs = {
       '@vindur': plugin,
     },
     rules: {
-      '@vindur/check-transform': 'error',
+      '@vindur/check-transform': ['error'],
     },
   },
 };

@@ -53,7 +53,7 @@ function runVindurTransform(
   // Always collect warnings - plugin runs in dev mode with warnings enabled
   function onWarning(warning: TransformWarning) {
     if (warning.ignoreInLint) return;
-    
+
     errors.push({
       message: stripFilenameFromMessage(warning.message),
       line: warning.loc.line,
