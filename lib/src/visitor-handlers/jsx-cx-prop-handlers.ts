@@ -270,6 +270,9 @@ function processCxObjectExpression(
   if (!context.state.cxClassIndices) {
     context.state.cxClassIndices = new Map();
   }
+  
+  // Store reference to avoid non-null assertions
+  const cxClassIndices = context.state.cxClassIndices;
 
   const processedProperties = expression.properties.map((prop) => {
     if (!t.isObjectProperty(prop) || prop.computed) {
@@ -305,11 +308,11 @@ function processCxObjectExpression(
       const scopedKey = `${context.contextKey}:${className}`;
       
       // Check if we already have an index for this scoped class name
-      let classIndex = context.state.cxClassIndices!.get(scopedKey);
+      let classIndex = cxClassIndices.get(scopedKey);
       if (classIndex === undefined) {
         // Get a new index and store it with the scoped key
         classIndex = context.classIndex();
-        context.state.cxClassIndices!.set(scopedKey, classIndex);
+        cxClassIndices.set(scopedKey, classIndex);
       }
 
       const hashedClassName = generateHashedClassName(
