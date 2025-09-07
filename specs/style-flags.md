@@ -6,6 +6,8 @@
 
 Style flags allow styled components to accept boolean props and string union props that automatically apply modifier classes. This enables conditional styling through prop-based class application. The props are automatically hashed for optimal bundle size.
 
+Optimization goal: avoid generating intermediate React components for local (non-exported) styled components. Only generate intermediate components when the styled component is exported (or when `attrs` are present). Local usages are compiled directly to native elements with computed `className`.
+
 ## Detection and Validation
 
 1. **Only apply to styled components** - not for regular DOM elements
@@ -53,7 +55,15 @@ const StyledWithModifiers = styled.div<{
 
 ## Transform Logic
 
-### Basic Usage
+### Export-Aware Behavior
+
+- Non-exported styled components with style flags: inline transform at each JSX usage (no intermediate component).
+- Exported styled components with style flags: generate an intermediate component using the runtime helper (`_vCWM`).
+- Components using `attrs`: always treated as intermediate components.
+
+This mirrors the general styled behavior (local inlining; exported component wrappers) while preserving style-flag semantics.
+
+### Example: Component Definition
 
 ```tsx
 const StyledWithModifiers = styled.div<{
@@ -83,20 +93,102 @@ const StyledWithModifiers = styled.div<{
     opacity: 0.5;
   }
 `;
+```
 
-// will be transformed to:
-const StyledWithModifiers = vComponentWithModifiers(
+### Non‑exported: Inline JSX Transform (No Intermediate)
+
+Usage:
+
+```tsx
+const usage = (
+  <StyledWithModifiers
+    data-testid="btn"
+    active={isActive}
+    size="large"
+    disabled={false}
+    className="extra"
+    {...rest}
+  >
+    Content
+  </StyledWithModifiers>
+);
+```
+
+Compiles to a native element with computed className using `cx` and without forwarding style-flag props:
+
+```tsx
+import { cx } from 'vindur';
+
+const usage = (
+  <div
+    data-testid="btn"
+    className={cx(
+      'v1234hash-1', // base class
+      isActive && 'v1234hash-active',
+      'v1234hash-size-large',
+      'extra',
+    )}
+    {...rest}
+  >
+    Content
+  </div>
+);
+```
+
+- Removes `active`, `size`, `disabled` props from the DOM element.
+- Preserves all non-style-flag props and children.
+- Merges user `className` and spread props safely.
+- Performs constant folding: drops always-false/true branches (e.g., `disabled={false}` removes its modifier entirely; static unions like `size="large"` emit fixed classes).
+
+Dynamic props example (inline):
+
+```tsx
+// Usage with dynamic values
+const usageDyn = (
+  <StyledWithModifiers
+    active={isActive}
+    size={currentSize} // 'small' | 'medium' | 'large'
+    disabled={isDisabled}
+    className={externalClass}
+    {...rest}
+  />
+);
+
+// Generated (no intermediate):
+import { cx } from 'vindur';
+
+const usageDyn = (
+  <div
+    className={cx(
+      'v1234hash-1',
+      isActive && 'v1234hash-active',
+      currentSize && `v1234hash-size-${currentSize}`,
+      isDisabled && 'v1234hash-disabled',
+      externalClass,
+      // plus any className coming from spread props
+    )}
+    {...rest}
+  />
+);
+```
+
+### Exported: Intermediate Component
+
+When the styled component is exported (or has `attrs`), generate an intermediate component that applies modifier classes at runtime:
+
+```tsx
+const StyledWithModifiers = _vCWM(
   [
-    ['active', 'v1234hash-active'], // boolean prop
-    ['size', 'v1234hash-size'], // string union prop
-    ['disabled', 'v1234hash-disabled'], // boolean prop
+    ['active', 'v1234hash-active'],
+    ['size', 'v1234hash-size'],
+    ['disabled', 'v1234hash-disabled'],
   ],
   'v1234hash-1',
   'div',
+  /* optional attrs */
 );
 
-// Component can be used as a normal JSX component
-// Internal implementation handles modifier class application
+// Can be used as a normal JSX component
 const usage = (
   <StyledWithModifiers
     active={true}
@@ -106,6 +198,24 @@ const usage = (
     Content
   </StyledWithModifiers>
 );
+```
+
+Dynamic props example (exported):
+
+```tsx
+// Usage (component stays as a single intermediate wrapper)
+const usageDyn = (
+  <StyledWithModifiers
+    active={isActive}
+    size={currentSize}
+    disabled={isDisabled}
+    className={externalClass}
+    {...rest}
+  />
+);
+
+// _vCWM computes the appropriate modifier classes at runtime;
+// no extra transform at call site is required.
 ```
 
 ### Generated CSS
@@ -205,8 +315,8 @@ const usage = (
   </StyledWithModifiers>
 );
 
-// Internally merges: base class + modifier classes + extra className
-// Result: className="v1234hash-1 v1234hash-active v1234hash-size-medium extra-class"
+// Result (non-export inline): className="v1234hash-1 v1234hash-active v1234hash-size-medium extra-class"
+// Result (exported component): identical className merging via _vCWM
 ```
 
 ### With Spread Props
@@ -222,7 +332,7 @@ const usage = (
   </StyledWithModifiers>
 );
 
-// Internally handles merging of spread props with modifier classes
+// Spread props merge as usual. Style-flag props are not forwarded to DOM.
 ```
 
 ### With Dynamic Values
@@ -239,7 +349,13 @@ const usage = (
 );
 
 // Runtime evaluation of prop values determines which modifier classes are applied
+// For non-exported components this is compiled inline using cx(); for exported via _vCWM
 ```
+
+### With withComponent
+
+- Non-exported: usages are rewritten to the new element type with inline `cx` class computation.
+- Exported: `_vCWM` receives the new element/component reference.
 
 ## Supported Property Types
 
@@ -301,3 +417,9 @@ const StyledWithModifiers = styled.div<{
 ```
 
 _Note: Warning implementation may vary based on development vs production builds_
+
+## Rationale & Performance
+
+- Avoids creating component wrappers for local-only usage, reducing call depth and React work.
+- Keeps exported API stable by using a single generated component for consumers.
+- Maintains identical CSS output and class hashing regardless of export status.
