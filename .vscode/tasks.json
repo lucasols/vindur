@@ -73,10 +73,7 @@
       "description": "Select package to publish",
       "default": "vindur",
       "type": "pickString",
-      "options": [
-        "vindur",
-        "vite-plugin"
-      ]
+      "options": ["vindur", "vite-plugin", "eslint-plugin"]
     },
     {
       "id": "version",
@@ -94,7 +91,7 @@
         },
         {
           "label": "major",
-          "value": "major"  
+          "value": "major"
         }
       ]
     }
