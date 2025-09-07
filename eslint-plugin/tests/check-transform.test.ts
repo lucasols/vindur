@@ -86,7 +86,7 @@ describe('invalid cases - should report transform errors', () => {
       `,
     );
 
-    // This error should still be reported because it's not redundant with TypeScript
+    // This error should still be reported because it's Vindur-specific (not TypeScript)
     expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
       "
       - messageId: 'transformError'
