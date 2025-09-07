@@ -17,7 +17,11 @@ export function vindurFn<TArgs extends unknown[], TReturn extends string>(
 
 export type CSSProp = string;
 
-type StyleInterpolationValues = string | number | (() => StyledComponent<any>);
+type StyleInterpolationValues =
+  | string
+  | number
+  | (() => StyledComponent<any>)
+  | StyledComponent<any>;
 
 export function css(
   strings: TemplateStringsArray,

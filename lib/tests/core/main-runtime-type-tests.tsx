@@ -17,6 +17,7 @@ import {
 import {
   createDynamicCssColor,
   createStaticThemeColors,
+  css,
   keyframes,
   layer,
   stableId,
@@ -139,6 +140,26 @@ test('styled components extension', () => {
       dynamicColor={dynamicColor.set('red')}
     />
   );
+});
+
+test('styled components reference', () => {
+  const Styled = styled.div`
+    color: red;
+  `;
+
+  const Styled2 = styled(Styled)`
+    color: blue;
+
+    ${Styled}:hover & {
+      color: green;
+    }
+  `;
+
+  const style = css`
+    ${Styled}:hover & {
+      color: green;
+    }
+  `;
 });
 
 test('styled components from custom components with className', () => {
