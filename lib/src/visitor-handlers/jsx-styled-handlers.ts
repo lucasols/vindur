@@ -6,6 +6,7 @@ import { generate } from '@babel/generator';
 import type { VindurPluginState } from '../babel-plugin';
 import { filterWithNarrowing } from '../utils';
 import { isDynamicColorSetPropsCall } from './jsx-utils';
+import { buildCxWithFlags, collectAndRemoveStyleFlagClasses } from './inline-style-flag-utils';
 
 export function handleJsxStyledComponent(
   path: NodePath<t.JSXElement>,
@@ -20,11 +21,9 @@ export function handleJsxStyledComponent(
 
   if (!styledInfo) return false;
 
-  // Skip transformation for exported styled components - they remain as component references
-  if (styledInfo.isExported) return false;
-
-  // Skip transformation for styled components with style flags - they remain as component references
-  if (styledInfo.styleFlags) return false;
+  // Skip transformation for exported styled components or components with attrs
+  // They remain as component references (intermediate components)
+  if (styledInfo.isExported || styledInfo.attrs) return false;
 
   // Check if this element has already been transformed (by CSS prop handler)
   // If the element name is not the styled component name anymore, it was already processed
@@ -54,9 +53,67 @@ export function handleJsxStyledComponent(
       && attr.argument.callee.property.name === '_sp',
   );
 
-  // Only run className merging if dynamic colors haven't already handled it
-  if (!hasDynamicColorSpread) {
-    handleJsxClassNameMerging(path, styledInfo, context);
+  // If this styled component has style flags and is local, inline them at usage
+  // Otherwise, keep existing merging logic
+  if (styledInfo.styleFlags && styledInfo.styleFlags.length > 0) {
+    // Collect and remove style-flag props, building static and dynamic class additions
+    const { staticFlagClasses: staticClasses, dynamicFlagExprs: dynamicClassExprs } =
+      collectAndRemoveStyleFlagClasses(attributes, styledInfo.styleFlags, context.state);
+
+    // If dynamic colors are present, let their handler build the final className via _sp merge
+    if (!hasDynamicColorSpread) {
+      // Ensure base class and spreads merging is applied first
+      handleJsxClassNameMerging(path, {
+        element: styledInfo.element,
+        className: styledInfo.className,
+        isExported: styledInfo.isExported,
+        attrs: styledInfo.attrs,
+        attrsExpression: styledInfo.attrsExpression,
+      }, context);
+
+      // Find the final className attribute (created or updated by merging)
+      const finalAttrs = path.node.openingElement.attributes;
+      let classNameAttr: t.JSXAttribute | undefined;
+      for (const a of finalAttrs) {
+        if (t.isJSXAttribute(a) && t.isJSXIdentifier(a.name) && a.name.name === 'className') {
+          classNameAttr = a;
+        }
+      }
+
+      // Build cx(classNameValue, ...static, ...dynamic)
+      // Determine base value expression
+      let baseValueExpr: t.Expression;
+      if (classNameAttr && t.isStringLiteral(classNameAttr.value)) {
+        baseValueExpr = classNameAttr.value;
+      } else if (
+        classNameAttr && t.isJSXExpressionContainer(classNameAttr.value)
+        && !t.isJSXEmptyExpression(classNameAttr.value.expression)
+      ) {
+        baseValueExpr = classNameAttr.value.expression;
+      } else {
+        baseValueExpr = t.stringLiteral(styledInfo.className);
+      }
+
+      const call = buildCxWithFlags(
+        baseValueExpr,
+        staticClasses,
+        dynamicClassExprs,
+        context.state,
+      );
+      if (call) {
+        const expr = t.jsxExpressionContainer(call);
+        if (classNameAttr) {
+          classNameAttr.value = expr;
+        } else {
+          finalAttrs.push(t.jsxAttribute(t.jsxIdentifier('className'), expr));
+        }
+      }
+    }
+  } else {
+    // Only run className merging if dynamic colors haven't already handled it
+    if (!hasDynamicColorSpread) {
+      handleJsxClassNameMerging(path, styledInfo, context);
+    }
   }
 
   return true;

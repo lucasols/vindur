@@ -4,6 +4,7 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
+import type { StyleFlag } from './visitor-handlers/style-flags-utils';
 import type { CssRuleWithLocation } from './css-source-map';
 import { TransformError, TransformWarning } from './custom-errors';
 import {
@@ -70,7 +71,7 @@ export type VindurPluginState = {
       element: string;
       className: string;
       isExported: boolean;
-      styleFlags?: Array<{ propName: string; hashedClassName: string }>;
+      styleFlags?: StyleFlag[];
       attrs?: boolean; // Whether component has attrs (actual expression stored separately)
       attrsExpression?: t.ObjectExpression; // The original attrs expression
     }

@@ -192,12 +192,11 @@ export function handleWithComponentAssignment(
   // Store the new styled component mapping with the new element type but same className
   // Components with attrs should always be treated as having intermediate components
   const isExported = isVariableExported(varName, path);
-  const hasIntermediateComponent =
-    isExported || !!baseComponentInfo.attrs || !!baseComponentInfo.styleFlags;
+  const hasIntermediateComponent = isExported || !!baseComponentInfo.attrs;
   context.state.styledComponents.set(varName, {
     element: newElementType,
     className: baseComponentInfo.className,
-    isExported: hasIntermediateComponent,
+    isExported,
     styleFlags: baseComponentInfo.styleFlags,
     attrs: baseComponentInfo.attrs,
     attrsExpression: baseComponentInfo.attrsExpression,
@@ -205,32 +204,37 @@ export function handleWithComponentAssignment(
 
   // Transform based on whether we have style flags and export status
   if (baseComponentInfo.styleFlags) {
-    // Transform to _vCWM function call
-    context.state.vindurImports.add('_vCWM');
+    if (hasIntermediateComponent) {
+      // Transform to _vCWM function call
+      context.state.vindurImports.add('_vCWM');
 
-    // Create the modifier array: [["propName", "hashedClassName"], ...]
-    const modifierArray = t.arrayExpression(
-      baseComponentInfo.styleFlags.map((styleProp) => {
-        return t.arrayExpression([
-          t.stringLiteral(styleProp.propName),
-          t.stringLiteral(styleProp.hashedClassName),
-        ]);
-      }),
-    );
+      // Create the modifier array: [["propName", "hashedClassName"], ...]
+      const modifierArray = t.arrayExpression(
+        baseComponentInfo.styleFlags.map((styleProp) => {
+          return t.arrayExpression([
+            t.stringLiteral(styleProp.propName),
+            t.stringLiteral(styleProp.hashedClassName),
+          ]);
+        }),
+      );
 
-    const vComponentArgs: t.Expression[] = [
-      modifierArray,
-      t.stringLiteral(baseComponentInfo.className),
-      isCustomComponent ?
-        t.identifier(newElementType)
-      : t.stringLiteral(newElementType), // Pass component reference for custom components
-    ];
+      const vComponentArgs: t.Expression[] = [
+        modifierArray,
+        t.stringLiteral(baseComponentInfo.className),
+        isCustomComponent ?
+          t.identifier(newElementType)
+        : t.stringLiteral(newElementType), // Pass component reference for custom components
+      ];
 
-    if (baseComponentInfo.attrsExpression) {
-      vComponentArgs.push(baseComponentInfo.attrsExpression);
+      if (baseComponentInfo.attrsExpression) {
+        vComponentArgs.push(baseComponentInfo.attrsExpression);
+      }
+
+      path.node.init = t.callExpression(t.identifier('_vCWM'), vComponentArgs);
+    } else {
+      // Local style-flagged component with withComponent: inline at usage, remove variable
+      path.remove();
     }
-
-    path.node.init = t.callExpression(t.identifier('_vCWM'), vComponentArgs);
   } else if (hasIntermediateComponent) {
     // Transform to _vSC function call
     context.state.vindurImports.add('_vSC');

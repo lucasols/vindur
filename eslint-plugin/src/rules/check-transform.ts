@@ -75,10 +75,12 @@ function runVindurTransform(
   } catch (error) {
     if (error instanceof TransformError) {
       if (!error.ignoreInLint) {
+        // TransformError must always include a valid location in this codebase
+        // The ESLint rule environment enforces fail-fast with proper locations
         errors.push({
           message: stripFilenameFromMessage(error.message),
-          line: error.loc?.line ?? 1,
-          column: error.loc?.column ?? 0,
+          line: error.loc.line,
+          column: error.loc.column,
           type: 'error',
         });
       }

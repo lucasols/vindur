@@ -40,20 +40,12 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const StyledWithModifier = _vCWM(
-          [
-            ["active", "voctcyj-active"],
-            ["disabled", "v1iz0um9-disabled"],
-          ],
-          "v1560qbr-1-StyledWithModifier",
-          "div",
-        );
+        "import { cx } from "vindur";
         function Component() {
           return (
-            <StyledWithModifier active={true} disabled={false}>
+            <div className={cx("v1560qbr-1-StyledWithModifier", "voctcyj-active")}>
               Content
-            </StyledWithModifier>
+            </div>
           );
         }
         "
@@ -122,21 +114,18 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [
-            ["primary", "v1puiack-primary"],
-            ["size", "vr4ikfs-size"],
-            ["disabled", "v1iz0um9-disabled"],
-          ],
-          "v1560qbr-1-Button",
-          "button",
-        );
+        "import { cx } from "vindur";
         function Component() {
           return (
-            <Button primary={true} size="large" disabled={false}>
+            <button
+              className={cx(
+                "v1560qbr-1-Button",
+                "v1puiack-primary",
+                "vr4ikfs-size-large",
+              )}
+            >
               Click me
-            </Button>
+            </button>
           );
         }
         "
@@ -217,17 +206,19 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
+        "import { cx } from "vindur";
         const ButtonElement = ({ children, ...props }) => (
           <button {...props}>{children}</button>
         );
-        const CheckboxContainer = _vCWM(
-          [["checked", "v7k0mdb-checked"]],
-          "v1560qbr-1-CheckboxContainer",
-          ButtonElement,
-        );
         function Component({ isChecked }) {
-          return <CheckboxContainer checked={isChecked}></CheckboxContainer>;
+          return (
+            <ButtonElement
+              className={cx(
+                "v1560qbr-1-CheckboxContainer",
+                isChecked && "v7k0mdb-checked",
+              )}
+            ></ButtonElement>
+          );
         }
         "
       `);
@@ -330,20 +321,10 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Widget = _vCWM(
-          [
-            ["active", "voctcyj-active"],
-            ["featured", "vnwmeu-featured"],
-          ],
-          "v1560qbr-1-Widget",
-          "div",
-        );
+        "import { cx } from "vindur";
         function Component() {
           return (
-            <Widget active={true} featured={false}>
-              Content
-            </Widget>
+            <div className={cx("v1560qbr-1-Widget", "voctcyj-active")}>Content</div>
           );
         }
         "
@@ -397,21 +378,9 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Widget = _vCWM(
-          [
-            ["active", "voctcyj"],
-            ["featured", "vnwmeu"],
-          ],
-          "v1560qbr-1",
-          "div",
-        );
+        "import { cx } from "vindur";
         function Component() {
-          return (
-            <Widget active={true} featured={false}>
-              Content
-            </Widget>
-          );
+          return <div className={cx("v1560qbr-1", "voctcyj")}>Content</div>;
         }
         "
       `);
@@ -465,17 +434,12 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [["primary", "v1puiack-primary"]],
-          "v1560qbr-1-Button",
-          "button",
-        );
+        "import { cx } from "vindur";
         function Component() {
           return (
-            <Button primary={true} className="extra-class">
+            <button className={cx("v1560qbr-1-Button extra-class", "v1puiack-primary")}>
               Click me
-            </Button>
+            </button>
           );
         }
         "
@@ -524,17 +488,18 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [["active", "voctcyj-active"]],
-          "v1560qbr-1-Button",
-          "button",
-        );
+        "import { cx, mergeClassNames } from "vindur";
         function Component({ props }) {
           return (
-            <Button active={true} {...props}>
+            <button
+              {...props}
+              className={cx(
+                mergeClassNames([props], "v1560qbr-1-Button"),
+                "voctcyj-active",
+              )}
+            >
               Content
-            </Button>
+            </button>
           );
         }
         "
@@ -586,20 +551,18 @@ describe('Style Flags Transform Logic', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Card = _vCWM(
-          [
-            ["highlighted", "vges7p7-highlighted"],
-            ["disabled", "v1iz0um9-disabled"],
-          ],
-          "v1560qbr-1-Card",
-          "div",
-        );
+        "import { cx } from "vindur";
         function Component({ isHighlighted, isDisabled }) {
           return (
-            <Card highlighted={isHighlighted} disabled={isDisabled}>
+            <div
+              className={cx(
+                "v1560qbr-1-Card",
+                isHighlighted && "vges7p7-highlighted",
+                isDisabled && "v1iz0um9-disabled",
+              )}
+            >
               Content
-            </Card>
+            </div>
           );
         }
         "
@@ -615,6 +578,168 @@ describe('Style Flags Transform Logic', () => {
 
           &.v1iz0um9-disabled {
             opacity: 0.5;
+          }
+        }
+        "
+      `);
+    });
+
+    test('should inline with dynamicColor and merge modifier classes via _sp', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled, createDynamicCssColor } from 'vindur';
+          const color = createDynamicCssColor();
+          const Box = styled.div<{
+            active: boolean;
+            size: 'small' | 'large';
+          }>\`
+            padding: 4px;
+            &.active { outline: 1px solid red; }
+            &.size-small { padding: 2px; }
+            &.size-large { padding: 6px; }
+          \`;
+          function Component({ isOn }) {
+            return (
+              <Box
+                active={isOn}
+                size="small"
+                dynamicColor={color}
+                className="u"
+              />
+            );
+          }
+        `,
+      });
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { createDynamicCssColor, cx } from \"vindur\";
+        const color = createDynamicCssColor(\"v1560qbr-1\", true);
+        function Component({ isOn }) {
+          return (
+            <div
+              {...color._sp(\"#ff6b6b\", {
+                className: cx(
+                  \"v1560qbr-2-Box u\",
+                  \"vr4ikfs-size-small\",
+                  isOn && \"voctcyj-active\",
+                ),
+              })}
+            />
+          );
+        }
+        "
+      `);
+      // CSS snapshot covered by other tests; focus on className merging here.
+    });
+    test('should inline with withComponent for local style-flagged components', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+          const Base = styled.div<{ active: boolean }>\`
+            &.active { color: red; }
+          \`;
+          const SpanBase = Base.withComponent('span');
+          function Component() {
+            return <SpanBase active={true}>X</SpanBase>;
+          }
+        `,
+      });
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { cx } from \"vindur\";
+        function Component() {
+          return <span className={cx(\"v1560qbr-1-Base\", \"voctcyj-active\")}>X</span>;
+        }
+        "
+      `);
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-Base {
+          &.voctcyj-active {
+            color: red;
+          }
+        }
+        "
+      `);
+    });
+    test('should use wrapper with withComponent when exported', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+          const Base = styled.div<{ active: boolean }>\`
+            &.active { color: red; }
+          \`;
+          export const SpanBase = Base.withComponent('span');
+        `,
+      });
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { _vCWM } from \"vindur\";
+        export const SpanBase = _vCWM(
+          [[\"active\", \"voctcyj-active\"]],
+          \"v1560qbr-1-Base\",
+          \"span\",
+        );
+        "
+      `);
+    });
+    test('should use wrapper when attrs are present even if not exported', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+          const Button = styled.button.attrs({ type: 'button' })<{ primary: boolean }>\`
+            &.primary { background: blue; }
+          \`;
+        `,
+      });
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { _vCWM } from \"vindur\";
+        const Button = _vCWM(
+          [[\"primary\", \"v1puiack-primary\"]],
+          \"v1560qbr-1-Button\",
+          \"button\",
+          {
+            type: \"button\",
+          },
+        );
+        "
+      `);
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-Button {
+          &.v1puiack-primary {
+            background: blue;
+          }
+        }
+        "
+      `);
+    });
+    test('should merge className when className comes before spreads', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+          const Item = styled.div<{ active: boolean }>\`
+            &.active { color: red; }
+          \`;
+          function Component(props) {
+            return <Item className="u" active={true} {...props} />;
+          }
+        `,
+      });
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { cx, mergeClassNames } from \"vindur\";
+        function Component(props) {
+          return (
+            <div
+              {...props}
+              className={cx(
+                mergeClassNames([\"u\", props], \"v1560qbr-1-Item\"),
+                \"voctcyj-active\",
+              )}
+            />
+          );
+        }
+        "
+      `);
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-Item {
+          &.voctcyj-active {
+            color: red;
           }
         }
         "
@@ -679,14 +804,13 @@ describe('Style Flags Transform Logic', () => {
       `);
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const StyledWithModifier = _vCWM(
-          [["active", "voctcyj-active"]],
-          "v1560qbr-1-StyledWithModifier",
-          "div",
-        );
+        "import { cx } from "vindur";
         function Component() {
-          return <StyledWithModifier active={true}>Content</StyledWithModifier>;
+          return (
+            <div className={cx("v1560qbr-1-StyledWithModifier", "voctcyj-active")}>
+              Content
+            </div>
+          );
         }
         "
       `);

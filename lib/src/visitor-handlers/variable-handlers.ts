@@ -213,11 +213,12 @@ export function handleStyledElementAssignment(
 
   // Store the styled component mapping
   const isExported = isVariableExported(varName, path);
-  const hasIntermediateComponent = isExported || hasAttrs || !!styleFlags;
+  // For style flags we now inline local components (no wrapper) unless exported or attrs are present
+  const hasIntermediateComponent = isExported || hasAttrs;
   context.state.styledComponents.set(varName, {
     element: tagName,
     className: result.finalClassName,
-    isExported: hasIntermediateComponent,
+    isExported,
     styleFlags,
     attrs: hasAttrs,
     attrsExpression,
@@ -225,16 +226,36 @@ export function handleStyledElementAssignment(
 
   // Transform based on whether we have style flags
   if (styleFlags) {
-    transformStyleFlagsComponent(
-      styleFlags,
-      result,
-      tagName,
-      attrsExpression,
-      varName,
-      dev,
-      path,
-      context,
-    );
+    if (hasIntermediateComponent) {
+      transformStyleFlagsComponent(
+        styleFlags,
+        result,
+        tagName,
+        attrsExpression,
+        varName,
+        dev,
+        path,
+        context,
+      );
+    } else {
+      // Emit warnings for missing modifier styles in dev mode
+      if (dev && context.onWarning) {
+        const missingSelectors = checkForMissingModifierStyles(
+          styleFlags,
+          context.state.cssRules,
+          result.finalClassName,
+        );
+        for (const missing of missingSelectors) {
+          const warning = new TransformWarning(
+            `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+            notNullish(path.node.loc),
+          );
+          context.onWarning(warning);
+        }
+      }
+      // Remove the styled component declaration for local components without attrs (inline at usage)
+      path.remove();
+    }
   } else {
     transformRegularStyledComponent(
       isExported,
@@ -378,13 +399,14 @@ export function handleStyledExtensionAssignment(
   // For regular components, we store the component name as the element
   const element = extendedInfo ? extendedInfo.element : extendedName;
 
-  // Style flags and attrs always require intermediate components
-  const hasIntermediateComponent = isExported || hasAttrs || !!styleFlags;
+  // For style flags we inline local components unless exported or attrs are present
+  const hasIntermediateComponent = isExported || hasAttrs;
 
   context.state.styledComponents.set(varName, {
     element,
     className: result.finalClassName,
-    isExported: hasIntermediateComponent,
+    isExported,
+    styleFlags,
     attrs: hasAttrs,
     attrsExpression,
   });
@@ -419,17 +441,37 @@ function transformStyledExtension(
   dev: boolean,
 ): void {
   if (styleFlags) {
-    transformStyledExtensionWithStyleFlags(
-      styleFlags,
-      result,
-      element,
-      isExtendingRegularComponent,
-      attrsExpression,
-      varName,
-      path,
-      context,
-      dev,
-    );
+    if (hasIntermediateComponent) {
+      transformStyledExtensionWithStyleFlags(
+        styleFlags,
+        result,
+        element,
+        isExtendingRegularComponent,
+        attrsExpression,
+        varName,
+        path,
+        context,
+        dev,
+      );
+    } else {
+      // Emit warnings for missing modifier styles in dev mode
+      if (dev && context.onWarning) {
+        const missingSelectors = checkForMissingModifierStyles(
+          styleFlags,
+          context.state.cssRules,
+          result.finalClassName,
+        );
+        for (const missing of missingSelectors) {
+          const warning = new TransformWarning(
+            `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+            notNullish(path.node.loc),
+          );
+          context.onWarning(warning);
+        }
+      }
+      // Inline at usage for non-exported components without attrs
+      path.remove();
+    }
   } else if (hasIntermediateComponent) {
     // Transform to _vSC function call for regular styled components
     context.state.vindurImports.add('_vSC');

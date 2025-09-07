@@ -34,15 +34,7 @@ describe('Style Flags Warning System', () => {
           "
         `,
       );
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [["active", "voctcyj-active"]],
-          "v1560qbr-1-Button",
-          "button",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should warn for multiple missing boolean selectors', async () => {
@@ -79,19 +71,7 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Card = _vCWM(
-          [
-            ["featured", "vnwmeu-featured"],
-            ["highlighted", "vges7p7-highlighted"],
-            ["collapsed", "v1wk07rx-collapsed"],
-          ],
-          "v1560qbr-1-Card",
-          "div",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
   });
 
@@ -125,11 +105,7 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM([["size", "vr4ikfs-size"]], "v1560qbr-1-Button", "button");
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should warn for partially missing string union selectors', async () => {
@@ -167,15 +143,7 @@ describe('Style Flags Warning System', () => {
         "
       `);
 
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Widget = _vCWM(
-          [["variant", "v11as9cs-variant"]],
-          "v1560qbr-1-Widget",
-          "div",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should warn for multiple string union props with missing selectors', async () => {
@@ -214,18 +182,7 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Component = _vCWM(
-          [
-            ["size", "vr4ikfs-size"],
-            ["theme", "v1cm7m20-theme"],
-          ],
-          "v1560qbr-1-Component",
-          "div",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
   });
 
@@ -277,20 +234,7 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const ComplexButton = _vCWM(
-          [
-            ["active", "voctcyj-active"],
-            ["disabled", "v1iz0um9-disabled"],
-            ["size", "vr4ikfs-size"],
-            ["variant", "v11as9cs-variant"],
-          ],
-          "v1560qbr-1-ComplexButton",
-          "button",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
   });
 
@@ -340,33 +284,11 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(devResult.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [
-            ["active", "voctcyj-active"],
-            ["size", "vr4ikfs-size"],
-          ],
-          "v1560qbr-1-Button",
-          "button",
-        );
-        "
-      `);
+      expect(devResult.code).toMatchInlineSnapshot(`""`);
 
       // Production mode should NOT have warnings
       expect(prodWarnings).toHaveLength(0);
-      expect(prodResult.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [
-            ["active", "voctcyj"],
-            ["size", "vr4ikfs"],
-          ],
-          "v1560qbr-1",
-          "button",
-        );
-        "
-      `);
+      expect(prodResult.code).toMatchInlineSnapshot(`""`);
     });
   });
 
@@ -414,20 +336,7 @@ describe('Style Flags Warning System', () => {
       // Should NOT contain any warnings
       expect(result.code).not.toContain('console.warn');
       expect(result.code).not.toContain('Missing modifier styles');
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const CompleteButton = _vCWM(
-          [
-            ["active", "voctcyj-active"],
-            ["disabled", "v1iz0um9-disabled"],
-            ["size", "vr4ikfs-size"],
-            ["variant", "v11as9cs-variant"],
-          ],
-          "v1560qbr-1-CompleteButton",
-          "button",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
   });
 
@@ -488,15 +397,7 @@ describe('Style Flags Warning System', () => {
             loc: 'current_file:3:6'
         "
       `);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Card = _vCWM(
-          [["highlighted", "vges7p7-highlighted"]],
-          "v1560qbr-1-Card",
-          "div",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
 
     test('should handle hashed selectors in CSS correctly', async () => {
@@ -523,15 +424,7 @@ describe('Style Flags Warning System', () => {
 
       // Should NOT warn because the selector exists
       expect(warnings.length).toBe(0);
-      expect(result.code).toMatchInlineSnapshot(`
-        "import { _vCWM } from "vindur";
-        const Button = _vCWM(
-          [["primary", "v1puiack-primary"]],
-          "v1560qbr-1-Button",
-          "button",
-        );
-        "
-      `);
+      expect(result.code).toMatchInlineSnapshot(`""`);
     });
   });
 });

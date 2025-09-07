@@ -111,6 +111,12 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Do not use barrel files
 - NEVER use re-exports
 
+# VERY IMPORTANT CODE QUALITY GUIDELINES
+
+- NEVER use `eslint-disable`, `eslint-disable-next-line`, or similar comments to disable eslint rules, fix the underlying issue causing the rule to be violated instead.
+- NEVER use `@ts-expect-error` or `@ts-ignore` to skip type errors, fix the underlying issue causing the type error instead.
+- NEVER override eslint rules with comments (e.g: `/* eslint max-lines: ["error", 700] */`), fix the underlying issue causing the rule to be violated instead.
+
 # Testing
 
 Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:

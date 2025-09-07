@@ -134,7 +134,7 @@ export function validateExtendedComponent(
         element: string;
         className: string;
         isExported: boolean;
-        styleFlags?: Array<{ propName: string; hashedClassName: string }>;
+        styleFlags?: StyleFlag[];
         attrs?: boolean;
         attrsExpression?: t.ObjectExpression;
       }
