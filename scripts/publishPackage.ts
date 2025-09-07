@@ -64,7 +64,7 @@ function narrowStringToUnion<T extends readonly string[]>(
 type PublishHashesData = Record<string, Record<string, string>>;
 
 /**
- * Generate a SHA-256 hash for all files in a directory recursively
+ * Generate a SHA-256 hash for all files in a directory recursively, including package.json (excluding version field)
  */
 async function generateDirectoryHash(dirPath: string): Promise<string> {
   if (!existsSync(dirPath)) {
@@ -92,6 +92,19 @@ async function generateDirectoryHash(dirPath: string): Promise<string> {
   }
 
   collectFiles(dirPath);
+
+  // Also include package.json in the hash to detect dependency changes (excluding version field)
+  const packageJsonPath = join(dirname(dirPath), 'package.json');
+  if (existsSync(packageJsonPath)) {
+    const packageJsonContent = readFileSync(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(packageJsonContent);
+    // Remove version field to avoid hash changes on version bumps
+    delete packageJson.version;
+    // Use consistent JSON formatting for stable hashing
+    const normalizedContent = JSON.stringify(packageJson, null, 2);
+    hash.update('package.json'); // Include file path in hash
+    hash.update(normalizedContent); // Include package.json content without version
+  }
 
   // Hash each file path and content
   for (const filePath of files) {
@@ -266,7 +279,7 @@ async function publishPackage(
   // Check if there are any changes to commit after build
   await commitChanges(`chore: update build artifacts for ${packageName}`);
 
-  // Check if we're trying to republish the same code
+  // Check if we're trying to republish the same code (version field excluded from hash)
   const distPath = join(packagePath, 'dist');
   const currentHash = await generateDirectoryHash(distPath);
   await checkHashBeforePublish(fullPackageName, currentHash, force);
