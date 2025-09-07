@@ -3,6 +3,7 @@ import {
   createRuleTester,
   type TestExecutionResult,
 } from 'eslint-vitest-rule-tester';
+import * as tsParser from '@typescript-eslint/parser';
 
 export function getErrorsFromResult(
   result: TestExecutionResult,
@@ -38,5 +39,15 @@ export function createVindurTester(rule: {
   return createRuleTester({
     name: rule.name,
     rule: rule.rule,
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
   });
 }

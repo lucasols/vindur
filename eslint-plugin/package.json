@@ -41,6 +41,7 @@
     "@ls-stack/utils": "catalog:",
     "@types/eslint": "^9.6.1",
     "@types/node": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
     "@vitest/ui": "catalog:",
     "eslint": "catalog:",
     "eslint-vitest-rule-tester": "^2.2.1",

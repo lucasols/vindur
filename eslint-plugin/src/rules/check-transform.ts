@@ -6,15 +6,7 @@ import type { VindurPluginOptions } from '../types';
 
 type RuleOptions = VindurPluginOptions;
 
-type CacheEntry = {
-  source: string;
-  result: { errors: Array<{ message: string; line: number; column: number; type: 'error' | 'warning' }>; css: string };
-  timestamp: number;
-};
-
-const transformCache = new Map<string, CacheEntry>();
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
-const CACHE_TTL = 5000; // 5 seconds
 function shouldProcessFile(filename: string, source: string): boolean {
   if (!JS_EXTENSIONS.includes(extname(filename))) {
     return false;
@@ -31,22 +23,12 @@ function shouldProcessFile(filename: string, source: string): boolean {
 }
 
 function runVindurTransform(filename: string, source: string, options: RuleOptions) {
-  const now = Date.now();
-  const cached = transformCache.get(filename);
-  
-  // Check cache validity
-  if (cached && cached.source === source && (now - cached.timestamp) < CACHE_TTL) {
-    return cached.result;
-  }
-
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
     exists: (fileAbsPath: string) => existsSync(fileAbsPath),
   };
 
   const errors: Array<{ message: string; line: number; column: number; type: 'error' | 'warning' }> = [];
-  let transformedCode = '';
-  let css = '';
 
   // Collect warnings via callback
   const onWarning = options.reportWarnings !== false ? (warning: TransformWarning) => {
@@ -59,7 +41,7 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
   } : undefined;
 
   try {
-    const result = transform({
+    transform({
       fileAbsPath: filename,
       source,
       dev: options.dev ?? true,
@@ -68,9 +50,6 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
     });
-    
-    transformedCode = result.code;
-    css = result.css;
   } catch (error) {
     if (error instanceof TransformError) {
       errors.push({
@@ -89,16 +68,7 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
     }
   }
 
-  const result = { errors, css };
-  
-  // Update cache
-  transformCache.set(filename, {
-    source,
-    result,
-    timestamp: now
-  });
-
-  return result;
+  return { errors };
 }
 
 export const checkTransformRule: Rule.RuleModule = {
