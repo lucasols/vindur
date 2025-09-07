@@ -4,7 +4,9 @@ import { types as t } from '@babel/core';
  * Analyzes a cx() call expression and returns an optimized expression if possible.
  * Returns null if the call cannot be optimized.
  */
-export function optimizeCxCall(callExpr: t.CallExpression): t.Expression | null {
+export function optimizeCxCall(
+  callExpr: t.CallExpression,
+): t.Expression | null {
   if (!isCxCall(callExpr)) return null;
 
   const args = callExpr.arguments;
@@ -28,15 +30,15 @@ export function optimizeCxCall(callExpr: t.CallExpression): t.Expression | null 
  * Checks if a call expression is a cx() function call
  */
 function isCxCall(callExpr: t.CallExpression): boolean {
-  return (
-    t.isIdentifier(callExpr.callee) && callExpr.callee.name === 'cx'
-  );
+  return t.isIdentifier(callExpr.callee) && callExpr.callee.name === 'cx';
 }
 
 /**
  * Attempts to fully optimize cx() arguments into a static string
  */
-function tryStaticOptimization(args: Array<t.Expression | t.SpreadElement | t.ArgumentPlaceholder>): t.StringLiteral | null {
+function tryStaticOptimization(
+  args: Array<t.Expression | t.SpreadElement | t.ArgumentPlaceholder>,
+): t.StringLiteral | null {
   const staticClasses: string[] = [];
 
   for (const arg of args) {
@@ -61,7 +63,9 @@ function tryStaticOptimization(args: Array<t.Expression | t.SpreadElement | t.Ar
 /**
  * Attempts to partially optimize cx() arguments into an optimized expression
  */
-function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.ArgumentPlaceholder>): t.Expression | null {
+function tryPartialOptimization(
+  args: Array<t.Expression | t.SpreadElement | t.ArgumentPlaceholder>,
+): t.Expression | null {
   const parts: t.Expression[] = [];
   let hasOptimizations = false;
 
@@ -97,7 +101,7 @@ function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.A
         const ternary = t.conditionalExpression(
           arg.left,
           t.stringLiteral(parts.length === 0 ? rightValue : ` ${rightValue}`),
-          t.stringLiteral('')
+          t.stringLiteral(''),
         );
         parts.push(ternary);
         hasOptimizations = true;
@@ -107,7 +111,10 @@ function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.A
 
     // Try to optimize object expressions
     if (t.isObjectExpression(arg)) {
-      const objectOptimization = tryOptimizeObjectExpression(arg, parts.length === 0);
+      const objectOptimization = tryOptimizeObjectExpression(
+        arg,
+        parts.length === 0,
+      );
       if (objectOptimization !== null) {
         parts.push(objectOptimization);
         hasOptimizations = true;
@@ -126,13 +133,20 @@ function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.A
   if (parts.length === 0) return null;
 
   if (parts.length === 1) {
-    return parts[0]!;
+    const firstPart = parts[0];
+    return firstPart || null;
   }
 
   // Build concatenation expression
-  let result = parts[0]!;
+  const firstPart = parts[0];
+  if (!firstPart) return null;
+
+  let result = firstPart;
   for (let i = 1; i < parts.length; i++) {
-    result = t.binaryExpression('+', result, parts[i]!);
+    const part = parts[i];
+    if (part) {
+      result = t.binaryExpression('+', result, part);
+    }
   }
 
   return result;
@@ -141,12 +155,19 @@ function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.A
 /**
  * Attempts to optimize an object expression like { active: true, disabled: false }
  */
-function tryOptimizeObjectExpression(obj: t.ObjectExpression, isFirst: boolean): t.Expression | null {
+function tryOptimizeObjectExpression(
+  obj: t.ObjectExpression,
+  isFirst: boolean,
+): t.Expression | null {
   const staticClasses: string[] = [];
   const dynamicParts: t.ConditionalExpression[] = [];
 
   for (const prop of obj.properties) {
-    if (!t.isObjectProperty(prop) || prop.computed || !t.isIdentifier(prop.key)) {
+    if (
+      !t.isObjectProperty(prop)
+      || prop.computed
+      || !t.isIdentifier(prop.key)
+    ) {
       return null; // Cannot optimize computed or complex properties
     }
 
@@ -160,11 +181,14 @@ function tryOptimizeObjectExpression(obj: t.ObjectExpression, isFirst: boolean):
       // false values are ignored
     } else if (t.isExpression(value)) {
       // Dynamic boolean value
-      const prefix = staticClasses.length === 0 && dynamicParts.length === 0 && isFirst ? '' : ' ';
+      const prefix =
+        staticClasses.length === 0 && dynamicParts.length === 0 && isFirst ?
+          ''
+        : ' ';
       const ternary = t.conditionalExpression(
         value,
         t.stringLiteral(prefix + className),
-        t.stringLiteral('')
+        t.stringLiteral(''),
       );
       dynamicParts.push(ternary);
     } else {
@@ -188,13 +212,20 @@ function tryOptimizeObjectExpression(obj: t.ObjectExpression, isFirst: boolean):
   if (parts.length === 0) return null;
 
   if (parts.length === 1) {
-    return parts[0]!;
+    const firstPart = parts[0];
+    return firstPart || null;
   }
 
   // Build concatenation
-  let result = parts[0]!;
+  const firstPart = parts[0];
+  if (!firstPart) return null;
+
+  let result = firstPart;
   for (let i = 1; i < parts.length; i++) {
-    result = t.binaryExpression('+', result, parts[i]!);
+    const part = parts[i];
+    if (part) {
+      result = t.binaryExpression('+', result, part);
+    }
   }
 
   return result;
@@ -221,29 +252,4 @@ function getStaticStringValue(expr: t.Expression): string | null {
   }
 
   return null;
-}
-
-/**
- * Checks if an expression represents a falsy value that should be filtered out
- */
-function isFalsyExpression(expr: t.Expression): boolean {
-  if (t.isBooleanLiteral(expr) && !expr.value) {
-    return true;
-  }
-
-  if (t.isNullLiteral(expr)) return true;
-
-  if (t.isIdentifier(expr) && expr.name === 'undefined') {
-    return true;
-  }
-
-  if (t.isStringLiteral(expr) && expr.value === '') {
-    return true;
-  }
-
-  if (t.isNumericLiteral(expr) && expr.value === 0) {
-    return true;
-  }
-
-  return false;
 }
