@@ -2,6 +2,10 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
 import { TransformError } from './custom-errors';
+import { escapeRegExp } from './visitor-handlers/style-flags-utils';
+
+// Precompiled regex for performance and lint compliance
+const WHITESPACE_RE = /\s+/;
 import { optimizeCxCall } from './visitor-handlers/cx-optimization-utils';
 
 type PostProcessingContext = {
@@ -294,6 +298,11 @@ export function performPostProcessing(
   // Step 1: Resolve forward references in CSS rules
   resolveForwardReferences(context.state, filePath);
 
+  // Step 1.5: Hash style-flag selectors when referencing styled components
+  // This ensures selectors like `.Component.active &` become `.Component.vHASH[-name] &`
+  // using the correct dev/prod hashed form captured in styleFlags.
+  applyStyleFlagHashingForReferences(context.state);
+
   // Step 2: Optimize cx() calls
   optimizeCxCalls(file, context);
 
@@ -335,4 +344,72 @@ function resolveImportPath(
 
   // Return as-is for all other imports (relative, absolute, or package imports)
   return null;
+}
+
+// New: Update selectors in all CSS rules to use hashed modifier classes
+// when referencing styled components that declare style flags.
+function applyStyleFlagHashingForReferences(state: VindurPluginState): void {
+  if (state.styledComponents.size === 0 || state.cssRules.length === 0) return;
+
+  // Prepare replacement patterns for each styled component that has style flags
+  type Replacement = { pattern: RegExp; replacement: string };
+  const componentReplacements = new Map<string, Replacement[]>();
+
+  for (const [, info] of state.styledComponents) {
+    const flags = info.styleFlags;
+    if (!flags || flags.length === 0) continue;
+
+    // Split in case of composed class names (extensions)
+    const classNames = info.className.split(WHITESPACE_RE).filter((c) => c.length > 0);
+    if (classNames.length === 0) continue;
+
+    const replacements: Replacement[] = [];
+
+    for (const cls of classNames) {
+      for (const flag of flags) {
+        if (flag.type === 'boolean') {
+          // Replace .<class>.propName with .<class>.<hashed>
+          const pattern = new RegExp(
+            `\\.${escapeRegExp(cls)}\\.${escapeRegExp(flag.propName)}\\b`,
+            'g',
+          );
+          const replacement = `.${cls}.${flag.hashedClassName}`;
+          replacements.push({ pattern, replacement });
+        } else {
+          // Replace .<class>.propName-value with .<class>.<hashed>-value
+          for (const value of flag.unionValues) {
+            const pattern = new RegExp(
+              `\\.${escapeRegExp(cls)}\\.${escapeRegExp(flag.propName)}-${escapeRegExp(value)}\\b`,
+              'g',
+            );
+            const replacement = `.${cls}.${flag.hashedClassName}-${value}`;
+            replacements.push({ pattern, replacement });
+          }
+        }
+      }
+    }
+
+    if (replacements.length > 0) {
+      componentReplacements.set(info.className, replacements);
+    }
+  }
+
+  if (componentReplacements.size === 0) return;
+
+  // Apply replacements across all CSS rules
+  for (let i = 0; i < state.cssRules.length; i++) {
+    const rule = state.cssRules[i];
+    if (!rule) continue;
+    let updated = rule.css;
+
+    for (const replacements of componentReplacements.values()) {
+      for (const { pattern, replacement } of replacements) {
+        updated = updated.replace(pattern, replacement);
+      }
+    }
+
+    if (updated !== rule.css) {
+      state.cssRules[i] = { ...rule, css: updated };
+    }
+  }
 }

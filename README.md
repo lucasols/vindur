@@ -23,6 +23,52 @@ Vindur works with your existing build tools:
 - **Vite** - Built-in plugin support
 - More build tools coming soon
 
+## ESLint Plugin
+
+Vindur ships with an ESLint plugin that runs the transform during linting and surfaces issues directly in your editor.
+
+- Purpose: catches transform errors early and reports non-fatal compiler warnings (e.g., missing modifier styles, undeclared classes in plain styled components, potential optimizations).
+- Output: errors appear as ESLint errors; suggestions/potential issues appear as ESLint warnings.
+
+Quick setup (flat config):
+
+```js
+// eslint.config.js
+import { vindurPlugin } from '@vindur-css/eslint-plugin';
+
+export default [
+  // Use the recommended set which enables the core rule
+  vindurPlugin.configs.recommended,
+];
+```
+
+Or customize the core rule:
+
+```js
+import { vindurPlugin } from '@vindur-css/eslint-plugin';
+
+export default [
+  {
+    plugins: { '@vindur': vindurPlugin },
+    rules: {
+      '@vindur/check-transform': [
+        'error',
+        {
+          // import alias resolution used by the transformer
+          importAliases: { '#/': '/' },
+        },
+      ],
+    },
+  },
+];
+```
+
+Install:
+
+```bash
+pnpm add -D @vindur-css/eslint-plugin
+```
+
 ## Installation
 
 ```bash
@@ -193,9 +239,9 @@ const StyledDiv = styled.div.attrs({
 <StyledDiv>Content</StyledDiv>;
 
 // Compiles to:
-<div 
-  className="vhash123-1" 
-  data-testid="my-div" 
+<div
+  className="vhash123-1"
+  data-testid="my-div"
   aria-hidden="false"
 >
   Content
@@ -934,7 +980,7 @@ const App = ({ isActive, isDisabled }) => (
 const Compiled = ({ isActive, isDisabled }) => (
   <Container
     className={
-      "noHash" + (isActive ? " vhash_3" : "") + (isDisabled ? " vhash_4" : "")
+      'noHash' + (isActive ? ' vhash_3' : '') + (isDisabled ? ' vhash_4' : '')
     }
   >
     Content with conditional classes
@@ -995,9 +1041,14 @@ const staticClasses = cx('header', 'active', 'featured');
 const staticClasses = 'header active featured';
 
 // Mixed static and dynamic - optimized to efficient expressions
-const dynamicClasses = cx('base', isActive && 'active', isDisabled && 'disabled');
+const dynamicClasses = cx(
+  'base',
+  isActive && 'active',
+  isDisabled && 'disabled',
+);
 // ↓ Compiles to:
-const dynamicClasses = 'base' + (isActive ? ' active' : '') + (isDisabled ? ' disabled' : '');
+const dynamicClasses =
+  'base' + (isActive ? ' active' : '') + (isDisabled ? ' disabled' : '');
 
 // Complex expressions remain as cx() calls for runtime handling
 const complexClasses = cx(dynamicArray, spreadValues);
@@ -1005,6 +1056,7 @@ const complexClasses = cx(dynamicArray, spreadValues);
 ```
 
 **Optimization benefits:**
+
 - **Eliminates runtime function calls** for static class combinations
 - **Reduces bundle size** by removing unnecessary cx imports
 - **Generates efficient code** with minimal overhead

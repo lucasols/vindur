@@ -175,7 +175,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.active & {
+      .v1560qbr-2.voctcyj & {
         border-left: 4px solid orange;
       }
     }
@@ -194,7 +194,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.active & {
+      .v1560qbr-2.voctcyj & {
         border-left: 4px solid orange;
       }
     }

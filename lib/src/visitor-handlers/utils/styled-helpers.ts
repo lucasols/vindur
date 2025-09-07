@@ -172,3 +172,125 @@ export function validateExtendedComponent(
     }
   }
 }
+
+export function transformStyledExtension(
+  styleFlags: StyleFlag[] | undefined,
+  result: { finalClassName: string },
+  element: string,
+  isExtendingRegularComponent: boolean,
+  attrsExpression: t.ObjectExpression | undefined,
+  hasIntermediateComponent: boolean,
+  varName: string,
+  path: NodePath<t.VariableDeclarator>,
+  context: CssProcessingContext,
+  dev: boolean,
+): void {
+  if (styleFlags) {
+    if (hasIntermediateComponent) {
+      transformStyledExtensionWithStyleFlags(
+        styleFlags,
+        result,
+        element,
+        isExtendingRegularComponent,
+        attrsExpression,
+        varName,
+        path,
+        context,
+        dev,
+      );
+    } else {
+      // Emit warnings for missing modifier styles in dev mode
+      if (dev && context.onWarning) {
+        const missingSelectors = checkForMissingModifierStyles(
+          styleFlags,
+          context.state.cssRules,
+          result.finalClassName,
+        );
+        for (const missing of missingSelectors) {
+          const warning = new TransformWarning(
+            `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+            notNullish(path.node.loc),
+          );
+          context.onWarning(warning);
+        }
+      }
+      // Inline at usage for non-exported components without attrs
+      path.remove();
+    }
+  } else if (hasIntermediateComponent) {
+    // Transform to _vSC function call for regular styled components
+    context.state.vindurImports.add('_vSC');
+    const args: t.Expression[] = [
+      // Use identifier for custom components, string literal for native elements
+      isExtendingRegularComponent || !element.match(LOWERCASE_START_REGEX) ?
+        t.identifier(element)
+      : t.stringLiteral(element),
+      t.stringLiteral(result.finalClassName),
+    ];
+
+    if (attrsExpression) {
+      args.push(attrsExpression);
+    }
+
+    path.node.init = t.callExpression(t.identifier('_vSC'), args);
+  } else {
+    // Remove the styled component declaration for local components
+    path.remove();
+  }
+}
+
+export function transformStyledExtensionWithStyleFlags(
+  styleFlags: StyleFlag[],
+  result: { finalClassName: string },
+  element: string,
+  isExtendingRegularComponent: boolean,
+  attrsExpression: t.ObjectExpression | undefined,
+  varName: string,
+  path: NodePath<t.VariableDeclarator>,
+  context: CssProcessingContext,
+  dev: boolean,
+): void {
+  // Transform to _vCWM function call for style flags
+  context.state.vindurImports.add('_vCWM');
+
+  // Create the modifier array: [["propName", "hashedClassName"], ...]
+  const modifierArray = t.arrayExpression(
+    styleFlags.map((styleProp) =>
+      t.arrayExpression([
+        t.stringLiteral(styleProp.propName),
+        t.stringLiteral(styleProp.hashedClassName),
+      ]),
+    ),
+  );
+
+  const args: t.Expression[] = [
+    modifierArray,
+    t.stringLiteral(result.finalClassName),
+    // Use identifier for custom components, string literal for native elements
+    isExtendingRegularComponent || !element.match(LOWERCASE_START_REGEX) ?
+      t.identifier(element)
+    : t.stringLiteral(element),
+  ];
+
+  if (attrsExpression) {
+    args.push(attrsExpression);
+  }
+
+  path.node.init = t.callExpression(t.identifier('_vCWM'), args);
+
+  // In dev mode, emit warnings for missing modifier styles
+  if (dev && context.onWarning) {
+    const missingSelectors = checkForMissingModifierStyles(
+      styleFlags,
+      context.state.cssRules,
+      result.finalClassName,
+    );
+    for (const missing of missingSelectors) {
+      const warning = new TransformWarning(
+        `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+        notNullish(path.node.loc),
+      );
+      context.onWarning(warning);
+    }
+  }
+}

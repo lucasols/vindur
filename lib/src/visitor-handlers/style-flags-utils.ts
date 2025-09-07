@@ -252,6 +252,6 @@ export function checkForMissingModifierStyles(
 /**
  * Escape special regex characters
  */
-function escapeRegExp(string: string): string {
+export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
