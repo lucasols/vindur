@@ -1,3 +1,9 @@
+/**
+ * @fileoverview This a test file for checking the types only, it does not test the runtime behavior.
+ *
+ * Just run tsc to test it.
+ */
+
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access -- some tests need to be invalid */
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
