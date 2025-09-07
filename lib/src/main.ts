@@ -131,16 +131,6 @@ export function _vSC(
     // Merge attrs with user props, giving user props precedence
     const finalProps = attrs ? { ...attrs, ...rest } : rest;
 
-    if (typeof tagOrComponent === 'string') {
-      // Native HTML element
-      return createElement(tagOrComponent, {
-        ...finalProps,
-        className: finalClassName,
-        ref,
-      });
-    }
-
-    // Custom component
     return createElement(tagOrComponent, {
       ...finalProps,
       className: finalClassName,
@@ -148,11 +138,13 @@ export function _vSC(
     });
   });
 
-  Component.displayName = `Styled(${
-    typeof tagOrComponent === 'string' ? tagOrComponent : (
-      tagOrComponent.displayName || tagOrComponent.name || 'Component'
-    )
-  })`;
+  if (process.env.NODE_ENV !== 'production') {
+    Component.displayName = `Styled(${
+      typeof tagOrComponent === 'string' ? tagOrComponent : (
+        tagOrComponent.displayName || tagOrComponent.name || 'Component'
+      )
+    })`;
+  }
 
   return Component;
 }
@@ -165,19 +157,19 @@ export function _vCWM(
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
 
+  // Precompute modifier map once per component instance
+  const modifierMap = new Map<string, string>();
+  for (const [propName, hashedClassName] of modifiers) {
+    modifierMap.set(propName, hashedClassName);
+  }
+  const modifierEntries = Array.from(modifierMap.entries());
+
   const Component = forwardRef<any, any>((props, ref) => {
     const { className: userClassName, ...otherProps } = props;
 
     // Separate style flag props from other props
     const styleProps: Record<string, boolean | string> = {};
     const finalProps: Record<string, unknown> = {};
-
-    // Create map for faster lookup
-    const modifierMap = new Map<string, string>();
-
-    for (const [propName, hashedClassName] of modifiers) {
-      modifierMap.set(propName, hashedClassName);
-    }
 
     for (const [key, value] of Object.entries(otherProps)) {
       if (modifierMap.has(key)) {
@@ -197,7 +189,7 @@ export function _vCWM(
     let finalClassName = baseClassName;
 
     // Add modifier classes for active props
-    for (const [propName, hashedClassName] of modifierMap.entries()) {
+    for (const [propName, hashedClassName] of modifierEntries) {
       const propValue = styleProps[propName];
 
       if (propValue === true) {
@@ -224,11 +216,13 @@ export function _vCWM(
     });
   });
 
-  Component.displayName = `StyledWithModifiers(${
-    typeof elementType === 'string' ? elementType : (
-      elementType.displayName || elementType.name || 'Component'
-    )
-  })`;
+  if (process.env.NODE_ENV !== 'production') {
+    Component.displayName = `StyledWithModifiers(${
+      typeof elementType === 'string' ? elementType : (
+        elementType.displayName || elementType.name || 'Component'
+      )
+    })`;
+  }
 
   return Component;
 }
