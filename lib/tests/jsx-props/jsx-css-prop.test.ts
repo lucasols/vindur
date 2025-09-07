@@ -444,6 +444,26 @@ describe('JSX css prop', () => {
     `);
   });
 
+  test('css props on custom components that are just references to unknown values should be allowed', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { CustomComponent } from 'custom';
+
+        const App: FC<{ css?: string }> = ({ css }) => (
+          // css is just being forwarded, so this should not be an error
+          <CustomComponent css={css}>
+            This should keep the css prop
+          </CustomComponent>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot();
+
+    expect(result.css).toMatchInlineSnapshot();
+  });
+
   test('should handle css prop with css function reference on custom components', async () => {
     const result = await transformWithFormat({
       source: dedent`
