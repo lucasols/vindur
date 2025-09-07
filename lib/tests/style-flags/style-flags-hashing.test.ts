@@ -108,3 +108,96 @@ test('should hash modifier class names without suffix in production mode', async
     "
   `);
 });
+
+test('referencing styled component with flags preserves style flag hash', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Child2 = styled.div\`
+        border: 1px solid gray;
+        padding: 16px;
+
+        \${() => Container}.active & {
+          border-left: 4px solid orange;
+        }
+      \`;
+
+      const Container = styled.div<{
+        active: boolean;
+      }>\`
+        padding: 8px;
+        background: white;
+
+        &.active {
+          background: yellow;
+          font-weight: bold;
+        }
+      \`;
+
+      const Child = styled.div\`
+        border: 1px solid gray;
+        padding: 16px;
+
+        \${Container}.active & {
+          border-left: 4px solid orange;
+        }
+      \`;
+
+      function Component({ active }: { active: boolean }) {
+        return (
+          <Container active={active}>
+            <Child2 />
+            <Child>
+              Child
+            </Child>
+          </Container>
+        );
+      }
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <div className={"v1560qbr-2" + (active ? " voctcyj" : "")}>
+          <div className="v1560qbr-1" />
+          <div className="v1560qbr-3">Child</div>
+        </div>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      border: 1px solid gray;
+      padding: 16px;
+
+      .v1560qbr-2.active & {
+        border-left: 4px solid orange;
+      }
+    }
+
+    .v1560qbr-2 {
+      padding: 8px;
+      background: white;
+
+      &.voctcyj {
+        background: yellow;
+        font-weight: bold;
+      }
+    }
+
+    .v1560qbr-3 {
+      border: 1px solid gray;
+      padding: 16px;
+
+      .v1560qbr-2.active & {
+        border-left: 4px solid orange;
+      }
+    }
+    "
+  `);
+});
