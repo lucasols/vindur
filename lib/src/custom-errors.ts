@@ -40,4 +40,15 @@ export class TransformWarning {
     };
     this.ignoreInLint = ignoreInLint;
   }
+
+  toJSON() {
+    const result: Record<string, unknown> = {
+      message: this.message,
+      loc: `${this.loc.filename ?? 'current_file'}:${this.loc.line}:${this.loc.column}`,
+    };
+    if (this.ignoreInLint) {
+      result.ignoreInLint = this.ignoreInLint;
+    }
+    return result;
+  }
 }

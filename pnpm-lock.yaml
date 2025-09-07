@@ -25,8 +25,8 @@ catalogs:
       specifier: ^0.52.0
       version: 0.52.0
     '@ls-stack/utils':
-      specifier: ^3.17.1
-      version: 3.17.1
+      specifier: ^3.40.0
+      version: 3.40.0
     '@playwright/test':
       specifier: ^1.54.1
       version: 1.54.1
@@ -207,7 +207,7 @@ importers:
         version: 7.27.1(@babel/core@7.28.0)
       '@ls-stack/utils':
         specifier: 'catalog:'
-        version: 3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 3.40.0
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.54.1
@@ -259,7 +259,7 @@ importers:
         version: 9.32.0
       '@ls-stack/utils':
         specifier: 'catalog:'
-        version: 3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 3.40.0
       '@types/eslint':
         specifier: ^9.6.1
         version: 9.6.1
@@ -305,7 +305,7 @@ importers:
         version: 0.3.30
       '@ls-stack/utils':
         specifier: 'catalog:'
-        version: 3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 3.40.0
       '@types/babel__core':
         specifier: 'catalog:'
         version: 7.20.5
@@ -344,7 +344,7 @@ importers:
     devDependencies:
       '@ls-stack/utils':
         specifier: 'catalog:'
-        version: 3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 3.40.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.1.0
@@ -801,8 +801,8 @@ packages:
     resolution: {integrity: sha512-NqVtO/F9SfHBSWXgc5FmC3KDnkcHNfrXIs7yzeCeVkduZYWsUscWMblK4eTmLvbGZYsmtscEtEiL/RijJJy1cw==}
     engines: {node: '>=20.0.0'}
 
-  '@ls-stack/utils@3.17.1':
-    resolution: {integrity: sha512-CRBgBDttMPmpkvpeRPnwvq9PrDVdZRsW2KtIY/yguqGtfI3USA4B24FC/w8tSp9fHG4qxVGSpo3OgT+lba9KFQ==}
+  '@ls-stack/utils@3.40.0':
+    resolution: {integrity: sha512-z7GuiIFs1ubNzXr83DoP8wQ3w1M9FBpZjpw+hrEOevCLQerOIoTQGYZL9B/Mgc5QID9DGsovfIZS1Zn2SEci+w==}
     engines: {node: '>=20.0.0'}
 
   '@nodelib/fs.scandir@2.1.5':
@@ -1603,12 +1603,9 @@ packages:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
 
-  evtmitter@0.3.3:
-    resolution: {integrity: sha512-McEl41bI+g5gEU/vQQ7eJfTzdKtCeYGwrvow+ktEp47m9/OVVQyJy9E5lKhsMIZws9uURsXi4nyc8ZmL7dX7uQ==}
+  evtmitter@1.0.2:
+    resolution: {integrity: sha512-Y3LObkozuxG0aCdzhMFoxbZyl9osl86mK5B/mIYpRaVsYf7I5bssOFYNBCFnoAgq0A6PkFjxpuojGpZu01w8Nw==}
     engines: {node: '>=14.6.0'}
-    peerDependencies:
-      react: ^18.2.0
-      react-dom: ^18.2.0
 
   expect-type@1.2.2:
     resolution: {integrity: sha512-JhFGDVJ7tmDJItKhYgJCGLOWjuK9vPxiXoUFLwLDc99NlmklilbiQJwoctZtt13+xMw91MCk/REan6MWHqDjyA==}
@@ -2190,8 +2187,8 @@ packages:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
 
-  t-result@0.3.0:
-    resolution: {integrity: sha512-i8+5uNuxj9xV1SGBM10mRVc8zPmFYwqLoBpuHWtM16uelDy6Iox0lM2Ns+ZN76GGwYUF1bz5fKMOlqeiM6qVCQ==}
+  t-result@0.6.1:
+    resolution: {integrity: sha512-a1aZsIAFYpjb0J51tZfrS93xxpTp4WY70EhZBCKcHylh/y/tF4uWXIyJUoDQKcg88lDdPlAcwuzE5JAC/4MVZg==}
     engines: {node: '>=23.0.0'}
 
   thenify-all@1.6.0:
@@ -2869,13 +2866,10 @@ snapshots:
 
   '@ls-stack/node-utils@0.2.0': {}
 
-  '@ls-stack/utils@3.17.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@ls-stack/utils@3.40.0':
     dependencies:
-      evtmitter: 0.3.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      t-result: 0.3.0
-    transitivePeerDependencies:
-      - react
-      - react-dom
+      evtmitter: 1.0.2
+      t-result: 0.6.1
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -3668,10 +3662,7 @@ snapshots:
 
   esutils@2.0.3: {}
 
-  evtmitter@0.3.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
-    dependencies:
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
+  evtmitter@1.0.2: {}
 
   expect-type@1.2.2: {}
 
@@ -4167,7 +4158,7 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
-  t-result@0.3.0: {}
+  t-result@0.6.1: {}
 
   thenify-all@1.6.0:
     dependencies:
