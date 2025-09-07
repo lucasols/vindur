@@ -76,13 +76,11 @@ describe('invalid cases - should report transform errors', () => {
     );
 
     expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-      [
-        {
-          "line": 3,
-          "messageId": "transformError",
-          "msg": "Invalid interpolation used at \`... styles = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
-        },
-      ]
+      "
+      - messageId: 'transformError'
+        msg: 'Invalid interpolation used at \`... styles = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
+        loc: '3:12'
+      "
     `);
   });
 });
@@ -96,13 +94,11 @@ describe('basic error handling', () => {
     `);
 
     expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-      [
-        {
-          "line": 3,
-          "messageId": "transformError",
-          "msg": "Invalid interpolation used at \`... styles = css\` ... \${unknownVar}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
-        },
-      ]
+      "
+      - messageId: 'transformError'
+        msg: 'Invalid interpolation used at \`... styles = css\` ... \${unknownVar}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
+        loc: '3:29'
+      "
     `);
   });
 });
@@ -137,13 +133,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing modifier styles for "&.active" in Button",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.active" in Button'
+          loc: '3:7'
+        "
       `);
     });
 
@@ -160,18 +154,14 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing modifier styles for "&.size-small" in Button",
-          },
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing modifier styles for "&.size-large" in Button",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.size-small" in Button'
+          loc: '3:7'
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.size-large" in Button'
+          loc: '3:7'
+        "
       `);
     });
 
@@ -197,18 +187,14 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing modifier styles for "&.disabled" in ComplexButton",
-          },
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing modifier styles for "&.size-large" in ComplexButton",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.disabled" in ComplexButton'
+          loc: '3:7'
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.size-large" in ComplexButton'
+          loc: '3:7'
+        "
       `);
     });
 
@@ -228,13 +214,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 3,
-            "messageId": "transformWarning",
-            "msg": "Scoped variable '---unused-color' is declared but never read",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: "Scoped variable '---unused-color' is declared but never read"
+          loc: '3:7'
+        "
       `);
     });
 
@@ -251,13 +235,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 1,
-            "messageId": "transformWarning",
-            "msg": "Scoped variable '---theme-color' is used but never declared",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: "Scoped variable '---theme-color' is used but never declared"
+          loc: '1:1'
+        "
       `);
     });
   });
@@ -290,13 +272,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 18,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing CSS classes for cx modifiers in Card: highlighted",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing CSS classes for cx modifiers in Card: highlighted'
+          loc: '18:5'
+        "
       `);
     });
 
@@ -318,13 +298,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 12,
-            "messageId": "transformWarning",
-            "msg": "Warning: Missing CSS classes for cx modifiers in Widget: warning",
-          },
-        ]
+        "
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing CSS classes for cx modifiers in Widget: warning'
+          loc: '12:10'
+        "
       `);
     });
   });
@@ -344,13 +322,11 @@ describe('warning system - onWarning callback functionality', () => {
       `);
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-        [
-          {
-            "line": 7,
-            "messageId": "transformError",
-            "msg": "Invalid interpolation used at \`... Button = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
-          },
-        ]
+        "
+        - messageId: 'transformError'
+          msg: 'Invalid interpolation used at \`... Button = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
+          loc: '7:12'
+        "
       `);
     });
   });

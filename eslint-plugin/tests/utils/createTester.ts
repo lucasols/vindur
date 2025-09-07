@@ -1,35 +1,36 @@
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
+import * as tsParser from '@typescript-eslint/parser';
 import type { Rule } from 'eslint';
 import {
   createRuleTester,
   type TestExecutionResult,
 } from 'eslint-vitest-rule-tester';
-import * as tsParser from '@typescript-eslint/parser';
 
-export function getErrorsFromResult(
-  result: TestExecutionResult,
-  include: {
-    msg?: boolean;
-    column?: boolean;
-    endLine?: boolean;
-    endColumn?: boolean;
-  } = {},
-) {
-  return result.messages.map((m) => ({
-    messageId: m.messageId,
-    data: include.msg ? m.message : undefined,
-    line: m.line,
-    column: include.column ? m.column : undefined,
-    endLine: include.endLine ? m.endLine : undefined,
-    endColumn: include.endColumn ? m.endColumn : undefined,
-  }));
+export function getErrorsFromResult(result: TestExecutionResult) {
+  return compactSnapshot(
+    result.messages.map((m) => ({
+      messageId: m.messageId,
+      data: m.message,
+    })),
+  );
 }
 
 export function getErrorsWithMsgFromResult(result: TestExecutionResult) {
-  return result.messages.map((m) => ({
-    messageId: m.messageId,
-    msg: m.message,
-    line: m.line,
-  }));
+  return compactSnapshot(
+    result.messages.map((m) => {
+      let loc = `${m.line}:${m.column}`;
+
+      if (m.endLine && m.endColumn) {
+        loc += `->${m.endLine}:${m.endColumn}`;
+      }
+
+      return {
+        messageId: m.messageId,
+        msg: m.message,
+        loc,
+      };
+    }),
+  );
 }
 
 export function createVindurTester(rule: {
