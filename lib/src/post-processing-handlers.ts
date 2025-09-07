@@ -2,11 +2,11 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
 import { TransformError } from './custom-errors';
+import { optimizeCxCall } from './visitor-handlers/cx-optimization-utils';
 import { escapeRegExp } from './visitor-handlers/style-flags-utils';
 
 // Precompiled regex for performance and lint compliance
 const WHITESPACE_RE = /\s+/;
-import { optimizeCxCall } from './visitor-handlers/cx-optimization-utils';
 
 type PostProcessingContext = {
   state: VindurPluginState;
@@ -360,7 +360,9 @@ function applyStyleFlagHashingForReferences(state: VindurPluginState): void {
     if (!flags || flags.length === 0) continue;
 
     // Split in case of composed class names (extensions)
-    const classNames = info.className.split(WHITESPACE_RE).filter((c) => c.length > 0);
+    const classNames = info.className
+      .split(WHITESPACE_RE)
+      .filter((c) => c.length > 0);
     if (classNames.length === 0) continue;
 
     const replacements: Replacement[] = [];

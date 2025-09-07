@@ -34,6 +34,18 @@ export function handleJsxCssProp(
   const isStyledComponent = context.state.styledComponents.has(elementName);
   const isCustomComponent = !isNativeDOMElement && !isStyledComponent;
 
+  // Determine if styled component ultimately renders a custom component
+  let styledUnderlyingIsCustom = false;
+  if (isStyledComponent) {
+    const styledInfo = context.state.styledComponents.get(elementName);
+    if (styledInfo) {
+      const underlying = styledInfo.element;
+      styledUnderlyingIsCustom =
+        underlying.length > 0
+        && underlying[0]?.toLowerCase() !== underlying[0];
+    }
+  }
+
   const attributes = path.node.openingElement.attributes;
   const cssAttr = findWithNarrowing(attributes, (attr) =>
     (
@@ -52,9 +64,10 @@ export function handleJsxCssProp(
     context.state.elementsWithCssContext.add(path.node);
   }
 
-  // For custom components, we keep the css attribute and replace its value
-  // For native/styled components, we remove it
-  if (!isCustomComponent) {
+  // For custom components and styled components that render custom components,
+  // we keep the css attribute (forwarding responsibility to the component).
+  // For native/styled components that render DOM, remove the css prop.
+  if (!(isCustomComponent || (isStyledComponent && styledUnderlyingIsCustom))) {
     const cssAttrIndex = attributes.indexOf(cssAttr);
     attributes.splice(cssAttrIndex, 1);
   }
@@ -98,13 +111,14 @@ export function handleJsxCssProp(
       );
       cssClassName = result.finalClassName;
     } else if (t.isIdentifier(expression)) {
-      // Handle identifier values in css prop. Two cases:
+      // Handle identifier values in css prop. Cases:
       // - If it refers to a known css() variable, keep as expression
-      // - If this is a custom component and the identifier is unknown, allow forwarding (keep as is)
+      // - If this is a custom component, or a styled component rendering a custom component,
+      //   and the identifier is unknown, allow forwarding (keep as is)
       const cssVariable = context.state.cssVariables.get(expression.name);
       if (cssVariable) {
         cssClassName = expression;
-      } else if (isCustomComponent) {
+      } else if (isCustomComponent || (isStyledComponent && styledUnderlyingIsCustom)) {
         // For custom components, allow unknown identifiers since props might be forwarded.
         cssClassName = expression;
       } else {
@@ -155,7 +169,21 @@ export function handleJsxCssProp(
   }
 
   // Add or merge with existing className
-  addCssClassNameToJsx(path, cssClassName, transformedStyledClassName, context);
+  const includeCssExpressionInClassName = !(
+    isStyledComponent
+    && styledUnderlyingIsCustom
+    && t.isJSXExpressionContainer(cssAttr.value)
+    && t.isIdentifier(cssAttr.value.expression)
+    && !context.state.cssVariables.get(cssAttr.value.expression.name)
+  );
+
+  addCssClassNameToJsx(
+    path,
+    cssClassName,
+    transformedStyledClassName,
+    context,
+    includeCssExpressionInClassName,
+  );
 
   return true;
 }
@@ -165,6 +193,7 @@ function addCssClassNameToJsx(
   cssClassName: string | t.Expression,
   styledClassName: string | undefined,
   context: { state: VindurPluginState },
+  includeCssExpressionInClassName: boolean,
 ): void {
   const attributes = path.node.openingElement.attributes;
 
@@ -202,8 +231,15 @@ function addCssClassNameToJsx(
         t.stringLiteral(finalCssClasses),
       ]);
     } else {
-      // cssClassName is an expression, need to handle styled + css expression
-      if (styledClassName) {
+      // cssClassName is an expression
+      if (!includeCssExpressionInClassName) {
+        // Only include styledClassName (if any) and ignore css expression
+        const secondArg = styledClassName ? t.stringLiteral(styledClassName) : t.stringLiteral('');
+        mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
+          t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
+          secondArg,
+        ]);
+      } else if (styledClassName) {
         mergeCall = t.callExpression(t.identifier('mergeClassNames'), [
           t.arrayExpression(spreadAttrs.map((attr) => attr.argument)),
           t.templateLiteral(
@@ -239,74 +275,100 @@ function addCssClassNameToJsx(
     if (typeof cssClassName === 'string') {
       if (t.isStringLiteral(lastClassNameAttr.value)) {
         // Merge with string literal: className="existing" -> className="existing new"
-        lastClassNameAttr.value = t.stringLiteral(
-          `${lastClassNameAttr.value.value} ${finalCssClasses}`,
-        );
+        const merged = finalCssClasses ? `${lastClassNameAttr.value.value} ${finalCssClasses}` : lastClassNameAttr.value.value;
+        lastClassNameAttr.value = t.stringLiteral(merged);
       } else if (t.isJSXExpressionContainer(lastClassNameAttr.value)) {
         // Merge with expression: className={expr} -> className={`${expr} new`}
         const existingExpr = lastClassNameAttr.value.expression;
-        lastClassNameAttr.value = t.jsxExpressionContainer(
-          t.templateLiteral(
-            [
-              t.templateElement({ raw: '', cooked: '' }),
-              t.templateElement({
-                raw: ` ${finalCssClasses}`,
-                cooked: ` ${finalCssClasses}`,
-              }),
-            ],
-            [
-              t.isJSXEmptyExpression(existingExpr) ?
-                t.stringLiteral('')
-              : existingExpr,
-            ],
-          ),
-        );
+        if (finalCssClasses) {
+          lastClassNameAttr.value = t.jsxExpressionContainer(
+            t.templateLiteral(
+              [
+                t.templateElement({ raw: '', cooked: '' }),
+                t.templateElement({
+                  raw: ` ${finalCssClasses}`,
+                  cooked: ` ${finalCssClasses}`,
+                }),
+              ],
+              [
+                t.isJSXEmptyExpression(existingExpr) ?
+                  t.stringLiteral('')
+                : existingExpr,
+              ],
+            ),
+          );
+        }
       }
     } else {
       // cssClassName is an expression
       if (t.isStringLiteral(lastClassNameAttr.value)) {
         // Merge string literal with expression: className="existing" + expr -> className={`existing ${expr}`}
-        let templatePrefix = lastClassNameAttr.value.value;
-        if (styledClassName) {
-          templatePrefix = `${lastClassNameAttr.value.value} ${styledClassName}`;
+        if (includeCssExpressionInClassName) {
+          let templatePrefix = lastClassNameAttr.value.value;
+          if (styledClassName) {
+            templatePrefix = `${lastClassNameAttr.value.value} ${styledClassName}`;
+          }
+          lastClassNameAttr.value = t.jsxExpressionContainer(
+            t.templateLiteral(
+              [
+                t.templateElement({
+                  raw: `${templatePrefix} `,
+                  cooked: `${templatePrefix} `,
+                }),
+                t.templateElement({ raw: '', cooked: '' }),
+              ],
+              [cssClassName],
+            ),
+          );
+        } else if (styledClassName) {
+          lastClassNameAttr.value = t.stringLiteral(
+            `${lastClassNameAttr.value.value} ${styledClassName}`,
+          );
         }
-        lastClassNameAttr.value = t.jsxExpressionContainer(
-          t.templateLiteral(
-            [
-              t.templateElement({
-                raw: `${templatePrefix} `,
-                cooked: `${templatePrefix} `,
-              }),
-              t.templateElement({ raw: '', cooked: '' }),
-            ],
-            [cssClassName],
-          ),
-        );
       } else if (t.isJSXExpressionContainer(lastClassNameAttr.value)) {
         // Merge expression with expression: `className={expr1} + expr2 -> className={`${expr1} ${expr2}`}`
         const existingExpr = lastClassNameAttr.value.expression;
-        let middleTemplate = ' ';
-        if (styledClassName) {
-          middleTemplate = ` ${styledClassName} `;
+        if (includeCssExpressionInClassName) {
+          let middleTemplate = ' ';
+          if (styledClassName) {
+            middleTemplate = ` ${styledClassName} `;
+          }
+          lastClassNameAttr.value = t.jsxExpressionContainer(
+            t.templateLiteral(
+              [
+                t.templateElement({ raw: '', cooked: '' }),
+                t.templateElement({
+                  raw: middleTemplate,
+                  cooked: middleTemplate,
+                }),
+                t.templateElement({ raw: '', cooked: '' }),
+              ],
+              [
+                t.isJSXEmptyExpression(existingExpr) ?
+                  t.stringLiteral('')
+                : existingExpr,
+                cssClassName,
+              ],
+            ),
+          );
+        } else if (styledClassName) {
+          lastClassNameAttr.value = t.jsxExpressionContainer(
+            t.templateLiteral(
+              [
+                t.templateElement({ raw: '', cooked: '' }),
+                t.templateElement({
+                  raw: ` ${styledClassName}`,
+                  cooked: ` ${styledClassName}`,
+                }),
+              ],
+              [
+                t.isJSXEmptyExpression(existingExpr) ?
+                  t.stringLiteral('')
+                : existingExpr,
+              ],
+            ),
+          );
         }
-        lastClassNameAttr.value = t.jsxExpressionContainer(
-          t.templateLiteral(
-            [
-              t.templateElement({ raw: '', cooked: '' }),
-              t.templateElement({
-                raw: middleTemplate,
-                cooked: middleTemplate,
-              }),
-              t.templateElement({ raw: '', cooked: '' }),
-            ],
-            [
-              t.isJSXEmptyExpression(existingExpr) ?
-                t.stringLiteral('')
-              : existingExpr,
-              cssClassName,
-            ],
-          ),
-        );
       }
     }
   } else {
@@ -320,16 +382,20 @@ function addCssClassNameToJsx(
     } else {
       let classNameValue: t.Expression;
       if (styledClassName) {
-        classNameValue = t.templateLiteral(
-          [
-            t.templateElement({
-              raw: `${styledClassName} `,
-              cooked: `${styledClassName} `,
-            }),
-            t.templateElement({ raw: '', cooked: '' }, true),
-          ],
-          [cssClassName],
-        );
+        if (includeCssExpressionInClassName) {
+          classNameValue = t.templateLiteral(
+            [
+              t.templateElement({
+                raw: `${styledClassName} `,
+                cooked: `${styledClassName} `,
+              }),
+              t.templateElement({ raw: '', cooked: '' }, true),
+            ],
+            [cssClassName],
+          );
+        } else {
+          classNameValue = t.stringLiteral(styledClassName);
+        }
       } else {
         classNameValue = cssClassName;
       }

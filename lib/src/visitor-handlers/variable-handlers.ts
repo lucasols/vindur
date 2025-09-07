@@ -174,8 +174,7 @@ export function handleStyledElementAssignment(
   const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
-    !context.state.vindurImports.has('styled')
-    || !path.node.init
+    !path.node.init
     || !t.isTaggedTemplateExpression(path.node.init)
     || !t.isIdentifier(path.node.id)
   ) {
@@ -326,8 +325,7 @@ export function handleStyledExtensionAssignment(
   const { context, dev, fileHash, classIndex, filePath } = handlerContext;
 
   if (
-    !context.state.vindurImports.has('styled')
-    || !path.node.init
+    !path.node.init
     || !t.isTaggedTemplateExpression(path.node.init)
     || !t.isIdentifier(path.node.id)
   ) {

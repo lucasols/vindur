@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('JSX css prop', () => {
   test('should handle css prop with template literal', async () => {
@@ -471,6 +471,50 @@ describe('JSX css prop', () => {
     `);
 
     expect(result.css).toMatchInlineSnapshot(`""`);
+  });
+
+  test('css props on style extensions that are just references to unknown values should be allowed', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { CustomComponent } from '@/custom';
+
+        const Component = styled(CustomComponent)\`
+          color: red;
+        \`
+
+        const App: FC<{ css?: string }> = ({ css }) => (
+          // css is just being forwarded, so this should not be an error
+          <Component css={css}>
+            This should keep the css prop
+          </Component>
+        )
+      `,
+      overrideDefaultFs: createFsMock({
+        'custom.ts': dedent`
+          export const CustomComponent = () => <div>Custom Component</div>
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { CustomComponent } from "@/custom";
+      const App: FC<{
+        css?: string;
+      }> = ({ css }) => (
+        // css is just being forwarded, so this should not be an error
+        <CustomComponent css={css} className={"v1560qbr-1-Component"}>
+          This should keep the css prop
+        </CustomComponent>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Component {
+        color: red;
+      }
+      "
+    `);
   });
 
   test('should handle css prop with css function reference on custom components', async () => {
