@@ -170,7 +170,7 @@ export const checkTransformRule: Rule.RuleModule = {
   },
 
   create(context) {
-    const filename = context.filename?.startsWith('/') ? context.filename : '/test.ts';
+    const filename = context.filename.startsWith('/') ? context.filename : '/test.ts';
     const source = context.sourceCode.getText();
     const rawOptions = context.options[0];
     
