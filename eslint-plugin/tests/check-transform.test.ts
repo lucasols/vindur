@@ -1,11 +1,6 @@
 /* eslint-disable vitest/expect-expect -- not needed */
 import { dedent } from '@ls-stack/utils/dedent';
-import {
-  existsSync,
-  readFileSync,
-  type PathLike,
-  type PathOrFileDescriptor,
-} from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { checkTransformRule } from '../src/rules/check-transform';
 import {
@@ -90,7 +85,6 @@ describe('invalid cases - should report transform errors', () => {
       ]
     `);
   });
-
 });
 
 describe('rule options', () => {
@@ -154,17 +148,17 @@ describe('additional features', () => {
   });
 });
 
-describe('file system mocking scenarios', () => {
-  test('import aliases with existing file', async () => {
-    // Mock file system to simulate existing file
+describe('cross-file import behaviors', () => {
+  test('vindurFn imported from another file', async () => {
+    // Mock external file with vindurFn
     mockExistsSync.mockImplementation((path) => {
-      return path === '/src/vindur.ts';
+      return path === '/src/utils/styles.ts';
     });
     mockReadFileSync.mockImplementation((path) => {
-      if (path === '/src/vindur.ts') {
-        return `
-          export const css = () => 'mocked-css-function';
-          export const styled = () => 'mocked-styled-function';
+      if (path === '/src/utils/styles.ts') {
+        return dedent`
+          import { vindurFn } from 'vindur';
+          export const spacing = vindurFn((size: number) => \`padding: \${size}px\`);
         `;
       }
       throw new Error(`File not found: ${String(path)}`);
@@ -172,8 +166,12 @@ describe('file system mocking scenarios', () => {
 
     await valid({
       code: dedent`
-        import { css } from '@/vindur';
-        const styles = css\`color: red;\`;
+        import { css } from 'vindur';
+        import { spacing } from '@/utils/styles';
+        const styles = css\`
+          color: red;
+          \${spacing(16)}
+        \`;
       `,
       options: [
         {
@@ -183,11 +181,29 @@ describe('file system mocking scenarios', () => {
     });
   });
 
-  test('import aliases with non-existing file', async () => {
+  test('variable interpolation from external file', async () => {
+    // Mock external file with constants
+    mockExistsSync.mockImplementation((path) => {
+      return path === '/src/theme/colors.ts';
+    });
+    mockReadFileSync.mockImplementation((path) => {
+      if (path === '/src/theme/colors.ts') {
+        return dedent`
+          export const BRAND_PRIMARY = '#667eea';
+          export const BRAND_SECONDARY = '#764ba2';
+        `;
+      }
+      throw new Error(`File not found: ${String(path)}`);
+    });
+
     await valid({
       code: dedent`
-        import { css } from '@/vindur';
-        const styles = css\`color: red;\`;
+        import { css } from 'vindur';
+        import { BRAND_PRIMARY } from '@/theme/colors';
+        const styles = css\`
+          color: \${BRAND_PRIMARY};
+          border: 1px solid \${BRAND_PRIMARY};
+        \`;
       `,
       options: [
         {
@@ -197,4 +213,74 @@ describe('file system mocking scenarios', () => {
     });
   });
 
+  test('import alias resolving non-existing file should error', async () => {
+    const { result } = await invalid({
+      code: dedent`
+        import { css } from 'vindur';
+        import { nonExistent } from '@/missing-file';
+        const styles = css\`
+          color: \${nonExistent};
+        \`;
+      `,
+      options: [
+        {
+          importAliases: { '@': '/src' },
+        },
+      ],
+    });
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      [
+        {
+          "line": 1,
+          "messageId": "transformError",
+          "msg": "/test.ts: File not found: /src/missing-file.ts",
+        },
+      ]
+    `);
+  });
+
+  test('multiple cross-file imports with mixed types', async () => {
+    // Mock multiple external files
+    mockExistsSync.mockImplementation((path) => {
+      return path === '/src/constants.ts' || path === '/src/mixins.ts';
+    });
+    mockReadFileSync.mockImplementation((path) => {
+      if (path === '/src/constants.ts') {
+        return dedent`
+          export const BORDER_RADIUS = '8px';
+          export const SHADOW_COLOR = 'rgba(0, 0, 0, 0.1)';
+        `;
+      }
+      if (path === '/src/mixins.ts') {
+        return dedent`
+          import { vindurFn } from 'vindur';
+          export const flexCenter = vindurFn(() => \`
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          \`);
+        `;
+      }
+      throw new Error(`File not found: ${String(path)}`);
+    });
+
+    await valid({
+      code: dedent`
+        import { css } from 'vindur';
+        import { BORDER_RADIUS, SHADOW_COLOR } from '@/constants';
+        import { flexCenter } from '@/mixins';
+        const styles = css\`
+          \${flexCenter()}
+          border-radius: \${BORDER_RADIUS};
+          box-shadow: 0 2px 4px \${SHADOW_COLOR};
+        \`;
+      `,
+      options: [
+        {
+          importAliases: { '@': '/src' },
+        },
+      ],
+    });
+  });
 });
