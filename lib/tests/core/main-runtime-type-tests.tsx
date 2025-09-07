@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access -- some tests need to be invalid */
+ 
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
 import {
   forwardRef,
