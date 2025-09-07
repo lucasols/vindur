@@ -1,7 +1,7 @@
 import type { types as t } from '@babel/core';
 
 export class TransformError extends Error {
-  loc: { column: number; line: number; filename?: string } | undefined;
+  loc: { column: number; line: number; filename?: string };
   /** errors to be ignored when using the ESLint plugin. Only errors that are redundant with TypeScript errors should be ignored. */
   ignoreInLint: boolean | undefined;
 

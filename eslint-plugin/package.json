@@ -33,9 +33,6 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "dependencies": {
-    "vindur": "workspace:*"
-  },
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@ls-stack/utils": "catalog:",
@@ -50,6 +47,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "eslint": "^9.0.0"
+    "eslint": "^9.0.0",
+    "vindur": "*"
   }
 }

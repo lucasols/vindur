@@ -524,7 +524,7 @@ describe('Warnings for Missing CSS Classes', () => {
               className={
                 "v1560qbr-1-FilterButton " +
                 cx({
-                  "v1560qbr-3-active": activeFilter === "blocked",
+                  "v1560qbr-2-active": activeFilter === "blocked",
                 })
               }
             >
