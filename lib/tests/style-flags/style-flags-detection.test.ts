@@ -36,10 +36,9 @@ test('should only apply to styled components, not regular DOM elements', async (
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component() {
+    "function Component() {
       return (
-        <div className={cx("v1560qbr-1-StyledWithModifier", "voctcyj-active")}>
+        <div className="v1560qbr-1-StyledWithModifier voctcyj-active">
           Content
         </div>
       );
@@ -110,16 +109,9 @@ test('should extract boolean and string union properties from TypeScript generic
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component() {
+    "function Component() {
       return (
-        <button
-          className={cx(
-            "v1560qbr-1-Button",
-            "v1puiack-primary",
-            "vr4ikfs-size-large",
-          )}
-        >
+        <button className="v1560qbr-1-Button v1puiack-primary vr4ikfs-size-large">
           Click me
         </button>
       );
@@ -202,17 +194,16 @@ test('should support extending custom components with style flags', async () => 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const ButtonElement = ({ children, ...props }) => (
+    "const ButtonElement = ({ children, ...props }) => (
       <button {...props}>{children}</button>
     );
     function Component({ isChecked }) {
       return (
         <ButtonElement
-          className={cx(
-            "v1560qbr-1-CheckboxContainer",
-            isChecked && "v7k0mdb-checked",
-          )}
+          className={
+            "v1560qbr-1-CheckboxContainer" +
+            (isChecked ? " v7k0mdb-checked" : "")
+          }
         ></ButtonElement>
       );
     }

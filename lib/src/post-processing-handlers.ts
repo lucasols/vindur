@@ -2,6 +2,7 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import type { ImportedFunctions, VindurPluginState } from './babel-plugin';
 import { TransformError } from './custom-errors';
+import { optimizeCxCall } from './visitor-handlers/cx-optimization-utils';
 
 type PostProcessingContext = {
   state: VindurPluginState;
@@ -245,6 +246,45 @@ export function cleanupImports(
   });
 }
 
+export function optimizeCxCalls(
+  file: { path: NodePath },
+  context: PostProcessingContext,
+): void {
+  let hasOptimizations = false;
+
+  file.path.traverse({
+    CallExpression(path) {
+      const optimized = optimizeCxCall(path.node);
+      if (optimized !== null) {
+        path.replaceWith(optimized);
+        hasOptimizations = true;
+      }
+    },
+  });
+
+  // If we optimized some cx calls, we might be able to remove the cx import
+  if (hasOptimizations) {
+    // Check if cx is still used anywhere
+    let cxStillUsed = false;
+    file.path.traverse({
+      CallExpression(path) {
+        if (
+          t.isIdentifier(path.node.callee) &&
+          path.node.callee.name === 'cx'
+        ) {
+          cxStillUsed = true;
+          path.stop();
+        }
+      },
+    });
+
+    // Remove cx from vindurImports if it's no longer used
+    if (!cxStillUsed) {
+      context.state.vindurImports.delete('cx');
+    }
+  }
+}
+
 export function performPostProcessing(
   file: { path: NodePath },
   context: PostProcessingContext,
@@ -253,7 +293,10 @@ export function performPostProcessing(
   // Step 1: Resolve forward references in CSS rules
   resolveForwardReferences(context.state, filePath);
 
-  // Step 2: Clean up imports
+  // Step 2: Optimize cx() calls
+  optimizeCxCalls(file, context);
+
+  // Step 3: Clean up imports
   cleanupImports(file, context);
 }
 

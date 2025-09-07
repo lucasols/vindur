@@ -33,10 +33,9 @@ test('should hash modifier class names in dev mode', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component() {
+    "function Component() {
       return (
-        <div className={cx("v1560qbr-1-Widget", "voctcyj-active")}>Content</div>
+        <div className="v1560qbr-1-Widget voctcyj-active">Content</div>
       );
     }
     "
@@ -90,9 +89,8 @@ test('should hash modifier class names without suffix in production mode', async
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component() {
-      return <div className={cx("v1560qbr-1", "voctcyj")}>Content</div>;
+    "function Component() {
+      return <div className="v1560qbr-1 voctcyj">Content</div>;
     }
     "
   `);
