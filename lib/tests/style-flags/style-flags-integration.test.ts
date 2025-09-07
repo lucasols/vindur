@@ -35,7 +35,7 @@ test('should work with existing className', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <button className="v1560qbr-1-Button extra-class v1puiack-primary">
+        <button className={"v1560qbr-1-Button extra-class v1puiack-primary"}>
           Click me
         </button>
       );

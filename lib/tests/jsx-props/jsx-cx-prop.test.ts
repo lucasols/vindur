@@ -344,7 +344,9 @@ describe('JSX cx prop transformation', () => {
               <div
                 className={
                   "v1560qbr-1-StyledDiv " +
-                  "noHash"
+                  cx({
+                    noHash: true,
+                  })
                 }
               />
             );
@@ -458,7 +460,9 @@ describe('JSX cx prop transformation', () => {
                 <div
                   className={
                     "v1560qbr-7-css-prop-7 " +
-                    "v1560qbr-8-active"
+                    cx({
+                      "v1560qbr-8-active": true,
+                    })
                   }
                 >
                   Card content
@@ -467,7 +471,9 @@ describe('JSX cx prop transformation', () => {
                 <div
                   className={
                     "v1560qbr-9-css-prop-9 " +
-                    "v1560qbr-10-active"
+                    cx({
+                      "v1560qbr-10-active": true,
+                    })
                   }
                 >
                   Card content

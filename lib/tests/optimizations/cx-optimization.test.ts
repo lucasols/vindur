@@ -36,7 +36,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component() {
-          return <div className="class1 class2">Content</div>;
+          return <div className={"class1 class2"}>Content</div>;
         }
         "
       `);
@@ -55,7 +55,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component() {
-          return <div className="active loading">Content</div>;
+          return <div className={"active loading"}>Content</div>;
         }
         "
       `);
@@ -74,7 +74,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component() {
-          return <div className="base active extra">Content</div>;
+          return <div className={"base" + " active extra"}>Content</div>;
         }
         "
       `);
@@ -140,9 +140,7 @@ describe('cx() optimization', () => {
           return (
             <div
               className={
-                "base" +
-                (isActive ? " active" : "") +
-                (isDisabled ? " disabled" : "")
+                "base" + (isActive ? " active" : "") + (isDisabled ? " disabled" : "")
               }
             >
               Content
@@ -172,9 +170,7 @@ describe('cx() optimization', () => {
         "function Component({ isActive, isDisabled }) {
           return (
             <div
-              className={
-                (isActive ? "active" : "") + (isDisabled ? " disabled" : "")
-              }
+              className={(isActive ? "active" : "") + (isDisabled ? " disabled" : "")}
             >
               Content
             </div>
@@ -204,15 +200,17 @@ describe('cx() optimization', () => {
           return (
             <div
               className={
-                "base loading" +
-                (isActive ? " active" : "") +
-                (isDisabled ? " disabled" : "")
+                "base" +
+                (" loading" +
+                  (isActive ? " active" : "") +
+                  (isDisabled ? " disabled" : ""))
               }
             >
               Content
             </div>
           );
         }
+        "
       `);
     });
 
@@ -274,9 +272,7 @@ describe('cx() optimization', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "function Component({ active }) {
           return (
-            <div
-              className={"v1560qbr-1-Button" + (active ? " voctcyj-active" : "")}
-            >
+            <div className={"v1560qbr-1-Button" + (active ? " voctcyj-active" : "")}>
               Content
             </div>
           );
@@ -402,7 +398,15 @@ describe('cx() optimization', () => {
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
         function Component({ className }) {
-          return <div className={cx({ [className]: true })}>Content</div>;
+          return (
+            <div
+              className={cx({
+                [className]: true,
+              })}
+            >
+              Content
+            </div>
+          );
         }
         "
       `);
@@ -440,9 +444,8 @@ describe('cx() optimization', () => {
       });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "import { cx } from "vindur";
-        function Component({ a, b, c }) {
-          return <div className={cx(a && b && c && "complex")}>Content</div>;
+        "function Component({ a, b, c }) {
+          return <div className={a && b && c ? "complex" : ""}>Content</div>;
         }
         "
       `);
@@ -518,8 +521,8 @@ describe('cx() optimization', () => {
         "function Component() {
           return (
             <div>
-              <span className="class1 class2">Span</span>
-              <p className="class3 class4">Paragraph</p>
+              <span className={"class1 class2"}>Span</span>
+              <p className={"class3 class4"}>Paragraph</p>
             </div>
           );
         }
@@ -548,7 +551,7 @@ describe('cx() optimization', () => {
         function Component({ dynamicClasses }) {
           return (
             <div>
-              <span className="class1 class2">Optimized</span>
+              <span className={"class1 class2"}>Optimized</span>
               <p className={cx(dynamicClasses)}>Not optimized</p>
             </div>
           );

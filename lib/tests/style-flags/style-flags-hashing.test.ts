@@ -34,9 +34,7 @@ test('should hash modifier class names in dev mode', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return (
-        <div className="v1560qbr-1-Widget voctcyj-active">Content</div>
-      );
+      return <div className={"v1560qbr-1-Widget voctcyj-active"}>Content</div>;
     }
     "
   `);
@@ -90,7 +88,7 @@ test('should hash modifier class names without suffix in production mode', async
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return <div className="v1560qbr-1 voctcyj">Content</div>;
+      return <div className={"v1560qbr-1 voctcyj"}>Content</div>;
     }
     "
   `);
