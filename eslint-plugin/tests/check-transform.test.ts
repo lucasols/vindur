@@ -32,7 +32,7 @@ beforeEach(() => {
   // Default mock behavior - files don't exist
   mockExistsSync.mockReturnValue(false);
   mockReadFileSync.mockImplementation((path) => {
-    throw new Error(`File not found: ${path}`);
+    throw new Error(`File not found: ${String(path)}`);
   });
 });
 
@@ -340,17 +340,17 @@ describe('comprehensive Vindur transform scenarios', () => {
 describe('file system mocking scenarios', () => {
   test('import aliases with existing file', async () => {
     // Mock file system to simulate existing file
-    mockExistsSync.mockImplementation((path: PathLike) => {
+    mockExistsSync.mockImplementation((path) => {
       return path === '/src/vindur.js';
     });
-    mockReadFileSync.mockImplementation((path: PathOrFileDescriptor) => {
+    mockReadFileSync.mockImplementation((path) => {
       if (path === '/src/vindur.js') {
         return `
           export const css = () => 'mocked-css-function';
           export const styled = () => 'mocked-styled-function';
         `;
       }
-      throw new Error(`File not found: ${path}`);
+      throw new Error(`File not found: ${String(path)}`);
     });
 
     await valid({
@@ -402,7 +402,7 @@ describe('file system mocking scenarios', () => {
           export const SECONDARY_COLOR = '#6c757d';
         `;
       }
-      throw new Error(`File not found: ${path}`);
+      throw new Error(`File not found: ${String(path)}`);
     });
 
     await valid(
@@ -432,7 +432,7 @@ describe('file system mocking scenarios', () => {
           export const buttonStyles = 'button-styles';
         `;
       }
-      throw new Error(`File not found: ${path}`);
+      throw new Error(`File not found: ${String(path)}`);
     });
 
     const { result } = await invalid(
@@ -481,7 +481,7 @@ describe('file system mocking scenarios', () => {
           export const baseStyles = 'base-component-styles';
         `;
       }
-      throw new Error(`File not found: ${path}`);
+      throw new Error(`File not found: ${String(path)}`);
     });
 
     await valid({
