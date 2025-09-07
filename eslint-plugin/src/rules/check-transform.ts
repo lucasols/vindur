@@ -4,9 +4,17 @@ import { transform, TransformError, TransformWarning, type TransformFS } from 'v
 import type { Rule } from 'eslint';
 import type { VindurPluginOptions } from '../types';
 
-type RuleOptions = VindurPluginOptions;
+type RuleOptions = {
+  // Plugin always runs in dev mode with warnings enabled
+};
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
+
+function stripFilenameFromMessage(message: string): string {
+  // Remove filename prefix like "/path/to/file.tsx: " from the beginning of error messages
+  // ESLint already provides filename context, so this is redundant
+  return message.replace(/^\/[^:]+:\s*/, '');
+}
 function shouldProcessFile(filename: string, source: string): boolean {
   if (!JS_EXTENSIONS.includes(extname(filename))) {
     return false;
@@ -22,7 +30,7 @@ function shouldProcessFile(filename: string, source: string): boolean {
          source.includes('css=');
 }
 
-function runVindurTransform(filename: string, source: string, options: RuleOptions) {
+function runVindurTransform(filename: string, source: string) {
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
     exists: (fileAbsPath: string) => existsSync(fileAbsPath),
@@ -30,37 +38,37 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
 
   const errors: Array<{ message: string; line: number; column: number; type: 'error' | 'warning' }> = [];
 
-  // Collect warnings via callback
-  const onWarning = options.reportWarnings !== false ? (warning: TransformWarning) => {
+  // Always collect warnings - plugin runs in dev mode with warnings enabled
+  const onWarning = (warning: TransformWarning) => {
     errors.push({
-      message: warning.message,
+      message: stripFilenameFromMessage(warning.message),
       line: warning.loc.line,
       column: warning.loc.column,
       type: 'warning'
     });
-  } : undefined;
+  };
 
   try {
     transform({
       fileAbsPath: filename,
       source,
-      dev: options.dev ?? true,
+      dev: true, // Always run in dev mode
       fs,
-      importAliases: options.importAliases ?? {},
+      importAliases: {}, // No import aliases support for simplicity
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
     });
   } catch (error) {
     if (error instanceof TransformError) {
       errors.push({
-        message: error.message,
+        message: stripFilenameFromMessage(error.message),
         line: error.loc?.line ?? 1,
         column: error.loc?.column ?? 0,
         type: 'error'
       });
     } else {
       errors.push({
-        message: error instanceof Error ? error.message : String(error),
+        message: stripFilenameFromMessage(error instanceof Error ? error.message : String(error)),
         line: 1,
         column: 0,
         type: 'error'
@@ -79,26 +87,7 @@ export const checkTransformRule: Rule.RuleModule = {
       category: 'Possible Errors',
       recommended: true,
     },
-    schema: [
-      {
-        type: 'object',
-        properties: {
-          importAliases: {
-            type: 'object',
-            additionalProperties: {
-              type: 'string'
-            }
-          },
-          dev: {
-            type: 'boolean'
-          },
-          reportWarnings: {
-            type: 'boolean'
-          }
-        },
-        additionalProperties: false
-      }
-    ],
+    schema: [], // No options - plugin always runs in dev mode with warnings
     messages: {
       transformError: '{{message}}',
       transformWarning: '{{message}}'
@@ -108,32 +97,13 @@ export const checkTransformRule: Rule.RuleModule = {
   create(context) {
     const filename = context.filename.startsWith('/') ? context.filename : '/test.ts';
     const source = context.sourceCode.getText();
-    const rawOptions = context.options[0];
-    
-    const options: RuleOptions = {
-      importAliases: {},
-      dev: true,
-      reportWarnings: true,
-    };
-    
-    if (rawOptions && typeof rawOptions === 'object') {
-      if ('importAliases' in rawOptions && typeof rawOptions.importAliases === 'object' && rawOptions.importAliases) {
-        options.importAliases = rawOptions.importAliases as Record<string, string>;
-      }
-      if ('dev' in rawOptions && typeof rawOptions.dev === 'boolean') {
-        options.dev = rawOptions.dev;
-      }
-      if ('reportWarnings' in rawOptions && typeof rawOptions.reportWarnings === 'boolean') {
-        options.reportWarnings = rawOptions.reportWarnings;
-      }
-    }
 
     // Only process relevant files
     if (!shouldProcessFile(filename, source)) return {};
 
     return {
       Program(node) {
-        const result = runVindurTransform(filename, source, options);
+        const result = runVindurTransform(filename, source);
         
         for (const error of result.errors) {
           context.report({

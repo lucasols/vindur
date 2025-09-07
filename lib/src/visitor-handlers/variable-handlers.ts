@@ -7,10 +7,13 @@ import {
   processStyledExtension,
   processStyledTemplate,
 } from '../css-processing';
+import { createLocationFromTemplateLiteral } from '../css-source-map';
 import { TransformError, TransformWarning } from '../custom-errors';
 import { isVariableExported } from './handler-utils';
-import { extractStyleFlags, updateCssSelectorsForStyleFlags } from './style-flags-utils';
-import { createLocationFromTemplateLiteral } from '../css-source-map';
+import {
+  extractStyleFlags,
+  updateCssSelectorsForStyleFlags,
+} from './style-flags-utils';
 import {
   LOWERCASE_START_REGEX,
   parseStyledElementTag,
@@ -76,7 +79,7 @@ export function handleCssVariableAssignment(
   }
 
   const varName = path.node.id.name;
-  
+
   // Capture location information from the template literal
   const sourceContent = context.state.sourceContent || '';
   const location = createLocationFromTemplateLiteral(
@@ -84,7 +87,7 @@ export function handleCssVariableAssignment(
     filePath,
     sourceContent,
   );
-  
+
   const result = processStyledTemplate(
     path.node.init.quasi,
     context,
@@ -104,21 +107,20 @@ export function handleCssVariableAssignment(
     cssContent: result.cssContent,
   });
 
-  // Inject warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0) {
-    const declarationStatement = path.findParent((p) =>
-      p.isVariableDeclaration(),
-    );
-    if (declarationStatement) {
-      for (const warning of result.warnings) {
-        const warnStatement = t.expressionStatement(
-          t.callExpression(
-            t.memberExpression(t.identifier('console'), t.identifier('warn')),
-            [t.stringLiteral(warning)],
-          ),
-        );
-        declarationStatement.insertAfter(warnStatement);
-      }
+  // Emit warnings for scoped variables in dev mode
+  if (
+    dev
+    && result.warnings
+    && result.warnings.length > 0
+    && context.onWarning
+  ) {
+    for (const warning of result.warnings) {
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+        filePath,
+      );
+      context.onWarning(transformWarning);
     }
   }
 
@@ -178,7 +180,12 @@ export function handleStyledElementAssignment(
   classIndex.current++;
 
   // Emit warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0 && context.onWarning) {
+  if (
+    dev
+    && result.warnings
+    && result.warnings.length > 0
+    && context.onWarning
+  ) {
     for (const warning of result.warnings) {
       const transformWarning = new TransformWarning(
         warning,

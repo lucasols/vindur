@@ -1,14 +1,14 @@
-import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
-import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
-import {
-  processStyledTemplate,
-  processKeyframes,
-  processGlobalStyle,
-} from '../css-processing';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { CssProcessingContext } from '../css-processing';
+import {
+  processGlobalStyle,
+  processKeyframes,
+  processStyledTemplate,
+} from '../css-processing';
 import { createLocationFromTemplateLiteral } from '../css-source-map';
+import { TransformError, TransformWarning } from '../custom-errors';
 
 type TaggedTemplateHandlerContext = {
   context: CssProcessingContext;
@@ -23,7 +23,8 @@ export function handleCssTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } =
+    handlerContext;
 
   if (
     !context.state.vindurImports.has('css')
@@ -38,7 +39,7 @@ export function handleCssTaggedTemplate(
     sourceFilePath,
     sourceContent,
   );
-  
+
   const result = processStyledTemplate(
     path.node.quasi,
     context,
@@ -52,19 +53,20 @@ export function handleCssTaggedTemplate(
   );
   classIndex.current++;
 
-  // Inject warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0) {
-    const statement = path.getStatementParent();
-    if (statement) {
-      for (const warning of result.warnings) {
-        const warnStatement = t.expressionStatement(
-          t.callExpression(
-            t.memberExpression(t.identifier('console'), t.identifier('warn')),
-            [t.stringLiteral(warning)],
-          ),
-        );
-        statement.insertAfter(warnStatement);
-      }
+  // Emit warnings for scoped variables in dev mode
+  if (
+    dev
+    && result.warnings
+    && result.warnings.length > 0
+    && context.onWarning
+  ) {
+    for (const warning of result.warnings) {
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+        sourceFilePath,
+      );
+      context.onWarning(transformWarning);
     }
   }
 
@@ -78,7 +80,8 @@ export function handleKeyframesTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } =
+    handlerContext;
 
   if (
     !context.state.vindurImports.has('keyframes')
@@ -115,7 +118,8 @@ export function handleGlobalStyleTaggedTemplate(
   path: NodePath<t.TaggedTemplateExpression>,
   handlerContext: TaggedTemplateHandlerContext,
 ): boolean {
-  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } = handlerContext;
+  const { context, dev, fileHash, classIndex, sourceFilePath, sourceContent } =
+    handlerContext;
 
   if (
     !context.state.vindurImports.has('createGlobalStyle')
@@ -139,19 +143,20 @@ export function handleGlobalStyleTaggedTemplate(
     location,
   );
 
-  // Inject warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0) {
-    const statement = path.getStatementParent();
-    if (statement) {
-      for (const warning of result.warnings) {
-        const warnStatement = t.expressionStatement(
-          t.callExpression(
-            t.memberExpression(t.identifier('console'), t.identifier('warn')),
-            [t.stringLiteral(warning)],
-          ),
-        );
-        statement.insertAfter(warnStatement);
-      }
+  // Emit warnings for scoped variables in dev mode
+  if (
+    dev
+    && result.warnings
+    && result.warnings.length > 0
+    && context.onWarning
+  ) {
+    for (const warning of result.warnings) {
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+        sourceFilePath,
+      );
+      context.onWarning(transformWarning);
     }
   }
 

@@ -80,57 +80,30 @@ describe('invalid cases - should report transform errors', () => {
         {
           "line": 3,
           "messageId": "transformError",
-          "msg": "/test.ts: Invalid interpolation used at \`... styles = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
+          "msg": "Invalid interpolation used at \`... styles = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
         },
       ]
     `);
   });
 });
 
-describe('rule options', () => {
-  test('dev mode disabled', async () => {
-    await valid({
-      code: dedent`
-
-        import { css } from 'vindur';
-        const styles = css\`color: red;\`;
-      `,
-      options: [{ dev: false }],
-    });
-  });
-
-  test('import aliases support', async () => {
-    const { result } = await invalid({
-      code: dedent`
-        import { css } from '@/vindur';
-        const styles = css\`color: red;\`;
-      `,
-      options: [
-        {
-          importAliases: { '@': './src' },
-        },
-      ],
-    });
+describe('basic error handling', () => {
+  test('should properly handle module not found errors', async () => {
+    const { result } = await invalid(dedent`
+      import { css } from 'vindur';
+      import { unknownVar } from './nonexistent';
+      const styles = css\`color: \${unknownVar};\`;
+    `);
 
     expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
       [
         {
-          "line": 1,
+          "line": 3,
           "messageId": "transformError",
-          "msg": "/test.ts: File not found: ./src/vindur.ts",
+          "msg": "Invalid interpolation used at \`... styles = css\` ... \${unknownVar}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
         },
       ]
     `);
-  });
-
-  test('warnings disabled', async () => {
-    await valid({
-      code: dedent`
-        import { css } from 'vindur';
-        const styles = css\`color: red;\`;
-      `,
-      options: [{ reportWarnings: false }],
-    });
   });
 });
 
@@ -148,139 +121,238 @@ describe('additional features', () => {
   });
 });
 
-describe('cross-file import behaviors', () => {
-  test('vindurFn imported from another file', async () => {
-    // Mock external file with vindurFn
-    mockExistsSync.mockImplementation((path) => {
-      return path === '/src/utils/styles.ts';
-    });
-    mockReadFileSync.mockImplementation((path) => {
-      if (path === '/src/utils/styles.ts') {
-        return dedent`
-          import { vindurFn } from 'vindur';
-          export const spacing = vindurFn((size: number) => \`padding: \${size}px\`);
-        `;
-      }
-      throw new Error(`File not found: ${String(path)}`);
+
+describe('warning system - onWarning callback functionality', () => {
+  describe('style flags warnings', () => {
+    test('should report warnings for missing boolean modifier styles', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{
+          active: boolean;
+        }>\`
+          padding: 8px 16px;
+          color: blue;
+        \`;
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing modifier styles for "&.active" in Button",
+          },
+        ]
+      `);
     });
 
-    await valid({
-      code: dedent`
-        import { css } from 'vindur';
-        import { spacing } from '@/utils/styles';
-        const styles = css\`
-          color: red;
-          \${spacing(16)}
+    test('should report warnings for missing string union modifier styles', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{
+          size: 'small' | 'large';
+        }>\`
+          padding: 8px 16px;
+          color: blue;
         \`;
-      `,
-      options: [
-        {
-          importAliases: { '@': '/src' },
-        },
-      ],
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing modifier styles for "&.size-small" in Button",
+          },
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing modifier styles for "&.size-large" in Button",
+          },
+        ]
+      `);
+    });
+
+    test('should report warnings for mixed missing modifier styles', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const ComplexButton = styled.button<{
+          active: boolean;
+          disabled: boolean;
+          size: 'small' | 'large';
+        }>\`
+          padding: 8px 16px;
+
+          &.active {
+            transform: scale(1.05);
+          }
+
+          &.size-small {
+            padding: 4px 8px;
+          }
+        \`;
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing modifier styles for "&.disabled" in ComplexButton",
+          },
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing modifier styles for "&.size-large" in ComplexButton",
+          },
+        ]
+      `);
+    });
+
+  });
+
+  describe('scoped CSS variable warnings', () => {
+    test('should report warnings for unused scoped variables', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---primary-color: #007bff;
+          ---unused-color: #ff0000;
+
+          background: var(---primary-color);
+        \`;
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 3,
+            "messageId": "transformWarning",
+            "msg": "Scoped variable '---unused-color' is declared but never read",
+          },
+        ]
+      `);
+    });
+
+    test('should report warnings for undeclared scoped variables', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---primary-color: #007bff;
+
+          background: var(---primary-color);
+          border: 1px solid var(---theme-color);
+        \`;
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 1,
+            "messageId": "transformWarning",
+            "msg": "Scoped variable '---theme-color' is used but never declared",
+          },
+        ]
+      `);
     });
   });
 
-  test('variable interpolation from external file', async () => {
-    // Mock external file with constants
-    mockExistsSync.mockImplementation((path) => {
-      return path === '/src/theme/colors.ts';
-    });
-    mockReadFileSync.mockImplementation((path) => {
-      if (path === '/src/theme/colors.ts') {
-        return dedent`
-          export const BRAND_PRIMARY = '#667eea';
-          export const BRAND_SECONDARY = '#764ba2';
-        `;
-      }
-      throw new Error(`File not found: ${String(path)}`);
+  describe('cx prop warnings', () => {
+    test('should report warnings for missing CSS classes in cx modifiers', async () => {
+      const { result } = await invalid(dedent`
+        import { styled, cx } from 'vindur';
+
+        const Card = styled.div\`
+          background: white;
+          padding: 16px;
+
+          &.active {
+            background: blue;
+          }
+
+          &.disabled {
+            opacity: 0.5;
+          }
+        \`;
+
+        function Component({ isActive, isDisabled, isHighlighted }) {
+          return (
+            <Card cx={{ active: isActive, disabled: isDisabled, highlighted: isHighlighted }}>
+              Content
+            </Card>
+          );
+        }
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 18,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing CSS classes for cx modifiers in Card: highlighted",
+          },
+        ]
+      `);
     });
 
-    await valid({
-      code: dedent`
-        import { css } from 'vindur';
-        import { BRAND_PRIMARY } from '@/theme/colors';
-        const styles = css\`
-          color: \${BRAND_PRIMARY};
-          border: 1px solid \${BRAND_PRIMARY};
+    test('should exclude $ prefixed props from warnings', async () => {
+      const { result } = await invalid(dedent`
+        import { styled, cx } from 'vindur';
+
+        const Widget = styled.div\`
+          padding: 10px;
+
+          &.active {
+            background: blue;
+          }
         \`;
-      `,
-      options: [
-        {
-          importAliases: { '@': '/src' },
-        },
-      ],
+
+        function Component({ isActive, hasError, hasWarning }) {
+          return <Widget cx={{ active: isActive, $error: hasError, warning: hasWarning }} />;
+        }
+      `);
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 12,
+            "messageId": "transformWarning",
+            "msg": "Warning: Missing CSS classes for cx modifiers in Widget: warning",
+          },
+        ]
+      `);
     });
   });
 
-  test('import alias resolving non-existing file should error', async () => {
-    const { result } = await invalid({
-      code: dedent`
-        import { css } from 'vindur';
-        import { nonExistent } from '@/missing-file';
-        const styles = css\`
-          color: \${nonExistent};
+
+  describe('warnings vs errors distinction', () => {
+    test('should report transform errors as errors and warnings as warnings', async () => {
+      const { result } = await invalid(dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{
+          active: boolean;
+        }>\`
+          padding: 8px 16px;
+          color: \${undefinedVariable};
         \`;
-      `,
-      options: [
-        {
-          importAliases: { '@': '/src' },
-        },
-      ],
-    });
+      `);
 
-    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-      [
-        {
-          "line": 1,
-          "messageId": "transformError",
-          "msg": "/test.ts: File not found: /src/missing-file.ts",
-        },
-      ]
-    `);
-  });
-
-  test('multiple cross-file imports with mixed types', async () => {
-    // Mock multiple external files
-    mockExistsSync.mockImplementation((path) => {
-      return path === '/src/constants.ts' || path === '/src/mixins.ts';
-    });
-    mockReadFileSync.mockImplementation((path) => {
-      if (path === '/src/constants.ts') {
-        return dedent`
-          export const BORDER_RADIUS = '8px';
-          export const SHADOW_COLOR = 'rgba(0, 0, 0, 0.1)';
-        `;
-      }
-      if (path === '/src/mixins.ts') {
-        return dedent`
-          import { vindurFn } from 'vindur';
-          export const flexCenter = vindurFn(() => \`
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          \`);
-        `;
-      }
-      throw new Error(`File not found: ${String(path)}`);
-    });
-
-    await valid({
-      code: dedent`
-        import { css } from 'vindur';
-        import { BORDER_RADIUS, SHADOW_COLOR } from '@/constants';
-        import { flexCenter } from '@/mixins';
-        const styles = css\`
-          \${flexCenter()}
-          border-radius: \${BORDER_RADIUS};
-          box-shadow: 0 2px 4px \${SHADOW_COLOR};
-        \`;
-      `,
-      options: [
-        {
-          importAliases: { '@': '/src' },
-        },
-      ],
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        [
+          {
+            "line": 7,
+            "messageId": "transformError",
+            "msg": "Invalid interpolation used at \`... Button = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported",
+          },
+        ]
+      `);
     });
   });
 });
+

@@ -1,16 +1,16 @@
-import { TransformError } from '../custom-errors';
 import type { NodePath } from '@babel/core';
-import { notNullish } from '@ls-stack/utils/assertions';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { CssProcessingContext } from '../css-processing';
-
-// Top-level regex to avoid creating new RegExp objects on each function call
-const IDENTIFIER_REGEX = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 import { processGlobalStyle } from '../css-processing';
+import { TransformError, TransformWarning } from '../custom-errors';
 import {
   isValidHexColorWithoutAlpha,
   isVariableExported,
 } from './handler-utils';
+
+// Top-level regex to avoid creating new RegExp objects on each function call
+const IDENTIFIER_REGEX = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
 
 type VariableHandlerContext = {
   context: CssProcessingContext;
@@ -280,21 +280,19 @@ export function handleGlobalStyleVariableAssignment(
     classIndex,
   );
 
-  // Inject warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0) {
-    const declarationStatement = path.findParent((p) =>
-      p.isVariableDeclaration(),
-    );
-    if (declarationStatement) {
-      for (const warning of result.warnings) {
-        const warnStatement = t.expressionStatement(
-          t.callExpression(
-            t.memberExpression(t.identifier('console'), t.identifier('warn')),
-            [t.stringLiteral(warning)],
-          ),
-        );
-        declarationStatement.insertAfter(warnStatement);
-      }
+  // Emit warnings for scoped variables in dev mode
+  if (
+    dev
+    && result.warnings
+    && result.warnings.length > 0
+    && context.onWarning
+  ) {
+    for (const warning of result.warnings) {
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+      );
+      context.onWarning(transformWarning);
     }
   }
 
