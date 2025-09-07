@@ -1,7 +1,7 @@
 {
   "name": "@vindur/eslint-plugin",
   "description": "ESLint plugin for Vindur CSS-in-JS transform errors and warnings",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "scripts": {
     "test": "vitest run",
