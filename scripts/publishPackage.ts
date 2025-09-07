@@ -14,7 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PUBLISH_HASHES_FILE = join(__dirname, 'publish-hashes.json');
 
-const availablePackages = ['vindur', 'vite-plugin'] as const;
+const availablePackages = ['vindur', 'vite-plugin', 'eslint-plugin'] as const;
 
 type PackageName = (typeof availablePackages)[number];
 
@@ -173,7 +173,7 @@ async function publishPackage(
     packageName === 'vindur' ? 'vindur' : '@vindur-css/vite-plugin';
 
   // If publishing vite-plugin, build vindur first since it depends on it
-  if (packageName === 'vite-plugin') {
+  if (packageName === 'vite-plugin' || packageName === 'eslint-plugin') {
     await runCmdUnwrap('Build vindur dependency', [
       'pnpm',
       '--filter',
