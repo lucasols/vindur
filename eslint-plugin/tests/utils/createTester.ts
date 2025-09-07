@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { dedent } from '@ls-stack/utils/dedent';
+import type { Rule } from 'eslint';
 import {
   createRuleTester,
   type TestExecutionResult,
 } from 'eslint-vitest-rule-tester';
-import type { Rule } from 'eslint';
 
 export function getErrorsFromResult(
   result: TestExecutionResult,
@@ -40,18 +39,6 @@ export function createVindurTester(rule: {
   return createRuleTester({
     name: rule.name,
     rule: rule.rule,
-    languageOptions: {
-      ecmaVersion: 2024,
-      sourceType: 'module',
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-    linterOptions: {
-      reportUnusedDisableDirectives: 'off',
-    },
   });
 }
 
@@ -62,7 +49,7 @@ export function createTestCase(
     options,
   }: {
     filename?: string;
-    options?: any[];
+    options?: unknown[];
   } = {}
 ) {
   return {
