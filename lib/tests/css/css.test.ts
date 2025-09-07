@@ -544,8 +544,7 @@ describe('error handling', () => {
         "column": 25,
         "filename": undefined,
         "line": 3,
-      }
-      ignoreInLint: true]
+      }]
     `,
     );
   });

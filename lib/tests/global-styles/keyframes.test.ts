@@ -231,8 +231,7 @@ describe('keyframes error handling', () => {
         "column": 12,
         "filename": undefined,
         "line": 7,
-      }
-      ignoreInLint: true]
+      }]
     `,
     );
   });
