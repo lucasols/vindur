@@ -250,36 +250,37 @@ export function optimizeCxCalls(
   file: { path: NodePath },
   context: PostProcessingContext,
 ): void {
-  let hasOptimizations = false;
+  let optimizationCount = 0;
 
+  // First pass: optimize cx calls
   file.path.traverse({
     CallExpression(path) {
       const optimized = optimizeCxCall(path.node);
       if (optimized !== null) {
         path.replaceWith(optimized);
-        hasOptimizations = true;
+        optimizationCount++;
       }
     },
   });
 
-  // If we optimized some cx calls, we might be able to remove the cx import
-  if (hasOptimizations) {
-    // Check if cx is still used anywhere
-    let cxStillUsed = false;
+  // If we optimized some cx calls, check if we can remove the cx import
+  if (optimizationCount > 0) {
+    // Second pass: check if cx is still used anywhere
+    let remainingCxCalls = 0;
     file.path.traverse({
       CallExpression(path) {
         if (
-          t.isIdentifier(path.node.callee) &&
-          path.node.callee.name === 'cx'
+          t.isIdentifier(path.node.callee)
+          && path.node.callee.name === 'cx'
         ) {
-          cxStillUsed = true;
+          remainingCxCalls++;
           path.stop();
         }
       },
     });
 
     // Remove cx from vindurImports if it's no longer used
-    if (!cxStillUsed) {
+    if (remainingCxCalls === 0) {
       context.state.vindurImports.delete('cx');
     }
   }
