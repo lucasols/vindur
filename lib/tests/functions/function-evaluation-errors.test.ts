@@ -298,7 +298,8 @@ describe('function evaluation errors', () => {
           "column": 11,
           "filename": undefined,
           "line": 7,
-        }]
+        }
+        ignoreInLint: true]
       `,
       );
     });
@@ -326,7 +327,8 @@ describe('function evaluation errors', () => {
           "column": 11,
           "filename": undefined,
           "line": 6,
-        }]
+        }
+        ignoreInLint: true]
       `,
       );
     });
@@ -356,7 +358,8 @@ describe('function evaluation errors', () => {
           "column": 11,
           "filename": undefined,
           "line": 8,
-        }]
+        }
+        ignoreInLint: true]
       `,
       );
     });
@@ -385,7 +388,8 @@ describe('function evaluation errors', () => {
           "column": 11,
           "filename": undefined,
           "line": 7,
-        }]
+        }
+        ignoreInLint: true]
       `,
       );
     });

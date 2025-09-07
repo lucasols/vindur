@@ -297,7 +297,6 @@ function processMemberExpression(
   throw new TransformError(
     `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
     notNullish(expression.loc),
-    { ignoreInLint: true },
   );
 }
 
@@ -359,7 +358,6 @@ export function processInterpolationExpression(
     throw new TransformError(
       `Invalid interpolation used at \`${varContext}\` ... \${${expressionSource}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
       notNullish(expression.loc),
-      { ignoreInLint: true },
     );
   }
 }

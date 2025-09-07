@@ -24,7 +24,6 @@ export function validateTemplateExpressionDuringParsing(
         throw new TransformError(
           `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
           notNullish(expr.loc),
-          { ignoreInLint: true },
         );
       }
       return;
@@ -113,7 +112,6 @@ export function validateFunctionExpressionStructure(
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         notNullish(expr.loc),
-        { ignoreInLint: true },
       );
     }
   } else if (t.isConditionalExpression(expr)) {

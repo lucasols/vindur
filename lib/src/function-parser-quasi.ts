@@ -26,7 +26,7 @@ export function parseQuasiFromExpression(
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         notNullish(expr.loc),
-        { filename, ignoreInLint: true },
+        { filename },
       );
     }
     return { type: 'arg', name: expr.name };
