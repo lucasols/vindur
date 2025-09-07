@@ -58,9 +58,11 @@ type IntrinsicElementType = keyof JSX.IntrinsicElements;
 type StyledComponentProps<Tag extends IntrinsicElementType> =
   JSX.IntrinsicElements[Tag] & VindurAttributes;
 
+type ValidExtraProps = Record<string, string | boolean>;
+
 type StyledComponent<
   Tag extends IntrinsicElementType,
-  ExtraProps extends {} = {},
+  ExtraProps extends ValidExtraProps = {},
 > = FC<StyledComponentProps<Tag> & ExtraProps> & {
   withComponent<NewTag extends keyof JSX.IntrinsicElements>(
     tag: NewTag,
@@ -70,7 +72,7 @@ type StyledComponent<
 };
 
 type StyledFunction<Tag extends IntrinsicElementType> = {
-  <T extends {} = {}>(
+  <T extends ValidExtraProps = {}>(
     strings: TemplateStringsArray,
     ...values: StyleInterpolationValues[]
   ): StyledComponent<Tag, T>;
@@ -88,14 +90,11 @@ type StyledTags = {
 };
 
 type StyledFnReturn<T extends {}> = {
-  <S extends {} = {}>(
+  <S extends ValidExtraProps = {}>(
     strings: TemplateStringsArray,
     ...values: StyleInterpolationValues[]
   ): FC<T & S>;
-  (
-    strings: TemplateStringsArray,
-    ...values: StyleInterpolationValues[]
-  ): FC<T>;
+  (strings: TemplateStringsArray, ...values: StyleInterpolationValues[]): FC<T>;
 };
 
 type StyledFn = <T extends {}>(
