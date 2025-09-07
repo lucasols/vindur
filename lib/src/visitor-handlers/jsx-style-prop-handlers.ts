@@ -1,6 +1,8 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { VindurPluginState } from '../babel-plugin';
+import { TransformWarning } from '../custom-errors';
 import { transformStylePropScopedVariables } from '../scoped-css-variables';
 import { filterWithNarrowing } from '../utils';
 
@@ -10,6 +12,7 @@ export function handleJsxStyleProp(
     state: VindurPluginState;
     dev: boolean;
     fileHash: string;
+    onWarning?: (warning: TransformWarning) => void;
   },
 ): boolean {
   // Check if we have scoped variables to process
@@ -83,10 +86,14 @@ export function handleJsxStyleProp(
       context.dev,
     );
 
-  // Log warnings in dev mode
-  if (context.dev && warnings.length > 0) {
+  // Emit warnings in dev mode
+  if (context.dev && warnings.length > 0 && context.onWarning) {
     for (const warning of warnings) {
-      console.warn(warning);
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+      );
+      context.onWarning(transformWarning);
     }
   }
 

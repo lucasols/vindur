@@ -1,5 +1,5 @@
 import { format } from 'prettier';
-import { transform, type TransformFS } from '../src/transform';
+import { transform, type TransformFS, type TransformWarning } from '../src/transform';
 
 type FileTree = { [key: string]: string | FileTree };
 
@@ -52,6 +52,7 @@ export async function transformWithFormat({
   overrideDefaultImportAliases: importAliases = { '#/': '/' },
   production,
   sourcePath = '/test.tsx',
+  onWarning,
 }: {
   source: string;
   overrideDefaultFs?: TransformFS;
@@ -59,6 +60,7 @@ export async function transformWithFormat({
   production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
   sourcePath?: string;
+  onWarning?: (warning: TransformWarning) => void;
 }) {
   const result = transform({
     fileAbsPath: sourcePath,
@@ -66,6 +68,7 @@ export async function transformWithFormat({
     importAliases,
     source,
     dev: !production,
+    onWarning,
   });
 
   return {

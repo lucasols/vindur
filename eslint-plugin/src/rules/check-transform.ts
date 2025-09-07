@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import { transform, TransformError, type TransformFS } from 'vindur/transform';
+import { transform, TransformError, TransformWarning, type TransformFS } from 'vindur/transform';
 import type { Rule } from 'eslint';
 import type { VindurPluginOptions } from '../types';
 
@@ -15,8 +15,6 @@ type CacheEntry = {
 const transformCache = new Map<string, CacheEntry>();
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const CACHE_TTL = 5000; // 5 seconds
-const CONSOLE_WARN_REGEX = /console\.warn\((.+)\)/;
-
 function shouldProcessFile(filename: string, source: string): boolean {
   if (!JS_EXTENSIONS.includes(extname(filename))) {
     return false;
@@ -30,36 +28,6 @@ function shouldProcessFile(filename: string, source: string): boolean {
          source.includes('styled.') ||
          source.includes('cx=') ||
          source.includes('css=');
-}
-
-function extractWarningsFromTransformResult(transformedCode: string): Array<{ message: string; line: number }> {
-  const warnings: Array<{ message: string; line: number }> = [];
-  const lines = transformedCode.split('\n');
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-    const consoleWarnMatch = line.match(CONSOLE_WARN_REGEX);
-    
-    if (consoleWarnMatch) {
-      try {
-        // Extract the warning message from the console.warn call
-        const messageContent = consoleWarnMatch[1];
-        if (!messageContent) continue;
-        // Remove quotes and extract the actual warning message
-        const cleanMessage = messageContent.replace(/^["']|["']$/g, '');
-        
-        warnings.push({
-          message: cleanMessage,
-          line: i + 1
-        });
-      } catch {
-        // Ignore parsing errors for warning extraction
-      }
-    }
-  }
-  
-  return warnings;
 }
 
 function runVindurTransform(filename: string, source: string, options: RuleOptions) {
@@ -80,6 +48,16 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
   let transformedCode = '';
   let css = '';
 
+  // Collect warnings via callback
+  const onWarning = options.reportWarnings !== false ? (warning: TransformWarning) => {
+    errors.push({
+      message: warning.message,
+      line: warning.loc.line,
+      column: warning.loc.column,
+      type: 'warning'
+    });
+  } : undefined;
+
   try {
     const result = transform({
       fileAbsPath: filename,
@@ -88,23 +66,11 @@ function runVindurTransform(filename: string, source: string, options: RuleOptio
       fs,
       importAliases: options.importAliases ?? {},
       sourcemap: false, // We don't need sourcemaps for ESLint
+      onWarning,
     });
     
     transformedCode = result.code;
     css = result.css;
-    
-    // Extract warnings from transformed code
-    if (options.reportWarnings !== false) {
-      const warnings = extractWarningsFromTransformResult(transformedCode);
-      for (const warning of warnings) {
-        errors.push({
-          message: warning.message,
-          line: warning.line,
-          column: 1,
-          type: 'warning'
-        });
-      }
-    }
   } catch (error) {
     if (error instanceof TransformError) {
       errors.push({

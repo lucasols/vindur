@@ -445,6 +445,8 @@ describe('scoped CSS variables', () => {
   });
 
   test('should warn about declared but not used scoped variables', async () => {
+    const warnings: string[] = [];
+    
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -456,14 +458,19 @@ describe('scoped CSS variables', () => {
           background: var(---primary-color);
         \`;
       `,
+      onWarning: (warning) => {
+        warnings.push(warning.message);
+      },
     });
 
-    expect(result.code).toContain(
-      'console.warn("Scoped variable \'---unused-color\' is declared but never read")',
+    expect(warnings).toContain(
+      "Scoped variable '---unused-color' is declared but never read"
     );
   });
 
   test('should handle variables used in CSS but not declared (valid for style props)', async () => {
+    const warnings: string[] = [];
+    
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -475,10 +482,13 @@ describe('scoped CSS variables', () => {
           border: 1px solid var(---theme-color);
         \`;
       `,
+      onWarning: (warning) => {
+        warnings.push(warning.message);
+      },
     });
 
-    expect(result.code).toContain(
-      'console.warn("Scoped variable \'---theme-color\' is used but never declared")',
+    expect(warnings).toContain(
+      "Scoped variable '---theme-color' is used but never declared",
     );
   });
 

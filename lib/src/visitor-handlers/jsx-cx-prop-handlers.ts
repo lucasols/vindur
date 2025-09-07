@@ -2,7 +2,7 @@ import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import type { VindurPluginState } from '../babel-plugin';
-import { TransformError } from '../custom-errors';
+import { TransformError, TransformWarning } from '../custom-errors';
 import { findWithNarrowing } from '../utils';
 import {
   generateMissingCssClassWarnings,
@@ -18,6 +18,7 @@ export function handleJsxCxProp(
     dev: boolean;
     fileHash: string;
     classIndex: () => number;
+    onWarning?: (warning: TransformWarning) => void;
   },
 ): boolean {
   if (!t.isJSXIdentifier(path.node.openingElement.name)) {
@@ -314,6 +315,7 @@ function handleCssUpdatesAndStyledComponents(
   context: {
     state: VindurPluginState;
     dev: boolean;
+    onWarning?: (warning: TransformWarning) => void;
   },
   path: NodePath<t.JSXElement>,
 ): void {
@@ -324,6 +326,7 @@ function handleCssUpdatesAndStyledComponents(
         classNameMappings,
         context.state,
         path,
+        context.onWarning,
       );
     }
 

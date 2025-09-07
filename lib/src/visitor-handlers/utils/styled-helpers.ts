@@ -3,7 +3,7 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import type { CssProcessingContext } from '../../css-processing';
 import { checkForMissingModifierStyles, type StyleFlag } from '../style-flags-utils';
-import { TransformError } from '../../custom-errors';
+import { TransformError, TransformWarning } from '../../custom-errors';
 
 export const LOWERCASE_START_REGEX = /^[a-z]/;
 export const CAMEL_CASE_REGEX = /^[A-Z]/;
@@ -46,20 +46,6 @@ export function parseStyledElementTag(tag: t.Expression): StyledElementInfo | nu
   return null;
 }
 
-export function injectWarnings(warnings: string[], path: NodePath<t.VariableDeclarator>): void {
-  const declarationStatement = path.findParent((p) => p.isVariableDeclaration());
-  if (declarationStatement) {
-    for (const warning of warnings) {
-      const warnStatement = t.expressionStatement(
-        t.callExpression(
-          t.memberExpression(t.identifier('console'), t.identifier('warn')),
-          [t.stringLiteral(warning)],
-        ),
-      );
-      declarationStatement.insertAfter(warnStatement);
-    }
-  }
-}
 
 export function transformStyleFlagsComponent(
   styleFlags: StyleFlag[],
@@ -96,30 +82,19 @@ export function transformStyleFlagsComponent(
 
   path.node.init = t.callExpression(t.identifier('_vCWM'), args);
 
-  // In dev mode, inject warnings for missing modifier styles
-  if (dev) {
+  // In dev mode, emit warnings for missing modifier styles
+  if (dev && context.onWarning) {
     const missingSelectors = checkForMissingModifierStyles(
       styleFlags,
       context.state.cssRules,
       result.finalClassName,
     );
-    if (missingSelectors.length > 0) {
-      const declarationStatement = path.findParent((p) => p.isVariableDeclaration());
-      if (declarationStatement) {
-        for (const missing of missingSelectors) {
-          const warnStatement = t.expressionStatement(
-            t.callExpression(
-              t.memberExpression(t.identifier('console'), t.identifier('warn')),
-              [
-                t.stringLiteral(
-                  `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
-                ),
-              ],
-            ),
-          );
-          declarationStatement.insertAfter(warnStatement);
-        }
-      }
+    for (const missing of missingSelectors) {
+      const warning = new TransformWarning(
+        `Warning: Missing modifier styles for "${missing.original}" in ${varName}`,
+        notNullish(path.node.loc),
+      );
+      context.onWarning(warning);
     }
   }
 }

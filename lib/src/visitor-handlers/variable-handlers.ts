@@ -7,13 +7,12 @@ import {
   processStyledExtension,
   processStyledTemplate,
 } from '../css-processing';
-import { TransformError } from '../custom-errors';
+import { TransformError, TransformWarning } from '../custom-errors';
 import { isVariableExported } from './handler-utils';
 import { extractStyleFlags, updateCssSelectorsForStyleFlags } from './style-flags-utils';
 import { createLocationFromTemplateLiteral } from '../css-source-map';
 import {
   LOWERCASE_START_REGEX,
-  injectWarnings,
   parseStyledElementTag,
   transformRegularStyledComponent,
   transformStyleFlagsComponent,
@@ -178,9 +177,15 @@ export function handleStyledElementAssignment(
   );
   classIndex.current++;
 
-  // Inject warnings for scoped variables in dev mode
-  if (dev && result.warnings && result.warnings.length > 0) {
-    injectWarnings(result.warnings, path);
+  // Emit warnings for scoped variables in dev mode
+  if (dev && result.warnings && result.warnings.length > 0 && context.onWarning) {
+    for (const warning of result.warnings) {
+      const transformWarning = new TransformWarning(
+        warning,
+        notNullish(path.node.loc),
+      );
+      context.onWarning(transformWarning);
+    }
   }
 
   // If we have style flags, update CSS selectors to use hashed class names

@@ -8,6 +8,7 @@ import type {
   VindurPluginState,
 } from './babel-plugin';
 import type { TransformFS } from './transform';
+import type { TransformWarning } from './custom-errors';
 import type { CompiledFunction } from './types';
 import {
   processScopedCssVariables,
@@ -24,6 +25,7 @@ export type CssProcessingContext = {
   state: VindurPluginState;
   path: NodePath;
   debug?: DebugLogger;
+  onWarning?: (warning: TransformWarning) => void;
   // Whether current transform is in dev mode (affects class naming in external extraction)
   dev: boolean;
   // Cache for external file extractions to prevent duplicate processing

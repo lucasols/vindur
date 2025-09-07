@@ -1,6 +1,8 @@
 import type { NodePath } from '@babel/core';
 import { types as t } from '@babel/core';
+import { notNullish } from '@ls-stack/utils/assertions';
 import type { VindurPluginState } from '../babel-plugin';
+import { TransformWarning } from '../custom-errors';
 import { findWithNarrowing } from '../utils';
 
 export function generateMissingCssClassWarnings(
@@ -12,6 +14,7 @@ export function generateMissingCssClassWarnings(
   }>,
   state: VindurPluginState,
   path: NodePath<t.JSXElement>,
+  onWarning?: (warning: TransformWarning) => void,
 ): void {
   // Get the styled component info to find its CSS class name
   const styledInfo = state.styledComponents.get(styledComponentName);
@@ -39,32 +42,14 @@ export function generateMissingCssClassWarnings(
   }
 
   // Generate warning if there are missing classes
-  if (missingClasses.length > 0) {
+  if (missingClasses.length > 0 && onWarning) {
     const warningMessage = `Warning: Missing CSS classes for cx modifiers in ${styledComponentName}: ${missingClasses.join(', ')}`;
-
-    // Insert console.warn statement after the JSX element
-    const consoleWarnStatement = t.expressionStatement(
-      t.callExpression(
-        t.memberExpression(t.identifier('console'), t.identifier('warn')),
-        [
-          t.templateLiteral(
-            [
-              t.templateElement(
-                { raw: warningMessage, cooked: warningMessage },
-                true,
-              ),
-            ],
-            [],
-          ),
-        ],
-      ),
+    
+    const warning = new TransformWarning(
+      warningMessage,
+      notNullish(path.node.loc),
     );
-
-    // Find the parent statement and insert the warning after it
-    const statementPath = path.getFunctionParent() || path.getStatementParent();
-    if (statementPath) {
-      statementPath.insertAfter(consoleWarnStatement);
-    }
+    onWarning(warning);
   }
 }
 

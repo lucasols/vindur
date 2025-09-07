@@ -5,6 +5,8 @@ import { transformWithFormat } from '../testUtils';
 describe('JSX cx prop warnings', () => {
   describe('Warnings for Missing CSS Classes', () => {
     test('should warn about cx modifiers without corresponding CSS classes in dev mode', async () => {
+      const warnings: string[] = [];
+      
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -30,7 +32,14 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning.message);
+        },
       });
+
+      expect(warnings).toContain(
+        'Warning: Missing CSS classes for cx modifiers in Card: highlighted',
+      );
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -50,9 +59,6 @@ describe('JSX cx prop warnings', () => {
             </div>
           );
         }
-        console.warn(
-          \`Warning: Missing CSS classes for cx modifiers in Card: highlighted\`,
-        );
         "
       `);
 
@@ -74,6 +80,8 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should warn about multiple cx modifiers without corresponding CSS classes in dev mode', async () => {
+      const warnings: string[] = [];
+      
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -94,7 +102,14 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning.message);
+        },
       });
+
+      expect(warnings).toContain(
+        'Warning: Missing CSS classes for cx modifiers in Widget: disabled, highlighted, compact',
+      );
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -115,9 +130,6 @@ describe('JSX cx prop warnings', () => {
             </div>
           );
         }
-        console.warn(
-          \`Warning: Missing CSS classes for cx modifiers in Widget: disabled, highlighted, compact\`,
-        );
         "
       `);
 
@@ -253,6 +265,8 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should exclude $ prefixed props from missing CSS class checking', async () => {
+      const warnings: string[] = [];
+      
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -269,7 +283,14 @@ describe('JSX cx prop warnings', () => {
             return <Widget cx={{ active: isActive, $error: hasError, warning: hasWarning }} />;
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning.message);
+        },
       });
+
+      expect(warnings).toContain(
+        'Warning: Missing CSS classes for cx modifiers in Widget: warning',
+      );
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -287,9 +308,6 @@ describe('JSX cx prop warnings', () => {
             />
           );
         }
-        console.warn(
-          \`Warning: Missing CSS classes for cx modifiers in Widget: warning\`,
-        );
         "
       `);
 

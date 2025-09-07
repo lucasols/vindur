@@ -4,7 +4,7 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
-import { TransformError } from './custom-errors';
+import { TransformError, TransformWarning } from './custom-errors';
 import {
   createExtractVindurFeaturesPlugin,
   type ExtractedVindurFeatures,
@@ -110,6 +110,7 @@ export type VindurPluginOptions = {
   transformFunctionCache: FunctionCache;
   dynamicColorCache: DynamicColorCache;
   importAliases: Record<string, string>;
+  onWarning?: (warning: TransformWarning) => void;
 };
 
 function loadExternalFunction(
@@ -242,6 +243,7 @@ export function createVindurPlugin(
     transformFunctionCache,
     dynamicColorCache,
     importAliases = {},
+    onWarning,
   } = options;
 
   // Generate base hash from file path with 'c' prefix
@@ -330,6 +332,7 @@ export function createVindurPlugin(
           state,
           path,
           debug,
+          onWarning,
           dev,
           extractedFiles:
             state.extractedFiles ??
@@ -417,6 +420,7 @@ export function createVindurPlugin(
           state,
           path,
           debug,
+          onWarning,
           dev,
           extractedFiles:
             state.extractedFiles ??
@@ -468,6 +472,7 @@ export function createVindurPlugin(
             state,
             path,
             debug,
+            onWarning,
             dev,
             extractedFiles:
               state.extractedFiles ??
@@ -484,13 +489,14 @@ export function createVindurPlugin(
           dev,
           fileHash,
           classIndex: () => idIndex++,
+          onWarning,
         });
 
         // Handle dynamic color prop (before styled component transformation)
         handleJsxDynamicColorProp(path, { state });
 
         // Handle style prop for scoped variables
-        handleJsxStyleProp(path, { state, dev, fileHash });
+        handleJsxStyleProp(path, { state, dev, fileHash, onWarning });
 
         // Handle styled components last (transforms element name)
         handleJsxStyledComponent(path, { state });

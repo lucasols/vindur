@@ -8,6 +8,7 @@ import {
   type VindurPluginState,
 } from './babel-plugin';
 import { CssSourceMapGenerator } from './css-source-map';
+import { TransformWarning } from './custom-errors';
 
 export type VindurTransformResult = {
   css: string;
@@ -35,6 +36,7 @@ export type TransformOptions = {
   transformDynamicColorCache?: TransformDynamicColorCache;
   importAliases: Record<string, string>;
   sourcemap?: boolean;
+  onWarning?: (warning: TransformWarning) => void;
 };
 
 export function transform({
@@ -47,6 +49,7 @@ export function transform({
   transformDynamicColorCache = {},
   importAliases,
   sourcemap = false,
+  onWarning,
 }: TransformOptions): VindurTransformResult {
   const pluginState: VindurPluginState = {
     cssRules: [],
@@ -73,6 +76,7 @@ export function transform({
       transformFunctionCache,
       dynamicColorCache: transformDynamicColorCache,
       importAliases,
+      onWarning,
     },
     pluginState,
   );
@@ -100,15 +104,15 @@ export function transform({
     dev
     && pluginState.potentiallyUndeclaredScopedVariables
     && pluginState.potentiallyUndeclaredScopedVariables.size > 0
+    && onWarning
   ) {
-    const warnings: string[] = [];
     for (const varName of pluginState.potentiallyUndeclaredScopedVariables) {
-      warnings.push(
-        `console.warn("Scoped variable '---${varName}' is used but never declared");`,
+      const warning = new TransformWarning(
+        `Scoped variable '---${varName}' is used but never declared`,
+        { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } } as any,
+        fileAbsPath,
       );
-    }
-    if (warnings.length > 0) {
-      finalCode = `${warnings.join('\n')}\n${finalCode}`;
+      onWarning(warning);
     }
   }
 
@@ -142,4 +146,4 @@ export function transform({
   };
 }
 
-export { TransformError } from './custom-errors';
+export { TransformError, TransformWarning } from './custom-errors';

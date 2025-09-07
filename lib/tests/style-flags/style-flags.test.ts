@@ -551,6 +551,8 @@ describe('Style Flags Transform Logic', () => {
     });
 
     test('should warn about missing modifier styles', async () => {
+      const warnings: string[] = [];
+      
       const result = await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur';
@@ -569,7 +571,14 @@ describe('Style Flags Transform Logic', () => {
             );
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning.message);
+        },
       });
+
+      expect(warnings).toContain(
+        'Warning: Missing modifier styles for "&.active" in StyledWithModifier',
+      );
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
@@ -577,9 +586,6 @@ describe('Style Flags Transform Logic', () => {
           [["active", "voctcyj-active"]],
           "v1560qbr-1-StyledWithModifier",
           "div",
-        );
-        console.warn(
-          'Warning: Missing modifier styles for "&.active" in StyledWithModifier',
         );
         function Component() {
           return <StyledWithModifier active={true}>Content</StyledWithModifier>;
