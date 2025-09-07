@@ -165,7 +165,7 @@ function loadExternalFunction(
       throw new TransformError(
         `Function "${functionName}" not found in ${filePath}`,
         notNullish(callLoc),
-        { filename: filePath },
+        { filename: filePath, ignoreInLint: true },
       );
     }
   }
