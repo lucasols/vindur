@@ -87,10 +87,16 @@ type StyledTags = {
   [Key in keyof JSX.IntrinsicElements]: StyledFunction<Key>;
 };
 
-type StyledFnReturn<T extends {}> = (
-  strings: TemplateStringsArray,
-  ...values: StyleInterpolationValues[]
-) => FC<T>;
+type StyledFnReturn<T extends {}> = {
+  <S extends {} = {}>(
+    strings: TemplateStringsArray,
+    ...values: StyleInterpolationValues[]
+  ): FC<T & S>;
+  (
+    strings: TemplateStringsArray,
+    ...values: StyleInterpolationValues[]
+  ): FC<T>;
+};
 
 type StyledFn = <T extends {}>(
   component: ComponentType<T>,
@@ -155,7 +161,7 @@ export function _vSC(
 export function _vCWM(
   modifiers: Array<[string, string]>,
   baseClassName: string,
-  elementType: string,
+  elementType: string | ComponentType<any>,
   attrs?: Record<string, string | number | boolean> | null,
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
@@ -219,7 +225,11 @@ export function _vCWM(
     });
   });
 
-  Component.displayName = `StyledWithModifiers(${elementType})`;
+  Component.displayName = `StyledWithModifiers(${
+    typeof elementType === 'string' ? elementType : (
+      elementType.displayName || elementType.name || 'Component'
+    )
+  })`;
 
   return Component;
 }

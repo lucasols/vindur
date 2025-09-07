@@ -169,6 +169,102 @@ describe('Style Flags Transform Logic', () => {
       `);
     });
 
+    test('should support extending custom components with style flags', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+
+          const ButtonElement = ({ children, ...props }) => <button {...props}>{children}</button>;
+
+          const CheckboxContainer = styled(ButtonElement)<{
+            checked: boolean;
+          }>\`
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            background: transparent;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+            opacity: 0.6;
+
+            &:hover {
+              opacity: 0.8;
+              border-color: #aaa;
+            }
+
+            &.checked {
+              background: #0066cc;
+              border-color: #0066cc;
+              opacity: 1;
+            }
+
+            &::after {
+              content: '✓';
+              color: white;
+              font-size: 10px;
+              line-height: 1;
+              font-weight: bold;
+            }
+          \`;
+
+          function Component({ isChecked }) {
+            return (
+              <CheckboxContainer checked={isChecked}>
+              </CheckboxContainer>
+            );
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "import { _vCWM } from "vindur";
+        const ButtonElement = ({ children, ...props }) => (
+          <button {...props}>{children}</button>
+        );
+        const CheckboxContainer = _vCWM(
+          [["checked", "v7k0mdb-checked"]],
+          "v1560qbr-1-CheckboxContainer",
+          ButtonElement,
+        );
+        function Component({ isChecked }) {
+          return <CheckboxContainer checked={isChecked}></CheckboxContainer>;
+        }
+        "
+      `);
+
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-CheckboxContainer {
+          width: 14px;
+          height: 14px;
+          cursor: pointer;
+          background: transparent;
+          border: 1px solid #ccc;
+          border-radius: 2px;
+          opacity: 0.6;
+
+          &:hover {
+            opacity: 0.8;
+            border-color: #aaa;
+          }
+
+          &.v7k0mdb-checked {
+            background: #0066cc;
+            border-color: #0066cc;
+            opacity: 1;
+          }
+
+          &::after {
+            content: "✓";
+            color: white;
+            font-size: 10px;
+            line-height: 1;
+            font-weight: bold;
+          }
+        }
+        "
+      `);
+    });
+
     test('should handle styled components without generics normally', async () => {
       const result = await transformWithFormat({
         source: dedent`
