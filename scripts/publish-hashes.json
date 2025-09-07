@@ -6,7 +6,8 @@
     "0.6.0": "c0bdc423c5fe06772fd10b1f2ffa33fea46b3c20debe5dce9d30198d9cd60e62",
     "0.6.1": "58b3c2537202f2795c7f3cdc2b15617260c72fbad62e6a790d01feec1cde01d8",
     "0.6.2": "cf016955e766caa8abfdc5d652bad19f38b2dc22d2cf719a0720de660acae6ef",
-    "0.6.3": "d3912aefa511e70ade2e8f2a327b10bdc9072fc558626f96c3bd98ea36bd7fee"
+    "0.6.3": "d3912aefa511e70ade2e8f2a327b10bdc9072fc558626f96c3bd98ea36bd7fee",
+    "0.7.0": "a7d4d35b371e26dd6d613d570b6d57c502a7a56fe9da2d2927c15373cb8d7e9e"
   },
   "@vindur-css/vite-plugin": {
     "0.3.2": "d75a7d6664b1c8490bbd0836ee9775a5fc8aed28befa6ba862f2e67bc1e06d2d",
