@@ -232,15 +232,21 @@ export function handleStyledElementAssignment(
 
   // Emit warnings for undeclared classes only for plain styled components (not extensions)
   if (dev && context.onWarning && !context.state.vindurImports.has('cx')) {
-    const declaredClasses = collectDeclaredStyleClasses(styleFlags);
-    const usedClasses = collectUsedClassesFromCss(result.cssContent);
-    for (const cls of usedClasses) {
-      if (!declaredClasses.has(cls)) {
-        const warning = new TransformWarning(
-          `The class '${cls}' is used in CSS but not declared in the component`,
-          notNullish(path.node.loc),
-        );
-        context.onWarning(warning);
+    // If the component is used with a dynamic className (e.g., template literal or expression),
+    // we cannot reliably determine declared classes at compile-time. Skip warnings in this case.
+    if (isUsedWithDynamicClassName(varName, path)) {
+      // Skip warnings when dynamic className usage is detected
+    } else {
+      const declaredClasses = collectDeclaredStyleClasses(styleFlags);
+      const usedClasses = collectUsedClassesFromCss(result.cssContent);
+      for (const cls of usedClasses) {
+        if (!declaredClasses.has(cls)) {
+          const warning = new TransformWarning(
+            `The class '${cls}' is used in CSS but not declared in the component`,
+            notNullish(path.node.loc),
+          );
+          context.onWarning(warning);
+        }
       }
     }
   }
@@ -316,6 +322,38 @@ export function handleStyledElementAssignment(
   }
 
   return true;
+}
+
+function isUsedWithDynamicClassName(
+  componentName: string,
+  path: NodePath<t.VariableDeclarator>,
+): boolean {
+  const programPath = path.findParent((p) => p.isProgram());
+  if (!programPath?.isProgram()) return false;
+
+  let found = false;
+  programPath.traverse({
+    JSXElement(jsxPath) {
+      const opening = jsxPath.node.openingElement;
+      if (!t.isJSXIdentifier(opening.name)) return;
+      if (opening.name.name !== componentName) return;
+
+      for (const attr of opening.attributes) {
+        if (t.isJSXAttribute(attr) && t.isJSXIdentifier(attr.name) && attr.name.name === 'className') {
+          const v = attr.value;
+          if (
+            t.isJSXExpressionContainer(v)
+            && !t.isStringLiteral(v.expression)
+          ) {
+            found = true;
+            jsxPath.stop();
+            break;
+          }
+        }
+      }
+    },
+  });
+  return found;
 }
 
 export function handleStyledExtensionAssignment(
