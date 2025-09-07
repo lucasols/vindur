@@ -48,6 +48,8 @@ function runVindurTransform(filename: string, source: string) {
 
   // Always collect warnings - plugin runs in dev mode with warnings enabled
   function onWarning(warning: TransformWarning) {
+    if (warning.ignoreInLint) return;
+    
     errors.push({
       message: stripFilenameFromMessage(warning.message),
       line: warning.loc.line,
@@ -68,12 +70,14 @@ function runVindurTransform(filename: string, source: string) {
     });
   } catch (error) {
     if (error instanceof TransformError) {
-      errors.push({
-        message: stripFilenameFromMessage(error.message),
-        line: error.loc?.line ?? 1,
-        column: error.loc?.column ?? 0,
-        type: 'error',
-      });
+      if (!error.ignoreInLint) {
+        errors.push({
+          message: stripFilenameFromMessage(error.message),
+          line: error.loc?.line ?? 1,
+          column: error.loc?.column ?? 0,
+          type: 'error',
+        });
+      }
     } else {
       errors.push({
         message: stripFilenameFromMessage(
