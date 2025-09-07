@@ -14,6 +14,7 @@ Vindur is a CSS-in-JS library that compiles your styles at build time, generatin
 - ✅ **Optimized CSS output** - dead code elimination and minification
 - ✅ **Direct class injection** - no wrapper components or runtime style injection
 - ✅ **Efficient bundling** - only used styles are included in the output
+- ✅ **Smart cx() optimization** - static class combinations optimized at build time
 
 ### Build Integration
 
@@ -188,14 +189,17 @@ const StyledDiv = styled.div.attrs({
   padding: 10px;
 `;
 
-// will be compiled to an intermediate component with the attrs
-const StyledDiv = _vSC('div', 'vhash123-1', {
-  'data-testid': 'my-div',
-  'aria-hidden': 'false',
-});
-
-// Usage, will already apply the attrs to the component
+// Usage - attrs are applied directly to the element
 <StyledDiv>Content</StyledDiv>;
+
+// Compiles to:
+<div 
+  className="vhash123-1" 
+  data-testid="my-div" 
+  aria-hidden="false"
+>
+  Content
+</div>;
 ```
 
 `attrs` can also be used with styled extensions:
@@ -905,7 +909,7 @@ const CustomComponent = ({
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashs by default. Use `$` prefix to prevent hashing.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing.
 
 ```tsx
 const Container = styled.div`
@@ -929,12 +933,9 @@ const App = ({ isActive, isDisabled }) => (
 // is compiled to:
 const Compiled = ({ isActive, isDisabled }) => (
   <Container
-    className={cx({
-      vhash_3: isActive,
-      vhash_4: isDisabled,
-      // the $ prefix will be removed from the class name and its value preserved
-      noHash: true,
-    })}
+    className={
+      "noHash" + (isActive ? " vhash_3" : "") + (isDisabled ? " vhash_4" : "")
+    }
   >
     Content with conditional classes
   </Container>
@@ -982,6 +983,32 @@ const className = cx(
 // returns:
 ('class-1 class-2 merge short-circuit');
 ```
+
+### Automatic `cx()` Optimization
+
+Vindur automatically optimizes `cx()` function calls at compile time when possible:
+
+```tsx
+// Static values - optimized to string literal
+const staticClasses = cx('header', 'active', 'featured');
+// ↓ Compiles to:
+const staticClasses = 'header active featured';
+
+// Mixed static and dynamic - optimized to efficient expressions
+const dynamicClasses = cx('base', isActive && 'active', isDisabled && 'disabled');
+// ↓ Compiles to:
+const dynamicClasses = 'base' + (isActive ? ' active' : '') + (isDisabled ? ' disabled' : '');
+
+// Complex expressions remain as cx() calls for runtime handling
+const complexClasses = cx(dynamicArray, spreadValues);
+// ↓ Remains as cx() call
+```
+
+**Optimization benefits:**
+- **Eliminates runtime function calls** for static class combinations
+- **Reduces bundle size** by removing unnecessary cx imports
+- **Generates efficient code** with minimal overhead
+- **Preserves runtime behavior** for dynamic cases
 
 ### Style Flags Props
 
