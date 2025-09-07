@@ -8,7 +8,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx("class1", "class2", "class3")}>Content</div>;
           }
@@ -27,7 +27,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx("class1", false, null, undefined, "", "class2")}>Content</div>;
           }
@@ -46,7 +46,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx({ active: true, disabled: false, loading: true })}>Content</div>;
           }
@@ -65,7 +65,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx("base", { active: true, disabled: false }, "extra")}>Content</div>;
           }
@@ -84,7 +84,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx()}>Content</div>;
           }
@@ -103,7 +103,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx(false, null, undefined, "")}>Content</div>;
           }
@@ -124,7 +124,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ isActive, isDisabled }) {
             return (
               <div className={cx("base", isActive && "active", isDisabled && "disabled")}>
@@ -155,7 +155,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ isActive, isDisabled }) {
             return (
               <div className={cx({ active: isActive, disabled: isDisabled })}>
@@ -184,7 +184,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ isActive, isDisabled }) {
             return (
               <div className={cx("base", { active: isActive, loading: true, disabled: isDisabled })}>
@@ -218,7 +218,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ isActive }) {
             return (
               <div className={cx(isActive && "active")}>
@@ -243,7 +243,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return <div className={cx("v1560qbr-1", "voctcyj")}>Content</div>;
           }
@@ -262,7 +262,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ active }) {
             return <div className={cx("v1560qbr-1-Button", active && "voctcyj-active")}>Content</div>;
           }
@@ -285,7 +285,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ active, disabled, loading }) {
             return (
               <div className={cx(
@@ -326,7 +326,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ classes }) {
             return <div className={cx("base", ...classes)}>Content</div>;
           }
@@ -346,7 +346,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             const classes = ["dynamic", "array"];
             return <div className={cx(classes)}>Content</div>;
@@ -368,7 +368,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ condition, obj1, obj2 }) {
             return <div className={cx(condition ? obj1 : obj2)}>Content</div>;
           }
@@ -388,7 +388,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ className }) {
             return <div className={cx({ [className]: true })}>Content</div>;
           }
@@ -416,7 +416,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ getClassName }) {
             return <div className={cx(getClassName())}>Content</div>;
           }
@@ -436,7 +436,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ a, b, c }) {
             return <div className={cx(a && b && c && "complex")}>Content</div>;
           }
@@ -457,7 +457,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return (
               <div className={"base-class " + cx("class1", "class2")}>
@@ -480,7 +480,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return (
               <div className={\`base-class \${cx("class1", "class2")}\`}>
@@ -505,7 +505,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component() {
             return (
               <div>
@@ -534,7 +534,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ dynamicClasses }) {
             return (
               <div>
@@ -566,7 +566,7 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           function Component({ isActive }) {
             const className = cx("base", isActive && "active");
             return <div className={className}>Content</div>;
@@ -587,9 +587,9 @@ describe('cx() optimization', () => {
       const result = await transformWithFormat({
         source: dedent`
           import { cx } from 'vindur';
-          
+
           const staticClassName = cx("class1", "class2", "class3");
-          
+
           function Component() {
             return <div className={staticClassName}>Content</div>;
           }

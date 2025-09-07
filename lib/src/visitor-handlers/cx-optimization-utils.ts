@@ -5,9 +5,7 @@ import { types as t } from '@babel/core';
  * Returns null if the call cannot be optimized.
  */
 export function optimizeCxCall(callExpr: t.CallExpression): t.Expression | null {
-  if (!isCxCall(callExpr)) {
-    return null;
-  }
+  if (!isCxCall(callExpr)) return null;
 
   const args = callExpr.arguments;
   if (args.length === 0) {
@@ -16,15 +14,11 @@ export function optimizeCxCall(callExpr: t.CallExpression): t.Expression | null 
 
   // Try full static optimization first
   const staticResult = tryStaticOptimization(args);
-  if (staticResult !== null) {
-    return staticResult;
-  }
+  if (staticResult !== null) return staticResult;
 
   // Try partial optimization
   const partialResult = tryPartialOptimization(args);
-  if (partialResult !== null) {
-    return partialResult;
-  }
+  if (partialResult !== null) return partialResult;
 
   // Cannot optimize
   return null;
@@ -129,9 +123,7 @@ function tryPartialOptimization(args: Array<t.Expression | t.SpreadElement | t.A
     return null;
   }
 
-  if (parts.length === 0) {
-    return null;
-  }
+  if (parts.length === 0) return null;
 
   if (parts.length === 1) {
     return parts[0]!;
@@ -193,9 +185,7 @@ function tryOptimizeObjectExpression(obj: t.ObjectExpression, isFirst: boolean):
 
   parts.push(...dynamicParts);
 
-  if (parts.length === 0) {
-    return null;
-  }
+  if (parts.length === 0) return null;
 
   if (parts.length === 1) {
     return parts[0]!;
@@ -218,17 +208,13 @@ function getStaticStringValue(expr: t.Expression): string | null {
     return expr.value;
   }
 
-  if (t.isNumericLiteral(expr)) {
-    return expr.value.toString();
-  }
+  if (t.isNumericLiteral(expr)) return expr.value.toString();
 
   if (t.isBooleanLiteral(expr)) {
     return expr.value ? 'true' : '';
   }
 
-  if (t.isNullLiteral(expr)) {
-    return '';
-  }
+  if (t.isNullLiteral(expr)) return '';
 
   if (t.isIdentifier(expr) && expr.name === 'undefined') {
     return '';
@@ -245,9 +231,7 @@ function isFalsyExpression(expr: t.Expression): boolean {
     return true;
   }
 
-  if (t.isNullLiteral(expr)) {
-    return true;
-  }
+  if (t.isNullLiteral(expr)) return true;
 
   if (t.isIdentifier(expr) && expr.name === 'undefined') {
     return true;
