@@ -32,7 +32,7 @@ export function resolveForwardReferences(
         throw new TransformError(
           'Invalid forward reference placeholder found',
           defaultLoc,
-          filePath,
+          { filename: filePath },
         );
       }
       const styledComponent = state.styledComponents.get(componentName);
@@ -46,7 +46,7 @@ export function resolveForwardReferences(
         throw new TransformError(
           `Forward reference to undefined styled component: ${componentName}. Make sure the component is defined in the same file.`,
           defaultLoc,
-          filePath,
+          { filename: filePath },
         );
       }
     }

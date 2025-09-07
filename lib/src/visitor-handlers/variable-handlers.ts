@@ -57,7 +57,7 @@ export function handleLocalVindurFnError(
     `vindurFn "${functionName}" must be exported, locally declared vindurFn functions are not supported. `
       + `If you are trying to use a vindurFn function, you must import it from another file.`,
     notNullish(path.node.loc),
-    handlerContext.filePath,
+    { filename: handlerContext.filePath },
   );
 }
 
@@ -118,7 +118,7 @@ export function handleCssVariableAssignment(
       const transformWarning = new TransformWarning(
         warning,
         notNullish(path.node.loc),
-        filePath,
+        { filename: filePath },
       );
       context.onWarning(transformWarning);
     }
@@ -190,6 +190,7 @@ export function handleStyledElementAssignment(
       const transformWarning = new TransformWarning(
         warning,
         notNullish(path.node.loc),
+        { filename: filePath },
       );
       context.onWarning(transformWarning);
     }
@@ -278,6 +279,7 @@ export function handleStyledExtensionAssignment(
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
         notNullish(tag.loc),
+        { filename: filePath },
       );
     }
     extendedArg = tag.arguments[0];
@@ -296,6 +298,7 @@ export function handleStyledExtensionAssignment(
       throw new TransformError(
         'styled() can only extend identifiers (components or css variables)',
         notNullish(tag.loc),
+        { filename: filePath },
       );
     }
     extendedArg = tag.callee.object.arguments[0];
@@ -305,6 +308,7 @@ export function handleStyledExtensionAssignment(
       throw new TransformError(
         'styled(Component).attrs() must be called with exactly one object literal argument',
         notNullish(tag.loc),
+        { filename: filePath },
       );
     }
   } else {

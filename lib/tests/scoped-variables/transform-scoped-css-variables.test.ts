@@ -449,7 +449,7 @@ describe('scoped CSS variables', () => {
   test('should warn about declared but not used scoped variables', async () => {
     const warnings: TransformWarning[] = [];
 
-    const result = await transformWithFormat({
+    await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
 
@@ -477,7 +477,7 @@ describe('scoped CSS variables', () => {
   test('should handle variables used in CSS but not declared (valid for style props)', async () => {
     const warnings: TransformWarning[] = [];
 
-    const result = await transformWithFormat({
+    await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
 

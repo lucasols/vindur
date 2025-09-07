@@ -1,33 +1,36 @@
+import type { Rule } from 'eslint';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import { transform, TransformError, TransformWarning, type TransformFS } from 'vindur/transform';
-import type { Rule } from 'eslint';
-import type { VindurPluginOptions } from '../types';
-
-type RuleOptions = {
-  // Plugin always runs in dev mode with warnings enabled
-};
+import {
+  transform,
+  TransformError,
+  TransformWarning,
+  type TransformFS,
+} from 'vindur/transform';
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
+const FILENAME_REGEX = /^\/[^:]+:\s*/;
 
 function stripFilenameFromMessage(message: string): string {
   // Remove filename prefix like "/path/to/file.tsx: " from the beginning of error messages
   // ESLint already provides filename context, so this is redundant
-  return message.replace(/^\/[^:]+:\s*/, '');
+  return message.replace(FILENAME_REGEX, '');
 }
 function shouldProcessFile(filename: string, source: string): boolean {
   if (!JS_EXTENSIONS.includes(extname(filename))) {
     return false;
   }
-  
+
   if (filename.includes('node_modules')) return false;
-  
+
   // Only process files that contain vindur imports or usage
-  return source.includes('vindur') || 
-         source.includes('css`') || 
-         source.includes('styled.') ||
-         source.includes('cx=') ||
-         source.includes('css=');
+  return (
+    source.includes('vindur')
+    || source.includes('css`')
+    || source.includes('styled.')
+    || source.includes('cx=')
+    || source.includes('css=')
+  );
 }
 
 function runVindurTransform(filename: string, source: string) {
@@ -36,17 +39,22 @@ function runVindurTransform(filename: string, source: string) {
     exists: (fileAbsPath: string) => existsSync(fileAbsPath),
   };
 
-  const errors: Array<{ message: string; line: number; column: number; type: 'error' | 'warning' }> = [];
+  const errors: Array<{
+    message: string;
+    line: number;
+    column: number;
+    type: 'error' | 'warning';
+  }> = [];
 
   // Always collect warnings - plugin runs in dev mode with warnings enabled
-  const onWarning = (warning: TransformWarning) => {
+  function onWarning(warning: TransformWarning) {
     errors.push({
       message: stripFilenameFromMessage(warning.message),
       line: warning.loc.line,
       column: warning.loc.column,
-      type: 'warning'
+      type: 'warning',
     });
-  };
+  }
 
   try {
     transform({
@@ -64,14 +72,16 @@ function runVindurTransform(filename: string, source: string) {
         message: stripFilenameFromMessage(error.message),
         line: error.loc?.line ?? 1,
         column: error.loc?.column ?? 0,
-        type: 'error'
+        type: 'error',
       });
     } else {
       errors.push({
-        message: stripFilenameFromMessage(error instanceof Error ? error.message : String(error)),
+        message: stripFilenameFromMessage(
+          error instanceof Error ? error.message : String(error),
+        ),
         line: 1,
         column: 0,
-        type: 'error'
+        type: 'error',
       });
     }
   }
@@ -90,12 +100,13 @@ export const checkTransformRule: Rule.RuleModule = {
     schema: [], // No options - plugin always runs in dev mode with warnings
     messages: {
       transformError: '{{message}}',
-      transformWarning: '{{message}}'
-    }
+      transformWarning: '{{message}}',
+    },
   },
 
   create(context) {
-    const filename = context.filename.startsWith('/') ? context.filename : '/test.ts';
+    const filename =
+      context.filename.startsWith('/') ? context.filename : '/test.ts';
     const source = context.sourceCode.getText();
 
     // Only process relevant files
@@ -104,19 +115,20 @@ export const checkTransformRule: Rule.RuleModule = {
     return {
       Program(node) {
         const result = runVindurTransform(filename, source);
-        
+
         for (const error of result.errors) {
           context.report({
             node,
-            messageId: error.type === 'error' ? 'transformError' : 'transformWarning',
+            messageId:
+              error.type === 'error' ? 'transformError' : 'transformWarning',
             data: { message: error.message },
             loc: {
               line: error.line,
-              column: error.column
-            }
+              column: error.column,
+            },
           });
         }
-      }
+      },
     };
-  }
+  },
 };

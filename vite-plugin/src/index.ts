@@ -144,11 +144,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         }
         log(`Tracked dependency: ${dependency} -> ${id}`);
         // Also register file watchers so Vite re-runs transform when these change
-        if (
-          dependency !== id
-          && !dependency.includes('node_modules')
-          && typeof this.addWatchFile === 'function'
-        ) {
+        if (dependency !== id && !dependency.includes('node_modules')) {
           this.addWatchFile(dependency);
           log(`Added watch file for dependency: ${dependency}`);
         }

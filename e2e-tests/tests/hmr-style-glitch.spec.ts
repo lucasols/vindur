@@ -123,7 +123,7 @@ test('should not cause style glitches during HMR updates', async ({ page }) => {
     'rgb(0, 128, 0)', // green
     'rgb(128, 0, 128)', // purple
   ];
-  const validFontSizes = ['16px', '24px']; // only original and updated sizes
+  // const validFontSizes = ['16px', '24px']; // only original and updated sizes
 
   // Check for specific glitch patterns (transparent backgrounds during HMR)
   const glitchDetected = capturedStyles.some(

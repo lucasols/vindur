@@ -64,7 +64,7 @@ export function handleCssTaggedTemplate(
       const transformWarning = new TransformWarning(
         warning,
         notNullish(path.node.loc),
-        sourceFilePath,
+        { filename: sourceFilePath },
       );
       context.onWarning(transformWarning);
     }
@@ -154,7 +154,7 @@ export function handleGlobalStyleTaggedTemplate(
       const transformWarning = new TransformWarning(
         warning,
         notNullish(path.node.loc),
-        sourceFilePath,
+        { filename: sourceFilePath },
       );
       context.onWarning(transformWarning);
     }

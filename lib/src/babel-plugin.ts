@@ -4,6 +4,7 @@ import { types as t } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
 import type { CssProcessingContext } from './css-processing';
+import type { CssRuleWithLocation } from './css-source-map';
 import { TransformError, TransformWarning } from './custom-errors';
 import {
   createExtractVindurFeaturesPlugin,
@@ -12,7 +13,6 @@ import {
 import { createExtractVindurFunctionsPlugin } from './extract-vindur-functions-plugin';
 import { performPostProcessing } from './post-processing-handlers';
 import type { CompiledFunction } from './types';
-import type { CssRuleWithLocation } from './css-source-map';
 import {
   handleFunctionImports,
   handleVindurFnExport,
@@ -97,7 +97,10 @@ export type DynamicColorCache = {
   [filePath: string]: { [varName: string]: string };
 };
 
-export type PluginFS = { readFile: (path: string) => string; exists: (path: string) => boolean };
+export type PluginFS = {
+  readFile: (path: string) => string;
+  exists: (path: string) => boolean;
+};
 
 export type ImportedFunctions = Map<string, string>;
 
@@ -156,13 +159,13 @@ function loadExternalFunction(
       throw new TransformError(
         `called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function`,
         notNullish(callLoc),
-        filePath,
+        { filename: filePath },
       );
     } else {
       throw new TransformError(
         `Function "${functionName}" not found in ${filePath}`,
         notNullish(callLoc),
-        filePath,
+        { filename: filePath },
       );
     }
   }
@@ -335,8 +338,8 @@ export function createVindurPlugin(
           onWarning,
           dev,
           extractedFiles:
-            state.extractedFiles ??
-            (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
+            state.extractedFiles
+            ?? (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -423,8 +426,8 @@ export function createVindurPlugin(
           onWarning,
           dev,
           extractedFiles:
-            state.extractedFiles ??
-            (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
+            state.extractedFiles
+            ?? (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
           loadExternalFunction: loadExternalFunctionWithDeps,
         };
 
@@ -475,8 +478,11 @@ export function createVindurPlugin(
             onWarning,
             dev,
             extractedFiles:
-              state.extractedFiles ??
-              (state.extractedFiles = new Map<string, ExtractedFileRecord>()),
+              state.extractedFiles
+              ?? (state.extractedFiles = new Map<
+                string,
+                ExtractedFileRecord
+              >()),
             loadExternalFunction,
           }),
           filePath,

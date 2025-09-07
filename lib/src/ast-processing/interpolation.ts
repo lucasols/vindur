@@ -3,6 +3,7 @@ import { generate } from '@babel/generator';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { extractLiteralValue, isLiteralExpression } from '../ast-utils';
 import type { CssProcessingContext } from '../css-processing';
+import { TransformError } from '../custom-errors';
 import {
   resolveDynamicColorCallExpression,
   resolveDynamicColorExpression,
@@ -14,7 +15,6 @@ import {
   resolveVariable,
 } from './resolution';
 import { resolveThemeColorExpression } from './theme-colors';
-import { TransformError } from '../custom-errors';
 
 function processIdentifierExpression(
   expression: t.Identifier,
@@ -91,7 +91,7 @@ function resolveImportedIdentifier(
     throw new TransformError(
       `Function "${name}" not found in ${importedFilePath}`,
       notNullish(context.path.node.loc),
-      importedFilePath,
+      { filename: importedFilePath },
     );
   }
 
@@ -389,7 +389,7 @@ export function processTemplateWithInterpolation(
       if (expression && t.isExpression(expression)) {
         // Check context around interpolation
         const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
-        
+
         // Simple logic: if followed by semicolon, interpolate CSS content directly
         // Otherwise, use as selector
         const followedBySemicolon = nextPart.trimStart().startsWith(';');
