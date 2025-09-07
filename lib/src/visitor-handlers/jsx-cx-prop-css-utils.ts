@@ -29,11 +29,19 @@ export function generateMissingCssClassWarnings(
     if (mapping.wasDollarPrefixed) continue;
 
     // Check if the CSS class exists in any CSS rule for this styled component
-    // Look for &.originalClassName patterns
+    // Look for original pattern first, then any hashed pattern that starts with the original
     const hasClass = state.cssRules.some(
-      (rule) =>
-        rule.css.includes(`.${styledInfo.className}`)
-        && rule.css.includes(`&.${mapping.original}`),
+      (rule) => {
+        if (!rule.css.includes(`.${styledInfo.className}`)) return false;
+        
+        // Check for original pattern (for non-processed CSS)
+        if (rule.css.includes(`&.${mapping.original}`)) return true;
+        
+        // Check for any hashed pattern that contains the original name 
+        // This handles cases where the hashed class name might be different between usages
+        const hashedPattern = new RegExp(`&\\.v\\w+-\\d+-${mapping.original}\\b`);
+        return hashedPattern.test(rule.css);
+      },
     );
 
     if (!hasClass) {

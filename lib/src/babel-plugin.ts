@@ -81,6 +81,7 @@ export type VindurPluginState = {
   dynamicColors?: Map<string, string>; // Track createDynamicCssColor variables
   scopedVariables?: Map<string, { index: number; originalName: string }>; // Track scoped CSS variables at file level
   potentiallyUndeclaredScopedVariables?: Set<string>; // Track variables used in CSS but not declared (may be provided via style props)
+  cxClassIndices?: Map<string, number>; // Track cx class names and their assigned indices at file level
   elementsWithCssContext?: WeakSet<t.JSXElement>; // Track elements that have been processed by css prop handler
   sourceContent?: string; // Track source content for source map generation
   currentLayer?: string; // Track the current CSS layer for the current styled component

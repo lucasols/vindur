@@ -52,10 +52,15 @@ export function handleJsxCxProp(
 
   const expression = validateAndExtractCxExpression(cxAttr);
 
+  // Create context key for scoping cx class indices
+  const contextKey = isStyledComponent
+    ? `styled:${elementName}`
+    : `css:${path.node.loc?.start.line || 0}:${path.node.loc?.start.column || 0}`;
+
   // Process the object expression to hash class names
   const { classNameMappings, processedProperties } = processCxObjectExpression(
     expression,
-    context,
+    { ...context, state: context.state, contextKey },
   );
 
   // Update CSS rules and handle styled components
@@ -244,6 +249,8 @@ function processCxObjectExpression(
     dev: boolean;
     fileHash: string;
     classIndex: () => number;
+    state: VindurPluginState;
+    contextKey: string;
   },
 ): {
   classNameMappings: Array<{
@@ -258,6 +265,11 @@ function processCxObjectExpression(
     hashed: string;
     wasDollarPrefixed?: boolean;
   }> = [];
+
+  // Initialize cx class indices map if it doesn't exist
+  if (!context.state.cxClassIndices) {
+    context.state.cxClassIndices = new Map();
+  }
 
   const processedProperties = expression.properties.map((prop) => {
     if (!t.isObjectProperty(prop) || prop.computed) {
@@ -289,7 +301,17 @@ function processCxObjectExpression(
       });
       return t.objectProperty(t.stringLiteral(unhashedClassName), prop.value);
     } else {
-      const classIndex = context.classIndex();
+      // Create a scoped key combining context and class name
+      const scopedKey = `${context.contextKey}:${className}`;
+      
+      // Check if we already have an index for this scoped class name
+      let classIndex = context.state.cxClassIndices!.get(scopedKey);
+      if (classIndex === undefined) {
+        // Get a new index and store it with the scoped key
+        classIndex = context.classIndex();
+        context.state.cxClassIndices!.set(scopedKey, classIndex);
+      }
+
       const hashedClassName = generateHashedClassName(
         className,
         context.dev,
