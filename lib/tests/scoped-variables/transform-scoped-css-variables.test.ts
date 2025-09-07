@@ -1,5 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { describe, expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 describe('scoped CSS variables', () => {
@@ -445,8 +447,8 @@ describe('scoped CSS variables', () => {
   });
 
   test('should warn about declared but not used scoped variables', async () => {
-    const warnings: string[] = [];
-    
+    const warnings: TransformWarning[] = [];
+
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -459,18 +461,22 @@ describe('scoped CSS variables', () => {
         \`;
       `,
       onWarning: (warning) => {
-        warnings.push(warning.message);
+        warnings.push(warning);
       },
     });
 
-    expect(warnings).toContain(
-      "Scoped variable '---unused-color' is declared but never read"
-    );
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "Scoped variable '---unused-color' is declared but never read"
+          loc: 'current_file:3:6'
+      "
+    `);
   });
 
   test('should handle variables used in CSS but not declared (valid for style props)', async () => {
-    const warnings: string[] = [];
-    
+    const warnings: TransformWarning[] = [];
+
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -483,16 +489,21 @@ describe('scoped CSS variables', () => {
         \`;
       `,
       onWarning: (warning) => {
-        warnings.push(warning.message);
+        warnings.push(warning);
       },
     });
 
-    expect(warnings).toContain(
-      "Scoped variable '---theme-color' is used but never declared",
-    );
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "Scoped variable '---theme-color' is used but never declared"
+          loc: '/test.tsx:1:0'
+      "
+    `);
   });
 
   test('should handle complex variable names', async () => {
+    const warnings: TransformWarning[] = [];
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -507,8 +518,12 @@ describe('scoped CSS variables', () => {
           border-radius: var(---border-radius-sm);
         \`;
       `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
     });
 
+    expect(warnings).toHaveLength(0);
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`
@@ -526,6 +541,7 @@ describe('scoped CSS variables', () => {
   });
 
   test('should preserve regular CSS custom properties', async () => {
+    const warnings: TransformWarning[] = [];
     const result = await transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
@@ -539,8 +555,12 @@ describe('scoped CSS variables', () => {
           border: 1px solid var(--global-color);
         \`;
       `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
     });
 
+    expect(warnings).toHaveLength(0);
     expect(result.code).toMatchInlineSnapshot(`""`);
 
     expect(result.css).toMatchInlineSnapshot(`

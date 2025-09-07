@@ -1,12 +1,14 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { describe, expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 describe('JSX cx prop warnings', () => {
   describe('Warnings for Missing CSS Classes', () => {
     test('should warn about cx modifiers without corresponding CSS classes in dev mode', async () => {
-      const warnings: string[] = [];
-      
+      const warnings: TransformWarning[] = [];
+
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -33,13 +35,17 @@ describe('JSX cx prop warnings', () => {
           }
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing CSS classes for cx modifiers in Card: highlighted',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing CSS classes for cx modifiers in Card: highlighted'
+            loc: 'current_file:18:4'
+        "
+      `);
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -80,8 +86,8 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should warn about multiple cx modifiers without corresponding CSS classes in dev mode', async () => {
-      const warnings: string[] = [];
-      
+      const warnings: TransformWarning[] = [];
+
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -103,13 +109,17 @@ describe('JSX cx prop warnings', () => {
           }
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing CSS classes for cx modifiers in Widget: disabled, highlighted, compact',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing CSS classes for cx modifiers in Widget: disabled, highlighted, compact'
+            loc: 'current_file:13:4'
+        "
+      `);
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -146,6 +156,7 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should not warn in production mode', async () => {
+      const warnings: TransformWarning[] = [];
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -167,8 +178,12 @@ describe('JSX cx prop warnings', () => {
           }
         `,
         production: true,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
       });
 
+      expect(warnings).toHaveLength(0);
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
         function Component({ isActive, isHighlighted }) {
@@ -202,6 +217,7 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should not warn when all cx modifiers have corresponding CSS classes', async () => {
+      const warnings: TransformWarning[] = [];
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -226,8 +242,12 @@ describe('JSX cx prop warnings', () => {
             );
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
       });
 
+      expect(warnings).toHaveLength(0);
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
         function Component({ isPrimary, isDisabled }) {
@@ -265,8 +285,8 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should exclude $ prefixed props from missing CSS class checking', async () => {
-      const warnings: string[] = [];
-      
+      const warnings: TransformWarning[] = [];
+
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -284,13 +304,17 @@ describe('JSX cx prop warnings', () => {
           }
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing CSS classes for cx modifiers in Widget: warning',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing CSS classes for cx modifiers in Widget: warning'
+            loc: 'current_file:12:9'
+        "
+      `);
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
@@ -324,6 +348,7 @@ describe('JSX cx prop warnings', () => {
     });
 
     test('should not warn when $ prefixed props have corresponding CSS classes', async () => {
+      const warnings: TransformWarning[] = [];
       const result = await transformWithFormat({
         source: dedent`
           import { styled, cx } from 'vindur';
@@ -348,8 +373,12 @@ describe('JSX cx prop warnings', () => {
             return <Widget cx={{ active: isActive, $error: hasError, $disabled: isDisabled }} />;
           }
         `,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
       });
 
+      expect(warnings).toHaveLength(0);
       expect(result.code).toMatchInlineSnapshot(`
         "import { cx } from "vindur";
         function Component({ isActive, hasError, isDisabled }) {

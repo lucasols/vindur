@@ -1,5 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { describe, expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 describe('Style Flags Transform Logic', () => {
@@ -551,8 +553,8 @@ describe('Style Flags Transform Logic', () => {
     });
 
     test('should warn about missing modifier styles', async () => {
-      const warnings: string[] = [];
-      
+      const warnings: TransformWarning[] = [];
+
       const result = await transformWithFormat({
         source: dedent`
           import { styled } from 'vindur';
@@ -572,13 +574,17 @@ describe('Style Flags Transform Logic', () => {
           }
         `,
         onWarning: (warning) => {
-          warnings.push(warning.message);
+          warnings.push(warning);
         },
       });
 
-      expect(warnings).toContain(
-        'Warning: Missing modifier styles for "&.active" in StyledWithModifier',
-      );
+      expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+        "
+        - TransformWarning#:
+            message: 'Warning: Missing modifier styles for "&.active" in StyledWithModifier'
+            loc: 'current_file:3:6'
+        "
+      `);
 
       expect(result.code).toMatchInlineSnapshot(`
         "import { _vCWM } from "vindur";
