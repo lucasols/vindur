@@ -121,6 +121,81 @@ describe('additional features', () => {
   });
 });
 
+describe('import aliases support', () => {
+  test('should work without import aliases (default behavior)', async () => {
+    await valid(dedent`
+      import { css } from 'vindur';
+      const styles = css\`
+        color: red;
+      \`;
+    `);
+  });
+
+  test('should resolve import aliases for non-vindur imports', async () => {
+    // Mock the aliased utility file to exist
+    mockExistsSync.mockImplementation((path) => {
+      const pathStr = String(path);
+      return pathStr.includes('src/colors') || pathStr.includes('vindur');
+    });
+
+    mockReadFileSync.mockImplementation((path) => {
+      const pathStr = String(path);
+      if (pathStr.includes('src/colors')) {
+        return 'export const PRIMARY_COLOR = "#007bff";';
+      }
+      throw new Error(`File not found: ${pathStr}`);
+    });
+
+    await valid({
+      code: dedent`
+        import { css } from 'vindur';
+        import { PRIMARY_COLOR } from '@/colors';
+
+        const styles = css\`
+          color: \${PRIMARY_COLOR};
+        \`;
+      `,
+      options: [
+        {
+          importAliases: {
+            '@': './src',
+          },
+        },
+      ],
+    });
+  });
+
+  test('should process warnings with importAliases option', async () => {
+    const { result } = await invalid({
+      code: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{
+          active: boolean;
+        }>\`
+          padding: 8px 16px;
+          color: blue;
+        \`;
+      `,
+      options: [
+        {
+          importAliases: {
+            '@': './src',
+          },
+        },
+      ],
+    });
+
+    // Should still report warnings even when importAliases option is provided
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformWarning'
+        msg: 'Warning: Missing modifier styles for "&.active" in Button'
+        loc: '3:7'
+      "
+    `);
+  });
+});
 
 describe('warning system - onWarning callback functionality', () => {
   describe('style flags warnings', () => {
@@ -201,7 +276,6 @@ describe('warning system - onWarning callback functionality', () => {
         "
       `);
     });
-
   });
 
   describe('scoped CSS variable warnings', () => {
@@ -311,7 +385,6 @@ describe('warning system - onWarning callback functionality', () => {
     });
   });
 
-
   describe('warnings vs errors distinction', () => {
     test('should report warnings even when transform errors are ignored', async () => {
       const { result } = await invalid(dedent`
@@ -325,7 +398,7 @@ describe('warning system - onWarning callback functionality', () => {
         \`;
       `);
 
-      // Should see the warning for missing style flags 
+      // Should see the warning for missing style flags
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
         - messageId: 'transformWarning'
@@ -336,4 +409,3 @@ describe('warning system - onWarning callback functionality', () => {
     });
   });
 });
-

@@ -33,7 +33,11 @@ function shouldProcessFile(filename: string, source: string): boolean {
   );
 }
 
-function runVindurTransform(filename: string, source: string) {
+function runVindurTransform(
+  filename: string,
+  source: string,
+  importAliases: Record<string, string> = {},
+) {
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
     exists: (fileAbsPath: string) => existsSync(fileAbsPath),
@@ -64,7 +68,7 @@ function runVindurTransform(filename: string, source: string) {
       source,
       dev: true, // Always run in dev mode
       fs,
-      importAliases: {}, // No import aliases support for simplicity
+      importAliases,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
     });
@@ -101,7 +105,21 @@ export const checkTransformRule: Rule.RuleModule = {
       category: 'Possible Errors',
       recommended: true,
     },
-    schema: [], // No options - plugin always runs in dev mode with warnings
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          importAliases: {
+            type: 'object',
+            additionalProperties: {
+              type: 'string',
+            },
+            description: 'Import path aliases for resolving module imports',
+          },
+        },
+        additionalProperties: false,
+      },
+    ],
     messages: {
       transformError: '{{message}}',
       transformWarning: '{{message}}',
@@ -112,13 +130,15 @@ export const checkTransformRule: Rule.RuleModule = {
     const filename =
       context.filename.startsWith('/') ? context.filename : '/test.ts';
     const source = context.sourceCode.getText();
+    const options = context.options[0] || {};
+    const importAliases = options.importAliases || {};
 
     // Only process relevant files
     if (!shouldProcessFile(filename, source)) return {};
 
     return {
       Program(node) {
-        const result = runVindurTransform(filename, source);
+        const result = runVindurTransform(filename, source, importAliases);
 
         for (const error of result.errors) {
           context.report({
