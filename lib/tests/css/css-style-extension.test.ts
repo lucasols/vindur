@@ -178,7 +178,8 @@ describe('CSS style extension', () => {
         "column": 4,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });

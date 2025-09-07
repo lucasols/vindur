@@ -60,7 +60,7 @@ export function parseTernaryCondition(
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${test.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         notNullish(test.loc),
-        { filename },
+        { filename, ignoreInLint: true },
       );
     }
     return [
@@ -128,7 +128,7 @@ export function parseConditionValue(
       throw new TransformError(
         `Invalid interpolation used at \`... ${functionName} = vindurFn((${Array.from(validParameterNames).join(', ')}) => \` ... \${${expr.name}}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported`,
         notNullish(expr.loc),
-        { filename },
+        { filename, ignoreInLint: true },
       );
     }
     return { type: 'arg', name: expr.name };

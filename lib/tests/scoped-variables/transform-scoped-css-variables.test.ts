@@ -469,7 +469,7 @@ describe('scoped CSS variables', () => {
       "
       - TransformWarning#:
           message: "Scoped variable '---unused-color' is declared but never read"
-          loc: 'current_file:3:6'
+          loc: '/test.tsx:3:6'
       "
     `);
   });

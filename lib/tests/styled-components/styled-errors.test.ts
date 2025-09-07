@@ -56,7 +56,8 @@ describe('styled components - error handling', () => {
         "column": 11,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });

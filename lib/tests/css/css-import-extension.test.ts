@@ -353,13 +353,14 @@ test('should throw error on direct circular import', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: {
+      "column": 4,
+      "filename": undefined,
+      "line": 5,
+    }
+    ignoreInLint: true]
+  `,
   );
 });
 
@@ -398,13 +399,14 @@ test('should throw error on indirect circular import', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: {
+      "column": 4,
+      "filename": undefined,
+      "line": 5,
+    }
+    ignoreInLint: true]
+  `,
   );
 });
 

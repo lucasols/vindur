@@ -231,7 +231,8 @@ describe('keyframes error handling', () => {
         "column": 12,
         "filename": undefined,
         "line": 7,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });
@@ -259,7 +260,8 @@ describe('keyframes error handling', () => {
         "column": 15,
         "filename": undefined,
         "line": 5,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });

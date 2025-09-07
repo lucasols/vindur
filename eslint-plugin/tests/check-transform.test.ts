@@ -65,8 +65,8 @@ describe('valid cases - no errors', () => {
 });
 
 describe('invalid cases - should report transform errors', () => {
-  test('undefined variable in css template', async () => {
-    const { result } = await invalid(
+  test('undefined variable in css template should be ignored in lint (redundant with TypeScript)', async () => {
+    await valid(
       dedent`
         import { css } from 'vindur';
         const styles = css\`
@@ -74,11 +74,23 @@ describe('invalid cases - should report transform errors', () => {
         \`;
       `,
     );
+  });
 
+  test('should still report errors that are NOT redundant with TypeScript', async () => {
+    const { result } = await invalid(
+      dedent`
+        import { css } from 'vindur';
+        const styles = css\`
+          color: \${(() => 'red')()};
+        \`;
+      `,
+    );
+
+    // This error should still be reported because it's not redundant with TypeScript
     expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
       "
       - messageId: 'transformError'
-        msg: 'Invalid interpolation used at \`... styles = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
+        msg: "Unresolved function call at \`... styles = css\` ... \${(() => 'red')()}, function must be statically analyzable and correctly imported with the configured aliases"
         loc: '3:12'
       "
     `);
@@ -86,19 +98,11 @@ describe('invalid cases - should report transform errors', () => {
 });
 
 describe('basic error handling', () => {
-  test('should properly handle module not found errors', async () => {
-    const { result } = await invalid(dedent`
+  test('should properly handle module not found errors - ignored in lint (redundant with TypeScript)', async () => {
+    await valid(dedent`
       import { css } from 'vindur';
       import { unknownVar } from './nonexistent';
       const styles = css\`color: \${unknownVar};\`;
-    `);
-
-    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
-      "
-      - messageId: 'transformError'
-        msg: 'Invalid interpolation used at \`... styles = css\` ... \${unknownVar}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
-        loc: '3:29'
-      "
     `);
   });
 });
@@ -309,7 +313,7 @@ describe('warning system - onWarning callback functionality', () => {
 
 
   describe('warnings vs errors distinction', () => {
-    test('should report transform errors as errors and warnings as warnings', async () => {
+    test('should report warnings even when transform errors are ignored', async () => {
       const { result } = await invalid(dedent`
         import { styled } from 'vindur';
 
@@ -317,15 +321,16 @@ describe('warning system - onWarning callback functionality', () => {
           active: boolean;
         }>\`
           padding: 8px 16px;
-          color: \${undefinedVariable};
+          color: blue;
         \`;
       `);
 
+      // Should see the warning for missing style flags 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformError'
-          msg: 'Invalid interpolation used at \`... Button = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported'
-          loc: '7:12'
+        - messageId: 'transformWarning'
+          msg: 'Warning: Missing modifier styles for "&.active" in Button'
+          loc: '3:7'
         "
       `);
     });

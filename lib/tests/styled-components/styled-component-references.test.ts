@@ -149,7 +149,8 @@ describe('styled component references', () => {
         "column": 4,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });
@@ -174,7 +175,8 @@ describe('styled component references', () => {
         "column": 4,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });

@@ -284,7 +284,8 @@ describe('interpolation', () => {
         "column": 11,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });
@@ -543,7 +544,8 @@ describe('error handling', () => {
         "column": 25,
         "filename": undefined,
         "line": 3,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });
