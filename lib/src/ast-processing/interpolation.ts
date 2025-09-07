@@ -586,6 +586,7 @@ function resolveImportedObjectProperty(
         throw new TransformError(
           `Property "${propertyName}" not found on imported object "${objectName}" from ${objectFilePath}`,
           notNullish(loc),
+          { ignoreInLint: true },
         );
       }
     } else {

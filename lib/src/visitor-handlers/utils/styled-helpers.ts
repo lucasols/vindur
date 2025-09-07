@@ -166,6 +166,7 @@ export function validateExtendedComponent(
         throw new TransformError(
           `Cannot extend "${extendedName}": it is not a component or styled component.`,
           notNullish(extendedArgLoc),
+          { ignoreInLint: true },
         );
       }
     }

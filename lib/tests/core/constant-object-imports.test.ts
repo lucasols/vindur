@@ -514,13 +514,14 @@ test('should throw error for missing property on imported object', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 6,
-      }]
-    `,
+    [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
+    loc: {
+      "column": 4,
+      "filename": undefined,
+      "line": 6,
+    }
+    ignoreInLint: true]
+  `,
   );
 });
 

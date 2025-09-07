@@ -109,7 +109,8 @@ describe('styled component extension', () => {
         "column": 31,
         "filename": undefined,
         "line": 4,
-      }]
+      }
+      ignoreInLint: true]
     `,
     );
   });
