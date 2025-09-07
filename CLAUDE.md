@@ -164,6 +164,8 @@ pnpm test [...args]
 - If there are too many snapshots to update manually, ask for the user to update them
 - Do not use top level `describe` in tests to group all tests in a file, use describe to group tests only
 
+- Use `compactSnapshot` when possible for inline snapshots of objects and arrays, it produces more readable snapshots in yaml format
+
 End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
 
 ```bash

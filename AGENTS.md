@@ -6,6 +6,9 @@ This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-
 
 - `lib/` - Core library package with Babel transform logic
 - `app-test/` - React test application using Vite for development and testing
+- `e2e-tests/` - End-to-end tests using Playwright
+- `vite-plugin/` - Vite plugin for Vindur
+- `eslint-plugin/` - ESLint plugin for Vindur
 - `notes/spec.md` - Feature specifications and roadmap
 
 # Running ts code
@@ -94,6 +97,24 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 - Transform errors should use `TransformError` class, with properly set `loc` and `message`
 - IMPORTANT: Do not throw TransformError without a proper location! If is not possible to provide the exact error location, use the nearest available location.
 
+# Warnings
+
+Warnings are used to flag potential issues or suggest optimizations without failing the build. They are surfaced to the user as ESLint warnings.
+
+**Use cases for warnings:**
+
+- **Optimization suggestions:** e.g., suggesting a more efficient way to write a style.
+- **Unused code:** e.g., a defined `styled` component that is never used.
+- **Potential issues:** e.g., a CSS property that might not be supported in all target browsers.
+
+**Implementation:**
+
+- Warnings must be created using the `Warning` class from `lib/src/custom-errors.ts`.
+- Each warning must include:
+  - `message`: A clear and concise description of the issue.
+  - `loc`: The Babel `SourceLocation` of the code causing the warning. This is crucial for ESLint to highlight the correct code.
+- Warnings should be propagated to the user via the `onWarning` callback.
+
 # Typesafety
 
 - Do not use `any`
@@ -142,6 +163,8 @@ pnpm test [...args]
 - Do not update snapshots via `vitest run --u`, update them manually
 - If there are too many snapshots to update manually, ask for the user to update them
 - Do not use top level `describe` in tests to group all tests in a file, use describe to group tests only
+
+- Use `compactSnapshot` when possible for inline snapshots of objects and arrays, it produces more readable snapshots in yaml format
 
 End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
 
