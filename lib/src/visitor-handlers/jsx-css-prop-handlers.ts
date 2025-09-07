@@ -98,10 +98,14 @@ export function handleJsxCssProp(
       );
       cssClassName = result.finalClassName;
     } else if (t.isIdentifier(expression)) {
-      // Handle css function reference: css={styles}
+      // Handle identifier values in css prop. Two cases:
+      // - If it refers to a known css() variable, keep as expression
+      // - If this is a custom component and the identifier is unknown, allow forwarding (keep as is)
       const cssVariable = context.state.cssVariables.get(expression.name);
       if (cssVariable) {
-        // Keep as variable reference for dynamic merging
+        cssClassName = expression;
+      } else if (isCustomComponent) {
+        // For custom components, allow unknown identifiers since props might be forwarded.
         cssClassName = expression;
       } else {
         throw new TransformError(

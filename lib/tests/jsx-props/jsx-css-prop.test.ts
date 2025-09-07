@@ -459,9 +459,18 @@ describe('JSX css prop', () => {
       `,
     });
 
-    expect(result.code).toMatchInlineSnapshot();
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { CustomComponent } from "custom";
+      const App: FC<{
+        css?: string;
+      }> = ({ css }) => (
+        // css is just being forwarded, so this should not be an error
+        <CustomComponent css={css}>This should keep the css prop</CustomComponent>
+      );
+      "
+    `);
 
-    expect(result.css).toMatchInlineSnapshot();
+    expect(result.css).toMatchInlineSnapshot(`""`);
   });
 
   test('should handle css prop with css function reference on custom components', async () => {
