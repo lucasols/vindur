@@ -17,11 +17,7 @@ describe('JSX cx prop on plain DOM elements without CSS context', () => {
     ).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: cx prop on plain DOM elements requires classes to use $ prefix (e.g., $className) when not used with css prop or styled components. This ensures you're referencing external CSS classes.
-      loc: {
-        "column": 14,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:14]
     `,
     );
   });
@@ -40,11 +36,7 @@ describe('JSX cx prop on plain DOM elements without CSS context', () => {
     ).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: cx prop on plain DOM elements requires classes to use $ prefix (e.g., $className) when not used with css prop or styled components. This ensures you're referencing external CSS classes.
-      loc: {
-        "column": 14,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:14]
     `,
     );
   });

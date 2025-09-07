@@ -451,11 +451,7 @@ describe('styled components - attrs functionality', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument
-      loc: {
-        "column": 18,
-        "filename": undefined,
-        "line": 3,
-      }]
+      loc: 3:18]
     `,
     );
   });
@@ -478,11 +474,7 @@ describe('styled components - attrs functionality', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: styled.*.attrs() must be called with exactly one object literal argument
-      loc: {
-        "column": 18,
-        "filename": undefined,
-        "line": 3,
-      }]
+      loc: 3:18]
     `,
     );
   });

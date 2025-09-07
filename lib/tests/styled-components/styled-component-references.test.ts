@@ -145,11 +145,7 @@ describe('styled component references', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${UndefinedComponent}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 4,
-      }
+      loc: 4:4
       ignoreInLint: true]
     `,
     );
@@ -171,11 +167,7 @@ describe('styled component references', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... Button = styled\` ... \${Container}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 4,
-      }
+      loc: 4:4
       ignoreInLint: true]
     `,
     );

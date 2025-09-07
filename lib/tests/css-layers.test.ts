@@ -233,11 +233,7 @@ describe('CSS layers with layer() function', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: layer() must be called with a string literal layer name
-      loc: {
-        "column": 10,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:10]
     `,
     );
   });

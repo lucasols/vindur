@@ -644,11 +644,7 @@ describe('JSX css prop', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported
-      loc: {
-        "column": 12,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:12]
     `,
     );
   });

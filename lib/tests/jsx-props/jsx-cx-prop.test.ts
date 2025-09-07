@@ -23,11 +23,7 @@ describe('JSX cx prop transformation', () => {
       ).rejects.toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.tsx: cx prop is not supported on custom component "CustomComponent". The cx prop only works on native DOM elements (like div, span, button) and styled components.
-        loc: {
-          "column": 9,
-          "filename": undefined,
-          "line": 8,
-        }]
+        loc: 8:9]
       `,
       );
     });
@@ -46,11 +42,7 @@ describe('JSX cx prop transformation', () => {
       ).rejects.toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.tsx: cx prop only accepts object expressions
-        loc: {
-          "column": 18,
-          "filename": undefined,
-          "line": 4,
-        }]
+        loc: 4:18]
       `,
       );
     });
@@ -71,11 +63,7 @@ describe('JSX cx prop transformation', () => {
       ).rejects.toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.tsx: cx prop object must only contain non-computed properties
-        loc: {
-          "column": 20,
-          "filename": undefined,
-          "line": 6,
-        }]
+        loc: 6:20]
       `,
       );
     });

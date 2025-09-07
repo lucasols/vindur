@@ -244,11 +244,7 @@ describe('Dynamic Colors - Edge Cases', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(condition ? '#ff6b6b' : null)
-      loc: {
-        "column": 32,
-        "filename": undefined,
-        "line": 11,
-      }]
+      loc: 11:32]
     `);
   });
 
@@ -275,11 +271,7 @@ describe('Dynamic Colors - Edge Cases', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(hasColor ? '#ff6b6b' : undefined)
-      loc: {
-        "column": 32,
-        "filename": undefined,
-        "line": 11,
-      }]
+      loc: 11:32]
     `);
   });
 
@@ -306,11 +298,7 @@ describe('Dynamic Colors - Edge Cases', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(shouldApplyColor ? '#ff6b6b' : null)
-      loc: {
-        "column": 32,
-        "filename": undefined,
-        "line": 11,
-      }]
+      loc: 11:32]
     `);
   });
 });

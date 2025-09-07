@@ -88,11 +88,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Method alpha requires a numeric argument
-      loc: {
-        "column": 16,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:16]
     `);
   });
 
@@ -111,11 +107,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Method darker requires a numeric argument
-      loc: {
-        "column": 16,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:16]
     `);
   });
 
@@ -134,11 +126,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Method lighter requires a numeric argument
-      loc: {
-        "column": 16,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:16]
     `);
   });
 
@@ -157,11 +145,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Method saturatedDarker requires a numeric argument
-      loc: {
-        "column": 16,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:16]
     `);
   });
 
@@ -180,11 +164,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Method alpha requires a numeric argument
-      loc: {
-        "column": 11,
-        "filename": undefined,
-        "line": 6,
-      }]
+      loc: 6:11]
     `);
   });
 });

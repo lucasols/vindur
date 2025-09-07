@@ -261,11 +261,7 @@ describe('constant imports', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Function "unknownConstant" not found in /constants.ts
-      loc: {
-        "column": 6,
-        "filename": "/constants.ts",
-        "line": 4,
-      }]
+      loc: /constants.ts|4:6]
     `,
     );
   });

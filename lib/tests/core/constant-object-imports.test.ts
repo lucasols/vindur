@@ -343,13 +343,9 @@ test('should throw error for nested property access', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${theme.colors.primary}
-      loc: {
-        "column": 11,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${theme.colors.primary}
+    loc: 5:11]
+  `,
   );
 });
 
@@ -379,13 +375,9 @@ test('should throw error for deeply nested property access', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${config.theme.spacing.large}
-      loc: {
-        "column": 12,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${config.theme.spacing.large}
+    loc: 5:12]
+  `,
   );
 });
 
@@ -413,13 +405,9 @@ test('should throw error for nested property access in styled components', async
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... Button = styled\` ... \${theme.colors.primary}
-      loc: {
-        "column": 16,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... Button = styled\` ... \${theme.colors.primary}
+    loc: 5:16]
+  `,
   );
 });
 
@@ -515,11 +503,7 @@ test('should throw error for missing property on imported object', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
-    loc: {
-      "column": 4,
-      "filename": undefined,
-      "line": 6,
-    }
+    loc: 6:4
     ignoreInLint: true]
   `,
   );
@@ -553,13 +537,9 @@ test('should throw error for object not found in imported file', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Object "notExported" not found in /breakpoints.ts
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 6,
-      }]
-    `,
+    [TransformError: /test.tsx: Object "notExported" not found in /breakpoints.ts
+    loc: 6:4]
+  `,
   );
 });
 
@@ -591,13 +571,9 @@ test('should not extract objects with unresolvable template literals', async () 
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Object "mq" not found in /breakpoints.ts
-      loc: {
-        "column": 4,
-        "filename": undefined,
-        "line": 6,
-      }]
-    `,
+    [TransformError: /test.tsx: Object "mq" not found in /breakpoints.ts
+    loc: 6:4]
+  `,
   );
 });
 
@@ -624,13 +600,9 @@ test('should throw error for invalid arithmetic with non-numeric values', async 
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${spacing.base + spacing.unit}, only simple arithmetic with constants is supported
-      loc: {
-        "column": 13,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${spacing.base + spacing.unit}, only simple arithmetic with constants is supported
+    loc: 5:13]
+  `,
   );
 });
 
@@ -658,12 +630,8 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${baseSize * 2}, only simple arithmetic with constants is supported
-      loc: {
-        "column": 13,
-        "filename": undefined,
-        "line": 5,
-      }]
-    `,
+    [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${baseSize * 2}, only simple arithmetic with constants is supported
+    loc: 5:13]
+  `,
   );
 });

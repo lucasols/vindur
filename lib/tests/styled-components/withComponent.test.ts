@@ -214,11 +214,7 @@ describe('withComponent', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Cannot call withComponent on "notAStyledComponent": it is not a styled component.
-      loc: {
-        "column": 28,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:28]
     `,
     );
   });
@@ -238,11 +234,7 @@ describe('withComponent', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: withComponent() must be called with either a string literal element name or a component identifier.
-      loc: {
-        "column": 49,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:49]
     `,
     );
   });

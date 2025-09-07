@@ -25,11 +25,7 @@ describe('styled components - error handling', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: {
-        "column": 11,
-        "filename": undefined,
-        "line": 5,
-      }]
+      loc: 5:11]
     `,
     );
   });
@@ -52,11 +48,7 @@ describe('styled components - error handling', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 11,
-        "filename": undefined,
-        "line": 4,
-      }
+      loc: 4:11
       ignoreInLint: true]
     `,
     );

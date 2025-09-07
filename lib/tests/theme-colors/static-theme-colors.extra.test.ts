@@ -138,11 +138,7 @@ describe('createStaticThemeColors', () => {
       await expect(transformWithFormat({ source })).rejects
         .toMatchInlineSnapshot(`
         [TransformError: /test.tsx: Invalid color "red" for "invalid". Theme colors must be valid hex colors without alpha (e.g., "#ff0000" or "#f00")
-        loc: {
-          "column": 11,
-          "filename": undefined,
-          "line": 4,
-        }]
+        loc: 4:11]
       `);
     });
 
@@ -158,11 +154,7 @@ describe('createStaticThemeColors', () => {
       await expect(transformWithFormat({ source })).rejects
         .toMatchInlineSnapshot(`
         [TransformError: /test.tsx: Invalid color "#ff000080" for "invalid". Theme colors must be valid hex colors without alpha (e.g., "#ff0000" or "#f00")
-        loc: {
-          "column": 11,
-          "filename": undefined,
-          "line": 4,
-        }]
+        loc: 4:11]
       `);
     });
 

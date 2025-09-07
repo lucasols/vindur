@@ -272,13 +272,9 @@ test('should throw error when imported CSS is not found', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-      [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
-      loc: {
-        "column": 6,
-        "filename": "/styles.ts",
-        "line": 4,
-      }]
-    `,
+    [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
+    loc: /styles.ts|4:6]
+  `,
   );
 });
 
@@ -354,11 +350,7 @@ test('should throw error on direct circular import', async () => {
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-    loc: {
-      "column": 4,
-      "filename": undefined,
-      "line": 5,
-    }
+    loc: 5:4
     ignoreInLint: true]
   `,
   );
@@ -400,11 +392,7 @@ test('should throw error on indirect circular import', async () => {
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-    loc: {
-      "column": 4,
-      "filename": undefined,
-      "line": 5,
-    }
+    loc: 5:4
     ignoreInLint: true]
   `,
   );

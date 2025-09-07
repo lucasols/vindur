@@ -224,11 +224,7 @@ describe('styled components - basic functionality', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
-      loc: {
-        "column": 9,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:9]
     `,
     );
   });

@@ -36,11 +36,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... theme = vindurFn((multiplier) => \` ... \${primaryColor}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 6,
-        }]
+        loc: /functions.ts|6:11]
       `,
       );
     });
@@ -73,11 +69,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... fontSize = vindurFn((scale) => \` ... \${baseSize}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-        loc: {
-          "column": 15,
-          "filename": "/functions.ts",
-          "line": 6,
-        }]
+        loc: /functions.ts|6:15]
       `,
       );
     });
@@ -110,11 +102,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: Invalid interpolation used at \`... className = vindurFn((variant) => \` ... \${prefix}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-        loc: {
-          "column": 14,
-          "filename": "/functions.ts",
-          "line": 6,
-        }]
+        loc: /functions.ts|6:14]
       `,
       );
     });
@@ -148,11 +136,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "color" contains member expressions which suggest external dependencies - functions must be self-contained
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 6,
-        }]
+        loc: /functions.ts|6:11]
       `,
       );
     });
@@ -185,11 +169,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "invalidOp" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -220,11 +200,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "logicalAnd" contains unsupported ternary condition type: LogicalExpression
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -255,11 +231,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "fnCall" contains function calls which are not supported - functions must be self-contained
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -290,11 +262,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "memberExpr" contains member expressions which suggest external dependencies - functions must be self-contained
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -325,11 +293,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "arrayAccess" contains member expressions which suggest external dependencies - functions must be self-contained
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -360,11 +324,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "complexExpr" contains unsupported condition value type: BinaryExpression
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -395,11 +355,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "objLiteral" contains unsupported condition value type: ObjectExpression
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -430,11 +386,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "arrLiteral" contains unsupported condition value type: ArrayExpression
-        loc: {
-          "column": 11,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:11]
       `,
       );
     });
@@ -465,11 +417,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "fnInBranch" contains unsupported function calls - only array methods like .map() and .join() are supported
-        loc: {
-          "column": 20,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:20]
       `,
       );
     });
@@ -500,11 +448,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "memberInBranch" contains member expressions which suggest external dependencies - functions must be self-contained
-        loc: {
-          "column": 18,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:18]
       `,
       );
     });
@@ -535,11 +479,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: /functions.ts: vindurFn "unsupportedExpr" contains unsupported expression type in ternary: NewExpression
-        loc: {
-          "column": 18,
-          "filename": "/functions.ts",
-          "line": 4,
-        }]
+        loc: /functions.ts|4:18]
       `,
       );
     });
@@ -561,11 +501,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.
-        loc: {
-          "column": 6,
-          "filename": "/test.ts",
-          "line": 3,
-        }]
+        loc: /test.ts|3:6]
       `,
       );
     });
@@ -589,11 +525,7 @@ describe('function compilation errors', () => {
       }).toThrowErrorMatchingInlineSnapshot(
         `
         [TransformError: /test.ts: vindurFn "spacing" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.
-        loc: {
-          "column": 6,
-          "filename": "/test.ts",
-          "line": 3,
-        }]
+        loc: /test.ts|3:6]
       `,
       );
     });

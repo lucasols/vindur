@@ -692,11 +692,7 @@ test('function with invalid array value', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Array argument for parameter 'numArray' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals.
-    loc: {
-      "column": 15,
-      "filename": undefined,
-      "line": 5,
-    }]
+    loc: 5:15]
   `);
 
   await expect(() =>
@@ -713,10 +709,6 @@ test('function with invalid array value', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Unresolved function call at \`... Container = styled\` ... \${transition([1, invalid, 3])}, function must be statically analyzable and correctly imported with the configured aliases
-    loc: {
-      "column": 4,
-      "filename": undefined,
-      "line": 5,
-    }]
+    loc: 5:4]
   `);
 });

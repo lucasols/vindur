@@ -227,11 +227,7 @@ describe('keyframes error handling', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... animation = css\` ... \${obj.start}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: {
-        "column": 12,
-        "filename": undefined,
-        "line": 7,
-      }]
+      loc: 7:12]
     `,
     );
   });
@@ -255,11 +251,7 @@ describe('keyframes error handling', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Invalid interpolation used at \`... animation = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-      loc: {
-        "column": 15,
-        "filename": undefined,
-        "line": 5,
-      }
+      loc: 5:15
       ignoreInLint: true]
     `,
     );

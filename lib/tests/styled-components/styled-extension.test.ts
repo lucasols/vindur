@@ -77,11 +77,7 @@ describe('styled component extension', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Cannot extend "notAStyledComponent": component names must start with an uppercase letter (CamelCase).
-      loc: {
-        "column": 31,
-        "filename": undefined,
-        "line": 4,
-      }]
+      loc: 4:31]
     `,
     );
   });
@@ -105,11 +101,7 @@ describe('styled component extension', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Cannot extend "NotAComponent": it is not a component or styled component.
-      loc: {
-        "column": 31,
-        "filename": undefined,
-        "line": 4,
-      }
+      loc: 4:31
       ignoreInLint: true]
     `,
     );

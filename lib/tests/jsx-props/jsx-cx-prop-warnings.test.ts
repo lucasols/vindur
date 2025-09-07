@@ -499,5 +499,70 @@ describe('Warnings for Missing CSS Classes', () => {
     });
 
     expect(warnings.length).toBe(0);
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      import { ButtonElement } from "#/button";
+      import { colors } from "#/colors";
+      function Component({ isActive }) {
+        return (
+          <>
+            <ButtonElement
+              onClick={() => onFilterChange("blocked")}
+              className={
+                "v1560qbr-1-FilterButton " +
+                cx({
+                  "v1560qbr-2-active": activeFilter === "blocked",
+                })
+              }
+            >
+              Blocked
+            </ButtonElement>
+
+            <ButtonElement
+              onClick={() => onFilterChange("blocked")}
+              className={
+                "v1560qbr-1-FilterButton " +
+                cx({
+                  "v1560qbr-3-active": activeFilter === "blocked",
+                })
+              }
+            >
+              Blocked
+            </ButtonElement>
+          </>
+        );
+      }
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-FilterButton {
+        display: block;
+        width: 100%;
+        padding: 6px 0;
+        height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--stc-deprecated_text-var, #f00);
+        text-align: left;
+        cursor: pointer;
+        font-size: 16px;
+        letter-spacing: 0.04em;
+        opacity: 0.7;
+
+        transition: all 0.3s ease;
+
+        &.v1560qbr-2-active {
+          color: var(--stc-lime-var, #0f0);
+          opacity: 1;
+        }
+
+        &:hover {
+          opacity: 1;
+        }
+      }
+      "
+    `);
   });
 });
