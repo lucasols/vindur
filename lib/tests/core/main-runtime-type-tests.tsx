@@ -89,26 +89,6 @@ test('invalid interpolations', () => {
       { test: 1 }
     };
   `;
-
-  const StyledComponent2 = styled.div`
-    ${
-      // @ts-expect-error invalid forwardRef, only styled components can be used in forwardRef
-      () => Component
-    } {
-      color: green;
-    }
-  `;
-
-  const StyledComponent3 = styled.div`
-    content: ${
-      // @ts-expect-error invalid dynamic interpolation
-      (props) => (props.test ? 1 : 2)
-    };
-  `;
-
-  function Component() {
-    return <div />;
-  }
 });
 
 test('styled components extension', () => {
@@ -143,6 +123,10 @@ test('styled components extension', () => {
 });
 
 test('styled components reference', () => {
+  function ComponentWithoutClassname() {
+    return <div />;
+  }
+
   const Styled = styled.div`
     color: red;
   `;
@@ -158,6 +142,10 @@ test('styled components reference', () => {
   const style = css`
     ${Styled}:hover & {
       color: green;
+    }
+
+    ${Styled2}:hover & {
+      color: yellow;
     }
   `;
 });

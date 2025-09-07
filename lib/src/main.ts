@@ -21,7 +21,9 @@ type StyleInterpolationValues =
   | string
   | number
   | (() => StyledComponent<any>)
-  | StyledComponent<any>;
+  | StyledComponent<any>
+  | FC<any>
+  | (() => FC<any>);
 
 export function css(
   strings: TemplateStringsArray,
