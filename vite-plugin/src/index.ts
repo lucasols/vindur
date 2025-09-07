@@ -138,7 +138,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         if (!fileDependencies.has(dependency)) {
           fileDependencies.set(dependency, new Set());
         }
-        fileDependencies.get(dependency)!.add(id);
+        fileDependencies.get(dependency)?.add(id);
         log(`Tracked dependency: ${dependency} -> ${id}`);
       }
 
@@ -188,13 +188,16 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       // Clear function cache for this file
       if (functionCache[file]) {
         delete functionCache[file];
-        if (debugLogs) this.info(`[vindur-plugin] Cleared function cache: ${file}`);
+        if (debugLogs)
+          this.info(`[vindur-plugin] Cleared function cache: ${file}`);
       }
 
       // Invalidate virtual CSS module for this file if it exists
       const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(file)}.css`;
       if (virtualCssModules.has(virtualCssId)) {
-        const cssModule = devServer?.moduleGraph.getModuleById(`\0${virtualCssId}`);
+        const cssModule = devServer?.moduleGraph.getModuleById(
+          `\0${virtualCssId}`,
+        );
         if (cssModule) modulesToInvalidate.push(cssModule);
       }
 
@@ -209,19 +212,25 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             }
 
             // Add dependent module and its virtual CSS to invalidation list
-            const dependentModule = devServer.moduleGraph.getModuleById(dependentFile);
+            const dependentModule =
+              devServer.moduleGraph.getModuleById(dependentFile);
             if (dependentModule) modulesToInvalidate.push(dependentModule);
 
             const dependentVirtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(dependentFile)}.css`;
             if (virtualCssModules.has(dependentVirtualCssId)) {
-              const dependentCssModule = devServer.moduleGraph.getModuleById(`\0${dependentVirtualCssId}`);
-              if (dependentCssModule) modulesToInvalidate.push(dependentCssModule);
+              const dependentCssModule = devServer.moduleGraph.getModuleById(
+                `\0${dependentVirtualCssId}`,
+              );
+              if (dependentCssModule)
+                modulesToInvalidate.push(dependentCssModule);
             }
           }
         }
       }
 
-      return modulesToInvalidate.length > modules.length ? modulesToInvalidate : undefined;
+      return modulesToInvalidate.length > modules.length ?
+          modulesToInvalidate
+        : undefined;
     },
   };
 }
