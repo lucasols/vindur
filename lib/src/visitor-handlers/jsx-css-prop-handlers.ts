@@ -8,6 +8,60 @@ import { processStyledTemplate } from '../css-processing';
 import { filterWithNarrowing, findWithNarrowing } from '../utils';
 import { createLocationFromTemplateLiteral } from '../css-source-map';
 
+function startsWithUppercase(name: string): boolean {
+  return name.length > 0 && name[0] !== name[0]?.toLowerCase();
+}
+
+function getElementFlags(
+  elementName: string,
+  state: VindurPluginState,
+): {
+  isNativeDOMElement: boolean;
+  isStyledComponent: boolean;
+  isCustomComponent: boolean;
+  styledUnderlyingIsCustom: boolean;
+} {
+  const isNativeDOMElement =
+    elementName.length > 0 && elementName[0]?.toLowerCase() === elementName[0];
+  const isStyledComponent = state.styledComponents.has(elementName);
+  const isCustomComponent = !isNativeDOMElement && !isStyledComponent;
+
+  let styledUnderlyingIsCustom = false;
+  if (isStyledComponent) {
+    const styledInfo = state.styledComponents.get(elementName);
+    const underlying = styledInfo?.element || '';
+    styledUnderlyingIsCustom = startsWithUppercase(underlying);
+  }
+
+  return {
+    isNativeDOMElement,
+    isStyledComponent,
+    isCustomComponent,
+    styledUnderlyingIsCustom,
+  };
+}
+
+function shouldKeepCssAttribute(flags: {
+  isCustomComponent: boolean;
+  isStyledComponent: boolean;
+  styledUnderlyingIsCustom: boolean;
+}): boolean {
+  return flags.isCustomComponent || (flags.isStyledComponent && flags.styledUnderlyingIsCustom);
+}
+
+function shouldIncludeCssExprInClassName(
+  cssAttr: t.JSXAttribute,
+  flags: { isStyledComponent: boolean; styledUnderlyingIsCustom: boolean },
+  state: VindurPluginState,
+): boolean {
+  if (!flags.isStyledComponent || !flags.styledUnderlyingIsCustom) return true;
+  if (!cssAttr.value || !t.isJSXExpressionContainer(cssAttr.value)) return true;
+  const expr = cssAttr.value.expression;
+  if (!t.isIdentifier(expr)) return true;
+  // If it's a reference to a known css() variable, include; otherwise, exclude
+  return state.cssVariables.has(expr.name);
+}
+
 export function handleJsxCssProp(
   path: NodePath<t.JSXElement>,
   context: {
@@ -25,26 +79,9 @@ export function handleJsxCssProp(
   }
 
   const elementName = path.node.openingElement.name.name;
+  const flags = getElementFlags(elementName, context.state);
 
-  // Check element type
-  const isNativeDOMElement =
-    elementName
-    && elementName.length > 0
-    && elementName[0]?.toLowerCase() === elementName[0];
-  const isStyledComponent = context.state.styledComponents.has(elementName);
-  const isCustomComponent = !isNativeDOMElement && !isStyledComponent;
-
-  // Determine if styled component ultimately renders a custom component
-  let styledUnderlyingIsCustom = false;
-  if (isStyledComponent) {
-    const styledInfo = context.state.styledComponents.get(elementName);
-    if (styledInfo) {
-      const underlying = styledInfo.element;
-      styledUnderlyingIsCustom =
-        underlying.length > 0
-        && underlying[0]?.toLowerCase() !== underlying[0];
-    }
-  }
+  // flags already includes whether styled ultimately renders a custom component
 
   const attributes = path.node.openingElement.attributes;
   const cssAttr = findWithNarrowing(attributes, (attr) =>
@@ -67,7 +104,7 @@ export function handleJsxCssProp(
   // For custom components and styled components that render custom components,
   // we keep the css attribute (forwarding responsibility to the component).
   // For native/styled components that render DOM, remove the css prop.
-  if (!(isCustomComponent || (isStyledComponent && styledUnderlyingIsCustom))) {
+  if (!shouldKeepCssAttribute(flags)) {
     const cssAttrIndex = attributes.indexOf(cssAttr);
     attributes.splice(cssAttrIndex, 1);
   }
@@ -118,7 +155,7 @@ export function handleJsxCssProp(
       const cssVariable = context.state.cssVariables.get(expression.name);
       if (cssVariable) {
         cssClassName = expression;
-      } else if (isCustomComponent || (isStyledComponent && styledUnderlyingIsCustom)) {
+      } else if (flags.isCustomComponent || (flags.isStyledComponent && flags.styledUnderlyingIsCustom)) {
         // For custom components, allow unknown identifiers since props might be forwarded.
         cssClassName = expression;
       } else {
@@ -141,7 +178,7 @@ export function handleJsxCssProp(
   }
 
   // For custom components, replace the css prop value with the generated class name
-  if (isCustomComponent) {
+  if (flags.isCustomComponent) {
     if (typeof cssClassName === 'string') {
       cssAttr.value = t.stringLiteral(cssClassName);
     } else {
@@ -155,7 +192,7 @@ export function handleJsxCssProp(
   // to ensure both styled and css className are included
   let transformedStyledClassName: string | undefined;
 
-  if (isStyledComponent) {
+  if (flags.isStyledComponent) {
     // Get styled component info and transform the element
     const styledInfo = context.state.styledComponents.get(elementName);
     if (styledInfo) {
@@ -169,12 +206,10 @@ export function handleJsxCssProp(
   }
 
   // Add or merge with existing className
-  const includeCssExpressionInClassName = !(
-    isStyledComponent
-    && styledUnderlyingIsCustom
-    && t.isJSXExpressionContainer(cssAttr.value)
-    && t.isIdentifier(cssAttr.value.expression)
-    && !context.state.cssVariables.get(cssAttr.value.expression.name)
+  const includeCssExpressionInClassName = shouldIncludeCssExprInClassName(
+    cssAttr,
+    { isStyledComponent: flags.isStyledComponent, styledUnderlyingIsCustom: flags.styledUnderlyingIsCustom },
+    context.state,
   );
 
   addCssClassNameToJsx(
