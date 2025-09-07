@@ -1,7 +1,7 @@
 {
   "name": "vindur",
   "description": "A Compile time CSS in JS library",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "license": "MIT",
   "scripts": {
     "test": "vitest run",
