@@ -14,9 +14,39 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PUBLISH_HASHES_FILE = join(__dirname, 'publish-hashes.json');
 
-const availablePackages = ['vindur', 'vite-plugin', 'eslint-plugin'] as const;
+type PackageConfig = {
+  name: string;
+  path: string;
+  fullName: string;
+  dependsOnVindur: boolean;
+};
 
-type PackageName = (typeof availablePackages)[number];
+const PACKAGE_CONFIGS: Record<string, PackageConfig> = {
+  vindur: {
+    name: 'vindur',
+    path: './lib',
+    fullName: 'vindur',
+    dependsOnVindur: false,
+  },
+  'vite-plugin': {
+    name: 'vite-plugin',
+    path: './vite-plugin',
+    fullName: '@vindur-css/vite-plugin',
+    dependsOnVindur: true,
+  },
+  'eslint-plugin': {
+    name: 'eslint-plugin',
+    path: './eslint-plugin',
+    fullName: '@vindur/eslint-plugin',
+    dependsOnVindur: true,
+  },
+};
+
+const availablePackages = Object.keys(PACKAGE_CONFIGS) as Array<
+  keyof typeof PACKAGE_CONFIGS
+>;
+
+type PackageName = keyof typeof PACKAGE_CONFIGS;
 
 const versions = ['major', 'minor', 'patch'] as const;
 type Version = (typeof versions)[number];
@@ -31,10 +61,7 @@ function narrowStringToUnion<T extends readonly string[]>(
     : undefined;
 }
 
-type PublishHashesData = {
-  vindur: Record<string, string>;
-  '@vindur-css/vite-plugin': Record<string, string>;
-};
+type PublishHashesData = Record<string, Record<string, string>>;
 
 /**
  * Generate a SHA-256 hash for all files in a directory recursively
@@ -83,10 +110,11 @@ async function generateDirectoryHash(dirPath: string): Promise<string> {
  */
 function readPublishHashes(): PublishHashesData {
   if (!existsSync(PUBLISH_HASHES_FILE)) {
-    return {
-      vindur: {},
-      '@vindur-css/vite-plugin': {},
-    };
+    const defaultHashes: PublishHashesData = {};
+    Object.values(PACKAGE_CONFIGS).forEach((config) => {
+      defaultHashes[config.fullName] = {};
+    });
+    return defaultHashes;
   }
 
   try {
@@ -94,10 +122,11 @@ function readPublishHashes(): PublishHashesData {
     return JSON.parse(content) as PublishHashesData;
   } catch (error) {
     console.warn('⚠️  Could not read publish hashes file, starting fresh');
-    return {
-      vindur: {},
-      '@vindur-css/vite-plugin': {},
-    };
+    const defaultHashes: PublishHashesData = {};
+    Object.values(PACKAGE_CONFIGS).forEach((config) => {
+      defaultHashes[config.fullName] = {};
+    });
+    return defaultHashes;
   }
 }
 
@@ -117,7 +146,7 @@ async function checkHashBeforePublish(
   force = false,
 ): Promise<void> {
   const hashes = readPublishHashes();
-  const packageHashes = hashes[packageName as keyof PublishHashesData];
+  const packageHashes = hashes[packageName] || {};
 
   // Check if this hash already exists for any version
   for (const [version, hash] of Object.entries(packageHashes)) {
@@ -151,12 +180,13 @@ async function checkHashBeforePublish(
  * Save hash after successful publish
  */
 function savePublishHash(
-  packageName: string,
+  packageName: keyof typeof PACKAGE_CONFIGS,
   version: string,
   hash: string,
 ): void {
   const hashes = readPublishHashes();
-  hashes[packageName as keyof PublishHashesData][version] = hash;
+  hashes[packageName] = hashes[packageName] || {};
+  hashes[packageName][version] = hash;
   writePublishHashes(hashes);
   console.log(`📝 Saved publish hash for ${packageName}@${version}`);
 }
@@ -168,12 +198,18 @@ async function publishPackage(
 ) {
   await checkIfIsSync();
 
-  const packagePath = packageName === 'vindur' ? './lib' : './vite-plugin';
-  const fullPackageName =
-    packageName === 'vindur' ? 'vindur' : '@vindur-css/vite-plugin';
+  const config = PACKAGE_CONFIGS[packageName];
 
-  // If publishing vite-plugin, build vindur first since it depends on it
-  if (packageName === 'vite-plugin' || packageName === 'eslint-plugin') {
+  if (!config) {
+    console.error(`❌ Package ${packageName} not found`);
+    process.exit(1);
+  }
+
+  const packagePath = config.path;
+  const fullPackageName = config.fullName;
+
+  // If package depends on vindur, build vindur first
+  if (config.dependsOnVindur) {
     await runCmdUnwrap('Build vindur dependency', [
       'pnpm',
       '--filter',
@@ -296,7 +332,10 @@ async function commitChanges(message: string) {
 }
 
 async function runFromCli() {
-  const packageName = narrowStringToUnion(process.argv[2], availablePackages);
+  const packageName = narrowStringToUnion(
+    process.argv[2],
+    availablePackages,
+  ) as PackageName | undefined;
   const version = narrowStringToUnion(process.argv[3], versions);
   const force = process.argv.includes('--force');
 
