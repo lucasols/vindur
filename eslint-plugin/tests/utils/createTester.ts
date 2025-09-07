@@ -1,4 +1,3 @@
-import { dedent } from '@ls-stack/utils/dedent';
 import type { Rule } from 'eslint';
 import {
   createRuleTester,
@@ -40,21 +39,4 @@ export function createVindurTester(rule: {
     name: rule.name,
     rule: rule.rule,
   });
-}
-
-export function createTestCase(
-  code: string,
-  {
-    filename = '/test.ts',
-    options,
-  }: {
-    filename?: string;
-    options?: unknown[];
-  } = {}
-) {
-  return {
-    code: dedent(code),
-    filename,
-    options,
-  };
 }
