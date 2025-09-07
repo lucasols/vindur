@@ -1,5 +1,6 @@
 /**
  * @fileoverview This a test file for checking the types only, it does not test the runtime behavior.
+ * Also, it should not test the compile helpers, just user related functionality.
  *
  * Just run tsc to test it.
  */
