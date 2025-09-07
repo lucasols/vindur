@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { dedent } from '@ls-stack/utils/dedent';
 import {
   createRuleTester,
@@ -39,20 +40,18 @@ export function createVindurTester(rule: {
   return createRuleTester({
     name: rule.name,
     rule: rule.rule,
-    configs: [{
-      languageOptions: {
-        ecmaVersion: 2024,
-        sourceType: 'module',
-        parserOptions: {
-          ecmaFeatures: {
-            jsx: true,
-          },
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
         },
       },
-      linterOptions: {
-        reportUnusedDisableDirectives: 'off',
-      },
-    }],
+    },
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
   });
 }
 

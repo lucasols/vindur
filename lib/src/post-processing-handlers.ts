@@ -173,7 +173,7 @@ export function handleFunctionImportCleanup(
       const localName = specifier.local.name;
 
       // Check if this is a theme colors import that might be used at runtime
-      const isThemeColorsImport = context.state.themeColors?.has(localName);
+      const isThemeColorsImport = isImportedThemeColors(importedName, context);
 
       // Remove functions that were used during CSS processing (they're compiled away)
       // BUT preserve theme colors as they can be used at runtime
@@ -255,6 +255,25 @@ export function performPostProcessing(
 
   // Step 2: Clean up imports
   cleanupImports(file, context);
+}
+
+// Helper function to check if an imported name is a theme colors object
+function isImportedThemeColors(
+  importedName: string,
+  context: PostProcessingContext,
+): boolean {
+  // Check if this is a local theme colors object
+  if (context.state.themeColors?.has(importedName)) return true;
+
+  // Check if this import corresponds to a theme colors object from external file
+  const filePathForImport = context.importedFunctions.get(importedName);
+  if (!filePathForImport) return false;
+
+  const extractedData = context.state.extractedFiles?.get(filePathForImport);
+  if (!extractedData) return false;
+
+  // Check if the imported name exists in the theme colors of the external file
+  return extractedData.themeColors.has(importedName);
 }
 
 // Helper function - moved from main file

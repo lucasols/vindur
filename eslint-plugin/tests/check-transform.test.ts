@@ -185,12 +185,12 @@ describe('invalid cases - should report transform errors', () => {
   test('complex vindur usage with errors', () => {
     const source = dedent`
       import { css, styled } from 'vindur';
-      
+
       const invalidStyles = css\`
         color: \${nonExistentVar};
         background: red;
       \`;
-      
+
       const Button = styled.button\`
         padding: 10px;
         color: \${anotherUndefinedVar};
@@ -336,17 +336,17 @@ describe('comprehensive Vindur transform scenarios', () => {
   test('mixed vindur imports', () => {
     const source = dedent`
       import { css, styled, keyframes } from 'vindur';
-      
+
       const fadeIn = keyframes\`
         from { opacity: 0; }
         to { opacity: 1; }
       \`;
-      
+
       const Button = styled.button\`
         animation: \${fadeIn} 1s ease-in;
         background: blue;
       \`;
-      
+
       const extraStyles = css\`
         margin: 10px;
         padding: 5px;
@@ -396,11 +396,11 @@ describe('comprehensive Vindur transform scenarios', () => {
   test('mixed errors in multiple constructs', () => {
     const source = dedent`
       import { css, styled } from 'vindur';
-      
+
       const styles1 = css\`
         color: \${firstUndefinedVar};
       \`;
-      
+
       const Button = styled.div\`
         background: \${secondUndefinedVar};
       \`;
