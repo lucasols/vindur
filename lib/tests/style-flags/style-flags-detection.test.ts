@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('should only apply to styled components, not regular DOM elements', async () => {
   const result = await transformWithFormat({
@@ -269,6 +269,82 @@ test('should handle styled components without generics normally', async () => {
     ".v1560qbr-1-Card {
       padding: 16px;
       border: 1px solid #ddd;
+    }
+    "
+  `);
+});
+
+test('reproduce bug', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Btn = styled(ButtonElement)<{ value: 'high' | 'medium' | 'low' }>\`
+        border: 0;
+        background: transparent;
+        color: white;
+        opacity: 0.7;
+
+        &:hover {
+          opacity: 1;
+        }
+
+        &.value-high {
+          color: coral;
+        }
+        &.value-medium {
+          color: yellow;
+        }
+        &.value-low {
+          color: cyan;
+        }
+      \`;
+
+      function Component({ value, css }) {
+        return <Btn value={value} css={css}>Content</Btn>;
+      }
+    `,
+    overrideDefaultFs: createFsMock({
+      'button.ts': dedent`
+        export const ButtonElement = ({ children, ...props }) => <button {...props}>{children}</button>;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function Component({ value, css }) {
+      return (
+        <ButtonElement
+          className={cx("v1560qbr-1-Btn", value && \`v3j7qq4-value-\${value}\`)}
+          css={css}
+        >
+          Content
+        </ButtonElement>
+      );
+    }
+    "
+  `);
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Btn {
+      border: 0;
+      background: transparent;
+      color: white;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+      }
+
+      &.v3j7qq4-value-high {
+        color: coral;
+      }
+      &.v3j7qq4-value-medium {
+        color: yellow;
+      }
+      &.v3j7qq4-value-low {
+        color: cyan;
+      }
     }
     "
   `);
