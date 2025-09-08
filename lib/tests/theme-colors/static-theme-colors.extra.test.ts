@@ -24,6 +24,15 @@ describe('createStaticThemeColors', () => {
 
       const result = await transformWithFormat({ source });
 
+      expect(result.code).toMatchInlineSnapshot(`
+        "const colors = createStaticThemeColors({
+          white: "#ffffff",
+          black: "#000000",
+          red: "#ff0000",
+        });
+        "
+      `);
+
       expect(result.css).toMatchInlineSnapshot(`
         ".v1560qbr-1-Component {
           background: var(--stc-white-alpha-0\\.2, #fff3);

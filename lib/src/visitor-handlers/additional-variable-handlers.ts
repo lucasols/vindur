@@ -79,16 +79,7 @@ export function handleStaticThemeColorsAssignment(
   context.state.themeColors ??= new Map();
   context.state.themeColors.set(varName, colors);
 
-  // Replace the function call with the raw color object
-  path.node.init = t.objectExpression(
-    Object.entries(colors).map(([key, value]) =>
-      t.objectProperty(
-        key.match(IDENTIFIER_REGEX) ? t.identifier(key) : t.stringLiteral(key),
-        t.stringLiteral(value),
-      ),
-    ),
-  );
-
+  // Keep the original createStaticThemeColors call for runtime execution
   return true;
 }
 

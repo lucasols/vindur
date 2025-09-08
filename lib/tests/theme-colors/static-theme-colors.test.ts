@@ -75,10 +75,10 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const colors = {
+      "const colors = createStaticThemeColors({
         primary: "#007bff",
         secondary: "#6c757d",
-      };
+      });
       const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
@@ -292,10 +292,10 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const colors = {
+      "const colors = createStaticThemeColors({
         primary: "#007bff",
         light: "#f8f9fa",
-      };
+      });
       const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
