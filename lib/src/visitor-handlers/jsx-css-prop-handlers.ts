@@ -197,10 +197,15 @@ export function handleJsxCssProp(
     const styledInfo = context.state.styledComponents.get(elementName);
     if (styledInfo) {
       transformedStyledClassName = styledInfo.className;
-      // Transform to native element
-      path.node.openingElement.name = t.jsxIdentifier(styledInfo.element);
-      if (path.node.closingElement) {
-        path.node.closingElement.name = t.jsxIdentifier(styledInfo.element);
+      const hasStyleFlags = Array.isArray(styledInfo.styleFlags) && styledInfo.styleFlags.length > 0;
+      // Only transform element name here for styled components without style flags.
+      // For components with style flags, let the styled handler perform the transformation
+      // to ensure dynamic classes are properly applied via cx.
+      if (!hasStyleFlags) {
+        path.node.openingElement.name = t.jsxIdentifier(styledInfo.element);
+        if (path.node.closingElement) {
+          path.node.closingElement.name = t.jsxIdentifier(styledInfo.element);
+        }
       }
     }
   }

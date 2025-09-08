@@ -316,8 +316,11 @@ test('reproduce bug', async () => {
     function Component({ value, css }) {
       return (
         <ButtonElement
-          className={cx("v1560qbr-1-Btn", value && \`v3j7qq4-value-\${value}\`)}
           css={css}
+          className={cx(
+            \`v1560qbr-1-Btn \${"v1560qbr-1-Btn"}\`,
+            value && \`v3j7qq4-value-\${value}\`,
+          )}
         >
           Content
         </ButtonElement>
