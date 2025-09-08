@@ -2,7 +2,6 @@ import {
   createElement,
   forwardRef,
   type ComponentType,
-  type CSSProperties,
   type FC,
   type JSX,
 } from 'react';
@@ -234,15 +233,18 @@ export function _vCWM(
   return Component;
 }
 
-export { createStaticThemeColors, createDynamicCssColor } from './runtime-colors';
-export type { StaticColor, DynamicCssColor, DynamicColorSet } from './runtime-colors';
+export {
+  createDynamicCssColor,
+  createStaticThemeColors,
+} from './runtime-colors';
+export type {
+  DynamicColorSet,
+  DynamicCssColor,
+  StaticColor,
+} from './runtime-colors';
 
 // Runtime color utilities are exported from './runtime-colors'
 
-/**
- * Utility for conditionally joining classNames together.
- * Check {@link https://github.com/JedWatson/classnames} for api reference
- */
 export function stableId(): string {
   throw new Error('stableId cannot be called at runtime');
 }
