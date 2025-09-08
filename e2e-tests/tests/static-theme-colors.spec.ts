@@ -10,24 +10,6 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
 
-  // Add error event listeners for debugging
-  page.on('console', (msg) => {
-    console.info(`[Page Console ${msg.type()}]:`, msg.text());
-  });
-
-  page.on('pageerror', (error) => {
-    console.error('[Page Error]:', error.message);
-    console.error('[Page Error Stack]:', error.stack);
-  });
-
-  page.on('requestfailed', (request) => {
-    console.error(
-      '[Request Failed]:',
-      request.url(),
-      request.failure()?.errorText,
-    );
-  });
-
   env = await startEnv('static-theme-colors-tests', {
     'App.tsx': dedent`
       import { css, createStaticThemeColors } from "vindur";
