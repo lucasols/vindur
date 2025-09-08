@@ -71,15 +71,15 @@ describe('compile-time functions should throw at runtime', () => {
     );
   });
 
-  test('createStaticThemeColors should return input at runtime', () => {
-    const colors = {
+  test('createStaticThemeColors should expose defaultHex and var at runtime', () => {
+    const result = createStaticThemeColors({
       primary: '#007bff',
       secondary: '#6c757d',
-    };
+    });
 
-    // At runtime, it should return the input as-is (fallback behavior)
-    const result = createStaticThemeColors(colors);
-    expect(result).toBe(colors);
+    expect(result.primary.defaultHex).toBe('#007bff');
+    expect(result.secondary.defaultHex).toBe('#6c757d');
+    expect(result.primary.var).toBe('#007bff');
   });
 
   test('stableId should throw error at runtime', () => {
@@ -159,19 +159,16 @@ describe('function signatures and types', () => {
     );
   });
 
-  test('createStaticThemeColors should preserve type structure', () => {
-    const colors = {
+  test('createStaticThemeColors should preserve keys at runtime', () => {
+    const result = createStaticThemeColors({
       primary: '#007bff',
       secondary: '#6c757d',
       success: '#28a745',
-    };
+    });
 
-    const result = createStaticThemeColors(colors);
-
-    // At runtime, keys should match input
     expect(Object.keys(result)).toEqual(['primary', 'secondary', 'success']);
-    expect(result.primary).toBe('#007bff');
-    expect(result.secondary).toBe('#6c757d');
-    expect(result.success).toBe('#28a745');
+    expect(result.primary.defaultHex).toBe('#007bff');
+    expect(result.secondary.defaultHex).toBe('#6c757d');
+    expect(result.success.defaultHex).toBe('#28a745');
   });
 });
