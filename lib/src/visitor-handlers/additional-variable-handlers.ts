@@ -9,9 +9,6 @@ import {
   isVariableExported,
 } from './handler-utils';
 
-// Top-level regex to avoid creating new RegExp objects on each function call
-const IDENTIFIER_REGEX = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-
 type VariableHandlerContext = {
   context: CssProcessingContext;
   dev: boolean;
