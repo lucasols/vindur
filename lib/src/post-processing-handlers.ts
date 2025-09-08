@@ -71,6 +71,7 @@ const importNames = [
   'mergeStyles',
   '_vSC',
   'createDynamicCssColor',
+  'createStaticThemeColors',
   '_vCWM',
   'vindurFn',
 ];

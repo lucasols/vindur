@@ -25,7 +25,8 @@ describe('createStaticThemeColors', () => {
       const result = await transformWithFormat({ source });
 
       expect(result.code).toMatchInlineSnapshot(`
-        "const colors = createStaticThemeColors({
+        "import { createStaticThemeColors } from "vindur";
+        const colors = createStaticThemeColors({
           white: "#ffffff",
           black: "#000000",
           red: "#ff0000",

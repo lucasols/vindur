@@ -75,7 +75,8 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const colors = createStaticThemeColors({
+      "import { createStaticThemeColors } from "vindur";
+      const colors = createStaticThemeColors({
         primary: "#007bff",
         secondary: "#6c757d",
       });
@@ -292,7 +293,8 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const colors = createStaticThemeColors({
+      "import { createStaticThemeColors } from "vindur";
+      const colors = createStaticThemeColors({
         primary: "#007bff",
         light: "#f8f9fa",
       });
