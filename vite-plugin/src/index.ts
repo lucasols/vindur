@@ -42,10 +42,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     },
 
     resolveId(id) {
-      const qIndex = id.indexOf('?');
-      const base = qIndex === -1 ? id : id.slice(0, qIndex);
-      if (base.startsWith(VIRTUAL_PREFIX)) {
-        const resolved = `\u0000${base}`;
+      if (id.startsWith(VIRTUAL_PREFIX)) {
+        const resolved = `\u0000${id}`;
         if (debugLogs) this.info(`[vindur-plugin] resolveId -> ${resolved}`);
         return resolved;
       }
@@ -154,19 +152,13 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         });
         log(`Stored virtual CSS module: ${virtualCssId}`);
 
-        // Add CSS import to the transformed code
-        const cssImport = `import '${virtualCssId}';`;
+        // Add CSS import to the transformed code. In dev, append a query param
+        // so Vite treats the CSS as a fresh request and applies HMR reliably
+        // without relying on manual reloads (avoids soft-invalidation races).
+        const cssImport = devServer ?
+          `import '${virtualCssId}?v=${Date.now()}';`
+        : `import '${virtualCssId}';`;
         log(`Returning transformed code with CSS import for: ${id}`);
-
-        // Reload the virtual CSS module to ensure immediate update during transform
-        if (devServer?.moduleGraph) {
-          const resolvedCssId = `\0${virtualCssId}`;
-          const module = devServer.moduleGraph.getModuleById(resolvedCssId);
-          if (module) {
-            log(`Reloading virtual CSS module: ${virtualCssId}`);
-            devServer.reloadModule(module);
-          }
-        }
 
         return {
           code: `${result.code}\n${cssImport}`,
@@ -183,6 +175,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     },
 
     handleHotUpdate({ file, modules }) {
+      if (debugLogs) this.info(`[vindur-plugin] HMR file change: ${file}`);
       const modulesToInvalidate = [...modules];
 
       // Clear function cache for this file
@@ -198,6 +191,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         const cssModule = devServer?.moduleGraph.getModuleById(
           `\0${virtualCssId}`,
         );
+        if (debugLogs)
+          this.info(
+            `[vindur-plugin] Found CSS module for changed file: ${virtualCssId} => ${Boolean(cssModule)}`,
+          );
         if (cssModule) modulesToInvalidate.push(cssModule);
       }
 
@@ -214,6 +211,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             // Add dependent module and its virtual CSS to invalidation list
             const dependentModule =
               devServer.moduleGraph.getModuleById(dependentFile);
+            if (debugLogs)
+              this.info(
+                `[vindur-plugin] HMR dependent module: ${dependentFile} => ${Boolean(dependentModule)}`,
+              );
             if (dependentModule) modulesToInvalidate.push(dependentModule);
 
             const dependentVirtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(dependentFile)}.css`;
@@ -221,6 +222,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
               const dependentCssModule = devServer.moduleGraph.getModuleById(
                 `\0${dependentVirtualCssId}`,
               );
+              if (debugLogs)
+                this.info(
+                  `[vindur-plugin] HMR dependent CSS module: ${dependentVirtualCssId} => ${Boolean(dependentCssModule)}`,
+                );
               if (dependentCssModule)
                 modulesToInvalidate.push(dependentCssModule);
             }
