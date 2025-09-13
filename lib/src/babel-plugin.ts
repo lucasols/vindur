@@ -89,6 +89,12 @@ export type VindurPluginState = {
   styleDependencies?: Set<string>; // Track external files loaded during transformation (for hot-reload)
   // Cache extraction results across a single transform to avoid duplicate CSS emission
   extractedFiles?: Map<string, ExtractedFileRecord>;
+  // Track potential warnings for styled components that might be used with cx props
+  pendingStyledComponentWarnings?: Array<{
+    componentName: string;
+    undeclaredClasses: string[];
+    warning: TransformWarning;
+  }>;
 };
 
 export type FunctionCache = {
@@ -540,6 +546,7 @@ export function createVindurPlugin(
         importedFunctions,
         usedFunctions,
         importAliasesArray,
+        onWarning,
       };
 
       performPostProcessing(file, postProcessingContext, filePath);

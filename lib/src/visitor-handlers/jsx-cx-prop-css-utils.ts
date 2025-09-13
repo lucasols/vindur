@@ -16,6 +16,26 @@ export function generateMissingCssClassWarnings(
   path: NodePath<t.JSXElement>,
   onWarning?: (warning: TransformWarning) => void,
 ): void {
+  // Mark classes provided by cx prop as handled in pending warnings
+  if (state.pendingStyledComponentWarnings) {
+    const providedClasses = new Set(
+      classNameMappings
+        .filter((m) => !m.wasDollarPrefixed)
+        .map((m) => m.original),
+    );
+
+    // Remove pending warnings for classes that are provided by this cx prop
+    state.pendingStyledComponentWarnings =
+      state.pendingStyledComponentWarnings.filter((pending) => {
+        if (
+          pending.componentName === styledComponentName
+          && pending.undeclaredClasses[0]
+        ) {
+          return !providedClasses.has(pending.undeclaredClasses[0]);
+        }
+        return true;
+      });
+  }
   // Get the styled component info to find its CSS class name
   const styledInfo = state.styledComponents.get(styledComponentName);
   if (!styledInfo) return;
@@ -28,37 +48,75 @@ export function generateMissingCssClassWarnings(
     // Skip $ prefixed props (they were originally prefixed with $)
     if (mapping.wasDollarPrefixed) continue;
 
+    // Check if this class is declared as a style flag
+    const isDeclaredStyleFlag = isClassDeclaredAsStyleFlag(
+      mapping.original,
+      styledInfo.styleFlags,
+    );
+
+    if (isDeclaredStyleFlag) {
+      // Skip warning for declared style flags
+      continue;
+    }
+
     // Check if the CSS class exists in any CSS rule for this styled component
     // Look for original pattern first, then any hashed pattern that starts with the original
-    const hasClass = state.cssRules.some(
-      (rule) => {
-        if (!rule.css.includes(`.${styledInfo.className}`)) return false;
-        
-        // Check for original pattern (for non-processed CSS)
-        if (rule.css.includes(`&.${mapping.original}`)) return true;
-        
-        // Check for any hashed pattern that contains the original name 
-        // This handles cases where the hashed class name might be different between usages
-        const hashedPattern = new RegExp(`&\\.v\\w+-\\d+-${mapping.original}\\b`);
-        return hashedPattern.test(rule.css);
-      },
-    );
+    const hasClass = state.cssRules.some((rule) => {
+      if (!rule.css.includes(`.${styledInfo.className}`)) return false;
+
+      // Check for original pattern (for non-processed CSS)
+      if (rule.css.includes(`&.${mapping.original}`)) return true;
+
+      // Check for any hashed pattern that contains the original name
+      // This handles cases where the hashed class name might be different between usages
+      const hashedPattern = new RegExp(`&\\.v\\w+-\\d+-${mapping.original}\\b`);
+      return hashedPattern.test(rule.css);
+    });
 
     if (!hasClass) {
       missingClasses.push(mapping.original);
     }
   }
 
-  // Generate warning if there are missing classes
+  // Generate consolidated warning for missing classes
   if (missingClasses.length > 0 && onWarning) {
-    const warningMessage = `Warning: Missing CSS classes for cx modifiers in ${styledComponentName}: ${missingClasses.join(', ')}`;
-    
     const warning = new TransformWarning(
-      warningMessage,
+      `Warning: Missing CSS classes for cx modifiers in ${styledComponentName}: ${missingClasses.join(', ')}`,
       notNullish(path.node.loc),
     );
     onWarning(warning);
   }
+}
+
+/**
+ * Check if a class name is declared as a style flag in the styled component
+ */
+function isClassDeclaredAsStyleFlag(
+  className: string,
+  styleFlags?: Array<{
+    propName: string;
+    hashedClassName: string;
+    type: 'boolean' | 'string-union';
+    unionValues?: string[];
+  }>,
+): boolean {
+  if (!styleFlags) return false;
+
+  for (const flag of styleFlags) {
+    if (flag.type === 'boolean' && flag.propName === className) {
+      return true;
+    } else if (flag.type === 'string-union' && flag.unionValues) {
+      // Check if className matches any of the union values with the propName prefix
+      // e.g., for size: 'small' | 'large', check if className is 'size-small' or 'size-large'
+      for (const value of flag.unionValues) {
+        if (className === `${flag.propName}-${value}`) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 export function updateStyledComponentCss(
@@ -120,7 +178,11 @@ export function updateCssRulesForElement(
     if (t.isIdentifier(expression)) {
       const cssVariable = state.cssVariables.get(expression.name);
       if (cssVariable) {
-        updateCssRulesByClassName(cssVariable.className, classNameMappings, state);
+        updateCssRulesByClassName(
+          cssVariable.className,
+          classNameMappings,
+          state,
+        );
         return;
       }
     }

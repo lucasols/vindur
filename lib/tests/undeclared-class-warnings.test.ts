@@ -318,6 +318,39 @@ describe('Mixed scenarios', () => {
   });
 });
 
+describe('cx prop', () => {
+  test('should not warn about undeclared classes when they are used in cx prop', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button\`
+          background: white;
+  
+          &.active {
+            background: blue;
+          }
+        \`
+
+        const App = () => (
+          <Button cx={{ active: true, disabled: false }} />
+        )
+      `,
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: 'Warning: Missing CSS classes for cx modifiers in Button: disabled'
+          loc: 'current_file:12:2'
+      "
+    `);
+  });
+});
+
 describe('Edge cases', () => {
   test('should handle CSS comments correctly', async () => {
     const warnings: TransformWarning[] = [];

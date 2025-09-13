@@ -13,6 +13,7 @@ type PostProcessingContext = {
   importedFunctions: ImportedFunctions;
   usedFunctions: Set<string>;
   importAliasesArray: [string, string][];
+  onWarning?: (warning: import('./custom-errors').TransformWarning) => void;
 };
 
 export function resolveForwardReferences(
@@ -304,10 +305,15 @@ export function performPostProcessing(
   // using the correct dev/prod hashed form captured in styleFlags.
   applyStyleFlagHashingForReferences(context.state);
 
-  // Step 2: Optimize cx() calls
+  // Step 2: Emit any remaining pending styled component warnings
+  // These are warnings for classes used in CSS but not declared in components
+  // that weren't provided by cx props
+  emitPendingStyledComponentWarnings(context);
+
+  // Step 3: Optimize cx() calls
   optimizeCxCalls(file, context);
 
-  // Step 3: Clean up imports
+  // Step 4: Clean up imports
   cleanupImports(file, context);
 }
 
@@ -415,4 +421,21 @@ function applyStyleFlagHashingForReferences(state: VindurPluginState): void {
       state.cssRules[i] = { ...rule, css: updated };
     }
   }
+}
+
+function emitPendingStyledComponentWarnings(context: PostProcessingContext): void {
+  const { state, onWarning } = context;
+
+  // No need to do anything if there are no pending warnings or no warning callback
+  if (!state.pendingStyledComponentWarnings || state.pendingStyledComponentWarnings.length === 0 || !onWarning) {
+    return;
+  }
+
+  // Emit all remaining warnings (these are classes that weren't provided by cx props)
+  for (const pendingWarning of state.pendingStyledComponentWarnings) {
+    onWarning(pendingWarning.warning);
+  }
+
+  // Clear the pending warnings
+  state.pendingStyledComponentWarnings = [];
 }

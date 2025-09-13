@@ -230,22 +230,38 @@ export function handleStyledElementAssignment(
     }
   }
 
-  // Emit warnings for undeclared classes only for plain styled components (not extensions)
+  // Store potential warnings for undeclared classes only if cx is not imported
+  // If cx is imported, we defer warning generation to the cx prop handler
   if (dev && context.onWarning && !context.state.vindurImports.has('cx')) {
     // If the component is used with a dynamic className (e.g., template literal or expression),
     // we cannot reliably determine declared classes at compile-time. Skip warnings in this case.
-    if (isUsedWithDynamicClassName(varName, path)) {
-      // Skip warnings when dynamic className usage is detected
-    } else {
+    if (!isUsedWithDynamicClassName(varName, path)) {
       const declaredClasses = collectDeclaredStyleClasses(styleFlags);
       const usedClasses = collectUsedClassesFromCss(result.cssContent);
+      const undeclaredClasses: string[] = [];
+
       for (const cls of usedClasses) {
         if (!declaredClasses.has(cls)) {
+          undeclaredClasses.push(cls);
+        }
+      }
+
+      // Store potential warnings to be processed later
+      if (undeclaredClasses.length > 0) {
+        if (!context.state.pendingStyledComponentWarnings) {
+          context.state.pendingStyledComponentWarnings = [];
+        }
+
+        for (const cls of undeclaredClasses) {
           const warning = new TransformWarning(
             `The class '${cls}' is used in CSS but not declared in the component`,
             notNullish(path.node.loc),
           );
-          context.onWarning(warning);
+          context.state.pendingStyledComponentWarnings.push({
+            componentName: varName,
+            undeclaredClasses: [cls],
+            warning,
+          });
         }
       }
     }
