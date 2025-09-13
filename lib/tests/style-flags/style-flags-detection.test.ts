@@ -352,3 +352,78 @@ test('reproduce bug', async () => {
     "
   `);
 });
+
+test('should work with extracted type parameters', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      type BtnStyleFlags = {
+        value: 'high' | 'medium' | 'low';
+        active: boolean;
+      };
+
+      const Btn = styled(ButtonElement)<BtnStyleFlags>\`
+        border: 0;
+        background: transparent;
+        color: white;
+
+        &:hover,
+        &.active {
+          opacity: 1;
+        }
+
+        &.value-high {
+          color: red;
+        }
+        &.value-medium {
+          color: yellow;
+        }
+        &.value-low {
+          color: cyan;
+        }
+      \`;
+
+      function Component({ value }) {
+        return <Btn value={value}>Content</Btn>;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "type BtnStyleFlags = {
+      value: "high" | "medium" | "low";
+      active: boolean;
+    };
+    function Component({ value }) {
+      return (
+        <ButtonElement value={value} className="v1560qbr-1-Btn">
+          Content
+        </ButtonElement>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Btn {
+      border: 0;
+      background: transparent;
+      color: white;
+
+      &:hover,
+      &.v4h0q42-active {
+        opacity: 1;
+      }
+
+      &.v3j7qq4-value-high {
+        color: red;
+      }
+      &.v3j7qq4-value-medium {
+        color: yellow;
+      }
+      &.v3j7qq4-value-low {
+        color: cyan;
+      }
+    }
+    "
+  `);
+});
