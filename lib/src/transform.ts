@@ -32,8 +32,8 @@ export type TransformOptions = {
   dev?: boolean;
   debug?: DebugLogger;
   fs: TransformFS;
-  transformFunctionCache?: TransformFunctionCache;
-  transformDynamicColorCache?: TransformDynamicColorCache;
+  transformFunctionCache: TransformFunctionCache;
+  transformDynamicColorCache: TransformDynamicColorCache;
   importAliases: Record<string, string>;
   sourcemap?: boolean;
   onWarning?: (warning: TransformWarning) => void;

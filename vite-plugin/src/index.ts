@@ -42,34 +42,11 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     },
 
     resolveId(id) {
-      if (id.startsWith(VIRTUAL_PREFIX)) {
-        const resolved = `\u0000${id}`;
-        if (debugLogs) this.info(`[vindur-plugin] resolveId -> ${resolved}`);
-        return resolved;
-      }
-      return null;
+      // FIX: implement
     },
 
     load(id) {
-      const noPrefix = id.startsWith('\u0000') ? id.slice(1) : id;
-      const qIndex = noPrefix.indexOf('?');
-      const clean = qIndex === -1 ? noPrefix : noPrefix.slice(0, qIndex);
-      if (clean.startsWith(VIRTUAL_PREFIX)) {
-        const mod = virtualCssModules.get(clean);
-        if (!mod) {
-          if (debugLogs) this.info(`[vindur-plugin] load (empty): ${clean}`);
-          return { code: '', map: null };
-        }
-        let code = mod.code;
-        if (mod.map) {
-          const base64 = Buffer.from(JSON.stringify(mod.map), 'utf-8').toString(
-            'base64',
-          );
-          code = `${code}\n/*# sourceMappingURL=data:application/json;base64,${base64} */`;
-        }
-        return { code, map: mod.map ?? undefined };
-      }
-      return null;
+      // FIX: implement
     },
 
     transform(code, id) {
@@ -126,116 +103,13 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         });
       }
 
-      log(
-        `Transform completed for: ${id}, hasCSS: ${!!result.css}, codeLength: ${result.code.length}, dependencies: ${result.styleDependencies.length}`,
-      );
+      // FIX: implement
 
-      // Track dependencies for hot-reload
-      for (const dependency of result.styleDependencies) {
-        this.addWatchFile(dependency);
-        if (!fileDependencies.has(dependency)) {
-          fileDependencies.set(dependency, new Set());
-        }
-        fileDependencies.get(dependency)?.add(id);
-        log(`Tracked dependency: ${dependency} -> ${id}`);
-      }
-
-      if (result.css) {
-        log(`Generated CSS for ${id}: ${result.css.slice(0, 100)}...`);
-
-        const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(id)}.css`;
-
-        // Store CSS content in virtual module cache
-        virtualCssModules.set(virtualCssId, {
-          code: result.css,
-          map: result.cssMap ?? null,
-        });
-        log(`Stored virtual CSS module: ${virtualCssId}`);
-
-        // Add CSS import to the transformed code. In dev, append a query param
-        // so Vite treats the CSS as a fresh request and applies HMR reliably
-        // without relying on manual reloads (avoids soft-invalidation races).
-        const cssImport = devServer ?
-          `import '${virtualCssId}?v=${Date.now()}';`
-        : `import '${virtualCssId}';`;
-        log(`Returning transformed code with CSS import for: ${id}`);
-
-        return {
-          code: `${result.code}\n${cssImport}`,
-          map: result.map,
-        };
-      }
-
-      log(`Returning transformed code without CSS for: ${id}`);
       return { code: result.code, map: result.map };
     },
 
     generateBundle() {
       virtualCssModules.clear();
-    },
-
-    handleHotUpdate({ file, modules }) {
-      if (debugLogs) this.info(`[vindur-plugin] HMR file change: ${file}`);
-      const modulesToInvalidate = [...modules];
-
-      // Clear function cache for this file
-      if (functionCache[file]) {
-        delete functionCache[file];
-        if (debugLogs)
-          this.info(`[vindur-plugin] Cleared function cache: ${file}`);
-      }
-
-      // Invalidate virtual CSS module for this file if it exists
-      const virtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(file)}.css`;
-      if (virtualCssModules.has(virtualCssId)) {
-        const cssModule = devServer?.moduleGraph.getModuleById(
-          `\0${virtualCssId}`,
-        );
-        if (debugLogs)
-          this.info(
-            `[vindur-plugin] Found CSS module for changed file: ${virtualCssId} => ${Boolean(cssModule)}`,
-          );
-        if (cssModule) modulesToInvalidate.push(cssModule);
-      }
-
-      // Handle dependent files that import from the changed file
-      const dependentFiles = fileDependencies.get(file);
-      if (dependentFiles && devServer?.moduleGraph) {
-        for (const dependentFile of dependentFiles) {
-          if (shouldTransform(dependentFile)) {
-            // Clear function cache for dependent file
-            if (functionCache[dependentFile]) {
-              delete functionCache[dependentFile];
-            }
-
-            // Add dependent module and its virtual CSS to invalidation list
-            const dependentModule =
-              devServer.moduleGraph.getModuleById(dependentFile);
-            if (debugLogs)
-              this.info(
-                `[vindur-plugin] HMR dependent module: ${dependentFile} => ${Boolean(dependentModule)}`,
-              );
-            if (dependentModule) modulesToInvalidate.push(dependentModule);
-
-            const dependentVirtualCssId = `virtual:vindur-${getVirtualCssIdPrefix(dependentFile)}.css`;
-            if (virtualCssModules.has(dependentVirtualCssId)) {
-              const dependentCssModule = devServer.moduleGraph.getModuleById(
-                `\0${dependentVirtualCssId}`,
-              );
-              if (debugLogs)
-                this.info(
-                  `[vindur-plugin] HMR dependent CSS module: ${dependentVirtualCssId} => ${Boolean(dependentCssModule)}`,
-                );
-              if (dependentCssModule)
-                modulesToInvalidate.push(dependentCssModule);
-            }
-          }
-        }
-      }
-
-      return modulesToInvalidate.length > modules.length ?
-          modulesToInvalidate
-        : undefined;
     },
   };
 }
