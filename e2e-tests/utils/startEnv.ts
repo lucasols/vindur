@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- test file */
 import { invariant } from '@ls-stack/utils/assertions';
 import { vindurPlugin } from '@vindur/vite-plugin';
 import react from '@vitejs/plugin-react-swc';
@@ -33,6 +34,7 @@ export type TestEnv = {
   getFile: (relativePath: string) => TempFile;
   createFile: (relativePath: string, content: string) => TempFile;
   getGeneratedCode: () => Promise<string>;
+  serverLogs: string[];
   cleanup: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 };
@@ -96,6 +98,54 @@ export async function startEnv(
 
   const port = getSafeRandomPort();
 
+  // Capture server logs for error detection
+  const serverLogs: string[] = [];
+  const originalConsoleError = console.error;
+  const originalConsoleWarn = console.warn;
+  const originalConsoleInfo = console.info;
+
+  // Override console methods to capture Vite server logs
+  console.error = (...args: unknown[]) => {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+    serverLogs.push(`ERROR: ${message}`);
+    originalConsoleError(...args);
+  };
+
+  console.warn = (...args: unknown[]) => {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+    serverLogs.push(`WARN: ${message}`);
+    originalConsoleWarn(...args);
+  };
+
+  console.info = (...args: unknown[]) => {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+    serverLogs.push(`INFO: ${message}`);
+    originalConsoleInfo(...args);
+  };
+
+  // Also capture unhandled errors and exceptions
+  const originalProcessUncaughtException =
+    process.listeners('uncaughtException');
+  const originalProcessUnhandledRejection =
+    process.listeners('unhandledRejection');
+
+  process.on('uncaughtException', (error) => {
+    serverLogs.push(`UNCAUGHT: ${error.message}`);
+    console.log('Captured uncaught exception:', error.message);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    serverLogs.push(`UNHANDLED_REJECTION: ${message}`);
+    console.log('Captured unhandled rejection:', message);
+  });
+
   const server = await createServer({
     plugins: [
       react(),
@@ -116,6 +166,7 @@ export async function startEnv(
     server: {
       port,
     },
+    logLevel: process.env.DEBUG ? 'info' : 'error',
     cacheDir: path.join(testRunDirPath, '.vite'),
   });
 
@@ -190,6 +241,23 @@ export async function startEnv(
   async function cleanup() {
     await server.close();
     usedPorts.delete(port);
+
+    // Restore original console methods
+    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
+    console.info = originalConsoleInfo;
+
+    // Remove our process listeners
+    process.removeAllListeners('uncaughtException');
+    process.removeAllListeners('unhandledRejection');
+
+    // Restore original process listeners
+    for (const listener of originalProcessUncaughtException) {
+      process.on('uncaughtException', listener);
+    }
+    for (const listener of originalProcessUnhandledRejection) {
+      process.on('unhandledRejection', listener);
+    }
   }
 
   return {
@@ -197,6 +265,7 @@ export async function startEnv(
     getFile,
     createFile,
     getGeneratedCode,
+    serverLogs,
     cleanup,
     [Symbol.asyncDispose]: cleanup,
   };
@@ -356,6 +425,7 @@ export async function startEnvProd(
     baseUrl: url,
     getFile,
     createFile,
+    serverLogs: [],
     getGeneratedCode,
     cleanup,
     [Symbol.asyncDispose]: cleanup,
