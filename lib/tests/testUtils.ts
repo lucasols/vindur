@@ -65,6 +65,8 @@ export async function transformWithFormat({
   const result = transform({
     fileAbsPath: sourcePath,
     fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
     importAliases,
     source,
     dev: !production,

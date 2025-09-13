@@ -50,6 +50,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/test.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });
@@ -105,6 +107,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/test.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: false,
     });
@@ -141,6 +145,8 @@ describe('CSS source maps', () => {
       fileAbsPath: '/src/components.tsx',
       dev: true,
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });
@@ -216,6 +222,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/animations.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });
@@ -252,6 +260,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/global.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });
@@ -282,6 +292,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/empty.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });
@@ -312,6 +324,8 @@ describe('CSS source maps', () => {
       source,
       fileAbsPath: '/src/mixed.tsx',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
       sourcemap: true,
     });

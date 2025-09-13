@@ -29,6 +29,8 @@ describe('Path Resolution', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/src/utils' },
       });
 
@@ -75,6 +77,8 @@ describe('Path Resolution', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/lib/utils', '@theme': '/design/theme' },
       });
 
@@ -118,6 +122,8 @@ describe('Path Resolution', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/lib/utils' },
       });
 
@@ -163,6 +169,8 @@ describe('Path Resolution', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: {
           '@components': '/src/components',
           '@utils': '/src/utils',
@@ -196,6 +204,8 @@ describe('Path Resolution', () => {
           fileAbsPath: '/main.ts',
           source: mockFS.readFile('/main.ts'),
           fs: mockFS,
+          transformFunctionCache: {},
+          transformDynamicColorCache: {},
           importAliases: { '@theme': '/design/theme' },
         });
       }).toThrowErrorMatchingInlineSnapshot(`
