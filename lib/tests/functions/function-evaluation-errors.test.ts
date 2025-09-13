@@ -28,6 +28,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'test.ts': source }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -52,6 +54,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -81,6 +85,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -110,6 +116,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -145,6 +153,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -174,6 +184,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -205,6 +217,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -235,6 +249,8 @@ describe('function evaluation errors', () => {
           \`
         `,
         fs: createFsMock({ 'functions.ts': fnFile }),
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -261,6 +277,8 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          transformFunctionCache: {},
+          transformDynamicColorCache: {},
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
@@ -286,6 +304,8 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          transformFunctionCache: {},
+          transformDynamicColorCache: {},
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
@@ -313,6 +333,8 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          transformFunctionCache: {},
+          transformDynamicColorCache: {},
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
@@ -339,6 +361,8 @@ describe('function evaluation errors', () => {
             \`
           `,
           fs: createFsMock({}),
+          transformFunctionCache: {},
+          transformDynamicColorCache: {},
           importAliases,
         });
       }).toThrowErrorMatchingInlineSnapshot(
