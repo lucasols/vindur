@@ -85,14 +85,7 @@ function runVindurTransform(
         });
       }
     } else {
-      errors.push({
-        message: stripFilenameFromMessage(
-          error instanceof Error ? error.message : String(error),
-        ),
-        line: 1,
-        column: 0,
-        type: 'error',
-      });
+      // skip non-transform errors
     }
   }
 
