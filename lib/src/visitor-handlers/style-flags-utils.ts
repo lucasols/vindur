@@ -35,6 +35,100 @@ function findTypeAliasDeclaration(
 }
 
 /**
+ * Resolve a type reference to its actual type, with support for simple string literal unions only
+ */
+function resolveTypeReference(
+  path: NodePath,
+  typeRef: t.TSTypeReference,
+): t.TSType | null {
+  if (!t.isIdentifier(typeRef.typeName)) return null;
+
+  const typeName = typeRef.typeName.name;
+  const typeAlias = findTypeAliasDeclaration(path, typeName);
+
+  if (!typeAlias) return null;
+
+  return typeAlias.typeAnnotation;
+}
+
+/**
+ * Process a nested type reference within a property signature
+ */
+function processNestedTypeReference(
+  path: NodePath,
+  typeAnnotation: t.TSTypeReference,
+  propName: string,
+  member: t.TSPropertySignature,
+  fileHash: string,
+  dev: boolean,
+): StyleFlag {
+  const resolvedType = resolveTypeReference(path, typeAnnotation);
+
+  if (!resolvedType) {
+    const typeName = t.isIdentifier(typeAnnotation.typeName)
+      ? typeAnnotation.typeName.name
+      : 'unknown';
+    throw new TransformError(
+      `Type "${typeName}" not found. Only locally defined types are supported for style flags`,
+      notNullish(member.loc),
+    );
+  }
+
+  // Check if the resolved type is a valid string literal union
+  if (t.isTSUnionType(resolvedType)) {
+    const unionValues: string[] = [];
+    let isStringUnion = true;
+
+    for (const unionType of resolvedType.types) {
+      if (
+        t.isTSLiteralType(unionType)
+        && t.isStringLiteral(unionType.literal)
+      ) {
+        unionValues.push(unionType.literal.value);
+      } else {
+        isStringUnion = false;
+        break;
+      }
+    }
+
+    if (isStringUnion && unionValues.length > 0) {
+      const hashedClassName = generateHashedClassName(
+        propName,
+        fileHash,
+        dev,
+      );
+      return {
+        propName,
+        hashedClassName,
+        type: 'string-union',
+        unionValues,
+      };
+    } else {
+      const typeString = getTypeString(resolvedType);
+      throw new TransformError(
+        `Referenced type must be a string literal union. Property "${propName}" references type "${typeString}" which is not supported`,
+        notNullish(member.loc),
+      );
+    }
+  } else if (t.isTSBooleanKeyword(resolvedType)) {
+    // Handle boolean type references
+    const hashedClassName = generateHashedClassName(
+      propName,
+      fileHash,
+      dev,
+    );
+    return { propName, hashedClassName, type: 'boolean' };
+  } else {
+    // For other resolved types, throw an error
+    const typeString = getTypeString(resolvedType);
+    throw new TransformError(
+      `Referenced type must be a boolean or string literal union. Property "${propName}" references type "${typeString}" which is not supported`,
+      notNullish(member.loc),
+    );
+  }
+}
+
+/**
  * Extract boolean and string union properties from TypeScript generic type parameters
  */
 export function extractStyleFlags(
@@ -126,6 +220,24 @@ export function extractStyleFlags(
           dev,
         );
         styleProps.push({ propName, hashedClassName, type: 'boolean' });
+      } else if (t.isTSTypeReference(typeAnnotation)) {
+        // Handle nested type references (e.g., levels: Levels)
+        if (!path) {
+          throw new TransformError(
+            'Cannot resolve type references without path context',
+            notNullish(member.loc),
+          );
+        }
+
+        const styleFlag = processNestedTypeReference(
+          path,
+          typeAnnotation,
+          propName,
+          member,
+          fileHash,
+          dev,
+        );
+        styleProps.push(styleFlag);
       } else if (t.isTSUnionType(typeAnnotation)) {
         // Check if it's a string literal union (e.g., 'small' | 'large')
         const unionValues: string[] = [];

@@ -123,6 +123,79 @@ test('should throw error for inline union of object types in style flags', async
   );
 });
 
+test('should throw error for non-existent nested type reference in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        type Flags = {
+          level: NonExistentLevels;
+        };
+
+        const StyledButton = styled.div<Flags>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Type "NonExistentLevels" not found. Only locally defined types are supported for style flags
+    loc: 4:2]
+  `,
+  );
+});
+
+test('should throw error for complex nested type in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        type ComplexLevels = string | { nested: boolean };
+
+        type Flags = {
+          level: ComplexLevels;
+        };
+
+        const StyledButton = styled.div<Flags>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Referenced type must be a string literal union. Property "level" references type "string | { ... }" which is not supported
+    loc: 6:2]
+  `,
+  );
+});
+
+test('should throw error for non-string union nested type in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        type NumberLevels = 1 | 2 | 3;
+
+        type Flags = {
+          level: NumberLevels;
+        };
+
+        const StyledButton = styled.div<Flags>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Referenced type must be a string literal union. Property "level" references type "1 | 2 | 3" which is not supported
+    loc: 6:2]
+  `,
+  );
+});
+
 test('should warn about missing modifier styles', async () => {
   const warnings: TransformWarning[] = [];
 
