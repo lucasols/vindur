@@ -238,6 +238,141 @@ describe('cx() optimization', () => {
     });
   });
 
+  describe('template literal optimization', () => {
+    test('should optimize logical expressions with template literals', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { cx } from 'vindur';
+
+          function Component({ value, active }) {
+            return (
+              <div className={cx(
+                "v1560qbr-1-Btn",
+                value && \`v3j7qq4-value-\${value}\`,
+                active && "voctcyj-active",
+              )}>
+                Content
+              </div>
+            );
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "function Component({ value, active }) {
+          return (
+            <div
+              className={
+                "v1560qbr-1-Btn" +
+                (value ? " v3j7qq4-value-" + value : "") +
+                (active ? " voctcyj-active" : "")
+              }
+            >
+              Content
+            </div>
+          );
+        }
+        "
+      `);
+    });
+
+    test('should optimize template literal with prefix only', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { cx } from 'vindur';
+
+          function Component({ size }) {
+            return <div className={cx(size && \`size-\${size}\`)}>Content</div>;
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "function Component({ size }) {
+          return <div className={size ? "size-" + size : ""}>Content</div>;
+        }
+        "
+      `);
+    });
+
+    test('should optimize template literal with suffix only', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { cx } from 'vindur';
+
+          function Component({ type }) {
+            return <div className={cx(type && \`\${type}-variant\`)}>Content</div>;
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "function Component({ type }) {
+          return <div className={type ? type + "-variant" : ""}>Content</div>;
+        }
+        "
+      `);
+    });
+
+    test('should optimize template literal with both prefix and suffix', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { cx } from 'vindur';
+
+          function Component({ theme }) {
+            return <div className={cx(theme && \`theme-\${theme}-active\`)}>Content</div>;
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "function Component({ theme }) {
+          return (
+            <div className={theme ? "theme-" + theme + "-active" : ""}>Content</div>
+          );
+        }
+        "
+      `);
+    });
+
+    test('should optimize mixed static strings and template literals', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { cx } from 'vindur';
+
+          function Component({ variant, active }) {
+            return (
+              <div className={cx(
+                "base-class",
+                variant && \`variant-\${variant}\`,
+                active && "active-state"
+              )}>
+                Content
+              </div>
+            );
+          }
+        `,
+      });
+
+      expect(result.code).toMatchInlineSnapshot(`
+        "function Component({ variant, active }) {
+          return (
+            <div
+              className={
+                "base-class" +
+                (variant ? " variant-" + variant : "") +
+                (active ? " active-state" : "")
+              }
+            >
+              Content
+            </div>
+          );
+        }
+        "
+      `);
+    });
+  });
+
   describe('style flags optimization (common Vindur patterns)', () => {
     test('should optimize cx with Vindur-generated class names', async () => {
       const result = await transformWithFormat({

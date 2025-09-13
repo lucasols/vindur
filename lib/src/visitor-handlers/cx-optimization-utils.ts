@@ -107,6 +107,27 @@ function tryPartialOptimization(
         hasOptimizations = true;
         continue;
       }
+
+      // Try to optimize template literals in logical expressions
+      if (t.isTemplateLiteral(arg.right)) {
+        const templateAnalysis = analyzeTemplateLiteral(arg.right);
+        if (templateAnalysis?.canOptimize && templateAnalysis.dynamicParts[0]) {
+          const optimizedTemplate = createTemplateLiteralOptimization(
+            templateAnalysis.staticPrefix,
+            templateAnalysis.dynamicParts[0],
+            templateAnalysis.staticSuffix,
+            parts.length === 0,
+          );
+          const ternary = t.conditionalExpression(
+            arg.left,
+            optimizedTemplate,
+            t.stringLiteral(''),
+          );
+          parts.push(ternary);
+          hasOptimizations = true;
+          continue;
+        }
+      }
     }
 
     // Try to optimize object expressions
@@ -252,4 +273,85 @@ function getStaticStringValue(expr: t.Expression): string | null {
   }
 
   return null;
+}
+
+/**
+ * Analyzes a template literal to see if it can be optimized for cx calls
+ */
+function analyzeTemplateLiteral(
+  templateLiteral: t.TemplateLiteral,
+): { canOptimize: boolean; staticPrefix: string; dynamicParts: t.Expression[]; staticSuffix: string } | null {
+  // For now, we only handle simple cases with one interpolation
+  // Pattern: `prefix-${variable}` or `${variable}-suffix` or `prefix-${variable}-suffix`
+  if (templateLiteral.expressions.length !== 1) {
+    return null; // Multiple interpolations not supported yet
+  }
+
+  const quasis = templateLiteral.quasis;
+  if (quasis.length !== 2) {
+    return null; // Should have exactly 2 quasis for 1 expression
+  }
+
+  const beforePart = quasis[0]?.value.raw || '';
+  const afterPart = quasis[1]?.value.raw || '';
+  const dynamicExpr = templateLiteral.expressions[0];
+
+  if (!dynamicExpr || !t.isExpression(dynamicExpr)) {
+    return null;
+  }
+
+  // We can optimize this if we have a clear pattern
+  return {
+    canOptimize: true,
+    staticPrefix: beforePart,
+    dynamicParts: [dynamicExpr],
+    staticSuffix: afterPart,
+  };
+}
+
+/**
+ * Creates an optimized expression for a template literal
+ */
+function createTemplateLiteralOptimization(
+  staticPrefix: string,
+  dynamicExpr: t.Expression,
+  staticSuffix: string,
+  isFirst: boolean,
+): t.Expression {
+  // Build the concatenated string: "prefix" + dynamicExpr + "suffix"
+  const parts: t.Expression[] = [];
+
+  // Add prefix if not empty
+  if (staticPrefix) {
+    const prefixWithSpace = isFirst ? staticPrefix : ` ${staticPrefix}`;
+    parts.push(t.stringLiteral(prefixWithSpace));
+  }
+
+  // Add the dynamic expression (converted to string)
+  parts.push(dynamicExpr);
+
+  // Add suffix if not empty
+  if (staticSuffix) {
+    parts.push(t.stringLiteral(staticSuffix));
+  }
+
+  if (parts.length === 0) {
+    return t.stringLiteral('');
+  }
+
+  if (parts.length === 1) {
+    const firstPart = parts[0];
+    return firstPart || t.stringLiteral('');
+  }
+
+  // Build concatenation expression
+  let result = parts[0] || t.stringLiteral('');
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    if (part) {
+      result = t.binaryExpression('+', result, part);
+    }
+  }
+
+  return result;
 }

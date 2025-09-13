@@ -396,11 +396,11 @@ test('should work with extracted type parameters', async () => {
     function Component({ value, active }) {
       return (
         <ButtonElement
-          className={cx(
-            "v1560qbr-1-Btn",
-            value && \`v3j7qq4-value-\${value}\`,
-            active && "voctcyj-active",
-          )}
+          className={
+            "v1560qbr-1-Btn" +
+            (value ? " v3j7qq4-value-" + value : "") +
+            (active ? " voctcyj-active" : "")
+          }
         >
           Content
         </ButtonElement>

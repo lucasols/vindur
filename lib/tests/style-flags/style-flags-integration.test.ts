@@ -153,15 +153,14 @@ test('should work with dynamic values', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ isActive, buttonSize }) {
+    "function Component({ isActive, buttonSize }) {
       return (
         <button
-          className={cx(
-            "v1560qbr-1-Button",
-            isActive && "voctcyj-active",
-            buttonSize && \`vr4ikfs-size-\${buttonSize}\`,
-          )}
+          className={
+            "v1560qbr-1-Button" +
+            (isActive ? " voctcyj-active" : "") +
+            (buttonSize ? " vr4ikfs-size-" + buttonSize : "")
+          }
         >
           Content
         </button>
