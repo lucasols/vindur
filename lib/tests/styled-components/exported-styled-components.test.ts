@@ -454,6 +454,8 @@ describe('Exported styled components', () => {
       fileAbsPath: '/main.ts',
       source: mockFS.readFile('/main.ts'),
       fs: mockFS,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases: { '@utils': '/src/utils' },
       dev: true,
     });

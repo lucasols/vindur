@@ -29,6 +29,8 @@ describe('Binary Expression Error Handling', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -65,6 +67,8 @@ describe('Binary Expression Error Handling', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -101,6 +105,8 @@ describe('Binary Expression Error Handling', () => {
         fileAbsPath: '/main.ts',
         source: mockFS.readFile('/main.ts'),
         fs: mockFS,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases: { '@utils': '/src/utils' },
       });
     }).toThrowErrorMatchingInlineSnapshot(
