@@ -31,13 +31,13 @@ const PACKAGE_CONFIGS: Record<string, PackageConfig> = {
   'vite-plugin': {
     name: 'vite-plugin',
     path: './vite-plugin',
-    fullName: '@vindur-css/vite-plugin',
+    fullName: 'vite-plugin',
     dependsOnVindur: true,
   },
   'eslint-plugin': {
     name: 'eslint-plugin',
     path: './eslint-plugin',
-    fullName: '@vindur/eslint-plugin',
+    fullName: 'eslint-plugin',
     dependsOnVindur: true,
   },
 };
@@ -269,12 +269,17 @@ async function publishPackage(
   }
 
   // Build package
-  await runCmdUnwrap('Build package', [
+  const result = await runCmdUnwrap('Build package', [
     'pnpm',
     '--filter',
     fullPackageName,
     'build',
   ]);
+
+  if (result.includes('No projects matched')) {
+    console.error('❌ No projects matched');
+    process.exit(1);
+  }
 
   // Check if there are any changes to commit after build
   await commitChanges(`chore: update build artifacts for ${packageName}`);
