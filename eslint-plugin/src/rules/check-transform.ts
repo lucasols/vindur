@@ -71,6 +71,8 @@ function runVindurTransform(
       importAliases,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
+      transformDynamicColorCache: {},
+      transformFunctionCache: {},
     });
   } catch (error) {
     if (error instanceof TransformError) {

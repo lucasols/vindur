@@ -44,7 +44,8 @@
     "eslint-vitest-rule-tester": "^2.2.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vindur": "workspace:*"
   },
   "peerDependencies": {
     "eslint": "^9.0.0",
