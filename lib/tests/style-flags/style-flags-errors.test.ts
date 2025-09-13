@@ -25,6 +25,104 @@ test('should throw error for non-boolean and non-string-union types in style fla
   );
 });
 
+test('should throw error for non-existent type reference in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const StyledButton = styled.div<NonExistentType>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Type "NonExistentType" not found. Only locally defined types are supported for style flags
+    loc: 3:32
+    ignoreInLint: true]
+  `,
+  );
+});
+
+test('should throw error for complex type alias in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        type ComplexType = string | number | { nested: boolean };
+
+        const StyledButton = styled.div<ComplexType>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Type "ComplexType" must be a simple object type for style flags. Complex types like unions, intersections, or imported types are not supported
+    loc: 5:32]
+  `,
+  );
+});
+
+test('should throw error for inline union types in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const StyledButton = styled.div<string | number>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Style flags only support simple object types like "{ prop: boolean }" or type references. Complex inline types like "string | number" are not supported
+    loc: 3:32]
+  `,
+  );
+});
+
+test('should throw error for inline intersection types in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const StyledButton = styled.div<{ a: boolean } & { b: string }>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Style flags only support simple object types like "{ prop: boolean }" or type references. Complex inline types like "{ ... } & { ... }" are not supported
+    loc: 3:32]
+  `,
+  );
+});
+
+test('should throw error for inline union of object types in style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const StyledButton = styled.div<{ active: boolean } | { disabled: boolean }>\`
+          padding: 16px;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Style flags only support simple object types like "{ prop: boolean }" or type references. Complex inline types like "{ ... } | { ... }" are not supported
+    loc: 3:32]
+  `,
+  );
+});
+
 test('should warn about missing modifier styles', async () => {
   const warnings: TransformWarning[] = [];
 

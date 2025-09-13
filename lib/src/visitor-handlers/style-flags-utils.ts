@@ -1,7 +1,7 @@
-import { TransformError } from '../custom-errors';
-import { types as t } from '@babel/core';
+import { types as t, type NodePath } from '@babel/core';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { murmur2 } from '@ls-stack/utils/hash';
+import { TransformError } from '../custom-errors';
 
 export type StyleFlag =
   | { propName: string; hashedClassName: string; type: 'boolean' }
@@ -13,6 +13,28 @@ export type StyleFlag =
     };
 
 /**
+ * Find a type alias declaration in the program
+ */
+function findTypeAliasDeclaration(
+  path: NodePath,
+  typeName: string,
+): t.TSTypeAliasDeclaration | null {
+  const program = path.findParent((p) => p.isProgram());
+  if (!program || !t.isProgram(program.node)) return null;
+
+  for (const statement of program.node.body) {
+    if (
+      t.isTSTypeAliasDeclaration(statement)
+      && t.isIdentifier(statement.id)
+      && statement.id.name === typeName
+    ) {
+      return statement;
+    }
+  }
+  return null;
+}
+
+/**
  * Extract boolean and string union properties from TypeScript generic type parameters
  */
 export function extractStyleFlags(
@@ -22,6 +44,7 @@ export function extractStyleFlags(
     | null,
   fileHash: string,
   dev: boolean,
+  path?: NodePath,
 ): StyleFlag[] | undefined {
   if (!typeParameters || typeParameters.params.length === 0) {
     return undefined;
@@ -33,11 +56,59 @@ export function extractStyleFlags(
   }
 
   const firstParam = typeParameters.params[0];
-  if (!t.isTSTypeLiteral(firstParam)) return undefined;
+
+  let typeLiteral: t.TSTypeLiteral;
+
+  if (t.isTSTypeLiteral(firstParam)) {
+    // Direct type literal
+    typeLiteral = firstParam;
+  } else if (t.isTSTypeReference(firstParam)) {
+    // Type reference - resolve to type alias
+    if (!path) {
+      throw new TransformError(
+        'Cannot resolve type references without path context',
+        notNullish(typeParameters.loc),
+      );
+    }
+
+    if (!t.isIdentifier(firstParam.typeName)) {
+      throw new TransformError(
+        'Only simple type references are supported for style flags',
+        notNullish(firstParam.loc),
+      );
+    }
+
+    const typeName = firstParam.typeName.name;
+    const typeAlias = findTypeAliasDeclaration(path, typeName);
+
+    if (!typeAlias) {
+      throw new TransformError(
+        `Type "${typeName}" not found. Only locally defined types are supported for style flags`,
+        notNullish(firstParam.loc),
+        { ignoreInLint: true },
+      );
+    }
+
+    if (!t.isTSTypeLiteral(typeAlias.typeAnnotation)) {
+      throw new TransformError(
+        `Type "${typeName}" must be a simple object type for style flags. Complex types like unions, intersections, or imported types are not supported`,
+        notNullish(firstParam.loc),
+      );
+    }
+
+    typeLiteral = typeAlias.typeAnnotation;
+  } else {
+    // Invalid inline type - throw descriptive error
+    const typeString = firstParam ? getTypeString(firstParam) : 'unknown';
+    throw new TransformError(
+      `Style flags only support simple object types like "{ prop: boolean }" or type references. Complex inline types like "${typeString}" are not supported`,
+      notNullish(firstParam?.loc ?? typeParameters.loc),
+    );
+  }
 
   const styleProps: StyleFlag[] = [];
 
-  for (const member of firstParam.members) {
+  for (const member of typeLiteral.members) {
     if (
       t.isTSPropertySignature(member)
       && t.isIdentifier(member.key)
@@ -133,6 +204,9 @@ function getTypeString(typeNode: t.TSType): string {
   } else if (t.isTSUnionType(typeNode)) {
     const types = typeNode.types.map(getTypeString);
     return types.join(' | ');
+  } else if (t.isTSIntersectionType(typeNode)) {
+    const types = typeNode.types.map(getTypeString);
+    return types.join(' & ');
   } else if (t.isTSLiteralType(typeNode)) {
     if (t.isStringLiteral(typeNode.literal)) {
       return `"${typeNode.literal.value}"`;
@@ -141,6 +215,24 @@ function getTypeString(typeNode: t.TSType): string {
     } else if (t.isBooleanLiteral(typeNode.literal)) {
       return typeNode.literal.value.toString();
     }
+  } else if (t.isTSTypeLiteral(typeNode)) {
+    return '{ ... }';
+  } else if (t.isTSTypeReference(typeNode)) {
+    if (t.isIdentifier(typeNode.typeName)) {
+      return typeNode.typeName.name;
+    }
+    return 'TypeReference';
+  } else if (t.isTSArrayType(typeNode)) {
+    return `${getTypeString(typeNode.elementType)}[]`;
+  } else if (t.isTSTupleType(typeNode)) {
+    const elements = typeNode.elementTypes.map((element) => {
+      if (t.isTSType(element)) {
+        return getTypeString(element);
+      }
+      // Handle TSNamedTupleMember
+      return '...';
+    });
+    return `[${elements.join(', ')}]`;
   }
   return 'unknown';
 }
@@ -204,7 +296,9 @@ export function checkForMissingModifierStyles(
   }> = [];
 
   // Find the CSS rule for this styled component
-  const relevantRule = cssRules.find((rule) => rule.css.includes(styledClassName));
+  const relevantRule = cssRules.find((rule) =>
+    rule.css.includes(styledClassName),
+  );
   if (!relevantRule) return missingSelectors;
 
   // Remove CSS comments to avoid false positives

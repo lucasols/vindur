@@ -382,8 +382,8 @@ test('should work with extracted type parameters', async () => {
         }
       \`;
 
-      function Component({ value }) {
-        return <Btn value={value}>Content</Btn>;
+      function Component({ value, active }) {
+        return <Btn value={value} active={active}>Content</Btn>;
       }
     `,
   });
@@ -393,9 +393,15 @@ test('should work with extracted type parameters', async () => {
       value: "high" | "medium" | "low";
       active: boolean;
     };
-    function Component({ value }) {
+    function Component({ value, active }) {
       return (
-        <ButtonElement value={value} className="v1560qbr-1-Btn">
+        <ButtonElement
+          className={cx(
+            "v1560qbr-1-Btn",
+            value && \`v3j7qq4-value-\${value}\`,
+            active && "voctcyj-active",
+          )}
+        >
           Content
         </ButtonElement>
       );
@@ -410,7 +416,7 @@ test('should work with extracted type parameters', async () => {
       color: white;
 
       &:hover,
-      &.v4h0q42-active {
+      &.voctcyj-active {
         opacity: 1;
       }
 

@@ -190,7 +190,7 @@ export function handleStyledElementAssignment(
 
   // Check for TypeScript generic type parameters (style flags)
   const typeParameters = path.node.init.typeParameters;
-  const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev);
+  const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev, path);
 
   // Capture location information from the template literal
   const sourceContent = context.state.sourceContent || '';
@@ -432,7 +432,7 @@ export function handleStyledExtensionAssignment(
 
   // Check for TypeScript generic type parameters (style flags)
   const typeParameters = path.node.init.typeParameters;
-  const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev);
+  const styleFlags = extractStyleFlags(typeParameters || null, fileHash, dev, path);
 
   // Capture location information from the template literal
   const sourceContent = context.state.sourceContent || '';
