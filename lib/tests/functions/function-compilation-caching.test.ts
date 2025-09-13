@@ -44,6 +44,7 @@ test('caches compiled functions on first load', () => {
     source: fs.readFile('/main.ts'),
     debug: logger,
     transformFunctionCache: cache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -121,6 +122,7 @@ test('uses cached function on subsequent calls', () => {
     source: fs.readFile('/main.ts'),
     debug: logger,
     transformFunctionCache: cache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -174,6 +176,7 @@ test('caches functions across multiple transforms with shared state', () => {
     source: fs.readFile('/main1.ts'),
     debug: logger,
     transformFunctionCache: sharedCache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -202,6 +205,7 @@ test('caches functions across multiple transforms with shared state', () => {
     source: fs.readFile('/main2.ts'),
     debug: logger2,
     transformFunctionCache: sharedCache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -256,6 +260,7 @@ test('caches functions per file path', () => {
     source: fs.readFile('/main.ts'),
     debug: logger,
     transformFunctionCache: cache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -296,6 +301,7 @@ test('debug logging is optional', () => {
       fileAbsPath: '/main.ts',
       source: fs.readFile('/main.ts'),
       transformFunctionCache: cache,
+      transformDynamicColorCache: {},
       fs,
       importAliases,
     });
@@ -335,6 +341,7 @@ test('tracks cache hits and misses for functions with different parameters', () 
     source: fs.readFile('/main.ts'),
     debug: logger,
     transformFunctionCache: cache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
@@ -382,6 +389,7 @@ test('function cache persists between different functions in same file', () => {
     source: fs.readFile('/main.ts'),
     debug: logger,
     transformFunctionCache: cache,
+    transformDynamicColorCache: {},
     fs,
     importAliases,
   });
