@@ -27,6 +27,8 @@ describe('class generation', () => {
       source,
       fileAbsPath: '/src/test.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -64,6 +66,8 @@ describe('class generation', () => {
       fileAbsPath: '/src/components.ts',
       dev: true,
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -105,6 +109,8 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/debug.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -143,6 +149,8 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/interpolation.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -179,6 +187,8 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/variables.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -215,6 +225,8 @@ describe('interpolation', () => {
         source,
         fileAbsPath: '/src/complex.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -241,6 +253,8 @@ describe('interpolation', () => {
       source,
       fileAbsPath: '/src/nested.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -271,6 +285,8 @@ describe('interpolation', () => {
         source,
         fileAbsPath: '/src/undefined.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -299,6 +315,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/object.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -324,6 +342,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/array.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -348,6 +368,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/function.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -374,6 +396,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/conditional.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -400,6 +424,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/logical.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -425,6 +451,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/unary.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -449,6 +477,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/array-literal.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -473,6 +503,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/button.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -495,6 +527,8 @@ describe('error handling', () => {
         source,
         fileAbsPath: '/src/direct.ts',
         fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
         importAliases,
       });
     }).toThrowErrorMatchingInlineSnapshot(
@@ -518,6 +552,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/empty.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -540,6 +576,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/whitespace.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -561,6 +599,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/multiple.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -600,6 +640,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/special.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -632,6 +674,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/positions.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -665,6 +709,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/invalid.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -693,6 +739,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/long.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
@@ -713,6 +761,8 @@ describe('corner cases', () => {
       source,
       fileAbsPath: '/src/direct.ts',
       fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
       importAliases,
     });
 
