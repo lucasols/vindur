@@ -1,3 +1,12 @@
 {
-  "hooks": {}
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "./.claude/validate-bash-cmds.ts" }
+        ]
+      }
+    ]
+  }
 }
