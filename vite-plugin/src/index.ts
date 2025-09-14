@@ -197,6 +197,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       const affected = depToSources.get(changed);
       if (affected && affected.size > 0) {
         const mods: ModuleNode[] = [];
+        // Include the changed module(s) so non-vindur updates (like JSX text) still HMR
+        for (const m of ctx.modules) mods.push(m);
         for (const srcId of affected) {
           const srcMod = ctx.server.moduleGraph.getModuleById(srcId);
           if (!srcMod) continue;
