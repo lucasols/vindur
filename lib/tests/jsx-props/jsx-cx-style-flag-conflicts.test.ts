@@ -224,4 +224,31 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
       }),
     ).resolves.toBeDefined();
   });
+
+  test('should not throw error when the duplicated name is not a style flag', async () => {
+    // Should not throw an error
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled, cx } from 'vindur';
+
+          const Button = styled.button\`
+            padding: 8px;
+
+            &.active {
+              background: blue;
+            }
+          \`;
+
+          function Component({ isActive }) {
+            return (
+              <Button active={isActive} cx={{ active: isActive }}>
+                Click me
+              </Button>
+            );
+          }
+        `,
+      }),
+    ).resolves.toBeDefined();
+  });
 });
