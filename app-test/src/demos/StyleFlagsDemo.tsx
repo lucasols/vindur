@@ -104,6 +104,9 @@ export function StyleFlagsDemo() {
                 css={`
                   margin-right: 8px;
                 `}
+                style={{
+                  '--color': 'red',
+                }}
               />
               Active State
             </Label>

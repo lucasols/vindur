@@ -364,25 +364,25 @@ export function updateCssSelectorsForStyleFlags(
 
       for (const styleProp of styleFlags) {
         if (styleProp.type === 'boolean') {
-          // Replace &.propName with &.hashedClassName for boolean props
+          // Replace .propName with .hashedClassName for boolean props (anywhere in CSS)
           const selectorPattern = new RegExp(
-            `&\\.${escapeRegExp(styleProp.propName)}\\b`,
+            `\\.${escapeRegExp(styleProp.propName)}\\b`,
             'g',
           );
           updatedRule = updatedRule.replace(
             selectorPattern,
-            `&.${styleProp.hashedClassName}`,
+            `.${styleProp.hashedClassName}`,
           );
         } else {
-          // Replace &.propName-value with &.hashedClassName-value for string union props
+          // Replace .propName-value with .hashedClassName-value for string union props (anywhere in CSS)
           for (const value of styleProp.unionValues) {
             const selectorPattern = new RegExp(
-              `&\\.${escapeRegExp(styleProp.propName)}-${escapeRegExp(value)}\\b`,
+              `\\.${escapeRegExp(styleProp.propName)}-${escapeRegExp(value)}\\b`,
               'g',
             );
             updatedRule = updatedRule.replace(
               selectorPattern,
-              `&.${styleProp.hashedClassName}-${value}`,
+              `.${styleProp.hashedClassName}-${value}`,
             );
           }
         }
@@ -418,13 +418,15 @@ export function checkForMissingModifierStyles(
 
   for (const styleProp of styleFlags) {
     if (styleProp.type === 'boolean') {
-      // Check for &.propName selector
+      // Check for .propName selector (anywhere in CSS, including &.propName)
       const originalSelector = `&.${styleProp.propName}`;
       const expectedSelector = `&.${styleProp.hashedClassName}`;
+      const selectorPattern = new RegExp(`\\.${escapeRegExp(styleProp.propName)}\\b`);
 
       if (
         !ruleWithoutComments.includes(originalSelector)
         && !ruleWithoutComments.includes(expectedSelector)
+        && !selectorPattern.test(ruleWithoutComments)
       ) {
         missingSelectors.push({
           propName: styleProp.propName,
@@ -433,14 +435,16 @@ export function checkForMissingModifierStyles(
         });
       }
     } else {
-      // Check for &.propName-value selectors (string-union type)
+      // Check for .propName-value selectors (string-union type, anywhere in CSS)
       for (const value of styleProp.unionValues) {
         const originalSelector = `&.${styleProp.propName}-${value}`;
         const expectedSelector = `&.${styleProp.hashedClassName}-${value}`;
+        const selectorPattern = new RegExp(`\\.${escapeRegExp(styleProp.propName)}-${escapeRegExp(value)}\\b`);
 
         if (
           !ruleWithoutComments.includes(originalSelector)
           && !ruleWithoutComments.includes(expectedSelector)
+          && !selectorPattern.test(ruleWithoutComments)
         ) {
           missingSelectors.push({
             propName: `${styleProp.propName}-${value}`,

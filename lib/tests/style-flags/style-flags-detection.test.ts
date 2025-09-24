@@ -433,3 +433,157 @@ test('should work with extracted type parameters', async () => {
     "
   `);
 });
+
+test('should detect and transform style flags inside pseudo-class functions', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{
+        active: boolean;
+        disabled: boolean;
+        size: 'small' | 'medium' | 'large';
+        variant: 'primary' | 'secondary';
+      }>\`
+        padding: 8px 16px;
+        border: 1px solid #ccc;
+        background: white;
+        color: #333;
+
+        /* Test :not() with boolean flags */
+        &:not(.disabled) {
+          cursor: pointer;
+        }
+
+        &:not(.active):hover {
+          background: #f0f0f0;
+        }
+
+        /* Test :is() with multiple classes including flags */
+        &:is(.active, .other-class) {
+          background: blue;
+          color: white;
+        }
+
+        &:is(.variant-primary, .variant-secondary) {
+          font-weight: bold;
+        }
+
+        /* Test :where() with flags */
+        &:where(.size-small) {
+          padding: 4px 8px;
+        }
+
+        /* Test :has() with flags */
+        &:has(.active) {
+          border-color: blue;
+        }
+
+        /* Test complex combinations */
+        &:not(.disabled):is(.size-large, .size-medium) {
+          min-height: 48px;
+        }
+
+        /* Test string union flags in different positions */
+        &:is(.other, .variant-primary, .another) {
+          text-transform: uppercase;
+        }
+
+        /* Traditional & syntax should still work */
+        &.active {
+          background: green;
+        }
+
+        &.size-large {
+          padding: 12px 24px;
+        }
+      \`;
+
+      function Component() {
+        return (
+          <Button
+            active={true}
+            disabled={false}
+            size="large"
+            variant="primary"
+          >
+            Click me
+          </Button>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component() {
+      return (
+        <button
+          className={
+            "v1560qbr-1-Button voctcyj-active vr4ikfs-size-large v11as9cs-variant-primary"
+          }
+        >
+          Click me
+        </button>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      padding: 8px 16px;
+      border: 1px solid #ccc;
+      background: white;
+      color: #333;
+
+      /* Test :not() with boolean flags */
+      &:not(.v1iz0um9-disabled) {
+        cursor: pointer;
+      }
+
+      &:not(.voctcyj-active):hover {
+        background: #f0f0f0;
+      }
+
+      /* Test :is() with multiple classes including flags */
+      &:is(.voctcyj-active, .other-class) {
+        background: blue;
+        color: white;
+      }
+
+      &:is(.v11as9cs-variant-primary, .v11as9cs-variant-secondary) {
+        font-weight: bold;
+      }
+
+      /* Test :where() with flags */
+      &:where(.vr4ikfs-size-small) {
+        padding: 4px 8px;
+      }
+
+      /* Test :has() with flags */
+      &:has(.voctcyj-active) {
+        border-color: blue;
+      }
+
+      /* Test complex combinations */
+      &:not(.v1iz0um9-disabled):is(.vr4ikfs-size-large, .vr4ikfs-size-medium) {
+        min-height: 48px;
+      }
+
+      /* Test string union flags in different positions */
+      &:is(.other, .v11as9cs-variant-primary, .another) {
+        text-transform: uppercase;
+      }
+
+      /* Traditional & syntax should still work */
+      &.voctcyj-active {
+        background: green;
+      }
+
+      &.vr4ikfs-size-large {
+        padding: 12px 24px;
+      }
+    }
+    "
+  `);
+});
