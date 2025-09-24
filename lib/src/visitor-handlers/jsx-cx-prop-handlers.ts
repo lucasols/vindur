@@ -41,6 +41,11 @@ export function handleJsxCxProp(
 
   if (!cxAttr) return false;
 
+  // Check for conflicts with style flags if this is a styled component
+  if (isStyledComponent) {
+    checkForCxStyleFlagConflicts(path, attributes, elementName, context.state);
+  }
+
   // Validate plain DOM elements without CSS context
   if (isNativeDOMElement && !isStyledComponent) {
     validatePlainDomElement(path, context, attributes, cxAttr);
@@ -390,5 +395,95 @@ function generateHashedClassName(
     return `${fileHash}-${classIndex}-${className}`;
   } else {
     return `${fileHash}-${classIndex}`;
+  }
+}
+
+function checkForCxStyleFlagConflicts(
+  path: NodePath<t.JSXElement>,
+  attributes: (t.JSXAttribute | t.JSXSpreadAttribute)[],
+  styledComponentName: string,
+  state: VindurPluginState,
+): void {
+  const styledInfo = state.styledComponents.get(styledComponentName);
+  if (!styledInfo?.styleFlags || styledInfo.styleFlags.length === 0) {
+    return;
+  }
+
+  // Find cx attribute
+  const cxAttr = findWithNarrowing(attributes, (attr) => {
+    if (
+      t.isJSXAttribute(attr)
+      && t.isJSXIdentifier(attr.name)
+      && attr.name.name === 'cx'
+    ) {
+      return attr;
+    }
+    return false;
+  });
+
+  if (!cxAttr) return;
+
+  // Extract cx object keys
+  if (!cxAttr.value || !t.isJSXExpressionContainer(cxAttr.value)) return;
+
+  const expression = cxAttr.value.expression;
+  if (!t.isObjectExpression(expression)) return;
+
+  const cxKeys = new Set<string>();
+
+  // Collect all cx prop keys (excluding $ prefixed ones)
+  for (const prop of expression.properties) {
+    if (!t.isObjectProperty(prop) || prop.computed) continue;
+
+    let keyName: string;
+    if (t.isStringLiteral(prop.key)) {
+      keyName = prop.key.value;
+    } else if (t.isIdentifier(prop.key)) {
+      keyName = prop.key.name;
+    } else {
+      continue;
+    }
+
+    // Skip $ prefixed keys
+    if (keyName.startsWith('$')) continue;
+
+    cxKeys.add(keyName);
+  }
+
+  if (cxKeys.size === 0) return;
+
+  // Check for conflicts with style flags
+  const conflicts: string[] = [];
+
+  for (const flag of styledInfo.styleFlags) {
+    if (flag.type === 'boolean') {
+      // Boolean style flag: check if cx has the same key
+      if (cxKeys.has(flag.propName)) {
+        conflicts.push(flag.propName);
+      }
+    } else {
+      // String union style flag: check if cx has keys with pattern propName-value
+      const hasConflict = flag.unionValues.some((value) => {
+        const expectedKey = `${flag.propName}-${value}`;
+        return cxKeys.has(expectedKey);
+      });
+
+      if (hasConflict) {
+        conflicts.push(flag.propName);
+      }
+    }
+  }
+
+  // Throw error if conflicts found
+  if (conflicts.length > 0) {
+    const conflictList = conflicts.join(', ');
+    const message = conflicts.length === 1
+      ? `Style flag prop '${conflictList}' conflicts with cx prop key '${conflictList}' on ${styledComponentName}. Use different names to avoid conflicts.`
+      : `Style flag props [${conflictList}] conflict with cx prop keys on ${styledComponentName}. Use different names to avoid conflicts.`;
+
+    throw new TransformError(
+      message,
+      notNullish(path.node.loc),
+    );
   }
 }
