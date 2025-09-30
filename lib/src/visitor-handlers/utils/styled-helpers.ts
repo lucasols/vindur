@@ -46,6 +46,66 @@ export function parseStyledElementTag(tag: t.Expression): StyledElementInfo | nu
   return null;
 }
 
+export type ExtendedArgInfo = {
+  extendedArg: t.Identifier | t.MemberExpression;
+  attrs: t.ObjectExpression | undefined;
+};
+
+export function extractExtendedArgFromTag(
+  tag: t.Expression,
+  filePath: string,
+): ExtendedArgInfo | null {
+  if (
+    t.isCallExpression(tag)
+    && t.isIdentifier(tag.callee)
+    && tag.callee.name === 'styled'
+    && tag.arguments.length === 1
+  ) {
+    // styled(Component)`` or styled(motion.div)``
+    const arg = tag.arguments[0];
+    if (!t.isIdentifier(arg) && !t.isMemberExpression(arg)) {
+      throw new TransformError(
+        'styled() can only extend identifiers or member expressions (components or css variables)',
+        notNullish(tag.loc),
+        { filename: filePath },
+      );
+    }
+    return { extendedArg: arg, attrs: undefined };
+  }
+
+  if (
+    t.isCallExpression(tag)
+    && t.isMemberExpression(tag.callee)
+    && t.isCallExpression(tag.callee.object)
+    && t.isIdentifier(tag.callee.object.callee)
+    && tag.callee.object.callee.name === 'styled'
+    && tag.callee.object.arguments.length === 1
+    && t.isIdentifier(tag.callee.property)
+    && tag.callee.property.name === 'attrs'
+  ) {
+    // styled(Component).attrs({...})`` or styled(motion.div).attrs({...})``
+    const arg = tag.callee.object.arguments[0];
+    if (!t.isIdentifier(arg) && !t.isMemberExpression(arg)) {
+      throw new TransformError(
+        'styled() can only extend identifiers or member expressions (components or css variables)',
+        notNullish(tag.loc),
+        { filename: filePath },
+      );
+    }
+
+    if (tag.arguments.length === 1 && t.isObjectExpression(tag.arguments[0])) {
+      return { extendedArg: arg, attrs: tag.arguments[0] };
+    }
+
+    throw new TransformError(
+      'styled(Component).attrs() must be called with exactly one object literal argument',
+      notNullish(tag.loc),
+      { filename: filePath },
+    );
+  }
+
+  return null;
+}
 
 export function transformStyleFlagsComponent(
   styleFlags: StyleFlag[],

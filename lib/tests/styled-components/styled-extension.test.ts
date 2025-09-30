@@ -265,4 +265,36 @@ describe('styled component extension', () => {
       "
     `);
   });
+
+  test('extend motion lib elements', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { motion } from 'framer-motion'
+
+        const StyledMotionDiv = styled(motion.div)\`
+          color: red;
+        \`
+
+        const App = () => (
+          <StyledMotionDiv />
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-StyledMotionDiv {
+        color: red;
+      }
+      "
+    `);
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { motion } from "framer-motion";
+      const App = () => <motion.div className="v1560qbr-1-StyledMotionDiv" />;
+      "
+    `);
+  });
 });

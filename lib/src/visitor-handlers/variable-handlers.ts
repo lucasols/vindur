@@ -22,6 +22,7 @@ import {
   transformStyleFlagsComponent,
   validateExtendedComponent,
   transformStyledExtension,
+  extractExtendedArgFromTag,
 } from './utils/styled-helpers';
 
 type VariableHandlerContext = {
@@ -388,63 +389,35 @@ export function handleStyledExtensionAssignment(
 
   // Check for styled(Component)`` or styled(Component).attrs({...})`` patterns
   const tag = path.node.init.tag;
-  let extendedArg: t.Identifier;
-  let attrs: t.ObjectExpression | undefined;
+  const argInfo = extractExtendedArgFromTag(tag, filePath);
 
-  if (
-    t.isCallExpression(tag)
-    && t.isIdentifier(tag.callee)
-    && tag.callee.name === 'styled'
-    && tag.arguments.length === 1
-  ) {
-    // styled(Component)``
-    if (!t.isIdentifier(tag.arguments[0])) {
-      throw new TransformError(
-        'styled() can only extend identifiers (components or css variables)',
-        notNullish(tag.loc),
-        { filename: filePath },
-      );
-    }
-    extendedArg = tag.arguments[0];
-  } else if (
-    t.isCallExpression(tag)
-    && t.isMemberExpression(tag.callee)
-    && t.isCallExpression(tag.callee.object)
-    && t.isIdentifier(tag.callee.object.callee)
-    && tag.callee.object.callee.name === 'styled'
-    && tag.callee.object.arguments.length === 1
-    && t.isIdentifier(tag.callee.property)
-    && tag.callee.property.name === 'attrs'
-  ) {
-    // styled(Component).attrs({...})``
-    if (!t.isIdentifier(tag.callee.object.arguments[0])) {
-      throw new TransformError(
-        'styled() can only extend identifiers (components or css variables)',
-        notNullish(tag.loc),
-        { filename: filePath },
-      );
-    }
-    extendedArg = tag.callee.object.arguments[0];
-    if (tag.arguments.length === 1 && t.isObjectExpression(tag.arguments[0])) {
-      attrs = tag.arguments[0];
-    } else {
-      throw new TransformError(
-        'styled(Component).attrs() must be called with exactly one object literal argument',
-        notNullish(tag.loc),
-        { filename: filePath },
-      );
-    }
-  } else {
-    return false;
-  }
+  if (!argInfo) return false;
+
+  const { extendedArg, attrs } = argInfo;
 
   // Handle styled(Component)`` variable assignments
   const varName = path.node.id.name;
-  const extendedName = extendedArg.name;
 
-  // Check if extending a non-component variable
-  const extendedInfo = context.state.styledComponents.get(extendedName);
-  validateExtendedComponent(extendedName, extendedInfo, path, extendedArg.loc);
+  // Extract name from identifier or member expression
+  let extendedName: string;
+  let extendedInfo: ReturnType<typeof context.state.styledComponents.get>;
+
+  if (t.isIdentifier(extendedArg)) {
+    extendedName = extendedArg.name;
+    extendedInfo = context.state.styledComponents.get(extendedName);
+    validateExtendedComponent(extendedName, extendedInfo, path, extendedArg.loc);
+  } else if (t.isMemberExpression(extendedArg)) {
+    // MemberExpression like motion.div - skip validation
+    const sourceContent = context.state.sourceContent ?? '';
+    extendedName = sourceContent.slice(extendedArg.start ?? 0, extendedArg.end ?? 0);
+    extendedInfo = undefined;
+  } else {
+    throw new TransformError(
+      'styled() can only extend identifiers or member expressions (components or css variables)',
+      notNullish(tag.loc),
+      { filename: filePath },
+    );
+  }
 
   // Check for TypeScript generic type parameters (style flags)
   const typeParameters = path.node.init.typeParameters;
