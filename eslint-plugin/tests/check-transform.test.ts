@@ -220,6 +220,55 @@ describe('warning system - onWarning callback functionality', () => {
       `);
     });
 
+    test('should report warnings for css extensions missing trailing semicolons', async () => {
+      mockExistsSync.mockImplementation((path) => {
+        return String(path).includes('/styles.ts');
+      });
+
+      mockReadFileSync.mockImplementation((path) => {
+        if (String(path).includes('/styles.ts')) {
+          return dedent`
+            import { css } from 'vindur';
+
+            export const ellipsis = css\`
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            \`;
+          `;
+        }
+
+        throw new Error(`File not found: ${String(path)}`);
+      });
+
+      const { result } = await invalid({
+        code: dedent`
+          import { css } from 'vindur';
+          import { ellipsis } from '@/styles';
+
+          const styles = css\`
+            \${ellipsis}
+            color: red;
+          \`;
+        `,
+        options: [
+          {
+            importAliases: {
+              '@': '/',
+            },
+          },
+        ],
+      });
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        "
+        - messageId: 'transformWarning'
+          msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+          loc: '5:5'
+        "
+      `);
+    });
+
     test('should report warnings for missing string union modifier styles', async () => {
       const { result } = await invalid(dedent`
         import { styled } from 'vindur';

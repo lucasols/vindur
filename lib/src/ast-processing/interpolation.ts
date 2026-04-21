@@ -3,12 +3,14 @@ import { generate } from '@babel/generator';
 import { notNullish } from '@ls-stack/utils/assertions';
 import { extractLiteralValue, isLiteralExpression } from '../ast-utils';
 import type { CssProcessingContext } from '../css-processing';
-import { TransformError } from '../custom-errors';
+import { TransformError, TransformWarning } from '../custom-errors';
+import { processArrowFunctionExpression } from './interpolation-arrow-function';
 import {
   resolveDynamicColorCallExpression,
   resolveDynamicColorExpression,
 } from './dynamic-colors';
 import { getOrExtractFileData } from './file-processing';
+import { shouldWarnAboutLikelyMissingCssInterpolationSemicolon } from './interpolation-warning';
 import {
   resolveBinaryExpression,
   resolveFunctionCall,
@@ -98,29 +100,6 @@ function resolveImportedIdentifier(
 
   return null;
 }
-
-function processArrowFunctionExpression(
-  expression: t.ArrowFunctionExpression,
-  variableName: string | undefined,
-  tagType: string,
-): string {
-  if (
-    expression.params.length === 0
-    && t.isIdentifier(expression.body)
-    && !expression.async
-  ) {
-    const componentName = expression.body.name;
-    return `__FORWARD_REF__${componentName}__`;
-  } else {
-    const varContext =
-      variableName ? `... ${variableName} = ${tagType}` : tagType;
-    throw new TransformError(
-      `Invalid arrow function in interpolation at \`${varContext}\`. Only simple forward references like \${() => Component} are supported`,
-      notNullish(expression.loc),
-    );
-  }
-}
-
 function processCallExpression(
   expression: t.CallExpression,
   context: CssProcessingContext,
@@ -390,11 +369,27 @@ export function processTemplateWithInterpolation(
       if (expression && t.isExpression(expression)) {
         // Check context around interpolation
         const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
-
         // Simple logic: if followed by semicolon, interpolate CSS content directly
         // Otherwise, use as selector
         const followedBySemicolon = nextPart.trimStart().startsWith(';');
-
+        const isLastInterpolation = i === quasi.expressions.length - 1;
+        if (
+          dev
+          && context.onWarning
+          && !followedBySemicolon
+          && shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
+            expression,
+            context,
+            nextPart,
+            isLastInterpolation,
+          )
+        ) {
+          const expressionSource = generate(expression).code;
+          context.onWarning(new TransformWarning(
+            `Possible missing \`;\` after \`\${${expressionSource}}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${${expressionSource}};\` when extending styles.`,
+            notNullish(expression.loc),
+          ));
+        }
         const resolvedExpression = processInterpolationExpression(
           expression,
           context,
@@ -409,9 +404,7 @@ export function processTemplateWithInterpolation(
 
         cssContent += resolvedExpression;
         // After processing any interpolation, we have content
-        if (resolvedExpression.trim() !== '') {
-          hasNonWhitespaceContent = true;
-        }
+        if (resolvedExpression.trim() !== '') hasNonWhitespaceContent = true;
       }
     }
   }

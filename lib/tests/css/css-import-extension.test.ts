@@ -1,5 +1,8 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/transform';
+import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('should extend CSS styles imported from another file', async () => {
@@ -244,6 +247,48 @@ test('should handle mixed local and imported CSS extensions', async () => {
       transition: all 0.3s ease;
       background: white;
     }
+    "
+  `);
+});
+
+test('should warn when imported CSS extension is missing trailing semicolon', () => {
+  const warnings: TransformWarning[] = [];
+  const fs = createFsMock({
+    'styles.ts': dedent`
+      import { css } from 'vindur'
+
+      export const ellipsis = css\`
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      \`
+    `,
+  });
+
+  transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    source: dedent`
+      import { css } from 'vindur'
+      import { ellipsis } from '#/styles'
+
+      const cardStyles = css\`
+        color: red;
+        \${ellipsis}
+      \`
+    `,
+    dev: true,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        loc: 'current_file:6:4'
     "
   `);
 });
