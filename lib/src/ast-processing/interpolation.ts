@@ -369,6 +369,9 @@ export function processTemplateWithInterpolation(
       if (expression && t.isExpression(expression)) {
         // Check context around interpolation
         const nextPart = quasi.quasis[i + 1]?.value.cooked ?? '';
+        const nextParts = quasi.quasis
+          .slice(i + 1)
+          .map((templateElement) => templateElement.value.cooked ?? '');
         // Simple logic: if followed by semicolon, interpolate CSS content directly
         // Otherwise, use as selector
         const followedBySemicolon = nextPart.trimStart().startsWith(';');
@@ -391,7 +394,7 @@ export function processTemplateWithInterpolation(
           && !followedBySemicolon
           && shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
             resolvedExpression,
-            nextPart,
+            nextParts,
             isLastInterpolation,
           )
         ) {

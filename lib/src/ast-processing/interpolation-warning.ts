@@ -1,7 +1,7 @@
 const PROPERTY_DECLARATION_START_REGEX = /^[A-Za-z_-][\w-]*\s*:/u;
 
-function startsWithPropertyDeclaration(nextPart: string): boolean {
-  const trimmedNextPart = nextPart.trimStart();
+function startsWithPropertyDeclaration(nextParts: string[]): boolean {
+  const trimmedNextPart = (nextParts[0] ?? '').trimStart();
 
   if (
     trimmedNextPart === ''
@@ -11,27 +11,28 @@ function startsWithPropertyDeclaration(nextPart: string): boolean {
     return false;
   }
 
-  const firstSemicolonIndex = trimmedNextPart.indexOf(';');
+  for (const nextPart of nextParts) {
+    for (const char of nextPart) {
+      if (char === ';') return true;
+      if (char === '{') return false;
+    }
+  }
 
-  if (firstSemicolonIndex === -1) return false;
-
-  const firstBraceIndex = trimmedNextPart.indexOf('{');
-
-  return firstBraceIndex === -1 || firstSemicolonIndex < firstBraceIndex;
+  return true;
 }
 
 export function shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
   resolvedExpression: string,
-  nextPart: string,
+  nextParts: string[],
   isLastInterpolation: boolean,
 ): boolean {
   if (!resolvedExpression.trimStart().startsWith('.')) {
     return false;
   }
 
-  const trimmedNextPart = nextPart.trimStart();
+  const trimmedNextPart = (nextParts[0] ?? '').trimStart();
 
   if (trimmedNextPart === '') return isLastInterpolation;
 
-  return startsWithPropertyDeclaration(trimmedNextPart);
+  return startsWithPropertyDeclaration(nextParts);
 }

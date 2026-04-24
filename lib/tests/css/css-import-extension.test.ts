@@ -293,6 +293,49 @@ test('should warn when imported CSS extension is missing trailing semicolon', ()
   `);
 });
 
+test('should warn when imported CSS extension is missing trailing semicolon before interpolated property value', () => {
+  const warnings: TransformWarning[] = [];
+  const fs = createFsMock({
+    'styles.ts': dedent`
+      import { css } from 'vindur'
+
+      export const ellipsis = css\`
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      \`
+    `,
+  });
+
+  transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    source: dedent`
+      import { styled } from 'vindur'
+      import { ellipsis } from '#/styles'
+      const muted = '#666'
+
+      const CardTitle = styled.div\`
+        \${ellipsis}
+        color: \${muted};
+      \`
+    `,
+    dev: true,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        loc: 'current_file:6:4'
+    "
+  `);
+});
+
 test('should warn when imported CSS tag extension is missing trailing semicolon', () => {
   const warnings: TransformWarning[] = [];
   const fs = createFsMock({
@@ -331,6 +374,49 @@ test('should warn when imported CSS tag extension is missing trailing semicolon'
     - TransformWarning#:
         message: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
         loc: 'current_file:5:4'
+    "
+  `);
+});
+
+test('should warn when imported CSS tag extension is missing trailing semicolon before interpolated property value', () => {
+  const warnings: TransformWarning[] = [];
+  const fs = createFsMock({
+    'styles.ts': dedent`
+      import { css } from 'vindur'
+
+      export const ellipsis = css\`
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      \`
+    `,
+  });
+
+  transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    source: dedent`
+      import { css } from 'vindur'
+      import { ellipsis } from '#/styles'
+      const muted = '#666'
+
+      const title = css\`
+        \${ellipsis}
+        color: \${muted};
+      \`
+    `,
+    dev: true,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        loc: 'current_file:6:4'
     "
   `);
 });
