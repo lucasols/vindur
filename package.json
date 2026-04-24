@@ -19,6 +19,10 @@
     "eslint-plugin:test": "pnpm --filter @vindur/eslint-plugin run test",
     "eslint-plugin:lint": "pnpm --filter @vindur/eslint-plugin run lint",
     "eslint-plugin:build": "pnpm --filter @vindur/eslint-plugin run build",
+    "publish": "pkg-manager publish",
+    "publish:lib": "pkg-manager publish vindur",
+    "publish:vite-plugin": "pkg-manager publish @vindur-css/vite-plugin",
+    "publish:eslint-plugin": "pkg-manager publish @vindur-css/eslint-plugin",
     "generate-spec": "node scripts/generate-spec-index.ts",
     "sync-ai": "node scripts/sync-ai.ts",
     "run-app-test": "pnpm build-all && pnpm --filter vindur-test-app dev",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@ls-stack/extended-lint": "catalog:",
+    "@ls-stack/pkg-manager": "^0.6.0",
     "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",

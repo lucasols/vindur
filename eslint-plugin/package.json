@@ -12,7 +12,9 @@
     "eslint": "CI=true eslint --color src/ tests/ --max-warnings 0 --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "tsup"
+    "build": "tsup",
+    "npm-publish": "pnpm --dir .. exec pkg-manager publish @vindur-css/eslint-plugin",
+    "pre-publish": "pnpm lint && pnpm test && pnpm build"
   },
   "files": [
     "dist",

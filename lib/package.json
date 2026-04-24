@@ -14,8 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "build": "tsup",
-    "npm-publish": "pnpm publish --access=public",
-    "pre-publish": "../scripts/check-if-is-sync.sh && pnpm build"
+    "npm-publish": "pnpm --dir .. exec pkg-manager publish vindur",
+    "pre-publish": "pnpm lint && pnpm test && pnpm build"
   },
   "files": [
     "dist",
