@@ -373,23 +373,6 @@ export function processTemplateWithInterpolation(
         // Otherwise, use as selector
         const followedBySemicolon = nextPart.trimStart().startsWith(';');
         const isLastInterpolation = i === quasi.expressions.length - 1;
-        if (
-          dev
-          && context.onWarning
-          && !followedBySemicolon
-          && shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
-            expression,
-            context,
-            nextPart,
-            isLastInterpolation,
-          )
-        ) {
-          const expressionSource = generate(expression).code;
-          context.onWarning(new TransformWarning(
-            `Possible missing \`;\` after \`\${${expressionSource}}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${${expressionSource}};\` when extending styles.`,
-            notNullish(expression.loc),
-          ));
-        }
         const resolvedExpression = processInterpolationExpression(
           expression,
           context,
@@ -401,6 +384,23 @@ export function processTemplateWithInterpolation(
             position: { isFirst: i === 0, hasNonWhitespaceContent },
           },
         );
+
+        if (
+          dev
+          && context.onWarning
+          && !followedBySemicolon
+          && shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
+            resolvedExpression,
+            nextPart,
+            isLastInterpolation,
+          )
+        ) {
+          const expressionSource = generate(expression).code;
+          context.onWarning(new TransformWarning(
+            `Possible missing \`;\` after \`\${${expressionSource}}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${${expressionSource}};\` when extending styles.`,
+            notNullish(expression.loc),
+          ));
+        }
 
         cssContent += resolvedExpression;
         // After processing any interpolation, we have content

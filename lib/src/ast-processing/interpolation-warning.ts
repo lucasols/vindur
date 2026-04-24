@@ -1,27 +1,4 @@
-import { types as t } from '@babel/core';
-import type { CssProcessingContext } from '../css-processing';
-import { getOrExtractFileData } from './file-processing';
-
 const PROPERTY_DECLARATION_START_REGEX = /^[A-Za-z_-][\w-]*\s*:/u;
-
-function isCssInterpolationIdentifier(
-  expression: t.Expression,
-  context: CssProcessingContext,
-): boolean {
-  if (!t.isIdentifier(expression)) return false;
-
-  if (context.state.cssVariables.has(expression.name)) {
-    return true;
-  }
-
-  const cssFilePath = context.importedFunctions.get(expression.name);
-
-  if (!cssFilePath) return false;
-
-  const extractedData = getOrExtractFileData(cssFilePath, context);
-
-  return extractedData.cssVariables.has(expression.name);
-}
 
 function startsWithPropertyDeclaration(nextPart: string): boolean {
   const trimmedNextPart = nextPart.trimStart();
@@ -44,12 +21,11 @@ function startsWithPropertyDeclaration(nextPart: string): boolean {
 }
 
 export function shouldWarnAboutLikelyMissingCssInterpolationSemicolon(
-  expression: t.Expression,
-  context: CssProcessingContext,
+  resolvedExpression: string,
   nextPart: string,
   isLastInterpolation: boolean,
 ): boolean {
-  if (!isCssInterpolationIdentifier(expression, context)) {
+  if (!resolvedExpression.trimStart().startsWith('.')) {
     return false;
   }
 
