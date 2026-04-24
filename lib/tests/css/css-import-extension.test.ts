@@ -336,6 +336,53 @@ test('should warn when imported CSS extension is missing trailing semicolon befo
   `);
 });
 
+test('should warn when imported CSS extension is followed by another interpolation before declarations', () => {
+  const warnings: TransformWarning[] = [];
+  const fs = createFsMock({
+    'styles.ts': dedent`
+      import { css, vindurFn } from 'vindur'
+
+      export const centerContent = css\`
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      \`
+
+      export const transition = vindurFn(() => \`
+        transition: 0.2s ease;
+      \`)
+    `,
+  });
+
+  transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    source: dedent`
+      import { styled } from 'vindur'
+      import { centerContent, transition } from '#/styles'
+
+      const Root = styled.button\`
+        \${centerContent}
+        \${transition()}
+        width: 28px;
+      \`
+    `,
+    dev: true,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
+        loc: 'current_file:5:4'
+    "
+  `);
+});
+
 test('should warn when imported CSS tag extension is missing trailing semicolon', () => {
   const warnings: TransformWarning[] = [];
   const fs = createFsMock({
@@ -373,6 +420,53 @@ test('should warn when imported CSS tag extension is missing trailing semicolon'
     "
     - TransformWarning#:
         message: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        loc: 'current_file:5:4'
+    "
+  `);
+});
+
+test('should warn when imported CSS tag extension is followed by another interpolation before declarations', () => {
+  const warnings: TransformWarning[] = [];
+  const fs = createFsMock({
+    'styles.ts': dedent`
+      import { css, vindurFn } from 'vindur'
+
+      export const centerContent = css\`
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      \`
+
+      export const transition = vindurFn(() => \`
+        transition: 0.2s ease;
+      \`)
+    `,
+  });
+
+  transform({
+    fileAbsPath: '/test.tsx',
+    fs,
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    source: dedent`
+      import { css } from 'vindur'
+      import { centerContent, transition } from '#/styles'
+
+      const root = css\`
+        \${centerContent}
+        \${transition()}
+        width: 28px;
+      \`
+    `,
+    dev: true,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
         loc: 'current_file:5:4'
     "
   `);

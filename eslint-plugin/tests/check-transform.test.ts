@@ -319,6 +319,60 @@ describe('warning system - onWarning callback functionality', () => {
       `);
     });
 
+    test('should report warnings for css extensions followed by another interpolation before declarations', async () => {
+      mockExistsSync.mockImplementation((path) => {
+        return String(path).includes('/styles.ts');
+      });
+
+      mockReadFileSync.mockImplementation((path) => {
+        if (String(path).includes('/styles.ts')) {
+          return dedent`
+            import { css, vindurFn } from 'vindur';
+
+            export const centerContent = css\`
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            \`;
+
+            export const transition = vindurFn(() => \`
+              transition: 0.2s ease;
+            \`);
+          `;
+        }
+
+        throw new Error(`File not found: ${String(path)}`);
+      });
+
+      const { result } = await invalid({
+        code: dedent`
+          import { styled } from 'vindur';
+          import { centerContent, transition } from '@/styles';
+
+          const Root = styled.button\`
+            \${centerContent}
+            \${transition()}
+            width: 28px;
+          \`;
+        `,
+        options: [
+          {
+            importAliases: {
+              '@': '/',
+            },
+          },
+        ],
+      });
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        "
+        - messageId: 'transformWarning'
+          msg: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
+          loc: '5:5'
+        "
+      `);
+    });
+
     test('should report warnings for css tag extensions missing trailing semicolons', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
@@ -363,6 +417,60 @@ describe('warning system - onWarning callback functionality', () => {
         "
         - messageId: 'transformWarning'
           msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+          loc: '5:5'
+        "
+      `);
+    });
+
+    test('should report warnings for css tag extensions followed by another interpolation before declarations', async () => {
+      mockExistsSync.mockImplementation((path) => {
+        return String(path).includes('/styles.ts');
+      });
+
+      mockReadFileSync.mockImplementation((path) => {
+        if (String(path).includes('/styles.ts')) {
+          return dedent`
+            import { css, vindurFn } from 'vindur';
+
+            export const centerContent = css\`
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            \`;
+
+            export const transition = vindurFn(() => \`
+              transition: 0.2s ease;
+            \`);
+          `;
+        }
+
+        throw new Error(`File not found: ${String(path)}`);
+      });
+
+      const { result } = await invalid({
+        code: dedent`
+          import { css } from 'vindur';
+          import { centerContent, transition } from '@/styles';
+
+          const root = css\`
+            \${centerContent}
+            \${transition()}
+            width: 28px;
+          \`;
+        `,
+        options: [
+          {
+            importAliases: {
+              '@': '/',
+            },
+          },
+        ],
+      });
+
+      expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+        "
+        - messageId: 'transformWarning'
+          msg: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
           loc: '5:5'
         "
       `);
