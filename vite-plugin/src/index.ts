@@ -3,6 +3,7 @@ import { extname, relative } from 'node:path';
 import type { SourceMapInput } from 'rollup';
 import {
   transform,
+  invalidateTransformCache,
   TransformError,
   type TransformFS,
   type TransformFunctionCache,
@@ -21,6 +22,8 @@ const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
+const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
+const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=/u;
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
@@ -157,7 +160,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       if (sourceCache.has(changed)) {
         // Invalidate cached exported functions/colors from this file
         // so re-importers get fresh compiled values
-        if (changed in functionCache) delete functionCache[changed];
+        invalidateTransformCache(functionCache, changed);
 
         const code = await ctx.read();
         const result = transform({
@@ -190,21 +193,61 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         updateDepGraph(changed, result.styleDependencies);
         sourceCache.set(changed, result);
 
-        return collectSourceAndVirtualModules(ctx.server, changed);
+        const mods = collectSourceAndVirtualModules(ctx.server, changed);
+        for (const srcId of collectAffectedSources(changed)) {
+          const srcMod = ctx.server.moduleGraph.getModuleById(srcId);
+          if (!srcMod || srcId === changed) continue;
+
+          const srcCode = readFileSync(srcId, 'utf8');
+          const dependentResult = transform({
+            fileAbsPath: srcId,
+            source: srcCode,
+            dev: true,
+            debug:
+              debugLogs
+                ? {
+                    log: (message: string) => console.info(`[vindur] ${message}`),
+                    warn: (message: string) => console.warn(`[vindur] ${message}`),
+                  }
+                : undefined,
+            fs,
+            transformFunctionCache: functionCache,
+            transformDynamicColorCache: dynamicColorCache,
+            importAliases,
+            sourcemap: sourcemap ?? !!devServer,
+          });
+
+          const dependentVid = makeVirtualId(srcId);
+          if (dependentResult.css && dependentResult.css.length > 0) {
+            virtualCssModules.set(dependentVid, {
+              code: dependentResult.css,
+              map: dependentResult.cssMap ?? null,
+            });
+          } else {
+            virtualCssModules.delete(dependentVid);
+          }
+          updateDepGraph(srcId, dependentResult.styleDependencies);
+          sourceCache.set(srcId, dependentResult);
+
+          const dependentModules = collectSourceAndVirtualModules(
+            ctx.server,
+            srcId,
+          );
+          for (const module of dependentModules) mods.push(module);
+        }
+        return mods;
       }
 
       // If an external dependency changed, recompile all affected sources
       const affected = depToSources.get(changed);
       if (affected && affected.size > 0) {
         const mods: ModuleNode[] = [];
+        invalidateTransformCache(functionCache, changed);
         // Include the changed module(s) so non-vindur updates (like JSX text) still HMR
         for (const m of ctx.modules) mods.push(m);
-        for (const srcId of affected) {
+        for (const srcId of collectAffectedSources(changed)) {
           const srcMod = ctx.server.moduleGraph.getModuleById(srcId);
           if (!srcMod) continue;
-
-          // Invalidate compiled fn cache for the changed dep
-          if (changed in functionCache) delete functionCache[changed];
 
           const srcCode = readFileSync(srcId, 'utf8');
           const result = transform({
@@ -276,6 +319,23 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     sourceToDeps.set(sourceId, next);
   }
+
+  function collectAffectedSources(changed: string): string[] {
+    const affected: string[] = [];
+    const visited = new Set<string>([changed]);
+    const queue = [changed];
+    for (let index = 0; index < queue.length; index++) {
+      const dependency = queue[index];
+      if (!dependency) continue;
+      for (const source of depToSources.get(dependency) ?? []) {
+        if (visited.has(source)) continue;
+        visited.add(source);
+        affected.push(source);
+        queue.push(source);
+      }
+    }
+    return affected;
+  }
 }
 
 function shouldTransform(id: string): boolean {
@@ -284,7 +344,10 @@ function shouldTransform(id: string): boolean {
 }
 
 function hasVindurStyles(code: string, id: string): boolean {
-  return code.includes('vindur') && shouldTransform(id);
+  return (
+    shouldTransform(id)
+    && (VINDUR_MODULE_IMPORT_RE.test(code) || VINDUR_JSX_PROP_RE.test(code))
+  );
 }
 
 const VIRTUAL_CSS_ID_PREFIX_REGEX = /\.[jt]sx?$/;

@@ -6,6 +6,9 @@ A compile-time CSS-in-JS library focused on performance.
 
 ### ✅ **Foundation**
 
+- [x] Rust compiler powered by Oxc with Node-API bindings ✅
+- [x] Oxc semantic bindings, ECMAScript analysis, diagnostics, and cached module resolution ✅
+- [x] Cached cross-module static analysis and source-order ID planning ✅
 - [x] CSS function (`css` tagged template literals)
 - [x] Styled component functions (`styled.*`)
 - [x] String and number variable interpolation

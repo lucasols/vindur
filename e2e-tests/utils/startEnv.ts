@@ -1,6 +1,6 @@
 /* eslint-disable no-console -- test file */
 import { invariant } from '@ls-stack/utils/assertions';
-import { vindurPlugin } from '@vindur/vite-plugin';
+import { vindurPlugin } from '@vindur-css/vite-plugin';
 import react from '@vitejs/plugin-react-swc';
 import {
   cpSync,
