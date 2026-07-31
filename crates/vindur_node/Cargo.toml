@@ -1,0 +1,20 @@
+[package]
+name = "vindur_node"
+version = "0.1.0"
+description = "Node-API bindings for the Vindur compiler"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi.workspace = true
+napi-derive.workspace = true
+vindur_compiler = { path = "../vindur_compiler" }
+
+[build-dependencies]
+napi-build = "2.4.0"
+

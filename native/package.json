@@ -1,0 +1,34 @@
+{
+  "name": "@vindur/native",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node"
+  ],
+  "scripts": {
+    "build": "napi build --platform --release --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
+    "build:debug": "napi build --platform --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
+    "test": "pnpm run build:debug && node --test test/*.test.cjs"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "catalog:"
+  },
+  "napi": {
+    "binaryName": "vindur-native",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl"
+    ]
+  }
+}

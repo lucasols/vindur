@@ -6,9 +6,11 @@ This document serves as an index for all transform specifications in Vindur. Eac
 
 ## Transform Specifications
 
+- [Rust Compiler Architecture](./specs/compiler-architecture.md)
 - [Transform Logic with css prop](./specs/css-prop.md)
 - [Transform Logic with cx prop](./specs/cx-prop.md)
 - [Handling dynamicColor props](./specs/dynamic-color-props.md)
+- [Scoped CSS Variables Transform Logic](./specs/scoped-css-variables.md)
 - [Spread Props Compilation With Class Name Injection](./specs/spread-props.md)
 - [Style Flags Transform Logic](./specs/style-flags.md)
 ## Development

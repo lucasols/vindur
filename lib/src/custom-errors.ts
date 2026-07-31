@@ -1,4 +1,9 @@
-import type { types as t } from '@babel/core';
+export type SourceLocation = {
+  start: { column: number; line: number; index?: number };
+  end?: { column: number; line: number; index?: number };
+  filename?: string;
+  identifierName?: string | null;
+};
 
 export class TransformError extends Error {
   loc: { column: number; line: number; filename?: string };
@@ -7,7 +12,7 @@ export class TransformError extends Error {
 
   constructor(
     message: string,
-    loc: t.SourceLocation,
+    loc: SourceLocation,
     options: {
       filename?: string;
       ignoreInLint?: boolean;
@@ -31,7 +36,7 @@ export class TransformWarning {
 
   constructor(
     message: string,
-    loc: t.SourceLocation,
+    loc: SourceLocation,
     options: {
       filename?: string;
       ignoreInLint?: boolean;
