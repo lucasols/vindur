@@ -1,4 +1,6 @@
-import nativeBinding, { type Compiler as CompilerInstance } from '@vindur/native';
+import nativeBinding, {
+  type Compiler as CompilerInstance,
+} from '@vindur-css/native';
 import { TransformError, TransformWarning } from './custom-errors';
 import type {
   TransformFunctionCache,

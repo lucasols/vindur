@@ -66,7 +66,7 @@ function main(): void {
 
     const buildArgs = [
       '--filter',
-      '@vindur/native',
+      '@vindur-css/native',
       'exec',
       'napi',
       'build',

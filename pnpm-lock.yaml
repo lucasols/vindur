@@ -98,13 +98,13 @@ catalogs:
       version: 3.2.4
 
 overrides:
-  '@vindur/native-darwin-arm64': link:./native/npm/darwin-arm64
-  '@vindur/native-darwin-x64': link:./native/npm/darwin-x64
-  '@vindur/native-linux-arm64-gnu': link:./native/npm/linux-arm64-gnu
-  '@vindur/native-linux-arm64-musl': link:./native/npm/linux-arm64-musl
-  '@vindur/native-linux-x64-gnu': link:./native/npm/linux-x64-gnu
-  '@vindur/native-linux-x64-musl': link:./native/npm/linux-x64-musl
-  '@vindur/native-win32-x64-msvc': link:./native/npm/win32-x64-msvc
+  '@vindur-css/native-darwin-arm64': link:./native/npm/darwin-arm64
+  '@vindur-css/native-darwin-x64': link:./native/npm/darwin-x64
+  '@vindur-css/native-linux-arm64-gnu': link:./native/npm/linux-arm64-gnu
+  '@vindur-css/native-linux-arm64-musl': link:./native/npm/linux-arm64-musl
+  '@vindur-css/native-linux-x64-gnu': link:./native/npm/linux-x64-gnu
+  '@vindur-css/native-linux-x64-musl': link:./native/npm/linux-x64-musl
+  '@vindur-css/native-win32-x64-msvc': link:./native/npm/win32-x64-msvc
 
 importers:
 
@@ -289,7 +289,7 @@ importers:
 
   lib:
     dependencies:
-      '@vindur/native':
+      '@vindur-css/native':
         specifier: workspace:*
         version: link:../native
       source-map:
@@ -336,25 +336,25 @@ importers:
         specifier: 'catalog:'
         version: 3.8.1(@emnapi/runtime@1.11.2)(@types/node@24.1.0)
     optionalDependencies:
-      '@vindur/native-darwin-arm64':
+      '@vindur-css/native-darwin-arm64':
         specifier: link:npm/darwin-arm64
         version: link:npm/darwin-arm64
-      '@vindur/native-darwin-x64':
+      '@vindur-css/native-darwin-x64':
         specifier: link:npm/darwin-x64
         version: link:npm/darwin-x64
-      '@vindur/native-linux-arm64-gnu':
+      '@vindur-css/native-linux-arm64-gnu':
         specifier: link:npm/linux-arm64-gnu
         version: link:npm/linux-arm64-gnu
-      '@vindur/native-linux-arm64-musl':
+      '@vindur-css/native-linux-arm64-musl':
         specifier: link:npm/linux-arm64-musl
         version: link:npm/linux-arm64-musl
-      '@vindur/native-linux-x64-gnu':
+      '@vindur-css/native-linux-x64-gnu':
         specifier: link:npm/linux-x64-gnu
         version: link:npm/linux-x64-gnu
-      '@vindur/native-linux-x64-musl':
+      '@vindur-css/native-linux-x64-musl':
         specifier: link:npm/linux-x64-musl
         version: link:npm/linux-x64-musl
-      '@vindur/native-win32-x64-msvc':
+      '@vindur-css/native-win32-x64-msvc':
         specifier: link:npm/win32-x64-msvc
         version: link:npm/win32-x64-msvc
 

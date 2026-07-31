@@ -1,3 +1,3 @@
-# `@vindur/native-darwin-arm64`
+# `@vindur-css/native-darwin-arm64`
 
-This is the **aarch64-apple-darwin** binary for `@vindur/native`
+This is the **aarch64-apple-darwin** binary for `@vindur-css/native`

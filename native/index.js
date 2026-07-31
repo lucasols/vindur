@@ -31,7 +31,7 @@ try {
   binding = require(`./vindur-native.${suffix}.node`);
 } catch (localError) {
   try {
-    binding = require(`@vindur/native-${suffix}`);
+    binding = require(`@vindur-css/native-${suffix}`);
   } catch (packageError) {
     packageError.cause = localError;
     throw packageError;
@@ -39,4 +39,3 @@ try {
 }
 
 module.exports = binding;
-

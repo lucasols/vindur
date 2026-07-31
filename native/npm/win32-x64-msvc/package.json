@@ -1,5 +1,5 @@
 {
-  "name": "@vindur/native-win32-x64-msvc",
+  "name": "@vindur-css/native-win32-x64-msvc",
   "version": "0.1.0",
   "cpu": [
     "x64"

@@ -12,7 +12,7 @@ Linux targets use napi-rs cross-compilation with Zig and cargo-xwin. The script
 writes the binaries to `native/artifacts`, regenerates `native/npm`, and collects
 the artifacts. pkg-manager then synchronizes all platform versions, validates
 the complete artifact set, updates the root optional dependencies, and publishes
-the platform packages before `@vindur/native`.
+the platform packages before `@vindur-css/native`.
 
 Install Zig once before the first native release:
 
@@ -39,7 +39,7 @@ dist-tag to both the platform packages and the root loader.
 
 Publish only the affected layers, in this order:
 
-1. `@vindur/native` when Rust compiler output changed.
+1. `@vindur-css/native` when Rust compiler output changed.
 2. `vindur` when the public compiler package changed or needs the new native version.
 3. `@vindur-css/vite-plugin` and `@vindur-css/eslint-plugin` after `vindur` when their dependency must move forward.
 

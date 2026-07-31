@@ -1,5 +1,5 @@
 {
-  "name": "@vindur/native-darwin-x64",
+  "name": "@vindur-css/native-darwin-x64",
   "version": "0.1.0",
   "cpu": [
     "x64"

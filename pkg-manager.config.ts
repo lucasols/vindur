@@ -5,11 +5,11 @@ export default defineConfig({
   monorepo: {
     packages: [
       {
-        name: '@vindur/native',
+        name: '@vindur-css/native',
         path: 'native',
         release: { type: 'napi', npmDir: 'npm' },
       },
-      { name: 'vindur', path: 'lib', dependsOn: ['@vindur/native'] },
+      { name: 'vindur', path: 'lib', dependsOn: ['@vindur-css/native'] },
       {
         name: '@vindur-css/vite-plugin',
         path: 'vite-plugin',

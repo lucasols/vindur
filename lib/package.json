@@ -41,7 +41,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@vindur/native": "workspace:*",
+    "@vindur-css/native": "workspace:*",
     "source-map": "catalog:"
   },
   "devDependencies": {

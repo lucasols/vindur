@@ -1,3 +1,3 @@
-# `@vindur/native-win32-x64-msvc`
+# `@vindur-css/native-win32-x64-msvc`
 
-This is the **x86_64-pc-windows-msvc** binary for `@vindur/native`
+This is the **x86_64-pc-windows-msvc** binary for `@vindur-css/native`

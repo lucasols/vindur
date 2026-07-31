@@ -1,3 +1,3 @@
-# `@vindur/native-darwin-x64`
+# `@vindur-css/native-darwin-x64`
 
-This is the **x86_64-apple-darwin** binary for `@vindur/native`
+This is the **x86_64-apple-darwin** binary for `@vindur-css/native`

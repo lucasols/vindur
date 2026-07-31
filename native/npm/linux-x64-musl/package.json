@@ -1,5 +1,5 @@
 {
-  "name": "@vindur/native-linux-x64-musl",
+  "name": "@vindur-css/native-linux-x64-musl",
   "version": "0.1.0",
   "cpu": [
     "x64"
