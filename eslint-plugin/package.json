@@ -1,7 +1,7 @@
 {
   "name": "@vindur-css/eslint-plugin",
   "description": "ESLint plugin for Vindur CSS-in-JS transform errors and warnings",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "license": "MIT",
   "scripts": {
     "test": "vitest run",
@@ -46,8 +46,8 @@
     "eslint-vitest-rule-tester": "^2.2.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:",
-    "vindur": "workspace:*"
+    "vindur": "workspace:*",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "eslint": "^9.0.0",
