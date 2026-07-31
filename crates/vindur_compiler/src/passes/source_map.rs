@@ -3,12 +3,10 @@ use oxc_ast::ast::{
     JSXExpression, Program, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
-use rustc_hash::FxHashMap;
 
-pub(crate) fn css_template_offsets(
-    program: &Program<'_>,
-    imports: &FxHashMap<String, String>,
-) -> Vec<u32> {
+use crate::semantic::VindurImports;
+
+pub(crate) fn css_template_offsets(program: &Program<'_>, imports: &VindurImports<'_>) -> Vec<u32> {
     let mut visitor = CssTemplateOffsetVisitor {
         imports,
         offsets: Vec::new(),
@@ -20,7 +18,7 @@ pub(crate) fn css_template_offsets(
 }
 
 struct CssTemplateOffsetVisitor<'a> {
-    imports: &'a FxHashMap<String, String>,
+    imports: &'a VindurImports<'a>,
     offsets: Vec<u32>,
 }
 
@@ -51,18 +49,18 @@ impl<'a> Visit<'a> for CssTemplateOffsetVisitor<'_> {
     }
 }
 
-fn is_css_tag(tag: &Expression<'_>, imports: &FxHashMap<String, String>) -> bool {
+fn is_css_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
     match tag {
         Expression::Identifier(identifier) => imports
-            .get(identifier.name.as_str())
-            .is_some_and(|name| matches!(name.as_str(), "css" | "keyframes" | "createGlobalStyle")),
+            .get_identifier(identifier)
+            .is_some_and(|name| matches!(name, "css" | "keyframes" | "createGlobalStyle")),
         Expression::StaticMemberExpression(member) => {
             matches!(&member.object, Expression::Identifier(identifier)
-                if imports.get(identifier.name.as_str()).map(String::as_str) == Some("styled"))
+                if imports.get_identifier(identifier) == Some("styled"))
         }
         Expression::CallExpression(call) => {
             matches!(&call.callee, Expression::Identifier(identifier)
-                if imports.get(identifier.name.as_str()).map(String::as_str) == Some("styled"))
+                if imports.get_identifier(identifier) == Some("styled"))
         }
         _ => false,
     }
@@ -76,10 +74,11 @@ fn is_css_attribute(attribute: &JSXAttribute<'_>) -> bool {
 mod tests {
     use oxc_allocator::Allocator;
     use oxc_parser::Parser;
+    use oxc_semantic::SemanticBuilder;
     use oxc_span::SourceType;
-    use rustc_hash::FxHashMap;
 
     use super::css_template_offsets;
+    use crate::{passes::import_analysis::collect_vindur_imports, semantic::VindurImports};
 
     #[test]
     fn collects_oxc_template_offsets_for_css_output() {
@@ -87,10 +86,11 @@ mod tests {
         let allocator = Allocator::default();
         let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
         assert!(parsed.diagnostics.is_empty());
-        let imports = FxHashMap::from_iter([
-            ("css".to_owned(), "css".to_owned()),
-            ("keyframes".to_owned(), "keyframes".to_owned()),
-        ]);
+        let semantic = SemanticBuilder::new_compiler()
+            .build(&parsed.program)
+            .semantic;
+        let mut imports = VindurImports::new(semantic.scoping());
+        collect_vindur_imports(&parsed.program, source, &mut imports, &mut Vec::new());
         let offsets = css_template_offsets(&parsed.program, &imports);
         let expected = source
             .match_indices('`')

@@ -1,18 +1,23 @@
 use oxc_ast::ast::{Expression, Program, TemplateLiteral};
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue};
 
+use super::static_evaluation::resolved_constant;
+
 pub(crate) fn css_extension_warnings(
     program: &Program<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     _file_path: &str,
     source: &str,
 ) -> Vec<CompilerDiagnostic> {
     let mut visitor = CssExtensionWarningVisitor {
         constants,
+        scoping,
         source,
         warnings: Vec::new(),
     };
@@ -22,6 +27,7 @@ pub(crate) fn css_extension_warnings(
 
 struct CssExtensionWarningVisitor<'a> {
     constants: &'a FxHashMap<String, StaticValue>,
+    scoping: &'a Scoping,
     source: &'a str,
     warnings: Vec<CompilerDiagnostic>,
 }
@@ -36,7 +42,7 @@ impl<'a> Visit<'a> for CssExtensionWarningVisitor<'_> {
                 continue;
             };
             if !matches!(
-                self.constants.get(identifier.name.as_str()),
+                resolved_constant(identifier, self.constants, self.scoping),
                 Some(StaticValue::CssClass { .. })
             ) || !likely_missing_extension_semicolon(&tagged.quasi, index)
             {

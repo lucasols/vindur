@@ -3,12 +3,13 @@ use oxc_ast::ast::{
     JSXElementName, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
-use super::styled::StyledComponent;
+use super::{static_evaluation::resolved_constant, styled::StyledComponent};
 
 #[derive(Clone, Debug)]
 pub(crate) struct CxElementTransform {
@@ -19,6 +20,7 @@ pub(crate) struct CxElementTransform {
 
 pub(crate) struct JsxCxTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
+    pub scoping: &'a Scoping,
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub file_hash: &'a str,
     pub file_path: &'a str,
@@ -356,7 +358,7 @@ impl JsxCxVisitor<'_> {
             return false;
         };
         matches!(
-            self.output.constants.get(identifier.name.as_str()),
+            resolved_constant(identifier, self.output.constants, self.output.scoping),
             Some(StaticValue::CssClass { .. })
         )
     }
@@ -398,7 +400,7 @@ impl JsxCxVisitor<'_> {
             return;
         };
         let Some(StaticValue::CssClass { name, .. }) =
-            self.output.constants.get(identifier.name.as_str())
+            resolved_constant(identifier, self.output.constants, self.output.scoping)
         else {
             return;
         };

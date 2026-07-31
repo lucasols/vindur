@@ -1,3 +1,4 @@
+use oxc_diagnostics::OxcDiagnostic;
 use oxc_span::Span;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -30,6 +31,27 @@ pub struct CompilerDiagnostic {
 }
 
 impl CompilerDiagnostic {
+    pub(crate) fn from_oxc(
+        file_path: &str,
+        source: &str,
+        diagnostic: &OxcDiagnostic,
+        message_prefix: &str,
+    ) -> Self {
+        let span = diagnostic
+            .labels
+            .as_slice()
+            .first()
+            .map_or(Span::new(0, 0), |label| {
+                Span::new(label.offset(), label.offset() + label.len())
+            });
+        Self::error(
+            file_path,
+            source,
+            span,
+            format!("{message_prefix}{diagnostic}"),
+        )
+    }
+
     pub(crate) fn error(file_path: &str, source: &str, span: Span, message: String) -> Self {
         Self::new(file_path, source, span, message, DiagnosticSeverity::Error)
     }

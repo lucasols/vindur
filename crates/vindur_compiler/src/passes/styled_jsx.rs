@@ -1,5 +1,6 @@
 use oxc_ast::ast::{JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement};
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
@@ -10,6 +11,7 @@ use super::styled::StyledComponent;
 pub(crate) struct StyledJsxTransform<'a> {
     pub components: &'a FxHashMap<String, StyledComponent>,
     pub constants: &'a FxHashMap<String, crate::facts::StaticValue>,
+    pub scoping: &'a Scoping,
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -24,6 +26,7 @@ pub(crate) fn rewrite_styled_jsx(
     let mut visitor = StyledJsxVisitor {
         components: output.components,
         constants: output.constants,
+        scoping: output.scoping,
         edits: output.edits,
         file_path: output.file_path,
         source: output.source,
@@ -38,6 +41,7 @@ pub(crate) fn rewrite_styled_jsx(
 struct StyledJsxVisitor<'c, 'e, 's> {
     components: &'c FxHashMap<String, StyledComponent>,
     constants: &'c FxHashMap<String, crate::facts::StaticValue>,
+    scoping: &'c Scoping,
     edits: &'e mut Vec<Edit>,
     file_path: &'s str,
     source: &'s str,
@@ -109,7 +113,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 };
                 match name.name.as_str() {
                     "cx" => true,
-                    "css" => css_attribute_is_compile_time(attribute, self.constants),
+                    "css" => css_attribute_is_compile_time(attribute, self.constants, self.scoping),
                     _ => false,
                 }
             });
@@ -120,7 +124,8 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             let JSXAttributeName::Identifier(name) = &attribute.name else {
                 return false;
             };
-            name.name.as_str() == "css" && !css_attribute_is_compile_time(attribute, self.constants)
+            name.name.as_str() == "css"
+                && !css_attribute_is_compile_time(attribute, self.constants, self.scoping)
         });
 
         if !component.style_flags.is_empty() && !has_compile_time_class_attribute {

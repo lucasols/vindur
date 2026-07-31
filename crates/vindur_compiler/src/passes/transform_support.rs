@@ -1,10 +1,12 @@
 use oxc_ast::ast::{BindingPattern, Expression, Program, VariableDeclaration};
+use oxc_semantic::Scoping;
 use rustc_hash::FxHashMap;
 
 use crate::{
     CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
     facts::StaticValue,
+    semantic::VindurImports,
 };
 
 use super::{
@@ -24,7 +26,8 @@ use super::{
 };
 
 pub(super) struct VariableTransform<'a> {
-    pub imports: &'a FxHashMap<String, String>,
+    pub imports: &'a VindurImports<'a>,
+    pub scoping: &'a Scoping,
     pub program: &'a Program<'a>,
     pub constants: &'a mut FxHashMap<String, StaticValue>,
     pub file_hash: &'a str,
@@ -54,12 +57,9 @@ pub(super) fn process_variable_declaration(
         if let Some(initializer) = &declarator.init
             && let Expression::CallExpression(call) = initializer
             && let Expression::Identifier(callee) = &call.callee
-            && (callee.name.as_str() == "vindurFn"
-                || transform
-                    .imports
-                    .get(callee.name.as_str())
-                    .map(String::as_str)
-                    == Some("vindurFn"))
+            && transform
+                .imports
+                .matches_import_or_global(callee, "vindurFn")
             && let Some(error) =
                 validate_vindur_function(identifier.name.as_str(), initializer, transform.source)
         {
@@ -78,12 +78,9 @@ pub(super) fn process_variable_declaration(
         if !transform.is_exported
             && let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
-            && (callee.name.as_str() == "vindurFn"
-                || transform
-                    .imports
-                    .get(callee.name.as_str())
-                    .map(String::as_str)
-                    == Some("vindurFn"))
+            && transform
+                .imports
+                .matches_import_or_global(callee, "vindurFn")
         {
             return Err(CompilerDiagnostic::error(
                 transform.file_path,
@@ -187,6 +184,7 @@ pub(super) fn process_variable_declaration(
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
+                transform.scoping,
                 transform.file_path,
                 transform.source,
                 &TemplateContext {
@@ -331,6 +329,7 @@ pub(super) fn process_variable_declaration(
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
+                transform.scoping,
                 transform.file_path,
                 transform.source,
                 &TemplateContext {
@@ -376,6 +375,7 @@ pub(super) fn process_variable_declaration(
         let content = evaluate_template(
             &tagged.quasi,
             transform.constants,
+            transform.scoping,
             transform.file_path,
             transform.source,
             &TemplateContext {
@@ -438,10 +438,7 @@ fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool
 
 pub(super) fn imported_tag_name<'a>(
     tag: &Expression<'_>,
-    imports: &'a FxHashMap<String, String>,
+    imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
-    let Expression::Identifier(identifier) = tag else {
-        return None;
-    };
-    imports.get(identifier.name.as_str()).map(String::as_str)
+    imports.get_expression(tag)
 }

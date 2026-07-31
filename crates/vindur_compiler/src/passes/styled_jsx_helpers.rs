@@ -2,21 +2,26 @@ use oxc_ast::ast::{
     Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
     JSXElementName,
 };
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use super::styled::{StyleFlag, StyleFlagKind};
+use super::{
+    static_evaluation::resolved_constant,
+    styled::{StyleFlag, StyleFlagKind},
+};
 
 pub(super) fn css_attribute_is_compile_time(
     attribute: &oxc_ast::ast::JSXAttribute<'_>,
     constants: &FxHashMap<String, crate::facts::StaticValue>,
+    scoping: &Scoping,
 ) -> bool {
     let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
         return true;
     };
     match &container.expression {
         oxc_ast::ast::JSXExpression::Identifier(identifier) => matches!(
-            constants.get(identifier.name.as_str()),
+            resolved_constant(identifier, constants, scoping),
             Some(crate::facts::StaticValue::CssClass { .. })
         ),
         oxc_ast::ast::JSXExpression::TemplateLiteral(_) => true,

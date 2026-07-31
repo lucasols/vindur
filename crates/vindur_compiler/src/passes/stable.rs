@@ -4,10 +4,10 @@ use oxc_span::Span;
 use oxc_syntax::scope::ScopeFlags;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
 pub(crate) struct StableDeclarationTransform<'a> {
-    pub imports: &'a FxHashMap<String, String>,
+    pub imports: &'a VindurImports<'a>,
     pub constants: &'a mut FxHashMap<String, StaticValue>,
     pub file_hash: &'a str,
     pub file_path: &'a str,
@@ -67,7 +67,7 @@ pub(crate) fn transform_stable_declaration(
 }
 
 pub(crate) struct StableInlineTransform<'a> {
-    pub imports: &'a FxHashMap<String, String>,
+    pub imports: &'a VindurImports<'a>,
     pub handled_calls: &'a [Span],
     pub file_hash: &'a str,
     pub file_path: &'a str,
@@ -148,11 +148,11 @@ impl<'a> Visit<'a> for StableCallVisitor<'_> {
 
 fn imported_utility<'a>(
     call: &CallExpression<'_>,
-    imports: &'a FxHashMap<String, String>,
+    imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    let utility = imports.get(callee.name.as_str())?;
-    matches!(utility.as_str(), "stableId" | "createClassName").then_some(utility.as_str())
+    let utility = imports.get_identifier(callee)?;
+    matches!(utility, "stableId" | "createClassName").then_some(utility)
 }

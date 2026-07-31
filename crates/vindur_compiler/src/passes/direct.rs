@@ -1,9 +1,10 @@
 use oxc_ast::ast::{Expression, Program, TaggedTemplateExpression};
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::Span;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
 use super::{
     css::{clean_css, generate_class_rules},
@@ -13,8 +14,9 @@ use super::{
 };
 
 pub(crate) struct DirectTransform<'a> {
-    pub imports: &'a FxHashMap<String, String>,
+    pub imports: &'a VindurImports<'a>,
     pub constants: &'a FxHashMap<String, StaticValue>,
+    pub scoping: &'a Scoping,
     pub handled_spans: &'a [Span],
     pub file_hash: &'a str,
     pub file_path: &'a str,
@@ -75,6 +77,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
         let content = match evaluate_template(
             &tagged.quasi,
             self.output.constants,
+            self.output.scoping,
             self.output.file_path,
             self.output.source,
             &TemplateContext {
@@ -121,12 +124,6 @@ impl DirectTagVisitor<'_> {
     }
 }
 
-fn imported_tag_name<'a>(
-    tag: &Expression<'_>,
-    imports: &'a FxHashMap<String, String>,
-) -> Option<&'a str> {
-    let Expression::Identifier(identifier) = tag else {
-        return None;
-    };
-    imports.get(identifier.name.as_str()).map(String::as_str)
+fn imported_tag_name<'a>(tag: &Expression<'_>, imports: &'a VindurImports<'_>) -> Option<&'a str> {
+    imports.get_expression(tag)
 }

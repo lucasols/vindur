@@ -1,6 +1,7 @@
 use std::hash::{Hash, Hasher};
 
 use oxc_ast::ast::{Expression, Program, Statement};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::{FxHashMap, FxHasher};
 
@@ -9,6 +10,7 @@ use crate::{
     edit::{Edit, expand_removal_to_line},
     facts::StaticValue,
     hash::murmur2,
+    semantic::VindurImports,
 };
 
 use super::{
@@ -46,17 +48,18 @@ pub(crate) struct PassOutput {
 
 pub(crate) fn transform_program(
     program: &Program<'_>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
     options: &TransformOptions,
     imported_values: &FxHashMap<String, StaticValue>,
 ) -> Result<PassOutput, CompilerDiagnostic> {
-    let mut imports = FxHashMap::default();
+    let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, source, &mut imports, &mut edits);
     collect_resolved_import_edits(program, source, imported_values, &mut edits);
 
-    let mut constants = collect_constants(program);
+    let mut constants = collect_constants(program, scoping);
     constants.extend(imported_values.iter().map(|(name, value)| {
         let value = match value {
             StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
@@ -64,9 +67,9 @@ pub(crate) fn transform_program(
         };
         (name.clone(), value)
     }));
-    for (local_name, imported_name) in &imports {
+    for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
-            constants.insert(local_name.clone(), StaticValue::LayerFunction);
+            constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
         }
     }
     let file_hash = format!("v{}", murmur2(file_path));
@@ -108,6 +111,7 @@ pub(crate) fn transform_program(
                     declaration,
                     &mut VariableTransform {
                         imports: &imports,
+                        scoping,
                         program,
                         constants: &mut constants,
                         file_hash: &file_hash,
@@ -154,6 +158,7 @@ pub(crate) fn transform_program(
                         declaration,
                         &mut VariableTransform {
                             imports: &imports,
+                            scoping,
                             program,
                             constants: &mut constants,
                             file_hash: &file_hash,
@@ -182,6 +187,7 @@ pub(crate) fn transform_program(
                     let content = evaluate_template(
                         &tagged.quasi,
                         &constants,
+                        scoping,
                         file_path,
                         source,
                         &TemplateContext {
@@ -218,6 +224,7 @@ pub(crate) fn transform_program(
                     let content = evaluate_template(
                         &tagged.quasi,
                         &constants,
+                        scoping,
                         file_path,
                         source,
                         &TemplateContext {
@@ -275,6 +282,7 @@ pub(crate) fn transform_program(
         DirectTransform {
             imports: &imports,
             constants: &constants,
+            scoping,
             handled_spans: &handled_spans,
             file_hash: &file_hash,
             file_path,
@@ -291,6 +299,7 @@ pub(crate) fn transform_program(
         program,
         JsxCxTransform {
             constants: &constants,
+            scoping,
             styled_components: &styled_components,
             file_hash: &file_hash,
             file_path,
@@ -310,6 +319,7 @@ pub(crate) fn transform_program(
         program,
         JsxCssTransform {
             constants: &constants,
+            scoping,
             styled_components: &styled_components,
             file_hash: &file_hash,
             file_path,
@@ -329,6 +339,7 @@ pub(crate) fn transform_program(
         program,
         DynamicColorTransform {
             constants: &constants,
+            scoping,
             imported_values,
             edits: &mut edits,
             file_path,
@@ -344,6 +355,7 @@ pub(crate) fn transform_program(
         StyledJsxTransform {
             components: &styled_components,
             constants: &constants,
+            scoping,
             edits: &mut edits,
             file_path,
             source,
@@ -354,7 +366,7 @@ pub(crate) fn transform_program(
 
     if options.dev {
         warnings.extend(css_extension_warnings(
-            program, &constants, file_path, source,
+            program, &constants, scoping, file_path, source,
         ));
     }
 

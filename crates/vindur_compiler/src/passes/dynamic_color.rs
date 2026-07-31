@@ -1,17 +1,19 @@
 use oxc_ast::ast::{
-    Argument, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
-    JSXElement, JSXElementName, JSXExpression, Program,
+    Argument, Expression, IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName,
+    JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, Program,
 };
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
-use super::styled::StyledComponent;
+use super::{static_evaluation::resolved_constant, styled::StyledComponent};
 
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
+    pub scoping: &'a Scoping,
     pub imported_values: &'a FxHashMap<String, StaticValue>,
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
@@ -224,9 +226,7 @@ impl DynamicColorVisitor<'_> {
 
     fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
         match expression {
-            JSXExpression::Identifier(identifier) => {
-                self.identifier_color(identifier.name.as_str())
-            }
+            JSXExpression::Identifier(identifier) => self.identifier_color(identifier),
             JSXExpression::CallExpression(call) => self.call_color(call),
             JSXExpression::ArrayExpression(array) => array
                 .elements
@@ -234,9 +234,7 @@ impl DynamicColorVisitor<'_> {
                 .map(|element| {
                     let expression = element.as_expression()?;
                     match expression {
-                        Expression::Identifier(identifier) => {
-                            self.identifier_color(identifier.name.as_str())
-                        }
+                        Expression::Identifier(identifier) => self.identifier_color(identifier),
                         Expression::CallExpression(call) => self.call_color(call),
                         _ => None,
                     }
@@ -247,14 +245,17 @@ impl DynamicColorVisitor<'_> {
         }
     }
 
-    fn identifier_color(&self, name: &str) -> Option<Vec<ColorExpression>> {
+    fn identifier_color(
+        &self,
+        identifier: &IdentifierReference<'_>,
+    ) -> Option<Vec<ColorExpression>> {
         matches!(
-            self.output.constants.get(name),
+            resolved_constant(identifier, self.output.constants, self.output.scoping),
             Some(StaticValue::DynamicColor { .. })
         )
         .then(|| {
             vec![ColorExpression {
-                name: name.to_owned(),
+                name: identifier.name.to_string(),
                 value: "\"#ff6b6b\"".to_owned(),
             }]
         })
@@ -271,7 +272,7 @@ impl DynamicColorVisitor<'_> {
             return None;
         };
         if !matches!(
-            self.output.constants.get(color.name.as_str()),
+            resolved_constant(color, self.output.constants, self.output.scoping),
             Some(StaticValue::DynamicColor { .. })
         ) {
             return None;

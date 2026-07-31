@@ -1,5 +1,6 @@
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use pretty_assertions::assert_eq;
 use rustc_hash::FxHashMap;
@@ -21,8 +22,12 @@ const App = () => <Button>Save</Button>;
 "#;
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    let semantic = SemanticBuilder::new_compiler()
+        .build(&parsed.program)
+        .semantic;
     let mut output = transform_program(
         &parsed.program,
+        semantic.scoping(),
         "/test.tsx",
         source,
         &TransformOptions {

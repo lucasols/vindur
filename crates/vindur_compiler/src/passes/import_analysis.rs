@@ -5,6 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{
     edit::{Edit, expand_removal_to_line},
     facts::StaticValue,
+    semantic::VindurImports,
 };
 
 const COMPILE_TIME_IMPORTS: &[&str] = &[
@@ -115,7 +116,7 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
 pub(super) fn collect_vindur_imports(
     program: &Program<'_>,
     source: &str,
-    imports: &mut FxHashMap<String, String>,
+    imports: &mut VindurImports<'_>,
     edits: &mut Vec<Edit>,
 ) {
     for statement in &program.body {
@@ -135,7 +136,7 @@ pub(super) fn collect_vindur_imports(
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
                     if is_compile_time_import(imported.as_str()) {
-                        imports.insert(named.local.name.to_string(), imported.as_str().to_owned());
+                        imports.insert(&named.local, imported.as_str());
                         compile_time_count += 1;
                         continue;
                     }

@@ -1,7 +1,7 @@
 use oxc_ast::ast::{Argument, Expression, Program, Statement, TSTypeParameterInstantiation};
 use rustc_hash::FxHashMap;
 
-use crate::CompilerDiagnostic;
+use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::style_flags::extract_style_flags;
 
@@ -39,14 +39,14 @@ pub(crate) struct StyledTagContext<'a> {
     pub dev: bool,
     pub file_hash: &'a str,
     pub file_path: &'a str,
-    pub imports: &'a FxHashMap<String, String>,
+    pub imports: &'a VindurImports<'a>,
     pub program: &'a Program<'a>,
     pub source: &'a str,
 }
 
 pub(crate) fn styled_tag_element(
     tag: &Expression<'_>,
-    imports: &FxHashMap<String, String>,
+    imports: &VindurImports<'_>,
 ) -> Option<String> {
     let Expression::StaticMemberExpression(member) = tag else {
         return None;
@@ -54,9 +54,7 @@ pub(crate) fn styled_tag_element(
     let Expression::Identifier(object) = &member.object else {
         return None;
     };
-    if object.name.as_str() != "styled"
-        && imports.get(object.name.as_str()).map(String::as_str) != Some("styled")
-    {
+    if !imports.matches_import_or_global(object, "styled") {
         return None;
     }
     Some(member.property.name.to_string())
@@ -64,7 +62,7 @@ pub(crate) fn styled_tag_element(
 
 pub(crate) fn styled_tag_component(
     tag: &Expression<'_>,
-    imports: &FxHashMap<String, String>,
+    imports: &VindurImports<'_>,
     components: &FxHashMap<String, StyledComponent>,
 ) -> Option<StyledComponent> {
     if let Some(element) = styled_tag_element(tag, imports) {
@@ -83,9 +81,7 @@ pub(crate) fn styled_tag_component(
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    if callee.name.as_str() != "styled"
-        && imports.get(callee.name.as_str()).map(String::as_str) != Some("styled")
-    {
+    if !imports.matches_import_or_global(callee, "styled") {
         return None;
     }
     let [argument] = call.arguments.as_slice() else {
@@ -163,12 +159,7 @@ pub(crate) fn styled_tag_component_with_attrs(
     let component = styled_tag_component(tag, context.imports, context.components);
     if let Expression::CallExpression(call) = tag
         && let Expression::Identifier(callee) = &call.callee
-        && (callee.name.as_str() == "styled"
-            || context
-                .imports
-                .get(callee.name.as_str())
-                .map(String::as_str)
-                == Some("styled"))
+        && context.imports.matches_import_or_global(callee, "styled")
         && let [Argument::Identifier(base)] = call.arguments.as_slice()
     {
         let name = base.name.as_str();

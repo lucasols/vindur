@@ -12,7 +12,12 @@ rust-version = "1.94"
 oxc_allocator = "0.139.0"
 oxc_ast = "0.139.0"
 oxc_ast_visit = "0.139.0"
+oxc_codegen = { version = "0.139.0", default-features = false }
+oxc_diagnostics = "0.139.0"
+oxc_ecmascript = "0.139.0"
 oxc_parser = "0.139.0"
+oxc_resolver = "=11.23.0"
+oxc_semantic = "0.139.0"
 oxc_span = "0.139.0"
 oxc_syntax = "0.139.0"
 napi = { version = "3.12.0", default-features = false, features = ["napi8"] }

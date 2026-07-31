@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement};
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::{SourceType, Span};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,10 @@ use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
     facts::StaticValue,
-    resolver::{NoopLoader, has_source_extension, resolve_import_path, unresolved_import_path},
+    resolver::{
+        NoopLoader, clear_resolver_cache, has_source_extension, resolve_import_path,
+        unresolved_import_path,
+    },
 };
 
 type LoadedImports = (FxHashMap<String, StaticValue>, Vec<String>);
@@ -93,20 +97,21 @@ impl Compiler {
         if let Some(diagnostic) = parsed.diagnostics.first() {
             return failed_output(
                 source,
-                CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    diagnostic
-                        .labels
-                        .as_slice()
-                        .first()
-                        .map_or(Span::new(0, 0), |label| {
-                            Span::new(label.offset(), label.offset() + label.len())
-                        }),
-                    diagnostic.to_string(),
-                ),
+                CompilerDiagnostic::from_oxc(file_path, source, diagnostic, ""),
             );
         }
+
+        let semantic_return = SemanticBuilder::new_compiler()
+            .with_cfg(false)
+            .with_build_nodes(false)
+            .build(&parsed.program);
+        if let Some(diagnostic) = semantic_return.diagnostics.first() {
+            return failed_output(
+                source,
+                CompilerDiagnostic::from_oxc(file_path, source, diagnostic, ""),
+            );
+        }
+        let semantic = semantic_return.semantic;
 
         let (imported_values, dependencies) = match self.load_imported_values(
             &parsed.program,
@@ -131,6 +136,7 @@ impl Compiler {
 
         let mut pass_output = match transform_program(
             &parsed.program,
+            semantic.scoping(),
             file_path,
             source,
             options,
@@ -351,6 +357,7 @@ impl Compiler {
     }
 
     pub fn invalidate(&self, file_path: &str) {
+        clear_resolver_cache();
         let mut facts = self
             .module_facts
             .write()
@@ -359,6 +366,7 @@ impl Compiler {
     }
 
     pub fn clear(&self) {
+        clear_resolver_cache();
         let mut facts = self
             .module_facts
             .write()
@@ -443,6 +451,61 @@ mod tests {
         assert!(output.diagnostics.is_empty());
         assert_eq!(output.code, "console.log(\"vfg87vj-1\");");
         assert_eq!(output.css, ".vfg87vj-1 {\n  color: red;\n}");
+    }
+
+    #[test]
+    fn uses_semantic_symbols_to_ignore_shadowed_vindur_imports() {
+        let source = "import { css } from 'vindur';\nconst top = css`color: red;`;\nfunction render(css: (value: TemplateStringsArray) => string) { return css`untouched`; }";
+        let output = Compiler::new().transform(
+            "/shadowed.ts",
+            source,
+            &TransformOptions {
+                normalize_code: true,
+                ..TransformOptions::default()
+            },
+        );
+
+        assert!(output.diagnostics.is_empty());
+        assert_eq!(
+            output.code,
+            "const top = \"vqys53f-1\";\nfunction render(css: (value: TemplateStringsArray) => string) {\n  return css`untouched`;\n}"
+        );
+        assert_eq!(output.css, ".vqys53f-1 {\n  color: red;\n}");
+    }
+
+    #[test]
+    fn uses_ecmascript_number_to_string_semantics() {
+        let source = "import { css } from 'vindur'; const negativeZero = 0 / -1; const style = css`padding: ${negativeZero}px;`;";
+        let output = Compiler::new().transform(
+            "/number.ts",
+            source,
+            &TransformOptions {
+                normalize_code: false,
+                ..TransformOptions::default()
+            },
+        );
+
+        assert!(output.diagnostics.is_empty());
+        assert_eq!(output.css, ".versdpu-1 {\n  padding: 0px;\n}");
+    }
+
+    #[test]
+    fn does_not_evaluate_shadowed_root_constants() {
+        let source = "import { css } from 'vindur'; const color = 'red'; function render(color: string) { return css`color: ${color};`; }";
+        let output = Compiler::new().transform(
+            "/shadowed-constant.ts",
+            source,
+            &TransformOptions::default(),
+        );
+
+        assert_eq!(output.diagnostics.len(), 1);
+        assert!(
+            output.diagnostics[0]
+                .message
+                .starts_with("Invalid interpolation used")
+        );
+        assert_eq!(output.code, source);
+        assert!(output.css.is_empty());
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use oxc_ast::ast::Argument;
+use oxc_semantic::Scoping;
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashMap;
 
@@ -7,7 +8,8 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_array, evaluate_binary, evaluate_expression, evaluate_object, static_value_to_string,
+    evaluate_array, evaluate_binary, evaluate_expression, evaluate_object, resolved_constant,
+    static_value_to_boolean, static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -58,7 +60,8 @@ fn find_binary_expression_error(
             consequent,
             alternate,
         } => find_binary_expression_error(test, bindings).or_else(|| {
-            let branch = if is_truthy(&evaluate_function_expression(test, bindings)?) {
+            let branch = if static_value_to_boolean(&evaluate_function_expression(test, bindings)?)
+            {
                 consequent
             } else {
                 alternate
@@ -237,7 +240,7 @@ fn evaluate_function_expression(
             consequent,
             alternate,
         } => {
-            if is_truthy(&evaluate_function_expression(test, bindings)?) {
+            if static_value_to_boolean(&evaluate_function_expression(test, bindings)?) {
                 evaluate_function_expression(consequent, bindings)
             } else {
                 evaluate_function_expression(alternate, bindings)
@@ -310,19 +313,10 @@ fn runtime_operator(operator: FunctionOperator) -> BinaryOperator {
     }
 }
 
-fn is_truthy(value: &StaticValue) -> bool {
-    match value {
-        StaticValue::Boolean(value) => *value,
-        StaticValue::Number(value) => *value != 0.0 && !value.is_nan(),
-        StaticValue::String(value) => !value.is_empty(),
-        StaticValue::Undefined => false,
-        _ => true,
-    }
-}
-
 pub(super) fn evaluate_argument(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
 ) -> Option<StaticValue> {
     match argument {
         Argument::BooleanLiteral(literal) => Some(StaticValue::Boolean(literal.value)),
@@ -331,13 +325,15 @@ pub(super) fn evaluate_argument(
         Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
             Some(StaticValue::Undefined)
         }
-        Argument::Identifier(identifier) => constants.get(identifier.name.as_str()).cloned(),
-        Argument::ArrayExpression(array) => evaluate_array(array, constants),
-        Argument::ObjectExpression(object) => evaluate_object(object, constants),
+        Argument::Identifier(identifier) => {
+            resolved_constant(identifier, constants, scoping).cloned()
+        }
+        Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),
+        Argument::ObjectExpression(object) => evaluate_object(object, constants, scoping),
         Argument::BinaryExpression(binary) => evaluate_binary(
-            evaluate_expression(&binary.left, constants)?,
+            evaluate_expression(&binary.left, constants, scoping)?,
             binary.operator,
-            evaluate_expression(&binary.right, constants)?,
+            evaluate_expression(&binary.right, constants, scoping)?,
         ),
         _ => None,
     }

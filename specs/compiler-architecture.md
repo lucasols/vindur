@@ -12,18 +12,23 @@ Keeping the compiler independent from the binding keeps the hot transform code s
 
 ## Fast transform path
 
-1. Oxc parses each source module once.
-2. The compiler resolves imports and caches serializable `ModuleFacts` for dependencies.
-3. Independent passes consume the same AST and immutable module facts.
-4. A source-order reservation pass assigns deterministic IDs even though feature passes run independently.
-5. Non-overlapping source edits are applied in one batch.
-6. Oxc template offsets are returned with generated CSS for source-map encoding.
+1. Oxc parses the source and builds semantic scopes, symbols, and references without the heavier node store or control-flow graph.
+2. Oxc Resolver handles real filesystem resolution with a shared cache; the loader fallback preserves virtual/in-memory integrations.
+3. The compiler resolves imports and caches serializable `ModuleFacts` for dependencies.
+4. Independent passes consume the same AST, semantic identities, and immutable module facts.
+5. Oxc ECMAScript analysis rejects side-effecting static expressions and provides JavaScript-accurate primitive conversions.
+6. A source-order reservation pass assigns deterministic IDs even though feature passes run independently.
+7. Non-overlapping source edits are applied in one batch.
+8. The compatibility normalizer reparses edited output before applying formatting-only edits. This remains until the AST mutation and Oxc codegen migration can preserve the TypeScript snapshot contract.
+9. Oxc template offsets are returned with generated CSS for source-map encoding.
 
 The cache belongs to a long-lived compiler instance. Integrations should reuse their transform cache object and invalidate changed dependency paths, allowing unchanged imported functions, constants, objects, colors, keyframes, and CSS to avoid repeated analysis.
 
+Oxc Transformer and Oxc Minifier are deliberately not part of Vindur. Vite owns TypeScript/JSX lowering and final bundle minification, avoiding duplicate work. Oxc codegen is the planned output boundary once its canonical formatting is migrated without weakening the compatibility suite.
+
 ## Failure model
 
-The pipeline is fail-fast. Parser, resolution, evaluation, or transform errors stop output generation and carry the nearest Oxc source span. Warnings are reserved for optimization and unused-style guidance.
+The pipeline is fail-fast. Parser and semantic diagnostics are converted directly from Oxc diagnostics; resolution, evaluation, or transform errors stop output generation and carry the nearest Oxc source span. Warnings are reserved for optimization and unused-style guidance.
 
 ## Compatibility testing
 

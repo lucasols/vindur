@@ -1,5 +1,9 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    path::{Component, Path, PathBuf},
+    sync::OnceLock,
+};
 
+use oxc_resolver::{ResolveOptions, Resolver};
 use rustc_hash::FxHashMap;
 
 pub trait SourceLoader {
@@ -28,6 +32,10 @@ pub(crate) fn resolve_import_path(
     let Some(normalized) = unresolved_import_path(importer, specifier, aliases) else {
         return Ok(None);
     };
+    if let Ok(resolution) = module_resolver().resolve_file(importer, &normalized) {
+        let resolved = resolution.path().to_string_lossy().into_owned();
+        return Ok(has_source_extension(&resolved).then_some(resolved));
+    }
     let candidates = import_candidates(&normalized);
     for candidate in candidates {
         if loader.exists(&candidate)? {
@@ -35,6 +43,29 @@ pub(crate) fn resolve_import_path(
         }
     }
     Ok(None)
+}
+
+pub(crate) fn clear_resolver_cache() {
+    if let Some(resolver) = MODULE_RESOLVER.get() {
+        resolver.clear_cache();
+    }
+}
+
+static MODULE_RESOLVER: OnceLock<Resolver> = OnceLock::new();
+
+fn module_resolver() -> &'static Resolver {
+    MODULE_RESOLVER.get_or_init(|| {
+        Resolver::new(ResolveOptions {
+            extensions: [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"]
+                .map(str::to_owned)
+                .into(),
+            extension_alias: vec![(
+                ".js".to_owned(),
+                [".ts", ".tsx", ".js"].map(str::to_owned).into(),
+            )],
+            ..ResolveOptions::default()
+        })
+    })
 }
 
 pub(crate) fn unresolved_import_path(
@@ -101,7 +132,10 @@ fn normalize_path(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use rustc_hash::{FxHashMap, FxHashSet};
+    use tempfile::tempdir;
 
     use super::{SourceLoader, resolve_import_path};
 
@@ -144,5 +178,47 @@ mod tests {
             result.as_deref(),
             Some("/src/taskAutoContentFromImages.utils.ts")
         );
+    }
+
+    #[test]
+    fn uses_oxc_to_resolve_typescript_for_javascript_specifiers() {
+        let directory = tempdir().expect("temporary module directory");
+        let importer = directory.path().join("app.ts");
+        let dependency = directory.path().join("colors.ts");
+        fs::write(&importer, "import './colors.js';").expect("write importer");
+        fs::write(&dependency, "export const color = 'red';").expect("write dependency");
+
+        let result = resolve_import_path(
+            importer.to_string_lossy().as_ref(),
+            "./colors.js",
+            &FxHashMap::default(),
+            &mut Files(FxHashSet::default()),
+        )
+        .expect("valid Oxc lookup");
+        let dependency = fs::canonicalize(dependency).expect("canonical dependency path");
+
+        assert_eq!(
+            result.as_deref(),
+            Some(dependency.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn ignores_non_javascript_imports_resolved_by_oxc() {
+        let directory = tempdir().expect("temporary module directory");
+        let importer = directory.path().join("app.ts");
+        let stylesheet = directory.path().join("style.css");
+        fs::write(&importer, "import './style.css';").expect("write importer");
+        fs::write(&stylesheet, ".app { color: red; }").expect("write stylesheet");
+
+        let result = resolve_import_path(
+            importer.to_string_lossy().as_ref(),
+            "./style.css",
+            &FxHashMap::default(),
+            &mut Files(FxHashSet::default()),
+        )
+        .expect("valid Oxc lookup");
+
+        assert_eq!(result, None);
     }
 }

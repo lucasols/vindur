@@ -1,4 +1,7 @@
-use oxc_ast::ast::{Argument, Expression, Program, Statement, TemplateLiteral};
+use oxc_ast::ast::{
+    Argument, Expression, IdentifierReference, Program, Statement, TemplateLiteral,
+};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
@@ -9,7 +12,7 @@ use crate::{
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
 };
 
 pub(crate) struct TemplateContext<'a> {
@@ -17,18 +20,21 @@ pub(crate) struct TemplateContext<'a> {
     pub tag_type: &'a str,
 }
 
-pub(crate) fn collect_constants(program: &Program<'_>) -> FxHashMap<String, StaticValue> {
+pub(crate) fn collect_constants(
+    program: &Program<'_>,
+    scoping: &Scoping,
+) -> FxHashMap<String, StaticValue> {
     let mut constants = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
-                collect_declaration_constants(declaration, &mut constants);
+                collect_declaration_constants(declaration, &mut constants, scoping);
             }
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    collect_declaration_constants(declaration, &mut constants);
+                    collect_declaration_constants(declaration, &mut constants, scoping);
                 }
             }
             _ => {}
@@ -40,6 +46,7 @@ pub(crate) fn collect_constants(program: &Program<'_>) -> FxHashMap<String, Stat
 pub(crate) fn evaluate_template(
     template: &TemplateLiteral<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
     context: &TemplateContext<'_>,
@@ -59,15 +66,17 @@ pub(crate) fn evaluate_template(
             continue;
         };
         if let Some(diagnostic) =
-            invalid_dynamic_color_method_error(expression, constants, file_path, source)
+            invalid_dynamic_color_method_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
-        if let Some(diagnostic) = invalid_layer_error(expression, constants, file_path, source) {
+        if let Some(diagnostic) =
+            invalid_layer_error(expression, constants, scoping, file_path, source)
+        {
             return Err(diagnostic);
         }
         if let Some(diagnostic) =
-            invalid_object_access_error(expression, constants, file_path, source, context)
+            invalid_object_access_error(expression, constants, scoping, file_path, source, context)
         {
             return Err(diagnostic);
         }
@@ -91,7 +100,7 @@ pub(crate) fn evaluate_template(
             && let Some(StaticValue::MissingImport {
                 imported_name,
                 source_path,
-            }) = constants.get(identifier.name.as_str())
+            }) = resolved_constant(identifier, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
                 source_path,
@@ -103,7 +112,7 @@ pub(crate) fn evaluate_template(
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
             && let Some(StaticValue::InvalidFunction { source_path }) =
-                constants.get(callee.name.as_str())
+                resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
                 source_path,
@@ -116,7 +125,7 @@ pub(crate) fn evaluate_template(
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
             && let Some(StaticValue::ImportedValue { source_path, .. }) =
-                constants.get(callee.name.as_str())
+                resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
                 source_path,
@@ -126,7 +135,7 @@ pub(crate) fn evaluate_template(
                     .to_owned(),
             ));
         }
-        if let Some(message) = binary_expression_error(expression, constants) {
+        if let Some(message) = binary_expression_error(expression, constants, scoping) {
             return Err(CompilerDiagnostic::error(
                 file_path,
                 source,
@@ -138,9 +147,9 @@ pub(crate) fn evaluate_template(
             output.push_str(&format!("__VINDUR_STYLED_REF_{reference}__"));
             continue;
         }
-        let Some(value) = evaluate_expression(expression, constants) else {
+        let Some(value) = evaluate_expression(expression, constants, scoping) else {
             if let Some(diagnostic) =
-                invalid_array_argument_error(expression, constants, file_path, source)
+                invalid_array_argument_error(expression, constants, scoping, file_path, source)
             {
                 return Err(diagnostic);
             }
@@ -177,7 +186,8 @@ pub(crate) fn evaluate_template(
             value => static_value_to_string(value),
         };
         if matches!(expression, Expression::CallExpression(_)) {
-            let preserves_boundary = imported_function_preserves_boundary(expression, constants);
+            let preserves_boundary =
+                imported_function_preserves_boundary(expression, constants, scoping);
             if preserves_boundary && !output.trim_end_matches([' ', '\t']).ends_with("\n\n") {
                 output.push('\n');
             }
@@ -196,6 +206,7 @@ pub(crate) fn evaluate_template(
 fn binary_expression_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
 ) -> Option<String> {
     let Expression::CallExpression(call) = expression else {
         return None;
@@ -203,14 +214,14 @@ fn binary_expression_error(
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    let function = match constants.get(callee.name.as_str())? {
+    let function = match resolved_constant(callee, constants, scoping)? {
         StaticValue::Function(function) | StaticValue::ImportedFunction(function) => function,
         _ => return None,
     };
     let arguments = call
         .arguments
         .iter()
-        .map(|argument| evaluate_argument(argument, constants))
+        .map(|argument| evaluate_argument(argument, constants, scoping))
         .collect::<Option<Vec<_>>>()?;
     function_binary_expression_error(function, &arguments)
 }
@@ -218,6 +229,7 @@ fn binary_expression_error(
 fn invalid_object_access_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
     context: &TemplateContext<'_>,
@@ -226,7 +238,7 @@ fn invalid_object_access_error(
         return None;
     };
     if let Expression::Identifier(root) = &member.object {
-        return match constants.get(root.name.as_str())? {
+        return match resolved_constant(root, constants, scoping)? {
             StaticValue::Object(_) => {
                 Some(interpolation_error(expression, file_path, source, context))
             }
@@ -263,9 +275,9 @@ fn invalid_object_access_error(
             _ => None,
         };
     }
-    let root_name = member_root_identifier(&member.object)?;
+    let root = member_root_identifier(&member.object)?;
     if !matches!(
-        constants.get(&root_name),
+        resolved_constant(root, constants, scoping),
         Some(StaticValue::ImportedObject { .. })
     ) {
         return None;
@@ -286,9 +298,11 @@ fn invalid_object_access_error(
     ))
 }
 
-fn member_root_identifier(expression: &Expression<'_>) -> Option<String> {
+fn member_root_identifier<'a, 'b>(
+    expression: &'a Expression<'b>,
+) -> Option<&'a IdentifierReference<'b>> {
     match expression {
-        Expression::Identifier(identifier) => Some(identifier.name.to_string()),
+        Expression::Identifier(identifier) => Some(identifier),
         Expression::StaticMemberExpression(member) => member_root_identifier(&member.object),
         _ => None,
     }
@@ -297,6 +311,7 @@ fn member_root_identifier(expression: &Expression<'_>) -> Option<String> {
 fn imported_function_preserves_boundary(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
 ) -> bool {
     let Expression::CallExpression(call) = expression else {
         return false;
@@ -304,7 +319,9 @@ fn imported_function_preserves_boundary(
     let Expression::Identifier(callee) = &call.callee else {
         return false;
     };
-    let Some(StaticValue::ImportedFunction(function)) = constants.get(callee.name.as_str()) else {
+    let Some(StaticValue::ImportedFunction(function)) =
+        resolved_constant(callee, constants, scoping)
+    else {
         return false;
     };
     let crate::facts::FunctionExpression::Template { quasis, .. } = &function.body else {
@@ -316,6 +333,7 @@ fn imported_function_preserves_boundary(
 fn invalid_layer_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
@@ -326,7 +344,7 @@ fn invalid_layer_error(
         return None;
     };
     if !matches!(
-        constants.get(callee.name.as_str()),
+        resolved_constant(callee, constants, scoping),
         Some(StaticValue::LayerFunction)
     ) {
         return None;
@@ -346,6 +364,7 @@ fn invalid_layer_error(
 fn invalid_dynamic_color_method_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
@@ -359,7 +378,7 @@ fn invalid_dynamic_color_method_error(
     if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
         return None;
     }
-    let receiver = evaluate_expression(&callee.object, constants)?;
+    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
     if !matches!(
         receiver,
         StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
@@ -394,6 +413,7 @@ fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e st
 fn invalid_array_argument_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
@@ -403,7 +423,7 @@ fn invalid_array_argument_error(
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    let function = match constants.get(callee.name.as_str())? {
+    let function = match resolved_constant(callee, constants, scoping)? {
         StaticValue::Function(function) | StaticValue::ImportedFunction(function) => function,
         _ => return None,
     };

@@ -7,6 +7,7 @@ mod normalize;
 mod options;
 mod passes;
 mod resolver;
+mod semantic;
 
 pub use compiler::{Compiler, TransformOutput};
 pub use diagnostic::{CompilerDiagnostic, DiagnosticSeverity, SourcePosition};
