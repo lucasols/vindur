@@ -564,27 +564,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oxc_codegen"
-version = "0.139.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b91a4d82f92a10f794f2afb7a549a695fcbd3899d930210b38d71cacbeb210fb"
-dependencies = [
- "bitflags",
- "cow-utils",
- "dragonbox_ecma",
- "itoa",
- "oxc_allocator",
- "oxc_ast",
- "oxc_data_structures",
- "oxc_index",
- "oxc_semantic",
- "oxc_span",
- "oxc_str",
- "oxc_syntax",
- "rustc-hash",
-]
-
-[[package]]
 name = "oxc_data_structures"
 version = "0.139.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1199,7 +1178,6 @@ dependencies = [
  "oxc_allocator",
  "oxc_ast",
  "oxc_ast_visit",
- "oxc_codegen",
  "oxc_diagnostics",
  "oxc_ecmascript",
  "oxc_parser",

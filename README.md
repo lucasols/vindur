@@ -20,6 +20,8 @@ Vindur is a CSS-in-JS library that compiles your styles at build time, generatin
 
 The public TypeScript transform API is a thin Node-API bridge. Parsing, semantic analysis, static evaluation, source-order ID planning, CSS extraction, and code edits run in Rust; Babel is not part of the Vindur compiler pipeline. Vite remains responsible for TypeScript/JSX lowering and final minification.
 
+In a local Inertia production-build benchmark (three alternating warm runs), the Rust/Oxc compiler reduced median wall time from 10.03s to 8.79s, or 12.4%. The result is application-specific rather than a universal guarantee; see [the compiler architecture](./specs/compiler-architecture.md#integration-benchmark) for the validation details.
+
 ### Build Integration
 
 Vindur works with your existing build tools:

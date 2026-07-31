@@ -3,40 +3,12 @@ use oxc_ast::ast::{
     ImportDeclarationSpecifier, ObjectExpression, Program, Statement, TSTypeLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
-use oxc_codegen::{Codegen, CodegenOptions, IndentChar};
 use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType, Span};
 
 use crate::{CompilerDiagnostic, edit::apply_edits};
 
 pub(crate) fn normalize_code(
-    file_path: &str,
-    source: &str,
-    source_type: SourceType,
-) -> Result<String, CompilerDiagnostic> {
-    let allocator = Allocator::default();
-    let parsed = Parser::new(&allocator, source, source_type).parse();
-    if let Some(diagnostic) = parsed.diagnostics.first() {
-        return Err(CompilerDiagnostic::from_oxc(
-            file_path,
-            source,
-            diagnostic,
-            "Internal compiler error after source edits: ",
-        ));
-    }
-    let generated = Codegen::new()
-        .with_options(CodegenOptions {
-            indent_char: IndentChar::Space,
-            indent_width: 2,
-            ..CodegenOptions::default()
-        })
-        .with_source_text(source)
-        .build(&parsed.program)
-        .code;
-    compatibility_normalize(file_path, &generated, source_type)
-}
-
-fn compatibility_normalize(
     file_path: &str,
     source: &str,
     source_type: SourceType,

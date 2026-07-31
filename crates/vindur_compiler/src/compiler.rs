@@ -468,7 +468,7 @@ mod tests {
         assert!(output.diagnostics.is_empty());
         assert_eq!(
             output.code,
-            "const top = \"vqys53f-1\";\nfunction render(css: (value: TemplateStringsArray) => string) {\n  return css`untouched`;\n}"
+            "const top = \"vqys53f-1\";\nfunction render(css: (value: TemplateStringsArray) => string) { return css`untouched`; }"
         );
         assert_eq!(output.css, ".vqys53f-1 {\n  color: red;\n}");
     }
