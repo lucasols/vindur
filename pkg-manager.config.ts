@@ -4,7 +4,12 @@ export default defineConfig({
   requireMajorConfirmation: true,
   monorepo: {
     packages: [
-      { name: 'vindur', path: 'lib' },
+      {
+        name: '@vindur/native',
+        path: 'native',
+        release: { type: 'napi', npmDir: 'npm' },
+      },
+      { name: 'vindur', path: 'lib', dependsOn: ['@vindur/native'] },
       {
         name: '@vindur-css/vite-plugin',
         path: 'vite-plugin',

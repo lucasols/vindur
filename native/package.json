@@ -1,20 +1,39 @@
 {
   "name": "@vindur/native",
+  "description": "Native OXC compiler bindings for Vindur",
   "version": "0.1.0",
-  "private": true,
   "license": "MIT",
+  "repository": "github:lucasols/vindur",
+  "author": "Lucas Santos",
   "type": "commonjs",
   "main": "index.js",
   "types": "index.d.ts",
   "files": [
     "index.js",
-    "index.d.ts",
-    "*.node"
+    "index.d.ts"
   ],
   "scripts": {
     "build": "napi build --platform --release --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
     "build:debug": "napi build --platform --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
-    "test": "pnpm run build:debug && node --test test/*.test.cjs"
+    "create-npm-dirs": "napi create-npm-dirs --npm-dir npm",
+    "collect-artifacts": "napi artifacts --output-dir artifacts --npm-dir npm",
+    "test": "pnpm run build:debug && node --test test/*.test.cjs",
+    "pre-publish": "node ../scripts/require-napi-release.ts && pnpm test && pnpm create-npm-dirs && pnpm collect-artifacts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "@vindur/native-darwin-arm64": "0.1.0",
+    "@vindur/native-darwin-x64": "0.1.0",
+    "@vindur/native-linux-arm64-gnu": "0.1.0",
+    "@vindur/native-linux-arm64-musl": "0.1.0",
+    "@vindur/native-linux-x64-gnu": "0.1.0",
+    "@vindur/native-linux-x64-musl": "0.1.0",
+    "@vindur/native-win32-x64-msvc": "0.1.0"
   },
   "devDependencies": {
     "@napi-rs/cli": "catalog:"

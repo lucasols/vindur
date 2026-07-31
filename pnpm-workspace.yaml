@@ -6,6 +6,15 @@ packages:
   - eslint-plugin
   - native
 
+overrides:
+  '@vindur/native-darwin-arm64': link:./native/npm/darwin-arm64
+  '@vindur/native-darwin-x64': link:./native/npm/darwin-x64
+  '@vindur/native-linux-arm64-gnu': link:./native/npm/linux-arm64-gnu
+  '@vindur/native-linux-arm64-musl': link:./native/npm/linux-arm64-musl
+  '@vindur/native-linux-x64-gnu': link:./native/npm/linux-x64-gnu
+  '@vindur/native-linux-x64-musl': link:./native/npm/linux-x64-musl
+  '@vindur/native-win32-x64-msvc': link:./native/npm/win32-x64-msvc
+
 allowBuilds:
   '@swc/core': true
   esbuild: true

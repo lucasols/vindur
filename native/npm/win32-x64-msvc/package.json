@@ -1,0 +1,24 @@
+{
+  "name": "@vindur/native-win32-x64-msvc",
+  "version": "0.1.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "vindur-native.win32-x64-msvc.node",
+  "files": [
+    "vindur-native.win32-x64-msvc.node"
+  ],
+  "description": "Native OXC compiler bindings for Vindur",
+  "author": "Lucas Santos",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": "github:lucasols/vindur",
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "win32"
+  ]
+}

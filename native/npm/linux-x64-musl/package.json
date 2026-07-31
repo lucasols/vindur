@@ -1,0 +1,27 @@
+{
+  "name": "@vindur/native-linux-x64-musl",
+  "version": "0.1.0",
+  "cpu": [
+    "x64"
+  ],
+  "main": "vindur-native.linux-x64-musl.node",
+  "files": [
+    "vindur-native.linux-x64-musl.node"
+  ],
+  "description": "Native OXC compiler bindings for Vindur",
+  "author": "Lucas Santos",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": "github:lucasols/vindur",
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "musl"
+  ]
+}

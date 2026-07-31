@@ -1,0 +1,24 @@
+{
+  "name": "@vindur/native-darwin-arm64",
+  "version": "0.1.0",
+  "cpu": [
+    "arm64"
+  ],
+  "main": "vindur-native.darwin-arm64.node",
+  "files": [
+    "vindur-native.darwin-arm64.node"
+  ],
+  "description": "Native OXC compiler bindings for Vindur",
+  "author": "Lucas Santos",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": "github:lucasols/vindur",
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "darwin"
+  ]
+}

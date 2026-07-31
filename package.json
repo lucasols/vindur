@@ -24,6 +24,7 @@
     "eslint-plugin:lint": "pnpm --filter @vindur-css/eslint-plugin run lint",
     "eslint-plugin:build": "pnpm --filter @vindur-css/eslint-plugin run build",
     "publish": "pkg-manager publish",
+    "publish:native": "pkg-manager publish @vindur/native",
     "publish:lib": "pkg-manager publish vindur",
     "publish:vite-plugin": "pkg-manager publish @vindur-css/vite-plugin",
     "publish:eslint-plugin": "pkg-manager publish @vindur-css/eslint-plugin",

@@ -4,6 +4,8 @@ dist
 dist-bench
 target
 native/*.node
+native/artifacts
+native/npm/*/*.node
 cache.json
 .DS_Store
 benchmarks/profiles/*.cpuprofile
