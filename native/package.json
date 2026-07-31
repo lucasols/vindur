@@ -1,7 +1,7 @@
 {
   "name": "@vindur-css/native",
   "description": "Native OXC compiler bindings for Vindur",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": "github:lucasols/vindur",
   "author": "Lucas Santos",
