@@ -19,7 +19,7 @@ use super::{
     cx_optimize::optimize_cx_calls,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
-    id_order::{IdEvent, jsx_id_starts},
+    id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
         collect_resolved_import_edits, collect_vindur_imports,
@@ -87,10 +87,18 @@ pub(crate) fn transform_program(
     let mut warnings = Vec::new();
     let exported_names = collect_exported_names(program);
     let exported_object_names = collect_exported_object_names(program);
+    let jsx_id_events = collect_jsx_id_events(program);
+    let mut jsx_event_index = 0_usize;
     let mut id_index = 1_u32;
     let mut declaration_id_events = Vec::new();
 
     for statement in &program.body {
+        while let Some(event) = jsx_id_events.get(jsx_event_index)
+            && event.start < statement.span().start
+        {
+            id_index += event.count;
+            jsx_event_index += 1;
+        }
         let id_before_statement = id_index;
         match statement {
             Statement::VariableDeclaration(declaration) => {
@@ -259,8 +267,12 @@ pub(crate) fn transform_program(
             });
         }
     }
+    id_index += jsx_id_events[jsx_event_index..]
+        .iter()
+        .map(|event| event.count)
+        .sum::<u32>();
 
-    let jsx_id_starts = jsx_id_starts(program, &declaration_id_events, &styled_components);
+    let jsx_id_starts = jsx_id_starts(&jsx_id_events, &declaration_id_events);
 
     transform_inline_stable_calls(
         program,

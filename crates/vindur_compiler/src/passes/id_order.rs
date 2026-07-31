@@ -5,8 +5,6 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::styled::StyledComponent;
-
 #[derive(Clone, Copy)]
 pub(crate) struct IdEvent {
     pub start: u32,
@@ -19,44 +17,61 @@ struct JsxFeature {
     cx_keys: Vec<String>,
 }
 
-pub(crate) fn jsx_id_starts(
-    program: &Program<'_>,
-    declaration_events: &[IdEvent],
-    styled_components: &FxHashMap<String, StyledComponent>,
-) -> FxHashMap<u32, u32> {
+pub(crate) fn collect_jsx_id_events(program: &Program<'_>) -> Vec<IdEvent> {
     let mut visitor = JsxFeatureVisitor {
         features: Vec::new(),
-        styled_components,
     };
     visitor.visit_program(program);
     visitor.features.sort_by_key(|feature| feature.start);
 
+    let mut allocated_cx_keys = FxHashSet::default();
+    visitor
+        .features
+        .into_iter()
+        .map(|feature| {
+            let mut count = feature.css_count;
+            for key in feature.cx_keys {
+                if allocated_cx_keys.insert(key) {
+                    count += 1;
+                }
+            }
+            IdEvent {
+                start: feature.start,
+                count,
+            }
+        })
+        .collect()
+}
+
+pub(crate) fn jsx_id_starts(
+    jsx_events: &[IdEvent],
+    declaration_events: &[IdEvent],
+) -> FxHashMap<u32, u32> {
     let mut starts = FxHashMap::default();
     let mut allocated_jsx_ids = 0_u32;
-    let mut allocated_cx_keys = FxHashSet::default();
-    for feature in visitor.features {
-        let declaration_ids = declaration_events
-            .iter()
-            .filter(|event| event.start < feature.start)
-            .map(|event| event.count)
-            .sum::<u32>();
-        starts.insert(feature.start, 1 + declaration_ids + allocated_jsx_ids);
-        allocated_jsx_ids += feature.css_count;
-        for key in feature.cx_keys {
-            if allocated_cx_keys.insert(key) {
-                allocated_jsx_ids += 1;
-            }
+    let mut allocated_declaration_ids = 0_u32;
+    let mut declaration_index = 0_usize;
+    for feature in jsx_events {
+        while let Some(event) = declaration_events.get(declaration_index)
+            && event.start < feature.start
+        {
+            allocated_declaration_ids += event.count;
+            declaration_index += 1;
         }
+        starts.insert(
+            feature.start,
+            1 + allocated_declaration_ids + allocated_jsx_ids,
+        );
+        allocated_jsx_ids += feature.count;
     }
     starts
 }
 
-struct JsxFeatureVisitor<'a> {
+struct JsxFeatureVisitor {
     features: Vec<JsxFeature>,
-    styled_components: &'a FxHashMap<String, StyledComponent>,
 }
 
-impl<'a> Visit<'a> for JsxFeatureVisitor<'_> {
+impl<'a> Visit<'a> for JsxFeatureVisitor {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
         let css = find_attribute(element, "css");
         let cx = find_attribute(element, "cx");
@@ -65,7 +80,7 @@ impl<'a> Visit<'a> for JsxFeatureVisitor<'_> {
                 cx.is_some() && css.is_some() || css.is_some_and(css_attribute_allocates_class),
             );
             let context = jsx_name(&element.opening_element.name)
-                .filter(|name| self.styled_components.contains_key(*name))
+                .filter(|name| name.chars().next().is_some_and(char::is_uppercase))
                 .map_or_else(
                     || format!("css:{}", element.span.start),
                     |name| format!("styled:{name}"),
@@ -133,12 +148,10 @@ fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
 
 #[cfg(test)]
 mod tests {
+    use super::{IdEvent, collect_jsx_id_events, jsx_id_starts};
     use oxc_allocator::Allocator;
     use oxc_parser::Parser;
     use oxc_span::SourceType;
-    use rustc_hash::FxHashMap;
-
-    use super::{IdEvent, jsx_id_starts};
 
     #[test]
     fn reserves_jsx_ids_around_declarations_in_source_order() {
@@ -164,7 +177,8 @@ const B = <div cx={{ active: a, loading: l }} css={`color: yellow;`} />;
                 count: 1,
             },
         ];
-        let starts = jsx_id_starts(&parsed.program, &events, &FxHashMap::default());
+        let jsx_events = collect_jsx_id_events(&parsed.program);
+        let starts = jsx_id_starts(&jsx_events, &events);
         let mut reservations = starts.into_iter().collect::<Vec<_>>();
         reservations.sort_by_key(|(offset, _)| *offset);
 

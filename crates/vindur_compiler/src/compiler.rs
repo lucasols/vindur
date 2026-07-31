@@ -548,6 +548,49 @@ mod tests {
     }
 
     #[test]
+    fn reserves_cx_modifier_indices_before_later_styled_components() {
+        let source = r#"import { styled } from 'vindur';
+const Toggle = styled.div`
+  display: flex;
+  &.hasSubtasks { opacity: 1; }
+  &.isExpanded .icon { transform: rotate(90deg); }
+`;
+const App = ({ hasSubtasks, isExpanded }) => (
+  <Toggle cx={{ hasSubtasks, isExpanded }}><span className="icon" /></Toggle>
+);
+const AttachmentButton = styled.button`width: 18px;`;
+const AttachmentImage = styled.img`border: 1px solid cyan;`;
+"#;
+        let output = Compiler::new().transform(
+            "/collision.tsx",
+            source,
+            &TransformOptions {
+                dev: false,
+                sourcemap: false,
+                normalize_code: false,
+                import_aliases: FxHashMap::default(),
+            },
+        );
+
+        assert!(output.diagnostics.is_empty());
+        assert_eq!(
+            output.code,
+            r#"import { cx } from 'vindur';
+const App = ({ hasSubtasks, isExpanded }) => (
+  <div  className={"v146u5j0-1 " + cx({
+"v146u5j0-2": hasSubtasks,
+"v146u5j0-3": isExpanded,
+})}><span className="icon" /></div>
+);
+"#
+        );
+        assert_eq!(
+            output.css,
+            ".v146u5j0-1 {\n  display: flex;\n  &.v146u5j0-2 { opacity: 1; }\n  &.v146u5j0-3 .icon { transform: rotate(90deg); }\n}\n\n.v146u5j0-4 {\n  width: 18px;\n}\n\n.v146u5j0-5 {\n  border: 1px solid cyan;\n}"
+        );
+    }
+
+    #[test]
     fn evaluates_imported_functions_from_cached_module_facts() {
         let compiler = Compiler::new();
         let mut loader = MemoryLoader {
