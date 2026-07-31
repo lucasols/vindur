@@ -1,7 +1,7 @@
 {
   "name": "@vindur-css/native",
   "description": "Native OXC compiler bindings for Vindur",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "repository": "github:lucasols/vindur",
   "author": "Lucas Santos",
@@ -28,13 +28,13 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "@vindur-css/native-darwin-arm64": "0.2.0",
-    "@vindur-css/native-darwin-x64": "0.2.0",
-    "@vindur-css/native-win32-x64-msvc": "0.2.0",
-    "@vindur-css/native-linux-x64-gnu": "0.2.0",
-    "@vindur-css/native-linux-x64-musl": "0.2.0",
-    "@vindur-css/native-linux-arm64-gnu": "0.2.0",
-    "@vindur-css/native-linux-arm64-musl": "0.2.0"
+    "@vindur-css/native-darwin-arm64": "0.2.1",
+    "@vindur-css/native-darwin-x64": "0.2.1",
+    "@vindur-css/native-win32-x64-msvc": "0.2.1",
+    "@vindur-css/native-linux-x64-gnu": "0.2.1",
+    "@vindur-css/native-linux-x64-musl": "0.2.1",
+    "@vindur-css/native-linux-arm64-gnu": "0.2.1",
+    "@vindur-css/native-linux-arm64-musl": "0.2.1"
   },
   "devDependencies": {
     "@napi-rs/cli": "catalog:"
