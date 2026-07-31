@@ -6,12 +6,19 @@ packages manually.
 
 ## Native compiler
 
-Before publishing, place the release binaries produced for every target in
-`native/artifacts`. The native package's `pre-publish` script tests the local
-binding, regenerates `native/npm`, and collects those artifacts. pkg-manager
-then synchronizes all platform versions, validates the complete artifact set,
-updates the root optional dependencies, and publishes the platform packages
-before `@vindur/native`.
+The native package's `pre-publish` script tests the local binding and builds all
+seven targets on macOS. Darwin targets use the local Apple toolchain; Windows and
+Linux targets use napi-rs cross-compilation with Zig and cargo-xwin. The script
+writes the binaries to `native/artifacts`, regenerates `native/npm`, and collects
+the artifacts. pkg-manager then synchronizes all platform versions, validates
+the complete artifact set, updates the root optional dependencies, and publishes
+the platform packages before `@vindur/native`.
+
+Install Zig once before the first native release:
+
+```bash
+brew install zig
+```
 
 Preview the release without changing files or publishing:
 

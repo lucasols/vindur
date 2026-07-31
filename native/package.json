@@ -14,11 +14,12 @@
   ],
   "scripts": {
     "build": "napi build --platform --release --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
+    "build-all": "node ../scripts/prepare-native-artifacts.ts",
     "build:debug": "napi build --platform --manifest-path ../crates/vindur_node/Cargo.toml --output-dir . --no-js --no-dts-header",
     "create-npm-dirs": "napi create-npm-dirs --npm-dir npm",
     "collect-artifacts": "napi artifacts --output-dir artifacts --npm-dir npm",
     "test": "pnpm run build:debug && node --test test/*.test.cjs",
-    "pre-publish": "node ../scripts/require-napi-release.ts && pnpm test && pnpm create-npm-dirs && pnpm collect-artifacts"
+    "pre-publish": "node ../scripts/require-napi-release.ts && pnpm test && pnpm build-all && pnpm create-npm-dirs && pnpm collect-artifacts"
   },
   "engines": {
     "node": ">=20.0.0"
