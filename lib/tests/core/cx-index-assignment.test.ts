@@ -90,4 +90,67 @@ describe('CX prop index assignment according to spec', () => {
     expect(v3Count).toBe(1); // First active usage
     expect(v7Count).toBe(1); // Second active usage
   });
+
+  test('should reserve cx modifier indices before later styled components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Toggle = styled.div\`
+          display: flex;
+          &.hasSubtasks { opacity: 1; }
+          &.isExpanded .icon { transform: rotate(90deg); }
+        \`;
+
+        const App = ({ hasSubtasks, isExpanded }) => (
+          <Toggle cx={{ hasSubtasks, isExpanded }}>
+            <span className="icon" />
+          </Toggle>
+        );
+
+        const AttachmentButton = styled.button\`width: 18px;\`;
+        const AttachmentImage = styled.img\`border: 1px solid cyan;\`;
+      `,
+      production: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      const App = ({ hasSubtasks, isExpanded }) => (
+        <div
+          className={
+            "v1560qbr-1 " +
+            cx({
+              "v1560qbr-2": hasSubtasks,
+              "v1560qbr-3": isExpanded,
+            })
+          }
+        >
+          <span className="icon" />
+        </div>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        display: flex;
+        &.v1560qbr-2 {
+          opacity: 1;
+        }
+        &.v1560qbr-3 .icon {
+          transform: rotate(90deg);
+        }
+      }
+
+      .v1560qbr-4 {
+        width: 18px;
+      }
+
+      .v1560qbr-5 {
+        border: 1px solid cyan;
+      }
+      "
+    `);
+  });
 });

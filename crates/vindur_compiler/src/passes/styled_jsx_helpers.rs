@@ -61,10 +61,10 @@ pub(super) fn collect_flag_class(
                         let expression_source = &source[span.start as usize..span.end as usize];
                         dynamic_classes.push(DynamicFlagClass {
                             concat: format!(
-                                " + ({expression_source} ? \" {}\" : \"\")",
+                                " + (({expression_source}) ? \" {}\" : \"\")",
                                 flag.hashed_class_name
                             ),
-                            cx: format!("{expression_source} && \"{}\"", flag.hashed_class_name),
+                            cx: format!("({expression_source}) && \"{}\"", flag.hashed_class_name),
                         });
                     }
                 }
@@ -85,11 +85,11 @@ pub(super) fn collect_flag_class(
                         let expression_source = &source[span.start as usize..span.end as usize];
                         dynamic_classes.push(DynamicFlagClass {
                             concat: format!(
-                                " + ({expression_source} ? \" {}-\" + {expression_source} : \"\")",
+                                " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
                                 flag.hashed_class_name
                             ),
                             cx: format!(
-                                "{expression_source} && `{}-${{{expression_source}}}`",
+                                "({expression_source}) && `{}-${{({expression_source})}}`",
                                 flag.hashed_class_name
                             ),
                         });

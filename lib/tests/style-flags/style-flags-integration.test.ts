@@ -188,3 +188,98 @@ test('should work with dynamic values', async () => {
     "
   `);
 });
+
+test('should preserve conditional expression precedence in dynamic flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{
+        active: boolean;
+        variant: 'today' | 'time';
+      }>\`
+        &.active {
+          opacity: 1;
+        }
+
+        &.variant-today {
+          color: white;
+        }
+
+        &.variant-time {
+          color: green;
+        }
+      \`;
+
+      function Component({ deadline, useToday, props }) {
+        return (
+          <>
+            <Button
+              active={deadline ? isToday(deadline) : false}
+              variant={useToday ? 'today' : 'time'}
+            >
+              Today
+            </Button>
+            <Button
+              {...props}
+              active={deadline ? isToday(deadline) : false}
+              variant={useToday ? 'today' : 'time'}
+            >
+              Spread
+            </Button>
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    function Component({ deadline, useToday, props }) {
+      return (
+        <>
+          <button
+            className={
+              "v1560qbr-1-Button" +
+              ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
+              ((useToday ? "today" : "time")
+                ? " v11as9cs-variant-" + (useToday ? "today" : "time")
+                : "")
+            }
+          >
+            Today
+          </button>
+          <button
+            {...props}
+            className={cx(
+              mergeClassNames([props], "v1560qbr-1-Button"),
+              (deadline ? isToday(deadline) : false) && "voctcyj-active",
+              (useToday ? "today" : "time") &&
+                \`v11as9cs-variant-\${useToday ? "today" : "time"}\`,
+            )}
+          >
+            Spread
+          </button>
+        </>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.voctcyj-active {
+        opacity: 1;
+      }
+
+      &.v11as9cs-variant-today {
+        color: white;
+      }
+
+      &.v11as9cs-variant-time {
+        color: green;
+      }
+    }
+    "
+  `);
+});
