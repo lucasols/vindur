@@ -12,6 +12,7 @@ A compile-time CSS-in-JS library focused on performance.
 - [x] CSS function (`css` tagged template literals)
 - [x] Styled component functions (`styled.*`)
 - [x] String and number variable interpolation
+- [x] Global `Math` constants in static interpolation and arithmetic ✅
 - [x] Mixins/functions support
 - [x] Direct class injection (no intermediate component generation)
 

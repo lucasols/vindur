@@ -187,6 +187,18 @@ const Button = styled.button`
 `;
 ```
 
+The global `Math` constants (`PI`, `E`, `LN2`, `LN10`, `LOG2E`, `LOG10E`,
+`SQRT1_2`, and `SQRT2`) support compile-time interpolation and arithmetic:
+
+```tsx
+const RING_RADIUS = 20;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const Ring = styled.svg`
+  stroke-dasharray: ${RING_CIRCUMFERENCE};
+`;
+```
+
 ### Style Extension
 
 Extend existing styled components using `styled()`:

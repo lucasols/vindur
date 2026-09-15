@@ -65,6 +65,10 @@ pub(super) fn evaluate_expression(
         }
         Expression::ArrayExpression(array) => evaluate_array(array, constants, scoping),
         Expression::StaticMemberExpression(member) => {
+            let analysis = StaticAnalysisContext { constants, scoping };
+            if analysis.is_global_expr("Math", &member.object) {
+                return math_constant(member.property.name.as_str()).map(StaticValue::Number);
+            }
             let value = evaluate_expression(&member.object, constants, scoping)?;
             match &value {
                 StaticValue::ClassName(value) => match member.property.name.as_str() {
@@ -138,7 +142,7 @@ pub(super) fn evaluate_expression(
         }
         Expression::BinaryExpression(binary) => {
             let analysis = StaticAnalysisContext { constants, scoping };
-            if expression.may_have_side_effects(&analysis) {
+            if arithmetic_has_side_effects(expression, &analysis) {
                 return None;
             }
             let left = evaluate_expression(&binary.left, constants, scoping)?;
@@ -147,7 +151,7 @@ pub(super) fn evaluate_expression(
         }
         Expression::UnaryExpression(unary) => {
             let analysis = StaticAnalysisContext { constants, scoping };
-            if expression.may_have_side_effects(&analysis) {
+            if arithmetic_has_side_effects(expression, &analysis) {
                 return None;
             }
             let value = evaluate_expression(&unary.argument, constants, scoping)?;
@@ -168,6 +172,43 @@ pub(super) fn evaluate_expression(
         Expression::ParenthesizedExpression(parenthesized) => {
             evaluate_expression(&parenthesized.expression, constants, scoping)
         }
+        _ => None,
+    }
+}
+
+// Operand coercion is handled using StaticValue below. Oxc cannot infer the
+// numeric type of Math constants, so check operand reads separately from coercion.
+fn arithmetic_has_side_effects<'a>(
+    expression: &Expression<'a>,
+    analysis: &StaticAnalysisContext<'_>,
+) -> bool {
+    match expression {
+        Expression::BinaryExpression(binary) => {
+            arithmetic_has_side_effects(&binary.left, analysis)
+                || arithmetic_has_side_effects(&binary.right, analysis)
+        }
+        Expression::UnaryExpression(unary) => {
+            arithmetic_has_side_effects(&unary.argument, analysis)
+        }
+        Expression::ParenthesizedExpression(parenthesized) => {
+            arithmetic_has_side_effects(&parenthesized.expression, analysis)
+        }
+        _ => expression.may_have_side_effects(analysis),
+    }
+}
+
+fn math_constant(name: &str) -> Option<f64> {
+    use std::f64::consts;
+
+    match name {
+        "E" => Some(consts::E),
+        "LN2" => Some(consts::LN_2),
+        "LN10" => Some(consts::LN_10),
+        "LOG2E" => Some(consts::LOG2_E),
+        "LOG10E" => Some(consts::LOG10_E),
+        "PI" => Some(consts::PI),
+        "SQRT1_2" => Some(consts::FRAC_1_SQRT_2),
+        "SQRT2" => Some(consts::SQRT_2),
         _ => None,
     }
 }
