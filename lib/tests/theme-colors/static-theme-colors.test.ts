@@ -248,15 +248,15 @@ describe('createStaticThemeColors', () => {
         background: var(--stc-primary-var, #007bff);
 
         &:hover {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
         }
 
         &:active {
-          background: var(--stc-primary-darker-0\\.2, #004a99);
+          background: var(--stc-primary-darker-0\\.2, #0062cc);
         }
 
         &:disabled {
-          background: var(--stc-primary-lighter-0\\.3, #99caff);
+          background: var(--stc-primary-lighter-0\\.3, #4da3ff);
         }
       }
       "
@@ -312,7 +312,7 @@ describe('createStaticThemeColors', () => {
 
         &.light {
           background: var(--stc-light-var, #f8f9fa);
-          color: var(--stc-light-contrast-optimal, #000);
+          color: var(--stc-light-contrast-optimal, #232323);
         }
       }
       "
@@ -527,7 +527,7 @@ describe('createStaticThemeColors', () => {
         }
 
         .header {
-          background: var(--stc-primary-lighter-0\\.4, #cce5ff);
+          background: var(--stc-primary-lighter-0\\.4, #66b0ff);
           color: var(--stc-primary-contrast-alpha-0\\.8, #fffc);
         }
       }
@@ -591,12 +591,12 @@ describe('createStaticThemeColors', () => {
         color: var(--stc-primary-contrast-var, #fff);
 
         &:hover {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
           box-shadow: 0 2px 4px var(--stc-primary-alpha-0\\.3, #007bff4d);
         }
 
         &:disabled {
-          background: var(--stc-secondary-lighter-0\\.2, #a1a8ae);
+          background: var(--stc-secondary-lighter-0\\.2, #899197);
           color: var(--stc-secondary-contrast-alpha-0\\.5, #ffffff80);
         }
       }
@@ -662,7 +662,7 @@ describe('createStaticThemeColors', () => {
         border: 1px solid #007bff33;
 
         &:hover {
-          background: #0062cc;
+          background: #006fe6;
         }
 
         &.danger {

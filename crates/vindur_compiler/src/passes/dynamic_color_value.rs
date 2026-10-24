@@ -59,9 +59,11 @@ pub(super) fn dynamic_color_method(
         "alpha" => format!("color-mix(in srgb, {base} {percentage}%, transparent)"),
         "darker" => format!("color-mix(in srgb, {base} {percentage}%, #000)"),
         "lighter" => format!("color-mix(in srgb, {base} {percentage}%, #fff)"),
-        "saturatedDarker" => {
-            format!("color-mix(in srgb, {base} {percentage}%, hsl(from {base} h 100% 20%))")
-        }
+        // Uses the hsl vars set by the runtime, see `saturated_darker` in color_math.rs
+        "saturatedDarker" if !contrast => format!(
+            "hsl(var(--{id}-h), var(--{id}-sds), calc(var(--{id}-l) * {}))",
+            format_factor(1.0 - amount)
+        ),
         _ => return None,
     };
     Some(StaticValue::String(value))
@@ -81,11 +83,12 @@ fn selector_index(property: &str) -> Option<u8> {
     }
 }
 
+// Rounded to drop float noise like `1.0 - 0.86 = 0.14000000000000001`
+fn format_factor(value: f64) -> String {
+    let rounded = (value * 10_000.0).round() / 10_000.0;
+    rounded.to_string()
+}
+
 fn format_percentage(value: f64) -> String {
-    let percentage = value * 100.0;
-    if percentage.fract() == 0.0 {
-        format!("{percentage:.0}")
-    } else {
-        percentage.to_string()
-    }
+    format_factor(value * 100.0)
 }

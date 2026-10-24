@@ -1276,9 +1276,10 @@ Each color in your theme provides:
 - **`var`**: CSS variable reference for the color
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
-- **`darker(amount)`**: Creates a darker variant (0-1 scale)
-- **`lighter(amount)`**: Creates a lighter variant (0-1 scale)
-- **`contrast.var`**: CSS variable for optimal contrast color
+- **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
+- **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
+- **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
+- **`contrast.var`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
@@ -1310,7 +1311,7 @@ const Card = styled.div`
   }
 
   /* use container selectors to conditionally style child components */
-  ${dynamicColor.container.isLight} {
+  ${dynamicColor.container.isLight} & {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 `;
@@ -1355,15 +1356,18 @@ Dynamic colors provide the same color manipulation functions as static colors, p
 #### Color Setting
 
 - **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
-  - `hexColor`: The color to set
+  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
-  - `options.setColorScheme?`: Configure color scheme detection with fallback
+  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
+  - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
+
+Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3), and `isDark`/`isLight` follow it: a color is light when black text has more contrast. `contrast.optimal()` uses `saturatedDarker(0.86)` of the color on light colors instead of black. `saturatedDarker(amount)` moves the lightness toward 0% while forcing the saturation to 0% for near gray colors and 100% otherwise.
 
 #### Conditional Selectors
 
-- **`self.*`**: Selectors for the component that sets the color
-- **`container.*`**: Selectors for child components
+- **`self.*`**: Selectors for the component that sets the color, e.g. `${color.self.isDark} { ... }`
+- **`container.*`**: Selectors for descendants of the component that sets the color, used as an ancestor selector, e.g. `${color.container.isDark} & { ... }`
 
 Available conditional selectors:
 
@@ -1380,7 +1384,7 @@ Available conditional selectors:
 
 ```tsx
 // Color setting with additional styles
-const { className, style } = dynamicColor.setInComponent('#007bff', {
+const { className, style } = dynamicColor.setProps('#007bff', {
   style: { padding: '20px' },
   className: 'custom-card',
   setColorScheme: { fallback: 'dark' },
@@ -1392,11 +1396,11 @@ const AdaptiveButton = styled.button`
   color: ${dynamicColor.contrast.var};
 
   /* Different styles for dark vs light colors */
-  &${dynamicColor.self.isDark} {
+  ${dynamicColor.self.isDark} {
     border: 1px solid ${dynamicColor.lighter(0.2)};
   }
 
-  &${dynamicColor.self.isLight} {
+  ${dynamicColor.self.isLight} {
     border: 1px solid ${dynamicColor.darker(0.2)};
   }
 

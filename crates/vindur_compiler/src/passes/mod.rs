@@ -1,3 +1,4 @@
+mod color_math;
 mod css;
 mod css_warnings;
 mod cx_optimize;

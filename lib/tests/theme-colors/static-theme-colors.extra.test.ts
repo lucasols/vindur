@@ -127,8 +127,8 @@ describe('createStaticThemeColors', () => {
 
       expect(result.css).toMatchInlineSnapshot(`
         ".v1560qbr-1-Component {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
-          color: var(--stc-secondary-lighter-0\\.2, #f66);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
+          color: var(--stc-secondary-lighter-0\\.2, #f33);
         }
         "
       `);

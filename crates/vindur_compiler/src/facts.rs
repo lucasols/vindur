@@ -66,6 +66,7 @@ pub enum StaticValue {
     ThemeColorContrast {
         name: String,
         hex: String,
+        base_hex: String,
     },
     ThemeColors(FxHashMap<String, String>),
     UnexportedThemeColors(FxHashMap<String, String>),

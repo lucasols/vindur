@@ -63,10 +63,10 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
           var(--v1560qbr-1-c-optimal) 60%,
           transparent
         );
-        --saturated-darker: color-mix(
-          in srgb,
-          var(--v1560qbr-1) 90%,
-          hsl(from var(--v1560qbr-1) h 100% 20%)
+        --saturated-darker: hsl(
+          var(--v1560qbr-1-h),
+          var(--v1560qbr-1-sds),
+          calc(var(--v1560qbr-1-l) * 0.9)
         );
       }
       "
