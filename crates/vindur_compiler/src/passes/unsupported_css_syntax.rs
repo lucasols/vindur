@@ -92,7 +92,8 @@ pub(super) fn unsupported_syntax_error(
 
 // The evaluated quasi text can differ from the source (escapes are cooked and
 // CRLF is normalized), so the matched text is looked up in the original source,
-// falling back to the whole quasi when it can't be found there
+// falling back to the whole quasi when it can't be found there or escapes make
+// the occurrence ambiguous
 fn segment_source_span(
     css: &str,
     source: &str,
@@ -112,6 +113,9 @@ fn segment_source_span(
                 return Some(local.start);
             }
             let matched = &evaluated[local.clone()];
+            if evaluated.matches(matched).count() != raw.matches(matched).count() {
+                return None;
+            }
             let occurrence = evaluated[..local.start].matches(matched).count();
             raw.match_indices(matched)
                 .nth(occurrence)
@@ -416,7 +420,9 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::find_unsupported_syntax;
+    use oxc_span::Span;
+
+    use super::{SegmentOrigin, TemplateSegment, find_unsupported_syntax, segment_source_span};
 
     #[test]
     fn handles_non_ascii_characters_after_global() {
@@ -487,6 +493,22 @@ mod tests {
         assert_eq!(
             find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
             css.find(":global")
+        );
+    }
+
+    #[test]
+    fn falls_back_to_the_quasi_when_escapes_make_the_location_ambiguous() {
+        let source = r#"content: "\u003aglobal"; :global(.a) & {} content: ":global";"#;
+        let css = r#"content: ":global"; :global(.a) & {} content: ":global";"#;
+        let quasi_span = Span::new(0, u32::try_from(source.len()).unwrap_or(0));
+        let segment = TemplateSegment {
+            range: 0..css.len(),
+            origin: SegmentOrigin::Quasi(quasi_span),
+        };
+        let start = css.find(":global(").unwrap_or(0);
+        assert_eq!(
+            segment_source_span(css, source, &segment, start..start + 7),
+            quasi_span
         );
     }
 }
