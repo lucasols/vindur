@@ -2,7 +2,7 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { describe, expect, test } from 'vitest';
 import type { TransformWarning } from '../src/transform';
-import { transformWithFormat } from './testUtils';
+import { createFsMock, transformWithFormat } from './testUtils';
 
 describe('Styled components', () => {
   test('should warn about undeclared classes in styled component without style flags', async () => {
@@ -453,6 +453,75 @@ describe('Edge cases', () => {
       - TransformWarning#:
           message: "The class 'valid-class' is used in CSS but not declared in the component"
           loc: 'current_file:3:6'
+      "
+    `);
+  });
+});
+
+describe('Selector position', () => {
+  test('should only check classes in the same compound as &', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          .dm &,.lm .dm & {
+            color: white;
+          }
+          .theme.compact & {
+            padding: 0;
+          }
+          &:not(.selected) > .icon {
+            opacity: 0.5;
+          }
+        \`
+      `,
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "The class 'selected' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      "
+    `);
+  });
+
+  test('should not warn about dynamic color self selectors', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+        import { sharedColor } from '#/colors'
+
+        const color = createDynamicCssColor()
+
+        const Card = styled.div\`
+          \${color.self.isDark} {
+            color: white;
+          }
+          \${sharedColor.self.isLight} {
+            color: black;
+          }
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          export const sharedColor = createDynamicCssColor()
+        `,
+      }),
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
       "
     `);
   });
