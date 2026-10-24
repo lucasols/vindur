@@ -140,6 +140,12 @@ impl JsxCssVisitor<'_> {
 
     fn process_css_attribute(&mut self, element: &JSXElement<'_>, attribute: &JSXAttribute<'_>) {
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            // A string `css` on a custom component is that component's own prop
+            if is_custom_component(&element.opening_element.name)
+                && styled_component(element, self.output.styled_components).is_none()
+            {
+                return;
+            }
             self.invalid_value(attribute.span);
             return;
         };

@@ -1,0 +1,116 @@
+import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from 'vitest';
+import { createFsMock, transformWithFormat } from '../testUtils';
+
+test('should keep the native cx attribute of svg elements', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      const size = 100
+
+      export const Progress = () => (
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="20" />
+          <ellipse cx={size} cy={size} rx="10" ry="5" />
+          <radialGradient id="g" cx="50%" cy="50%" />
+        </svg>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const size = 100;
+    export const Progress = () => (
+      <svg viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="20" />
+        <ellipse cx={size} cy={size} rx="10" ry="5" />
+        <radialGradient id="g" cx="50%" cy="50%" />
+      </svg>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`""`);
+});
+
+test('should keep cx and string css props of custom components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { Pie } from 'recharts'
+
+      export const Chart = () => <Pie cx="50%" cy="50%" outerRadius={80} css="pie" />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Pie } from "recharts";
+    export const Chart = () => <Pie cx="50%" cy="50%" outerRadius={80} css="pie" />;
+    "
+  `);
+});
+
+test('should still apply vindur cx objects on svg elements', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const Dot = ({ active }: { active: boolean }) => (
+        <circle cx={{ $active: active }} r="2" />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const Dot = ({ active }: { active: boolean }) => (
+      <circle
+        r="2"
+        className={cx({
+          active: active,
+        })}
+      />
+    );
+    "
+  `);
+});
+
+test('should still throw for non object cx on html elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const Box = () => <div cx="active" />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop must be an expression container with an object
+    loc: 1:30]
+  `);
+});
+
+test('should not fail when importing a file that uses svg cx attributes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { CircularProgress } from '#/CircularProgress'
+
+      const style = css\`
+        color: red;
+      \`
+
+      export const Icon = () => <CircularProgress className={style} />
+    `,
+    overrideDefaultFs: createFsMock({
+      'CircularProgress.tsx': dedent`
+        export const CircularProgress = ({ className }: { className: string }) => (
+          <svg className={className}>
+            <circle cx="50" cy="50" r="20" />
+          </svg>
+        )
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { CircularProgress } from "#/CircularProgress";
+    const style = "v1560qbr-1-style";
+    export const Icon = () => <CircularProgress className={style} />;
+    "
+  `);
+});

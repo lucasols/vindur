@@ -11,6 +11,22 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{static_evaluation::resolved_constant, styled::StyledComponent};
 
+// SVG elements with a native `cx` attribute
+const SVG_CX_ELEMENTS: [&str; 3] = ["circle", "ellipse", "radialGradient"];
+
+// `cx` is only vindur's prop when it's an object, other values are regular
+// attributes on SVG elements (`<circle cx="50" />`) or props of custom components
+pub(super) fn is_foreign_cx_attribute(element_name: &str, attribute: &JSXAttribute<'_>) -> bool {
+    let is_object = matches!(
+        &attribute.value,
+        Some(JSXAttributeValue::ExpressionContainer(container))
+            if matches!(container.expression, JSXExpression::ObjectExpression(_))
+    );
+    !is_object
+        && (SVG_CX_ELEMENTS.contains(&element_name)
+            || element_name.chars().next().is_some_and(char::is_uppercase))
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct CxElementTransform {
     pub call: String,
@@ -82,6 +98,9 @@ impl JsxCxVisitor<'_> {
             return;
         };
         let styled = self.output.styled_components.get(element_name).cloned();
+        if styled.is_none() && is_foreign_cx_attribute(element_name, attribute) {
+            return;
+        }
         let native = element_name.chars().next().is_some_and(char::is_lowercase);
         if !native && styled.is_none() {
             self.set_error(

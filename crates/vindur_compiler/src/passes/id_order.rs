@@ -5,6 +5,8 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use super::jsx_cx::is_foreign_cx_attribute;
+
 #[derive(Clone, Copy)]
 pub(crate) struct IdEvent {
     pub start: u32,
@@ -74,7 +76,10 @@ struct JsxFeatureVisitor {
 impl<'a> Visit<'a> for JsxFeatureVisitor {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
         let css = find_attribute(element, "css");
-        let cx = find_attribute(element, "cx");
+        let cx = find_attribute(element, "cx").filter(|attribute| {
+            jsx_name(&element.opening_element.name)
+                .is_none_or(|name| !is_foreign_cx_attribute(name, attribute))
+        });
         if css.is_some() || cx.is_some() {
             let css_count = u32::from(
                 cx.is_some() && css.is_some() || css.is_some_and(css_attribute_allocates_class),
