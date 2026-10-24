@@ -287,7 +287,8 @@ export function cx(
  * Merge classNames from spread props with vindur-generated classNames
  */
 export function mergeClassNames(
-  spreadProps: (Record<string, unknown> | string)[],
+  // `className` props before a spread are passed as their value, which can be unset
+  spreadProps: (Record<string, unknown> | string | null | undefined | false)[],
   vindurClassName: string,
 ): string {
   let finalClassName = '';
@@ -296,7 +297,7 @@ export function mergeClassNames(
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       finalClassName = prop;
-    } else if (typeof prop === 'object' && 'className' in prop) {
+    } else if (prop && typeof prop === 'object' && 'className' in prop) {
       const className = prop.className;
       if (typeof className === 'string') {
         finalClassName = className;
@@ -304,7 +305,10 @@ export function mergeClassNames(
     }
   }
 
-  if (finalClassName) return `${finalClassName} ${vindurClassName}`;
+  if (finalClassName && vindurClassName) {
+    return `${finalClassName} ${vindurClassName}`;
+  }
+  if (finalClassName) return finalClassName;
 
   return vindurClassName;
 }
@@ -313,12 +317,12 @@ export function mergeClassNames(
  * Merge styles from spread props
  */
 export function mergeStyles(
-  spreadProps: Record<string, unknown>[],
+  spreadProps: (Record<string, unknown> | null | undefined)[],
 ): Record<string, unknown> {
   const mergedStyle: Record<string, unknown> = {};
 
   for (const prop of spreadProps) {
-    if (typeof prop === 'object' && 'style' in prop) {
+    if (prop && typeof prop === 'object' && 'style' in prop) {
       const style = prop.style;
       if (style && typeof style === 'object') {
         Object.assign(mergedStyle, style);

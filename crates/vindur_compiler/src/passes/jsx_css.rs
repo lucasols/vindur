@@ -11,6 +11,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     css::clean_css,
+    dynamic_color_merge::{ClassPart, DynamicColorClasses},
     jsx_cx::CxElementTransform,
     scoped::process_scoped_variables,
     static_evaluation::resolved_constant,
@@ -33,6 +34,7 @@ pub(crate) struct JsxCssTransform<'a> {
     pub needs_merge_helper: &'a mut bool,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
     pub scoped_variables: &'a mut FxHashMap<String, String>,
+    pub dynamic_color_classes: &'a mut DynamicColorClasses,
 }
 
 pub(crate) fn transform_jsx_css_props(
@@ -132,6 +134,13 @@ impl JsxCssVisitor<'_> {
             };
             let styled = styled_component(element, self.output.styled_components);
             if is_custom_component(&element.opening_element.name) && styled.is_none() {
+                return;
+            }
+            if self.merge_into_dynamic_color(
+                element,
+                attribute,
+                vec![ClassPart::Expression(identifier.name.to_string())],
+            ) {
                 return;
             }
             if let Some(styled) = styled {
@@ -237,6 +246,12 @@ impl JsxCssVisitor<'_> {
             return;
         }
 
+        let mut dynamic_color_parts = vec![ClassPart::Literal(class_name.clone())];
+        dynamic_color_parts.extend(cx_transform.map(|cx| ClassPart::Expression(cx.call.clone())));
+        if self.merge_into_dynamic_color(element, attribute, dynamic_color_parts) {
+            return;
+        }
+
         let complete_class = component.map_or(class_name.clone(), |styled| {
             format!("{} {class_name}", styled.class_name)
         });
@@ -277,6 +292,29 @@ impl JsxCssVisitor<'_> {
                 ),
             });
         }
+    }
+
+    /// The dynamic color pass merges the classes into its `_sp` call, whose spread would
+    /// override a `className` prop
+    fn merge_into_dynamic_color(
+        &mut self,
+        element: &JSXElement<'_>,
+        attribute: &JSXAttribute<'_>,
+        parts: Vec<ClassPart>,
+    ) -> bool {
+        if find_attribute(element, "dynamicColor").is_none() {
+            return false;
+        }
+        self.output
+            .dynamic_color_classes
+            .entry(element.span.start)
+            .or_default()
+            .extend(parts);
+        self.output.edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        true
     }
 
     fn merge_class_attribute(&mut self, attribute: &JSXAttribute<'_>, class_name: &str) {

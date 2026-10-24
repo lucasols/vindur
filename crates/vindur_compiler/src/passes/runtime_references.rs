@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Expression, IdentifierReference, JSXAttribute, JSXAttributeName, Program, TSTypeQuery,
-    TaggedTemplateExpression,
+    Expression, IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue,
+    JSXExpression, Program, TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet;
 use crate::semantic::VindurImports;
 
 /// Top level bindings referenced in code that stays at runtime. References in vindur
-/// templates and css props are compiled away, `.attrs({})` values are kept at runtime.
+/// templates and css prop templates are compiled away, `.attrs({})` values are kept at runtime.
 /// E.g. an imported dynamic color only used in templates doesn't need its import,
 /// one used by a `dynamicColor` prop or `setProps` call does.
 pub(super) fn runtime_referenced_names(
@@ -46,8 +46,15 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_> {
     }
 
     fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
-        // The css prop template is compiled away like vindur templates
-        if !matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css") {
+        // The css prop template is compiled away like vindur templates, other values are
+        // kept, e.g. `<Custom css={themeColor.var} />`
+        let is_css_template = matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
+            && matches!(
+                &attribute.value,
+                Some(JSXAttributeValue::ExpressionContainer(container))
+                    if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+            );
+        if !is_css_template {
             walk::walk_jsx_attribute(self, attribute);
         }
     }

@@ -9,7 +9,11 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    dynamic_color_merge::{ClassPart, DynamicColorClasses},
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct CxElementTransform {
@@ -33,6 +37,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_cx_helper: &'a mut bool,
+    pub dynamic_color_classes: &'a mut DynamicColorClasses,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -242,6 +247,18 @@ impl JsxCxVisitor<'_> {
                     css_index,
                 },
             );
+            self.output.edits.push(Edit {
+                span: attribute.span,
+                replacement: String::new(),
+            });
+            return;
+        }
+        if find_attribute(element, "dynamicColor").is_some() {
+            self.output
+                .dynamic_color_classes
+                .entry(element.span.start)
+                .or_default()
+                .push(ClassPart::Expression(cx_call));
             self.output.edits.push(Edit {
                 span: attribute.span,
                 replacement: String::new(),

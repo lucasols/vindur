@@ -1243,11 +1243,11 @@ The generated css will be optimized with the values of the colors:
   color: #fff;
 
   &:hover {
-    background: #0056b3;
+    background: #006fe6;
   }
 
   &:active {
-    background: #0056b380;
+    background: #007bffcc;
   }
 }
 ```
@@ -1260,11 +1260,11 @@ In dev mode, the output will show the color name for easier debugging:
   color: var(--stc-primary-contrast-var, #fff);
 
   &:hover {
-    background: var(--stc-primary-darker-0\.1, #0056b3);
+    background: var(--stc-primary-darker-0\.1, #006fe6);
   }
 
   &:active {
-    background: var(--stc-primary-alpha-0\.8, #0056b380);
+    background: var(--stc-primary-alpha-0\.8, #007bffcc);
   }
 }
 ```

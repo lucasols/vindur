@@ -19,6 +19,7 @@ use super::{
     cx_optimize::optimize_cx_calls,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
+    dynamic_color_merge::DynamicColorClasses,
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
@@ -89,6 +90,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
+    let mut dynamic_color_classes = DynamicColorClasses::default();
     let mut scoped_variables = FxHashMap::default();
     let mut scoped_declaration_spans = FxHashMap::default();
     let mut warnings = Vec::new();
@@ -331,6 +333,7 @@ pub(crate) fn transform_program(
             elements: &mut cx_elements,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
+            dynamic_color_classes: &mut dynamic_color_classes,
         },
     )?;
 
@@ -351,6 +354,7 @@ pub(crate) fn transform_program(
             needs_merge_helper: &mut needs_merge_helper,
             cx_elements: &cx_elements,
             scoped_variables: &mut scoped_variables,
+            dynamic_color_classes: &mut dynamic_color_classes,
         },
     )?;
 
@@ -363,6 +367,7 @@ pub(crate) fn transform_program(
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,
             needs_merge_styles: &mut needs_merge_styles_helper,
+            generated_classes: &dynamic_color_classes,
             source,
             styled_components: &styled_components,
         },

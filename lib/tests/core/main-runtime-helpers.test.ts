@@ -268,6 +268,14 @@ describe('mergeClassNames', () => {
     );
     expect(result).toBe('valid-class vindur-class');
   });
+
+  test('should handle unset className values and empty vindur className', () => {
+    expect(mergeClassNames([undefined, { id: 'a' }], '')).toBe('');
+    expect(mergeClassNames(['fallback', { id: 'a' }], '')).toBe('fallback');
+    expect(mergeClassNames(['fallback', { className: 'spread' }], 'v')).toBe(
+      'spread v',
+    );
+  });
 });
 
 describe('mergeStyles', () => {

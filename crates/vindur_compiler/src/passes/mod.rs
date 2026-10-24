@@ -4,6 +4,7 @@ mod css_warnings;
 mod cx_optimize;
 mod direct;
 mod dynamic_color;
+mod dynamic_color_merge;
 mod dynamic_color_value;
 mod function_evaluation;
 mod function_validation;

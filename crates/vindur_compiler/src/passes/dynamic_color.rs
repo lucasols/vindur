@@ -7,9 +7,19 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{
+    CompilerDiagnostic,
+    edit::{Edit, take_edited_source},
+    facts::StaticValue,
+};
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    dynamic_color_merge::{
+        ColorMerge, DynamicColorClasses, MergeOutput, SpreadSource, color_merge_object,
+    },
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+};
 
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
@@ -20,6 +30,7 @@ pub(super) struct DynamicColorTransform<'a> {
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub needs_merge_class_names: &'a mut bool,
     pub needs_merge_styles: &'a mut bool,
+    pub generated_classes: &'a DynamicColorClasses,
 }
 
 pub(super) fn transform_dynamic_color_props(
@@ -110,15 +121,25 @@ impl DynamicColorVisitor<'_> {
             }
         }
 
-        let base_class = component.map(|component| component.class_name.as_str());
+        let generated_classes = self
+            .output
+            .generated_classes
+            .get(&element.span.start)
+            .map_or(&[][..], Vec::as_slice);
         let merge = color_merge_object(
-            base_class,
-            class_attribute,
-            style_attribute,
-            &spreads,
-            self.output.source,
-            self.output.needs_merge_class_names,
-            self.output.needs_merge_styles,
+            &ColorMerge {
+                base_class: component.map(|component| component.class_name.as_str()),
+                generated_classes,
+                class_attribute,
+                style_attribute,
+                spreads: &spreads,
+            },
+            &mut MergeOutput {
+                source: self.output.source,
+                edits: self.output.edits,
+                needs_merge_class_names: self.output.needs_merge_class_names,
+                needs_merge_styles: self.output.needs_merge_styles,
+            },
         );
         let call = colors.iter().rev().fold(merge, |inner, color| {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
@@ -154,10 +175,11 @@ impl DynamicColorVisitor<'_> {
                 {
                     continue;
                 }
-                trailing_props.push(
-                    self.output.source[other.span.start as usize..other.span.end as usize]
-                        .to_owned(),
-                );
+                trailing_props.push(take_edited_source(
+                    self.output.source,
+                    other.span,
+                    self.output.edits,
+                ));
                 self.output.edits.push(Edit {
                     span: other.span,
                     replacement: String::new(),
@@ -293,78 +315,6 @@ struct ColorExpression {
     value: String,
 }
 
-fn color_merge_object(
-    base_class: Option<&str>,
-    class_attribute: Option<&JSXAttribute<'_>>,
-    style_attribute: Option<&JSXAttribute<'_>>,
-    spreads: &[SpreadSource],
-    source: &str,
-    needs_merge_class_names: &mut bool,
-    needs_merge_styles: &mut bool,
-) -> Option<String> {
-    let last_spread_start = spreads.last().map_or(0, |spread| spread.start);
-    let spread_names = spreads
-        .iter()
-        .map(|spread| spread.source.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let class_after_spreads = class_attribute
-        .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
-    let style_after_spreads = style_attribute
-        .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
-    let class_name = if !spreads.is_empty() && !class_after_spreads {
-        *needs_merge_class_names = true;
-        Some(format!(
-            "mergeClassNames([{}], {})",
-            spread_names,
-            base_class.map_or("undefined".to_owned(), |base| format!("\"{base}\""))
-        ))
-    } else {
-        match (base_class, class_attribute) {
-            (None, None) => None,
-            (Some(base), None) => Some(format!("\"{base}\"")),
-            (None, Some(attribute)) => Some(attribute_value_source(attribute, source)),
-            (Some(base), Some(attribute)) => match &attribute.value {
-                Some(JSXAttributeValue::StringLiteral(value)) => {
-                    Some(format!("\"{base} {}\"", value.value))
-                }
-                _ => Some(format!(
-                    "[\"{base}\", {}].filter(Boolean).join(\" \")",
-                    attribute_value_source(attribute, source)
-                )),
-            },
-        }
-    };
-    let style = if !spreads.is_empty() && !style_after_spreads {
-        *needs_merge_styles = true;
-        Some(format!("mergeStyles([{spread_names}])"))
-    } else {
-        style_attribute.map(|attribute| attribute_value_source(attribute, source))
-    };
-    if class_name.is_none() && style.is_none() {
-        return None;
-    }
-    let mut properties = Vec::new();
-    if let Some(class_name) = class_name {
-        properties.push(format!("className: {class_name}"));
-    }
-    if let Some(style) = style {
-        properties.push(format!("style: {style}"));
-    }
-    Some(format!("{{\n{},\n}}", properties.join(",\n")))
-}
-
-fn attribute_value_source(attribute: &JSXAttribute<'_>, source: &str) -> String {
-    match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
-        Some(JSXAttributeValue::ExpressionContainer(container)) => {
-            let span = container.expression.span();
-            source[span.start as usize..span.end as usize].to_owned()
-        }
-        _ => "undefined".to_owned(),
-    }
-}
-
 fn expression_source(value: &impl GetSpan, source: &str) -> String {
     let span = value.span();
     source[span.start as usize..span.end as usize].to_owned()
@@ -400,11 +350,6 @@ fn find_last_attribute<'a>(
             };
             (identifier.name.as_str() == name).then_some(&**attribute)
         })
-}
-
-struct SpreadSource {
-    source: String,
-    start: u32,
 }
 
 fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<SpreadSource> {

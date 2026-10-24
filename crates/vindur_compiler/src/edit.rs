@@ -28,6 +28,36 @@ pub(crate) fn expand_removal_to_line(source: &str, span: Span) -> Span {
     span
 }
 
+/// Returns the source of `span` with the edits inside it applied, and removes those edits.
+/// Used by passes that move an expression that earlier passes already edited, e.g. a
+/// `css` call inside a `className` value.
+pub(crate) fn take_edited_source(source: &str, span: Span, edits: &mut Vec<Edit>) -> String {
+    let mut nested = edits
+        .iter()
+        .filter(|edit| edit.span.start >= span.start && edit.span.end <= span.end)
+        .cloned()
+        .collect::<Vec<_>>();
+    nested.sort_unstable_by_key(|edit| (edit.span.start, edit.span.end));
+    let overlapping = nested
+        .windows(2)
+        .any(|pair| pair[1].span.start < pair[0].span.end);
+    let original = &source[span.start as usize..span.end as usize];
+    if overlapping {
+        // Left in place so `apply_edits` reports the overlap
+        return original.to_owned();
+    }
+    edits.retain(|edit| !(edit.span.start >= span.start && edit.span.end <= span.end));
+    let mut output = String::with_capacity(original.len());
+    let mut cursor = span.start as usize;
+    for edit in &nested {
+        output.push_str(&source[cursor..edit.span.start as usize]);
+        output.push_str(&edit.replacement);
+        cursor = edit.span.end as usize;
+    }
+    output.push_str(&source[cursor..span.end as usize]);
+    output
+}
+
 pub(crate) fn apply_edits(
     file_path: &str,
     source: &str,

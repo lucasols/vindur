@@ -66,7 +66,7 @@ pub(crate) fn evaluate_template(
             continue;
         };
         if let Some(diagnostic) =
-            invalid_dynamic_color_method_error(expression, constants, scoping, file_path, source)
+            invalid_color_method_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -361,7 +361,7 @@ fn invalid_layer_error(
     ))
 }
 
-fn invalid_dynamic_color_method_error(
+fn invalid_color_method_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -381,7 +381,10 @@ fn invalid_dynamic_color_method_error(
     let receiver = evaluate_expression(&callee.object, constants, scoping)?;
     if !matches!(
         receiver,
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
+        StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
     ) || matches!(
         call.arguments.as_slice(),
         [argument] if argument
