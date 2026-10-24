@@ -60,6 +60,13 @@ pnpm lint            # TypeScript + ESLint
 pnpm tsc             # TypeScript compilation check
 ```
 
+# Git and Publishing Workflow
+
+These are pre-approved, do them without asking the user for confirmation:
+
+- Always deliver changes through a pull request: create a branch from `main`, commit, push and open the PR with `gh pr create`. Never commit directly to `main`
+- Publish packages only from `main`, after the PR with the changes is merged: switch to an up-to-date `main` and run `pkg-manager publish <package-name> --type <patch|minor|major>` from the repo root, publishing only the affected packages in the order described in `RELEASING.md`
+
 # Architecture
 
 ## Core Transform Logic
