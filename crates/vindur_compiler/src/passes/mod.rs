@@ -14,6 +14,7 @@ mod import_analysis;
 mod interpolation_validation;
 mod jsx_css;
 mod jsx_cx;
+mod jsx_cx_css_references;
 mod scoped;
 mod scoped_idents;
 mod source_map;

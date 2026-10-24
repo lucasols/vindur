@@ -208,6 +208,13 @@ pub(super) fn is_named_attribute(attribute: &JSXAttribute<'_>, expected: &str) -
     name.name.as_str() == expected
 }
 
+pub(super) fn unsupported_spread_message(spread: &InvalidStyledSpread, used_in: &str) -> String {
+    format!(
+        "Unsupported spread expression \"{}\" used in {used_in}. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.",
+        format_spread_expression(&spread.source)
+    )
+}
+
 pub(super) fn format_spread_expression(source: &str) -> String {
     let source = source
         .trim()

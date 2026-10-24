@@ -19,7 +19,8 @@ use super::{
     styled::StyledComponent,
     styled_jsx_helpers::{
         class_name_concat_source, decode_jsx_entities, has_spread_attribute, js_string_literal,
-        merge_class_name_inputs, replace_modifier_selector, wrap_jsx_string,
+        merge_class_name_inputs, replace_modifier_selector, styled_spread_sources,
+        unsupported_spread_message, wrap_jsx_string,
     },
 };
 
@@ -276,6 +277,15 @@ impl JsxCssVisitor<'_> {
         let complete_expression =
             cx_transform.map(|cx| format!("\"{complete_class} \" + {}", cx.call));
         if has_spread_attribute(element) {
+            if let Err(spread) = styled_spread_sources(element, self.output.source) {
+                self.diagnostic = Some(CompilerDiagnostic::error(
+                    self.output.file_path,
+                    self.output.source,
+                    spread.span,
+                    unsupported_spread_message(&spread, "an element with vindur css or cx props"),
+                ));
+                return;
+            }
             let (inputs, replaced_attributes) = merge_class_name_inputs(
                 element,
                 self.output.source,

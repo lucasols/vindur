@@ -2,7 +2,7 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { expect, test } from 'vitest';
 import type { TransformWarning } from '../../src/custom-errors';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('should share cx modifier classes between different combinations of css references', async () => {
   const result = await transformWithFormat({
@@ -159,5 +159,126 @@ test('should guard explicit className values when merging styled components with
       />
     );
     "
+  `);
+});
+
+test('should throw when cx modifiers are used on a styled component with a css reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: blue;
+        \`;
+
+        const card = css\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        export const A = ({ on }: { on: boolean }) => (
+          <Box css={card} cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used on styled component "Box" with the css reference "card". Move the modifier styles into the styled component or use $-prefixed classes (e.g. $active).
+    loc: 14:12]
+  `);
+});
+
+test('should throw when cx modifiers are used with an imported css reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { card } from '#/styles';
+
+        export const A = ({ on }: { on: boolean }) => (
+          <div className={card} cx={{ active: on, $raw: on }} />
+        );
+      `,
+      overrideDefaultFs: createFsMock({
+        'styles.ts': dedent`
+          import { css } from 'vindur';
+
+          export const card = css\`
+            &.active {
+              color: red;
+            }
+          \`;
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the imported css reference "card", its styles are defined in another file. Use $-prefixed classes (e.g. $active) or define the modifier styles locally.
+    loc: 4:18]
+  `);
+});
+
+test('should allow $-prefixed cx classes with an imported css reference', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { card } from '#/styles';
+
+      export const A = ({ on }: { on: boolean }) => (
+        <div css={card} cx={{ $active: on }} />
+      );
+    `,
+    overrideDefaultFs: createFsMock({
+      'styles.ts': dedent`
+        import { css } from 'vindur';
+
+        export const card = css\`
+          &.active {
+            color: red;
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1s4vg6s-1-card " +
+          cx({
+            active: on,
+          })
+        }
+      />
+    );
+    "
+  `);
+});
+
+test('should throw for non-identifier spreads merged with css or cx props', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const A = ({ getProps }: { getProps: () => object }) => (
+          <div {...getProps()} css={\`color: red;\`} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unsupported spread expression "getProps()" used in an element with vindur css or cx props. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.
+    loc: 2:7]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const A = ({ on, props }: { on: boolean; props: object }) => (
+          <div {...(on && props)} cx={{ $active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unsupported spread expression "on && props" used in an element with vindur css or cx props. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.
+    loc: 2:7]
   `);
 });

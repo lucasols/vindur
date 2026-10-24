@@ -88,10 +88,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                     self.file_path,
                     self.source,
                     spread.span,
-                    format!(
-                        "Unsupported spread expression \"{}\" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.",
-                        format_spread_expression(&spread.source)
-                    ),
+                    unsupported_spread_message(&spread, "vindur styled component"),
                 ));
                 return;
             }

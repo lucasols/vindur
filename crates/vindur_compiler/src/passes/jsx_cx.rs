@@ -10,11 +10,15 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    static_evaluation::resolved_constant,
+    jsx_cx_css_references::{
+        class_name_is_css_reference, css_references, rewrite_class_rules, rewrite_css_references,
+        unsupported_css_reference_modifiers,
+    },
     styled::StyledComponent,
     styled_jsx_helpers::{
         class_name_concat_source, decode_jsx_entities, has_spread_attribute, is_class_rule,
-        js_string_literal, merge_class_name_inputs, replace_modifier_selector,
+        js_string_literal, merge_class_name_inputs, styled_spread_sources,
+        unsupported_spread_message,
     },
 };
 
@@ -117,8 +121,8 @@ impl JsxCxVisitor<'_> {
 
         let has_css_context = styled.is_some()
             || find_attribute(element, "css").is_some()
-            || self.class_name_is_css_reference(element);
-        let css_references = self.css_reference_names(element);
+            || class_name_is_css_reference(element, self.output.constants, self.output.scoping);
+        let css_references = css_references(element, self.output.constants, self.output.scoping);
         // Css reference rules are rewritten in place and can be combined in any way across
         // elements, so all of them share a single file-wide index per modifier name
         let context_key = match (&styled, css_references.is_empty()) {
@@ -187,6 +191,15 @@ impl JsxCxVisitor<'_> {
             properties.push(format!("\"{output_name}\": {value}"));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
+        if mappings
+            .iter()
+            .any(|(_, _, should_rewrite)| *should_rewrite)
+            && let Some((span, message)) =
+                unsupported_css_reference_modifiers(element_name, styled.is_some(), &css_references)
+        {
+            self.set_error(span, message);
+            return;
+        }
 
         if let Some(styled) = &styled {
             let conflicts = styled
@@ -241,7 +254,7 @@ impl JsxCxVisitor<'_> {
         if let Some(styled) = &styled {
             self.rewrite_styled_css(styled, &mappings);
         } else {
-            self.rewrite_css_references(&css_references, &mappings);
+            rewrite_css_references(self.output.css_rules, &css_references, &mappings);
         }
         let object_source = format!("{{\n{},\n}}", properties.join(",\n"));
         let cx_call = format!("cx({object_source})");
@@ -261,6 +274,13 @@ impl JsxCxVisitor<'_> {
             return;
         }
         if has_spread_attribute(element) {
+            if let Err(spread) = styled_spread_sources(element, self.output.source) {
+                self.set_error(
+                    spread.span,
+                    unsupported_spread_message(&spread, "an element with vindur css or cx props"),
+                );
+                return;
+            }
             let complete = styled.as_ref().map_or(cx_call.clone(), |component| {
                 format!("\"{} \" + {cx_call}", component.class_name)
             });
@@ -372,22 +392,6 @@ impl JsxCxVisitor<'_> {
             .collect()
     }
 
-    fn class_name_is_css_reference(&self, element: &JSXElement<'_>) -> bool {
-        let Some(attribute) = find_last_attribute(element, "className") else {
-            return false;
-        };
-        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            return false;
-        };
-        let JSXExpression::Identifier(identifier) = &container.expression else {
-            return false;
-        };
-        matches!(
-            resolved_constant(identifier, self.output.constants, self.output.scoping),
-            Some(StaticValue::CssClass { .. })
-        )
-    }
-
     fn rewrite_styled_css(
         &mut self,
         styled: &StyledComponent,
@@ -397,31 +401,6 @@ impl JsxCxVisitor<'_> {
             return;
         };
         rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings);
-    }
-
-    /// Class names of the `css` function references used in `className` or `css`
-    fn css_reference_names(&self, element: &JSXElement<'_>) -> Vec<String> {
-        ["className", "css"]
-            .into_iter()
-            .filter_map(|attribute_name| {
-                let attribute = find_last_attribute(element, attribute_name)?;
-                let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value
-                else {
-                    return None;
-                };
-                let JSXExpression::Identifier(identifier) = &container.expression else {
-                    return None;
-                };
-                match resolved_constant(identifier, self.output.constants, self.output.scoping) {
-                    Some(StaticValue::CssClass { name, .. }) => Some(name.clone()),
-                    _ => None,
-                }
-            })
-            .collect()
-    }
-
-    fn rewrite_css_references(&mut self, names: &[String], mappings: &[(String, String, bool)]) {
-        rewrite_class_rules(self.output.css_rules, names, mappings);
     }
 
     fn set_error(&mut self, span: oxc_span::Span, message: String) {
@@ -434,24 +413,6 @@ impl JsxCxVisitor<'_> {
     }
 }
 
-fn rewrite_class_rules(
-    css_rules: &mut [String],
-    class_names: &[String],
-    mappings: &[(String, String, bool)],
-) {
-    for rule in css_rules.iter_mut().filter(|rule| {
-        class_names
-            .iter()
-            .any(|class_name| is_class_rule(rule, class_name))
-    }) {
-        for (original, hashed, should_rewrite) in mappings {
-            if *should_rewrite {
-                *rule = replace_modifier_selector(rule, original, hashed);
-            }
-        }
-    }
-}
-
 fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
     element.opening_element.attributes.iter().find_map(|item| {
         let JSXAttributeItem::Attribute(attribute) = item else {
@@ -461,7 +422,7 @@ fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSX
     })
 }
 
-fn find_last_attribute<'a>(
+pub(super) fn find_last_attribute<'a>(
     element: &'a JSXElement<'a>,
     name: &str,
 ) -> Option<&'a JSXAttribute<'a>> {
