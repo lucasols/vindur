@@ -203,6 +203,39 @@ test('styled components from custom components with style and className', () => 
   );
 });
 
+test('styled components keep native cx values', () => {
+  const Dot = styled.circle`
+    fill: red;
+  `;
+
+  const circleElements = (
+    <>
+      <Dot
+        cx="50"
+        cy="50"
+        r="4"
+      />
+      <Dot cx={50} />
+      <Dot cx={{ active: true }} />
+    </>
+  );
+
+  function Pie({ className, cx }: { className?: string; cx?: string | number }) {
+    return <div className={className} />;
+  }
+
+  const StyledPie = styled(Pie)`
+    opacity: 0.5;
+  `;
+
+  const pieElements = (
+    <>
+      <StyledPie cx="50%" />
+      <StyledPie cx={{ active: true }} />
+    </>
+  );
+});
+
 test('styled components from custom components without className should not be supported', () => {
   function Component() {
     return <div />;

@@ -16,15 +16,32 @@ const SVG_CX_ELEMENTS: [&str; 3] = ["circle", "ellipse", "radialGradient"];
 
 // `cx` is only vindur's prop when it's an object, other values are regular
 // attributes on SVG elements (`<circle cx="50" />`) or props of custom components
-pub(super) fn is_foreign_cx_attribute(element_name: &str, attribute: &JSXAttribute<'_>) -> bool {
-    let is_object = matches!(
+pub(super) fn is_foreign_cx_attribute(
+    element: &JSXElementName<'_>,
+    attribute: &JSXAttribute<'_>,
+) -> bool {
+    // Member expression tags (`<R.Pie />`) are always custom components
+    let accepts_native_cx = jsx_name(element).is_none_or(|name| {
+        SVG_CX_ELEMENTS.contains(&name) || name.chars().next().is_some_and(char::is_uppercase)
+    });
+    accepts_native_cx && !is_object_attribute(attribute)
+}
+
+pub(super) fn is_foreign_styled_cx_attribute(
+    component: &StyledComponent,
+    attribute: &JSXAttribute<'_>,
+) -> bool {
+    let accepts_native_cx =
+        component.element_is_identifier || SVG_CX_ELEMENTS.contains(&component.element.as_str());
+    accepts_native_cx && !is_object_attribute(attribute)
+}
+
+fn is_object_attribute(attribute: &JSXAttribute<'_>) -> bool {
+    matches!(
         &attribute.value,
         Some(JSXAttributeValue::ExpressionContainer(container))
             if container.expression.as_expression().is_some_and(is_object_like)
-    );
-    !is_object
-        && (SVG_CX_ELEMENTS.contains(&element_name)
-            || element_name.chars().next().is_some_and(char::is_uppercase))
+    )
 }
 
 // Wrapped or conditional objects stay vindur's so they fail fast instead of
@@ -37,6 +54,10 @@ fn is_object_like(expression: &Expression<'_>) -> bool {
         }
         Expression::LogicalExpression(logical) => {
             is_object_like(&logical.left) || is_object_like(&logical.right)
+        }
+        Expression::AssignmentExpression(assignment) => is_object_like(&assignment.right),
+        Expression::SequenceExpression(sequence) => {
+            sequence.expressions.last().is_some_and(is_object_like)
         }
         _ => false,
     }
@@ -109,17 +130,21 @@ impl JsxCxVisitor<'_> {
         if let Some(index) = self.output.id_starts.get(&element.span.start) {
             *self.output.id_index = *index;
         }
-        let Some(element_name) = jsx_name(&element.opening_element.name) else {
-            return;
-        };
-        let styled = self.output.styled_components.get(element_name).cloned();
-        let rendered_element = styled
-            .as_ref()
-            .map_or(element_name, |component| component.element.as_str());
-        if is_foreign_cx_attribute(rendered_element, attribute) {
+        let name = &element.opening_element.name;
+        let styled = jsx_name(name)
+            .and_then(|name| self.output.styled_components.get(name))
+            .cloned();
+        let is_foreign = styled.as_ref().map_or_else(
+            || is_foreign_cx_attribute(name, attribute),
+            |component| is_foreign_styled_cx_attribute(component, attribute),
+        );
+        if is_foreign {
             return;
         }
-        let native = element_name.chars().next().is_some_and(char::is_lowercase);
+        let source = self.output.source;
+        let element_name = &source[name.span().start as usize..name.span().end as usize];
+        let native =
+            jsx_name(name).is_some_and(|name| name.chars().next().is_some_and(char::is_lowercase));
         if !native && styled.is_none() {
             self.set_error(
                 element.opening_element.span,

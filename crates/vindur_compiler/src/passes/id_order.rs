@@ -76,10 +76,8 @@ struct JsxFeatureVisitor {
 impl<'a> Visit<'a> for JsxFeatureVisitor {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
         let css = find_attribute(element, "css");
-        let cx = find_attribute(element, "cx").filter(|attribute| {
-            jsx_name(&element.opening_element.name)
-                .is_none_or(|name| !is_foreign_cx_attribute(name, attribute))
-        });
+        let cx = find_attribute(element, "cx")
+            .filter(|attribute| !is_foreign_cx_attribute(&element.opening_element.name, attribute));
         if css.is_some() || cx.is_some() {
             let css_count = u32::from(
                 cx.is_some() && css.is_some() || css.is_some_and(css_attribute_allocates_class),

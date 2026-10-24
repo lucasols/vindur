@@ -59,10 +59,22 @@ export interface VindurAttributes extends VindurClassNameBasedAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
+// A non-object `cx` stays the native attribute or component prop, eg. `<Dot cx="50" />` on a styled circle
+type WithVindurAttributes<
+  Props,
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  Props extends { cx?: infer NativeCx } ?
+    'cx' extends keyof Props ?
+      Omit<Props, 'cx'>
+        & Omit<Attributes, 'cx'> & { cx?: NativeCx | Attributes['cx'] }
+    : Props & Attributes
+  : Props & Attributes;
+
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 
 type StyledComponentProps<Tag extends IntrinsicElementType> =
-  JSX.IntrinsicElements[Tag] & VindurAttributes;
+  WithVindurAttributes<JSX.IntrinsicElements[Tag], VindurAttributes>;
 
 type ValidExtraProps = Record<string, string | boolean>;
 
@@ -72,7 +84,7 @@ type StyledComponent<
 > = FC<StyledComponentProps<Tag> & ExtraProps> & {
   withComponent<NewTag extends keyof JSX.IntrinsicElements>(
     tag: NewTag,
-  ): FC<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+  ): FC<StyledComponentProps<NewTag>>;
 
   withComponent<C extends ComponentType<any>>(component: C): C;
 };
@@ -106,9 +118,10 @@ type StyledFnReturn<T extends {}> = {
 type StyledFn = <T extends {}>(
   component: ComponentType<T>,
 ) => keyof VindurAttributes extends keyof T ? StyledFnReturn<T>
-: 'className' | 'style' extends keyof T ? StyledFnReturn<T & VindurAttributes>
+: 'className' | 'style' extends keyof T ?
+  StyledFnReturn<WithVindurAttributes<T, VindurAttributes>>
 : 'className' extends keyof T ?
-  StyledFnReturn<T & VindurClassNameBasedAttributes>
+  StyledFnReturn<WithVindurAttributes<T, VindurClassNameBasedAttributes>>
 : never;
 
 interface Styled extends StyledTags, StyledFn {}

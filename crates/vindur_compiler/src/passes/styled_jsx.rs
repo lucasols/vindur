@@ -6,7 +6,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit};
 
-use super::{jsx_cx::is_foreign_cx_attribute, styled::StyledComponent};
+use super::{
+    jsx_css::is_foreign_styled_css_attribute, jsx_cx::is_foreign_styled_cx_attribute,
+    styled::StyledComponent,
+};
 
 pub(crate) struct StyledJsxTransform<'a> {
     pub components: &'a FxHashMap<String, StyledComponent>,
@@ -112,8 +115,15 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                     return false;
                 };
                 match name.name.as_str() {
-                    "cx" => !is_foreign_cx_attribute(&component.element, attribute),
-                    "css" => css_attribute_is_compile_time(attribute, self.constants, self.scoping),
+                    "cx" => !is_foreign_styled_cx_attribute(component, attribute),
+                    "css" => {
+                        !is_foreign_styled_css_attribute(component, attribute)
+                            && css_attribute_is_compile_time(
+                                attribute,
+                                self.constants,
+                                self.scoping,
+                            )
+                    }
                     _ => false,
                 }
             });

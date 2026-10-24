@@ -140,10 +140,11 @@ impl JsxCssVisitor<'_> {
 
     fn process_css_attribute(&mut self, element: &JSXElement<'_>, attribute: &JSXAttribute<'_>) {
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            // A string `css` on a custom component is that component's own prop
-            if is_custom_component(&element.opening_element.name)
-                && styled_component(element, self.output.styled_components).is_none()
-            {
+            let is_foreign = styled_component(element, self.output.styled_components).map_or_else(
+                || is_custom_component(&element.opening_element.name),
+                |styled| is_foreign_styled_css_attribute(styled, attribute),
+            );
+            if is_foreign {
                 return;
             }
             self.invalid_value(attribute.span);
@@ -402,6 +403,18 @@ fn styled_component<'a>(
         JSXElementName::IdentifierReference(identifier) => components.get(identifier.name.as_str()),
         _ => None,
     }
+}
+
+// A string `css` on a custom component is that component's own prop
+pub(super) fn is_foreign_styled_css_attribute(
+    component: &StyledComponent,
+    attribute: &JSXAttribute<'_>,
+) -> bool {
+    component.element_is_identifier
+        && !matches!(
+            attribute.value,
+            Some(JSXAttributeValue::ExpressionContainer(_))
+        )
 }
 
 fn is_custom_component(name: &JSXElementName<'_>) -> bool {

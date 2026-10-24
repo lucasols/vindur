@@ -120,6 +120,7 @@ test('should keep the native cx attribute of styled svg elements', async () => {
     source: dedent`
       import { styled } from 'vindur'
       import { Pie } from 'recharts'
+      import { motion } from 'motion/react'
 
       const Dot = styled.circle\`
         fill: red;
@@ -129,10 +130,15 @@ test('should keep the native cx attribute of styled svg elements', async () => {
         opacity: 0.5;
       \`
 
+      const Ring = styled(motion.circle)\`
+        stroke: red;
+      \`
+
       export const Chart = () => (
         <svg>
           <Dot cx="50" cy="50" r="4" />
-          <StyledPie cx="50%" />
+          <StyledPie cx="50%" css="pie" />
+          <Ring cx={50} />
         </svg>
       )
     `,
@@ -140,10 +146,12 @@ test('should keep the native cx attribute of styled svg elements', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { Pie } from "recharts";
+    import { motion } from "motion/react";
     export const Chart = () => (
       <svg>
         <circle cx="50" cy="50" r="4" className="v1560qbr-1-Dot" />
-        <Pie cx="50%" className="v1560qbr-2-StyledPie" />
+        <Pie cx="50%" css="pie" className="v1560qbr-2-StyledPie" />
+        <motion.circle cx={50} className="v1560qbr-3-Ring" />
       </svg>
     );
     "
@@ -176,16 +184,48 @@ test('should still throw for wrapped or conditional cx objects on svg elements',
     [TransformError: /test.tsx: cx prop only accepts object expressions
     loc: 2:14]
   `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const Dot = ({ active }: { active: boolean }) => (
+          <circle cx={(track(), { $active: active })} r="2" />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop only accepts object expressions
+    loc: 2:14]
+  `);
+});
+
+test('should throw for cx objects on member expression components', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import * as R from 'recharts'
+
+        export const Chart = ({ active }: { active: boolean }) => (
+          <R.Pie cx={{ active }} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop is not supported on custom component "R.Pie". The cx prop only works on native DOM elements (like div, span, button) and styled components.
+    loc: 4:2]
+  `);
 });
 
 test('should not allocate a class index for custom component cx with a string css prop', async () => {
   const result = await transformWithFormat({
     source: dedent`
+      import * as R from 'recharts'
       import { Pie } from 'recharts'
 
       export const Chart = () => (
         <>
           <Pie cx="50%" css="pie" />
+          <R.Pie cx="50%" css="pie" />
           <div css={\`color: blue;\`} />
         </>
       )
@@ -193,10 +233,12 @@ test('should not allocate a class index for custom component cx with a string cs
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { Pie } from "recharts";
+    "import * as R from "recharts";
+    import { Pie } from "recharts";
     export const Chart = () => (
       <>
         <Pie cx="50%" css="pie" />
+        <R.Pie cx="50%" css="pie" />
         <div className="v1560qbr-1-css-prop-1" />
       </>
     );
