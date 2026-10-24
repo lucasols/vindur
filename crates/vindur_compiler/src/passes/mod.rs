@@ -3,6 +3,7 @@ mod css;
 mod css_balance;
 mod css_syntax;
 mod css_validation;
+mod cx_key_warnings;
 mod cx_modifier_selectors;
 mod cx_optimize;
 mod cx_references;

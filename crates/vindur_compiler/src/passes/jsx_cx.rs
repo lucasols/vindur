@@ -16,6 +16,7 @@ use crate::{
 use super::{
     css::clean_css,
     css_syntax::CssError,
+    cx_key_warnings::CxKeyUsages,
     cx_modifier_selectors::{ModifierCss, element_class_names, rewrites_any},
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
@@ -70,6 +71,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
     pub helper_names: &'a RuntimeHelperNames,
+    pub key_usages: &'a mut CxKeyUsages,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -276,8 +278,13 @@ impl JsxCxVisitor<'_> {
             }
             let (output_name, should_rewrite_css) =
                 if let Some(unhashed) = class_name.strip_prefix('$') {
+                    self.output.key_usages.unhashed.insert(unhashed.to_owned());
                     (unhashed.to_owned(), false)
                 } else {
+                    self.output
+                        .key_usages
+                        .hashed
+                        .push((class_name.clone(), property.key.span()));
                     let key = format!("{context_key}:{class_name}");
                     let index = *self.class_indices.entry(key).or_insert_with(|| {
                         let index = *self.output.id_index;
