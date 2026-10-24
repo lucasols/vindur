@@ -263,6 +263,16 @@ test('styled components keep native cx values', () => {
     : 'required',
     'required'
   >('equal');
+
+  // only circle, ellipse and radialGradient keep a native cx
+  const Rect = styled.rect`
+    fill: red;
+  `;
+
+  expectTypesAre<
+    ComponentProps<typeof Rect>['cx'],
+    Record<string, unknown> | undefined
+  >('equal');
 });
 
 test('styled components from custom components without className should not be supported', () => {

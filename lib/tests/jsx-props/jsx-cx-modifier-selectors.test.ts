@@ -155,3 +155,70 @@ test('should rewrite every cx modifier class of compound selectors', async () =>
     "
   `);
 });
+
+test('should rewrite cx modifier classes after attribute selectors and inside same element pseudo-classes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &[data-state="open"].active { color: red; }
+        &:not(.hidden).active { color: blue; }
+        &:is(.active, .hidden) { top: 0; }
+        &:not(.active .hidden) { left: 0; }
+        &:has(.active) { right: 0; }
+        &:hover.active\\:icon { z-index: 1; }
+        &::after { content: "&:hover.active"; }
+      \`;
+
+      function Component({ isActive, isHidden }) {
+        return <Box cx={{ active: isActive, hidden: isHidden }} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function Component({ isActive, isHidden }) {
+      return (
+        <div
+          className={
+            "v1560qbr-1-Box " +
+            cx({
+              "v1560qbr-2-active": isActive,
+              "v1560qbr-3-hidden": isHidden,
+            })
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      &[data-state="open"].v1560qbr-2-active {
+        color: red;
+      }
+      &:not(.v1560qbr-3-hidden).v1560qbr-2-active {
+        color: blue;
+      }
+      &:is(.v1560qbr-2-active, .v1560qbr-3-hidden) {
+        top: 0;
+      }
+      &:not(.active .hidden) {
+        left: 0;
+      }
+      &:has(.active) {
+        right: 0;
+      }
+      &:hover.active\\:icon {
+        z-index: 1;
+      }
+      &::after {
+        content: "&:hover.active";
+      }
+    }
+    "
+  `);
+});

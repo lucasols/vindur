@@ -22,7 +22,8 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_resolved_import_edits, collect_vindur_imports,
+        collect_resolved_import_edits, collect_vindur_imports, has_named_vindur_import,
+        runtime_helper_conflict, vindur_import_quote,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
@@ -396,6 +397,16 @@ pub(crate) fn transform_program(
         runtime_helpers.push("mergeStyles");
     }
     runtime_helpers.retain(|helper| !has_named_vindur_import(program, helper));
+    if let Some((helper, span)) = runtime_helper_conflict(scoping, &runtime_helpers) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            format!(
+                "\"{helper}\" is already declared in this file, but vindur needs to import its \"{helper}\" helper. Rename it or import \"{helper}\" from 'vindur'"
+            ),
+        ));
+    }
     if !runtime_helpers.is_empty() {
         let quote = vindur_import_quote(program, source);
         edits.push(Edit {
@@ -407,7 +418,7 @@ pub(crate) fn transform_program(
         });
     }
 
-    optimize_cx_calls(program, source, &mut edits, needs_cx_helper);
+    optimize_cx_calls(program, scoping, source, &mut edits, needs_cx_helper);
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
@@ -451,49 +462,6 @@ pub(crate) fn transform_program(
         facts,
         warnings,
         css_source_offsets: css_template_offsets(program, &imports),
-    })
-}
-
-fn vindur_import_quote(program: &Program<'_>, source: &str) -> char {
-    program
-        .body
-        .iter()
-        .find_map(|statement| {
-            let Statement::ImportDeclaration(import) = statement else {
-                return None;
-            };
-            if import.source.value.as_str() != "vindur" {
-                return None;
-            }
-            source
-                .as_bytes()
-                .get(import.source.span.start as usize)
-                .copied()
-                .map(char::from)
-        })
-        .filter(|quote| matches!(quote, '\'' | '"'))
-        .unwrap_or('"')
-}
-
-fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
-    program.body.iter().any(|statement| {
-        let Statement::ImportDeclaration(import) = statement else {
-            return false;
-        };
-        if import.source.value.as_str() != "vindur" {
-            return false;
-        }
-        import.specifiers.as_ref().is_some_and(|specifiers| {
-            specifiers.iter().any(|specifier| {
-                let oxc_ast::ast::ImportDeclarationSpecifier::ImportSpecifier(specifier) =
-                    specifier
-                else {
-                    return false;
-                };
-                // An aliased import doesn't bind the name generated code calls
-                specifier.imported.name().as_str() == name && specifier.local.name.as_str() == name
-            })
-        })
     })
 }
 

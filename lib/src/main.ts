@@ -78,8 +78,15 @@ type WithVindurAttributes<
 
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 
+// The compiler only keeps a native, non-object `cx` on these elements
+type NativeCxTag = 'circle' | 'ellipse' | 'radialGradient';
+
 type StyledComponentProps<Tag extends IntrinsicElementType> =
-  WithVindurAttributes<JSX.IntrinsicElements[Tag], VindurAttributes>;
+  Tag extends NativeCxTag ?
+    WithVindurAttributes<JSX.IntrinsicElements[Tag], VindurAttributes>
+  : 'cx' extends keyof JSX.IntrinsicElements[Tag] ?
+    Omit<JSX.IntrinsicElements[Tag], 'cx'> & VindurAttributes
+  : JSX.IntrinsicElements[Tag] & VindurAttributes;
 
 type ValidExtraProps = Record<string, string | boolean>;
 
@@ -337,13 +344,11 @@ export function mergeClassNames(
 /**
  * Merge styles from spread props
  */
-export function mergeStyles(
-  spreadProps: Record<string, unknown>[],
-): Record<string, unknown> {
+export function mergeStyles(spreadProps: unknown[]): Record<string, unknown> {
   const mergedStyle: Record<string, unknown> = {};
 
   for (const prop of spreadProps) {
-    if (typeof prop === 'object' && 'style' in prop) {
+    if (typeof prop === 'object' && prop !== null && 'style' in prop) {
       const style = prop.style;
       if (style && typeof style === 'object') {
         Object.assign(mergedStyle, style);

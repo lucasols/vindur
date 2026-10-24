@@ -388,7 +388,7 @@ test('should inject the cx helper when the user imports cx under an alias', asyn
       return (
         <circle
           className={[
-            classNames("base"),
+            "base",
             cx({
               active: active,
             }),
@@ -399,5 +399,43 @@ test('should inject the cx helper when the user imports cx under an alias', asyn
       );
     }
     "
+  `);
+});
+
+test('should keep the user cx import while it has references besides optimized calls', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { cx } from 'vindur';
+
+      const joinClasses = cx;
+      const base = cx('base');
+
+      export const Component = () => <div className={base} data-join={joinClasses} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const joinClasses = cx;
+    const base = "base";
+    export const Component = () => <div className={base} data-join={joinClasses} />;
+    "
+  `);
+});
+
+test('should throw when a local binding conflicts with an injected helper', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import cx from 'classnames';
+
+        export const Component = ({ active }) => (
+          <div className={cx('base')} cx={{ $active: active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "cx" is already declared in this file, but vindur needs to import its "cx" helper. Rename it or import "cx" from 'vindur'
+    loc: 1:7]
   `);
 });

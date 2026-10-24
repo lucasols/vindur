@@ -275,3 +275,37 @@ test('should keep css classes nested in a styled component className', async () 
     "
   `);
 });
+
+test('should keep css classes nested in a styled component template className', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+
+      const Button = styled.button\`
+        color: red;
+      \`;
+
+      function Component() {
+        return <Button className={\`extra \${css\`color: pink;\`}\`} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component() {
+      return <button className={\`v1560qbr-1-Button \${\`extra \${"v1560qbr-2"}\`}\`} />;
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      color: red;
+    }
+
+    .v1560qbr-2 {
+      color: pink;
+    }
+    "
+  `);
+});

@@ -2,6 +2,7 @@ use oxc_ast::ast::{
     Argument, Expression, ImportDeclarationSpecifier, ObjectPropertyKind, Program, Statement,
 };
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::{Scoping, SymbolId};
 use oxc_span::GetSpan;
 use oxc_syntax::operator::LogicalOperator;
 
@@ -11,43 +12,76 @@ use super::import_analysis::is_compile_time_import;
 
 pub(crate) fn optimize_cx_calls(
     program: &Program<'_>,
+    scoping: &Scoping,
     source: &str,
     edits: &mut Vec<Edit>,
     needs_cx_helper: bool,
 ) {
+    let cx_symbols = vindur_cx_symbols(program);
     let mut visitor = CxCallVisitor {
+        scoping,
+        cx_symbols: &cx_symbols,
         source,
         edits,
-        found_calls: 0,
         optimized_calls: 0,
     };
     visitor.visit_program(program);
     // Generated code may still call the user's `cx` import, which suppressed
-    // injecting the runtime helper.
-    if !needs_cx_helper && visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls
-    {
+    // injecting the runtime helper. Any other reference, like `const join = cx`,
+    // also needs the import
+    let references = cx_symbols
+        .iter()
+        .map(|symbol| scoping.get_resolved_reference_ids(*symbol).len())
+        .sum::<usize>();
+    if !needs_cx_helper && references > 0 && references == visitor.optimized_calls {
         remove_cx_import(program, source, visitor.edits);
     }
 }
 
+fn vindur_cx_symbols(program: &Program<'_>) -> Vec<SymbolId> {
+    program
+        .body
+        .iter()
+        .filter_map(|statement| {
+            let Statement::ImportDeclaration(declaration) = statement else {
+                return None;
+            };
+            (declaration.source.value.as_str() == "vindur").then_some(declaration)
+        })
+        .flat_map(|declaration| declaration.specifiers.iter().flatten())
+        .filter_map(|specifier| {
+            let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
+                return None;
+            };
+            (specifier.imported.name().as_str() == "cx").then(|| specifier.local.symbol_id())
+        })
+        .collect()
+}
+
 struct CxCallVisitor<'a> {
+    scoping: &'a Scoping,
+    cx_symbols: &'a [SymbolId],
     source: &'a str,
     edits: &'a mut Vec<Edit>,
-    found_calls: usize,
     optimized_calls: usize,
 }
 
 impl<'a> Visit<'a> for CxCallVisitor<'_> {
     fn visit_call_expression(&mut self, call: &oxc_ast::ast::CallExpression<'a>) {
+        // Only calls of vindur's `cx`, a `cx` from another library may differ
         let Expression::Identifier(callee) = &call.callee else {
             walk::walk_call_expression(self, call);
             return;
         };
-        if callee.name.as_str() != "cx" {
+        let is_vindur_cx = self
+            .scoping
+            .get_reference(callee.reference_id())
+            .symbol_id()
+            .is_some_and(|symbol| self.cx_symbols.contains(&symbol));
+        if !is_vindur_cx {
             walk::walk_call_expression(self, call);
             return;
         }
-        self.found_calls += 1;
         if self.edits.iter().any(|edit| {
             edit.span.start <= call.span.start
                 && edit.span.end >= call.span.end

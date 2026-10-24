@@ -312,6 +312,12 @@ describe('mergeStyles', () => {
 
     expect(result).toEqual({});
   });
+
+  test('should skip nullish spread props', () => {
+    const result = mergeStyles([null, undefined, { style: { color: 'red' } }]);
+
+    expect(result).toEqual({ color: 'red' });
+  });
 });
 
 describe('createClassName', () => {

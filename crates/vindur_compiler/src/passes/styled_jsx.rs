@@ -222,15 +222,13 @@ impl StyledJsxVisitor<'_, '_, '_> {
             &attribute.value,
             Some(JSXAttributeValue::ExpressionContainer(container))
                 if matches!(&container.expression, oxc_ast::ast::JSXExpression::TemplateLiteral(_))
+        ) && let Some(edits) = wrap_attribute_expression(
+            attribute,
+            &format!("className={{`{} ${{", component.class_name),
+            "}`}",
         ) {
-            self.edits.push(Edit {
-                span: attribute.span,
-                replacement: format!(
-                    "className={{`{} ${{{}}}`}}",
-                    component.class_name,
-                    class_name_value_source(attribute, self.source)
-                ),
-            });
+            // Keeps edits other passes make inside the template, like a nested css``
+            self.edits.extend(edits);
         } else if let Some(edits) =
             wrap_class_expression(attribute, &format!("\"{}\"", component.class_name))
         {
