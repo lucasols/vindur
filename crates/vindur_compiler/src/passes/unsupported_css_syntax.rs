@@ -7,13 +7,14 @@ use crate::CompilerDiagnostic;
 const GLOBAL_SELECTOR: &str = ":global";
 const KEYFRAMES_AT_RULE: &str = "keyframes";
 // At-rules whose blocks can contain other rules like `@keyframes`
-const GROUPING_AT_RULES: [&str; 6] = [
+const GROUPING_AT_RULES: [&str; 7] = [
     "media",
     "supports",
     "layer",
     "container",
     "document",
     "scope",
+    "starting-style",
 ];
 
 pub(super) enum SegmentOrigin {
@@ -141,6 +142,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         let byte = bytes[index];
         if is_global_selector(rest)
             && !is_custom_property_value(css, prelude_start)
+            && !is_at_rule_prelude(css, prelude_start)
             && starts_rule_block(css, index)
         {
             return Some(UnsupportedSyntax {
@@ -174,6 +176,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             // Braces and semicolons inside parentheses are part of the prelude or
             // value, e.g. `@supports (--x: {a:b})`
             _ if paren_depth > 0 => {}
+            b'{' if is_custom_property_value(css, prelude_start) => {
+                index = custom_property_block_end(css, index);
+                continue;
+            }
             b'{' => {
                 blocks.push(block_kind(css, prelude_start));
                 prelude_start = None;
@@ -255,11 +261,46 @@ fn is_custom_property_value(css: &str, prelude_start: Option<usize>) -> bool {
     prelude_start.is_some_and(|start| css[start..].starts_with("--"))
 }
 
-fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
-    let Some((at_rule, name)) = prelude_start
+// Braces in custom property values are part of the value, so the whole
+// balanced block is skipped, e.g. `--x: { @keyframes y {} };`
+fn custom_property_block_end(css: &str, start: usize) -> usize {
+    let bytes = css.as_bytes();
+    let mut depth = 0_usize;
+    let mut index = start;
+    while index < bytes.len() {
+        if let Some(end) = skipped_token_end(css, index) {
+            index = end;
+            continue;
+        }
+        match bytes[index] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return index + 1;
+                }
+            }
+            _ => {}
+        }
+        index += css[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    css.len()
+}
+
+fn prelude_at_rule(css: &str, prelude_start: Option<usize>) -> Option<(&str, String)> {
+    prelude_start
         .filter(|start| css.as_bytes()[*start] == b'@')
         .and_then(|start| at_rule_name(&css[start..]))
-    else {
+}
+
+// At-rule preludes don't contain selectors, e.g. `@supports (--x:global)`,
+// except for `@scope`
+fn is_at_rule_prelude(css: &str, prelude_start: Option<usize>) -> bool {
+    prelude_at_rule(css, prelude_start).is_some_and(|(_, name)| name != "scope")
+}
+
+fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
+    let Some((at_rule, name)) = prelude_at_rule(css, prelude_start) else {
         return Block::Style;
     };
     if GROUPING_AT_RULES.contains(&name.as_str()) {
@@ -290,12 +331,13 @@ fn is_url_function(css: &str, index: usize) -> bool {
         && !css[..index].chars().next_back().is_some_and(is_ident_char)
 }
 
-// Quoted urls are skipped as strings, only unquoted ones need to be skipped here
+// Quoted urls are skipped as strings, so only the `url` name is skipped and
+// its parentheses are tracked as usual, unquoted ones are skipped entirely
 fn url_end(css: &str, start: usize) -> usize {
     let arguments_start = start + 4;
     let arguments = &css[arguments_start..];
     if arguments.trim_start().starts_with(['"', '\'']) {
-        return arguments_start;
+        return start + 3;
     }
     let mut index = arguments_start;
     while index < css.len() {
@@ -387,8 +429,53 @@ mod tests {
     }
 
     #[test]
-    fn ignores_global_in_custom_property_values_with_braces() {
+    fn ignores_braces_in_custom_property_values() {
         assert!(find_unsupported_syntax("--tokens: :global { color:red };", "css").is_none());
+        assert!(find_unsupported_syntax("--tokens: { :global { color:red; } };", "css").is_none());
+        assert!(find_unsupported_syntax("--x: { @keyframes y {} };", "css").is_none());
+        let css = "--x: { a: b }; :global(.a) & {}";
+        assert_eq!(
+            find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
+            css.find(":global")
+        );
+    }
+
+    #[test]
+    fn ignores_global_in_at_rule_preludes() {
+        assert!(
+            find_unsupported_syntax("@supports (--mode:global) { color: red; }", "css").is_none()
+        );
+        assert!(
+            find_unsupported_syntax("@container style(--scope:global) { color: red; }", "css")
+                .is_none()
+        );
+        assert_eq!(
+            find_unsupported_syntax("@scope (:global(.a)) { color: red; }", "css")
+                .map(|syntax| syntax.offset),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn allows_keyframes_in_starting_style() {
+        assert!(
+            find_unsupported_syntax(
+                "@starting-style { @keyframes fade { from { opacity: 0 } } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn tracks_parentheses_of_quoted_urls() {
+        assert!(
+            find_unsupported_syntax(
+                "@supports (--x: url(\"x\") {a:b}) { @keyframes fade { from {opacity:0;} } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
     }
 
     #[test]

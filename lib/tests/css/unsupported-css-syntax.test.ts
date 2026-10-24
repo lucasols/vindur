@@ -309,6 +309,10 @@ describe(':global', () => {
           --mode:var(--x,:global);
           font-family:global, Café;
           --x: @keyframes;
+
+          @supports (--mode:global) {
+            color: red;
+          }
         \`
       `,
     });
@@ -325,6 +329,10 @@ describe(':global', () => {
         --mode: var(--x, : global);
         font-family: global, Café;
         --x: @keyframes;
+
+        @supports (--mode: global) {
+          color: red;
+        }
       }
       "
     `);
@@ -358,7 +366,6 @@ describe(':global', () => {
       "
     `);
   });
-
 });
 
 describe('@keyframes inside templates', () => {

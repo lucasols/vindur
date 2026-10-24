@@ -673,7 +673,7 @@ const slideAnimation = keyframes`
 `;
 ```
 
-`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules.
+`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated.
 
 ### Scoped CSS Variables
 
