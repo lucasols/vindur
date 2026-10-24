@@ -26,7 +26,7 @@ In a local Inertia production-build benchmark (three alternating warm runs), the
 
 Vindur works with your existing build tools:
 
-- **Vite** - Built-in plugin support
+- **Vite** - Built-in plugin support (Vite 5 to 8)
 - More build tools coming soon
 
 ## ESLint Plugin
@@ -78,12 +78,28 @@ pnpm add -D @vindur-css/eslint-plugin
 ## Installation
 
 ```bash
-npm install vindur @vindur-css/vite
+npm install vindur @vindur-css/vite-plugin
 # or
-pnpm add vindur @vindur-css/vite
+pnpm add vindur @vindur-css/vite-plugin
 # or
-yarn add vindur @vindur-css/vite
+yarn add vindur @vindur-css/vite-plugin
 ```
+
+```ts
+// vite.config.ts
+import { vindurPlugin } from '@vindur-css/vite-plugin';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [
+    vindurPlugin({ importAliases: { '#src/': '/abs/path/to/src/' } }),
+    react({ compiler: true }),
+  ],
+});
+```
+
+The vindur transform runs before other `enforce: 'pre'` transforms (e.g. the React Compiler), so the compiler receives the vindur output regardless of plugin order.
 
 ## Quick Start
 
