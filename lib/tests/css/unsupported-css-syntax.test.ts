@@ -22,6 +22,25 @@ describe(':global', () => {
     `);
   });
 
+  test('should suggest createGlobalStyle for :global() selectors without &', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            :global(.ant-btn) {
+              margin: 0;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, use \`createGlobalStyle\` for styles that should apply outside this component, or remove the wrapper to scope them to it, e.g. \`:global(.ant-btn)\` -> \`.ant-btn\`
+      loc: 4:2]
+    `);
+  });
+
   test('should throw for :global blocks in styled components', async () => {
     await expect(
       transformWithFormat({
@@ -38,8 +57,27 @@ describe(':global', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      [TransformError: /test.tsx: \`:global\` blocks are not supported, plain class selectors are not hashed so move the nested rules out of the block, e.g. \`:global { .ant-btn {} }\` -> \`.ant-btn {}\`
       loc: 6:2]
+    `);
+  });
+
+  test('should throw for :global prefix selectors', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            :global .dark & {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 4:2]
     `);
   });
 
@@ -55,7 +93,7 @@ describe(':global', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      [TransformError: /test.tsx: \`:global\` is not supported, \`createGlobalStyle\` styles are already global so remove the wrapper, e.g. \`:global(body)\` -> \`body\`
       loc: 4:2]
     `);
   });

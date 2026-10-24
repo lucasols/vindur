@@ -66,7 +66,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         return Some(UnsupportedSyntax {
             offset,
             len: GLOBAL_SELECTOR.len(),
-            message: "`:global` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. `:global(.dark) &` -> `.dark &`".to_owned(),
+            message: global_selector_message(&css[offset..], tag_type).to_owned(),
         });
     }
 
@@ -87,6 +87,30 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             ),
         })
     })
+}
+
+// The suggested fix depends on which `:global` form was used and whether the
+// styles are meant to escape the component scope
+fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
+    let is_block = from_global[GLOBAL_SELECTOR.len()..]
+        .trim_start()
+        .starts_with('{');
+    if tag_type == "createGlobalStyle" {
+        return if is_block {
+            "`:global` blocks are not supported, `createGlobalStyle` styles are already global so move the nested rules out of the block"
+        } else {
+            "`:global` is not supported, `createGlobalStyle` styles are already global so remove the wrapper, e.g. `:global(body)` -> `body`"
+        };
+    }
+    if is_block {
+        return "`:global` blocks are not supported, plain class selectors are not hashed so move the nested rules out of the block, e.g. `:global { .ant-btn {} }` -> `.ant-btn {}`";
+    }
+    let selector_end = from_global.find(['{', ';']).unwrap_or(from_global.len());
+    if from_global[..selector_end].contains('&') {
+        "`:global` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. `:global(.dark) &` -> `.dark &`"
+    } else {
+        "`:global` is not supported, use `createGlobalStyle` for styles that should apply outside this component, or remove the wrapper to scope them to it, e.g. `:global(.ant-btn)` -> `.ant-btn`"
+    }
 }
 
 fn is_global_selector_end(css: &str, index: usize) -> bool {

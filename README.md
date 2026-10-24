@@ -883,7 +883,7 @@ createGlobalStyle`
 `;
 ```
 
-`:global(...)` is not supported and is a compile error. Class names written in templates are never hashed, so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`.
+`:global(...)` is not supported and is a compile error. Class names written in templates are never hashed, so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
 ### Mixins and Functions
 
