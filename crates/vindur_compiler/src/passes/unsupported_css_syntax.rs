@@ -7,7 +7,14 @@ use crate::CompilerDiagnostic;
 const GLOBAL_SELECTOR: &str = ":global";
 const KEYFRAMES_AT_RULE: &str = "keyframes";
 // At-rules whose blocks can contain other rules like `@keyframes`
-const GROUPING_AT_RULES: [&str; 5] = ["media", "supports", "layer", "container", "document"];
+const GROUPING_AT_RULES: [&str; 6] = [
+    "media",
+    "supports",
+    "layer",
+    "container",
+    "document",
+    "scope",
+];
 
 pub(super) enum SegmentOrigin {
     Quasi(Span),
@@ -132,14 +139,20 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         }
         let rest = &css[index..];
         let byte = bytes[index];
-        if is_global_selector(rest) && starts_rule_block(css, index) {
+        if is_global_selector(rest)
+            && !is_custom_property_value(css, prelude_start)
+            && starts_rule_block(css, index)
+        {
             return Some(UnsupportedSyntax {
                 offset: index,
                 len: GLOBAL_SELECTOR.len(),
                 message: global_selector_message(rest, tag_type).to_owned(),
             });
         }
+        // At-rules only start a statement, otherwise `@keyframes` is part of a
+        // declaration value like `--x: @keyframes;`
         if byte == b'@'
+            && prelude_start.is_none()
             && let Some((at_rule, name)) = at_rule_name(rest)
             && name == KEYFRAMES_AT_RULE
         {
@@ -202,8 +215,10 @@ fn escape_end(css: &str, start: usize) -> usize {
     start + 1 + css[start + 1..].chars().next().map_or(0, char::len_utf8)
 }
 
+// Pseudo-class names are case-insensitive
 fn is_global_selector(rest: &str) -> bool {
-    rest.starts_with(GLOBAL_SELECTOR)
+    rest.get(..GLOBAL_SELECTOR.len())
+        .is_some_and(|name| name.eq_ignore_ascii_case(GLOBAL_SELECTOR))
         && !rest[GLOBAL_SELECTOR.len()..]
             .chars()
             .next()
@@ -229,9 +244,15 @@ fn starts_rule_block(css: &str, start: usize) -> bool {
             b';' | b'}' => return false,
             _ => {}
         }
-        index += 1;
+        index += css[index..].chars().next().map_or(1, char::len_utf8);
     }
     false
+}
+
+// Custom property values can contain any tokens, including braces, e.g.
+// `--tokens: :global { a: b };`
+fn is_custom_property_value(css: &str, prelude_start: Option<usize>) -> bool {
+    prelude_start.is_some_and(|start| css[start..].starts_with("--"))
 }
 
 fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
@@ -354,6 +375,21 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::find_unsupported_syntax;
+
+    #[test]
+    fn handles_non_ascii_characters_after_global() {
+        assert_eq!(
+            find_unsupported_syntax(":global(.café) & { color: red; }", "css")
+                .map(|syntax| syntax.offset),
+            Some(0)
+        );
+        assert!(find_unsupported_syntax("font-family:global,微软雅黑;", "css").is_none());
+    }
+
+    #[test]
+    fn ignores_global_in_custom_property_values_with_braces() {
+        assert!(find_unsupported_syntax("--tokens: :global { color:red };", "css").is_none());
+    }
 
     #[test]
     fn skips_escaped_parentheses_in_unquoted_urls() {

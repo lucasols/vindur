@@ -260,7 +260,45 @@ describe(':global', () => {
     `);
   });
 
-  test('should ignore :global in declaration values', async () => {
+  test('should throw for :global with non ASCII characters', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            :global(.café) & {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for uppercase :GLOBAL', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            :GLOBAL(.dark) & {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should ignore :global and @keyframes in declaration values', async () => {
     const result = await transformWithFormat({
       source: dedent`
         import { css } from 'vindur'
@@ -269,6 +307,8 @@ describe(':global', () => {
           animation-name:global;
           font-family:global,Arial;
           --mode:var(--x,:global);
+          font-family:global, Café;
+          --x: @keyframes;
         \`
       `,
     });
@@ -283,6 +323,8 @@ describe(':global', () => {
         animation-name: global;
         font-family: global, Arial;
         --mode: var(--x, : global);
+        font-family: global, Café;
+        --x: @keyframes;
       }
       "
     `);
@@ -479,6 +521,10 @@ describe('@keyframes inside templates', () => {
           @supports (--theme: {color:red}) {
             @keyframes slide { from { opacity: 0; } }
           }
+
+          @scope (.box) {
+            @keyframes pop { from { opacity: 0; } }
+          }
         \`
       `,
     });
@@ -496,6 +542,14 @@ describe('@keyframes inside templates', () => {
 
       @supports (--theme: {color: red}) {
         @keyframes slide {
+          from {
+            opacity: 0;
+          }
+        }
+      }
+
+      @scope (.box) {
+        @keyframes pop {
           from {
             opacity: 0;
           }
