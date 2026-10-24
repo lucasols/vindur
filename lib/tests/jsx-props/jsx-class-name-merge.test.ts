@@ -452,26 +452,3 @@ test('should concat className expressions on styled components', async () => {
     "
   `);
 });
-
-test('should throw when dynamicColor is combined with className and the css prop', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { createDynamicCssColor } from 'vindur';
-
-        const color = createDynamicCssColor();
-
-        export const A = ({ className }: { className?: string }) => (
-          <div
-            className={className}
-            css={\`color: red;\`}
-            dynamicColor={color.set('#f00')}
-          />
-        );
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: dynamicColor prop cannot be combined with both className and css or cx props on the same element. Apply dynamicColor to a wrapper element or move the className into the css or cx props
-    loc: 9:4]
-  `);
-});

@@ -82,6 +82,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
+    let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let exported_names = collect_exported_names(program);
@@ -324,6 +325,7 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             elements: &mut cx_elements,
+            class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
@@ -346,6 +348,7 @@ pub(crate) fn transform_program(
             css_rules: &mut css_rules,
             needs_merge_helper: &mut needs_merge_helper,
             cx_elements: &cx_elements,
+            class_expressions: &mut class_expressions,
             scoped_variables: &mut scoped_variables,
         },
     )?;
@@ -362,6 +365,7 @@ pub(crate) fn transform_program(
             needs_merge_styles: &mut needs_merge_styles_helper,
             source,
             styled_components: &styled_components,
+            class_expressions: &class_expressions,
         },
     )?;
 

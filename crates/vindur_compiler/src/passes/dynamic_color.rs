@@ -17,8 +17,7 @@ use super::{
     static_evaluation::resolved_constant,
     styled::StyledComponent,
     styled_jsx_helpers::{
-        class_name_concat_source, css_attribute_is_compile_time, decode_jsx_entities,
-        js_string_literal,
+        class_name_concat_source, decode_jsx_entities, js_string_literal, merge_class_name_inputs,
     },
 };
 
@@ -32,6 +31,8 @@ pub(super) struct DynamicColorTransform<'a> {
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub needs_merge_class_names: &'a mut bool,
     pub needs_merge_styles: &'a mut bool,
+    /// Merged className expressions emitted by the css and cx prop passes, by element start
+    pub class_expressions: &'a FxHashMap<u32, String>,
 }
 
 pub(super) fn transform_dynamic_color_props(
@@ -87,18 +88,7 @@ impl DynamicColorVisitor<'_> {
         };
         let element_name = jsx_name(&element.opening_element.name);
         let component = element_name.and_then(|name| self.output.styled_components.get(name));
-        let is_native =
-            element_name.is_some_and(|name| name.chars().next().is_some_and(char::is_lowercase));
-        if (is_native || component.is_some())
-            && find_last_attribute(element, "className").is_some()
-            && self.has_compile_time_class_attribute(element)
-        {
-            self.error(
-                attribute.span,
-                "dynamicColor prop cannot be combined with both className and css or cx props on the same element. Apply dynamicColor to a wrapper element or move the className into the css or cx props".to_owned(),
-            );
-            return;
-        }
+        let class_expression = self.output.class_expressions.get(&element.span.start);
         if let Some(component) = component
             && !component.runtime
         {
@@ -118,6 +108,7 @@ impl DynamicColorVisitor<'_> {
         let style_attribute = find_last_attribute(element, "style");
         let spreads = spread_sources(element, self.output.source);
         let preserve_native_attributes = component.is_none()
+            && class_expression.is_none()
             && spreads.is_empty()
             && colors.iter().all(|color| {
                 matches!(
@@ -133,7 +124,10 @@ impl DynamicColorVisitor<'_> {
                 let JSXAttributeName::Identifier(name) = &other.name else {
                     continue;
                 };
-                if matches!(name.name.as_str(), "className" | "style") {
+                // The css and cx prop passes already removed the className attributes
+                if name.name.as_str() == "style"
+                    || (name.name.as_str() == "className" && class_expression.is_none())
+                {
                     self.output.edits.push(Edit {
                         span: other.span,
                         replacement: String::new(),
@@ -148,8 +142,21 @@ impl DynamicColorVisitor<'_> {
         {
             Some("{}".to_owned())
         } else {
+            let class_inputs = merge_class_name_inputs(
+                element,
+                self.output.source,
+                self.output.constants,
+                self.output.scoping,
+            )
+            .0;
             color_merge_object(
-                base_class,
+                class_expression.map_or(
+                    ClassNameSource::Attributes {
+                        base_class,
+                        class_inputs: &class_inputs,
+                    },
+                    |expression| ClassNameSource::Merged(expression),
+                ),
                 class_attribute,
                 style_attribute,
                 &spreads,
@@ -321,13 +328,6 @@ impl DynamicColorVisitor<'_> {
         }])
     }
 
-    fn has_compile_time_class_attribute(&self, element: &JSXElement<'_>) -> bool {
-        find_attribute(element, "cx").is_some()
-            || find_attribute(element, "css").is_some_and(|attribute| {
-                css_attribute_is_compile_time(attribute, self.output.constants, self.output.scoping)
-            })
-    }
-
     fn error(&mut self, span: oxc_span::Span, message: String) {
         self.diagnostic = Some(CompilerDiagnostic::error(
             self.output.file_path,
@@ -343,8 +343,18 @@ struct ColorExpression {
     value: String,
 }
 
+enum ClassNameSource<'a> {
+    /// Already merged by the css or cx prop passes
+    Merged(&'a str),
+    /// Built from the styled component class, className attributes and spreads
+    Attributes {
+        base_class: Option<&'a str>,
+        class_inputs: &'a [String],
+    },
+}
+
 fn color_merge_object(
-    base_class: Option<&str>,
+    class_source: ClassNameSource<'_>,
     class_attribute: Option<&JSXAttribute<'_>>,
     style_attribute: Option<&JSXAttribute<'_>>,
     spreads: &[SpreadSource],
@@ -362,15 +372,20 @@ fn color_merge_object(
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
     let style_after_spreads = style_attribute
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
-    let class_name = if !spreads.is_empty() && !class_after_spreads {
-        *needs_merge_class_names = true;
-        Some(format!(
-            "mergeClassNames([{}], {})",
-            spread_names,
-            base_class.map_or("\"\"".to_owned(), |base| format!("\"{base}\""))
-        ))
-    } else {
-        match (base_class, class_attribute) {
+    let class_name = match class_source {
+        ClassNameSource::Merged(expression) => Some(expression.to_owned()),
+        ClassNameSource::Attributes {
+            base_class,
+            class_inputs,
+        } if !spreads.is_empty() && !class_after_spreads => {
+            *needs_merge_class_names = true;
+            Some(format!(
+                "mergeClassNames([{}], {})",
+                class_inputs.join(", "),
+                base_class.map_or("\"\"".to_owned(), |base| format!("\"{base}\""))
+            ))
+        }
+        ClassNameSource::Attributes { base_class, .. } => match (base_class, class_attribute) {
             (None, None) => None,
             (Some(base), None) => Some(format!("\"{base}\"")),
             (None, Some(attribute)) => Some(sources.value(attribute)),
@@ -384,7 +399,7 @@ fn color_merge_object(
                     sources.class_name_concat(attribute)
                 )),
             },
-        }
+        },
     };
     let style = if !spreads.is_empty() && !style_after_spreads {
         *needs_merge_styles = true;

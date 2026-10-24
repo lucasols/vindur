@@ -16,9 +16,9 @@ use super::{
     },
     styled::StyledComponent,
     styled_jsx_helpers::{
-        class_name_concat_source, decode_jsx_entities, has_spread_attribute, is_class_rule,
-        js_string_literal, merge_class_name_inputs, styled_spread_sources,
-        unsupported_spread_message,
+        ClassNameTarget, class_name_concat_source, decode_jsx_entities, emit_class_name,
+        has_spread_attribute, is_class_rule, js_string_literal, merge_class_name_inputs,
+        styled_spread_sources, unsupported_spread_message,
     },
 };
 
@@ -42,6 +42,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
+    pub class_expressions: &'a mut FxHashMap<u32, String>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
@@ -302,29 +303,32 @@ impl JsxCxVisitor<'_> {
                 });
             }
             let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(
-                    " className={{mergeClassNames([{}], {complete})}}",
-                    inputs.join(", ")
-                ),
-            });
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Insert(offset),
+                format!("mergeClassNames([{}], {complete})", inputs.join(", ")),
+            );
             return;
         }
         if find_last_attribute(element, "className").is_none() {
             let class_name = styled.as_ref().map_or_else(
-                || format!("className={{{cx_call}}}"),
-                |component| format!("className={{\"{} \" + {cx_call}}}", component.class_name),
+                || cx_call.clone(),
+                |component| format!("\"{} \" + {cx_call}", component.class_name),
             );
             self.output.edits.push(Edit {
                 span: attribute.span,
                 replacement: String::new(),
             });
             let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" {class_name}"),
-            });
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Insert(offset),
+                class_name,
+            );
             return;
         }
         let replacement = match (styled.as_ref(), find_last_attribute(element, "className")) {
@@ -353,10 +357,13 @@ impl JsxCxVisitor<'_> {
                         format!("{existing} + \"{separator}\" + {cx_call}")
                     }
                 };
-                self.output.edits.push(Edit {
-                    span: class_attribute.span,
-                    replacement: format!("className={{{value}}}"),
-                });
+                emit_class_name(
+                    self.output.edits,
+                    self.output.class_expressions,
+                    element,
+                    ClassNameTarget::Replace(class_attribute.span),
+                    value,
+                );
                 String::new()
             }
         };

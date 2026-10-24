@@ -6,6 +6,8 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
+use crate::edit::Edit;
+
 use super::{
     static_evaluation::resolved_constant,
     styled::{StyleFlag, StyleFlagKind},
@@ -151,6 +153,50 @@ pub(super) fn has_spread_attribute(element: &JSXElement<'_>) -> bool {
         .attributes
         .iter()
         .any(|item| matches!(item, JSXAttributeItem::SpreadAttribute(_)))
+}
+
+pub(super) fn has_dynamic_color_attribute(element: &JSXElement<'_>) -> bool {
+    element.opening_element.attributes.iter().any(|item| {
+        matches!(item, JSXAttributeItem::Attribute(attribute) if is_named_attribute(attribute, "dynamicColor"))
+    })
+}
+
+pub(super) enum ClassNameTarget {
+    /// Replace an existing attribute with the merged className
+    Replace(oxc_span::Span),
+    /// Insert the merged className at an offset of the opening element
+    Insert(u32),
+}
+
+/// Emits the merged className expression of an element. Elements with a `dynamicColor` prop
+/// hand it to the dynamic color pass instead, which merges it into the `_sp` call
+pub(super) fn emit_class_name(
+    edits: &mut Vec<Edit>,
+    class_expressions: &mut FxHashMap<u32, String>,
+    element: &JSXElement<'_>,
+    target: ClassNameTarget,
+    expression: String,
+) {
+    if has_dynamic_color_attribute(element) {
+        if let ClassNameTarget::Replace(span) = target {
+            edits.push(Edit {
+                span,
+                replacement: String::new(),
+            });
+        }
+        class_expressions.insert(element.span.start, expression);
+        return;
+    }
+    edits.push(match target {
+        ClassNameTarget::Replace(span) => Edit {
+            span,
+            replacement: format!("className={{{expression}}}"),
+        },
+        ClassNameTarget::Insert(offset) => Edit {
+            span: oxc_span::Span::new(offset, offset),
+            replacement: format!(" className={{{expression}}}"),
+        },
+    });
 }
 
 pub(super) struct StyledSpread {

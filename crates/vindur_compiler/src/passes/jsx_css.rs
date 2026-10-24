@@ -18,7 +18,8 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
     styled_jsx_helpers::{
-        class_name_concat_source, decode_jsx_entities, has_spread_attribute, js_string_literal,
+        ClassNameTarget, class_name_concat_source, decode_jsx_entities, emit_class_name,
+        has_dynamic_color_attribute, has_spread_attribute, js_string_literal,
         merge_class_name_inputs, replace_modifier_selector, styled_spread_sources,
         unsupported_spread_message, wrap_jsx_string,
     },
@@ -38,6 +39,7 @@ pub(crate) struct JsxCssTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub needs_merge_helper: &'a mut bool,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
+    pub class_expressions: &'a mut FxHashMap<u32, String>,
     pub scoped_variables: &'a mut ScopedVariables,
 }
 
@@ -168,6 +170,7 @@ impl JsxCssVisitor<'_> {
                     && cx_transform.is_none()
                     && find_last_attribute(element, "className").is_none()
                     && !has_spread_attribute(element)
+                    && !has_dynamic_color_attribute(element)
                 {
                     let JSXAttributeName::Identifier(attribute_name) = &attribute.name else {
                         return;
@@ -300,16 +303,17 @@ impl JsxCssVisitor<'_> {
                 });
             }
             let insertion_offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(insertion_offset, insertion_offset),
-                replacement: format!(
-                    " className={{mergeClassNames([{}], {})}}",
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Insert(insertion_offset),
+                format!(
+                    "mergeClassNames([{}], {})",
                     inputs.join(", "),
-                    complete_expression
-                        .as_deref()
-                        .unwrap_or(&format!("\"{complete_class}\""))
+                    complete_expression.unwrap_or_else(|| js_string_literal(&complete_class))
                 ),
-            });
+            );
             return;
         }
         if let Some(class_attribute) = find_last_attribute(element, "className") {
@@ -318,30 +322,37 @@ impl JsxCssVisitor<'_> {
                 replacement: String::new(),
             });
             self.merge_class_attribute(
+                element,
                 class_attribute,
                 &complete_class,
                 cx_transform.map(|cx| cx.call.as_str()),
             );
-        } else {
+        } else if complete_expression.is_none() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
                 span: attribute.span,
-                replacement: complete_expression.map_or_else(
-                    || format!("className=\"{complete_class}\""),
-                    |expression| format!("className={{{expression}}}"),
-                ),
+                replacement: format!("className=\"{complete_class}\""),
             });
+        } else {
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Replace(attribute.span),
+                complete_expression.unwrap_or_else(|| js_string_literal(&complete_class)),
+            );
         }
     }
 
     fn merge_class_attribute(
         &mut self,
+        element: &JSXElement<'_>,
         attribute: &JSXAttribute<'_>,
         class_name: &str,
         cx_call: Option<&str>,
     ) {
-        if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
-            self.output.edits.push(cx_call.map_or_else(
-                || Edit {
+        let expression = if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
+            if cx_call.is_none() && !has_dynamic_color_attribute(element) {
+                self.output.edits.push(Edit {
                     span: value.span,
                     replacement: wrap_jsx_string(
                         value,
@@ -349,34 +360,38 @@ impl JsxCssVisitor<'_> {
                         "",
                         &format!(" {class_name}"),
                     ),
+                });
+                return;
+            }
+            let existing = decode_jsx_entities(&value.value);
+            cx_call.map_or_else(
+                || js_string_literal(&format!("{existing} {class_name}")),
+                |cx_call| {
+                    format!(
+                        "{} + {cx_call}",
+                        js_string_literal(&format!("{existing} {class_name} "))
+                    )
                 },
-                |cx_call| Edit {
-                    span: attribute.span,
-                    replacement: format!(
-                        "className={{{} + {cx_call}}}",
-                        js_string_literal(&format!(
-                            "{} {class_name} ",
-                            decode_jsx_entities(&value.value)
-                        ))
-                    ),
-                },
-            ));
-            return;
-        }
-        let existing = class_name_concat_source(
-            attribute,
-            self.output.source,
-            self.output.constants,
-            self.output.scoping,
+            )
+        } else {
+            let existing = class_name_concat_source(
+                attribute,
+                self.output.source,
+                self.output.constants,
+                self.output.scoping,
+            );
+            cx_call.map_or_else(
+                || format!("{existing} + \" {class_name}\""),
+                |cx_call| format!("{existing} + \" {class_name} \" + {cx_call}"),
+            )
+        };
+        emit_class_name(
+            self.output.edits,
+            self.output.class_expressions,
+            element,
+            ClassNameTarget::Replace(attribute.span),
+            expression,
         );
-        let replacement = cx_call.map_or_else(
-            || format!("className={{{existing} + \" {class_name}\"}}"),
-            |cx_call| format!("className={{{existing} + \" {class_name} \" + {cx_call}}}"),
-        );
-        self.output.edits.push(Edit {
-            span: attribute.span,
-            replacement,
-        });
     }
 
     fn invalid_value(&mut self, span: oxc_span::Span) {
