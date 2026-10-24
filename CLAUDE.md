@@ -97,6 +97,15 @@ The library centers around a Babel-based transform function in `lib/src/transfor
 
 - Use types instead of interfaces
 
+# Runtime performance
+
+Vindur is a compile-time library: work should happen at build time, not in the user's bundle.
+
+- Avoid adding runtime overhead to the generated code, prefer resolving values at compile time
+- Prefer the cheapest correct output, e.g. string concatenation (`(className || "") + " cls"`) over allocating helpers like `[a, b].filter(Boolean).join(" ")`
+- Only emit runtime guards or helper calls when the value can't be statically proven, e.g. skip guards for string literals and `css` constants
+- Reuse existing runtime helpers (e.g. `cx`) instead of emitting new wrappers around them
+
 # Plugin error handling
 
 - The plugin should be strict about errors in transform process, using the 'Fail Fast' approach, it should either be 100% successful or fail if a error or unexpected behavior, or unhandled case occurs, no fallback values or partial results should be returned. Only use warnings for optimization suggestions or such as removing unused code, etc.

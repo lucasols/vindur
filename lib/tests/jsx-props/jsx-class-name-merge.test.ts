@@ -23,15 +23,13 @@ test('should skip an undefined className prop when merging with the cx prop on s
     "import { cx } from "vindur";
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
-        className={[
-          className,
-          "v1560qbr-1-Box " +
-            cx({
-              "v1560qbr-2-disabled": !on,
-            }),
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={
+          (className || "") +
+          " v1560qbr-1-Box " +
+          cx({
+            "v1560qbr-2-disabled": !on,
+          })
+        }
       />
     );
     "
@@ -51,14 +49,13 @@ test('should skip an undefined className prop when merging with the cx prop on n
     "import { cx } from "vindur";
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
-        className={[
-          className,
+        className={
+          (className || "") +
+          " " +
           cx({
             disabled: !on,
-          }),
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          })
+        }
       />
     );
     "
@@ -78,15 +75,13 @@ test('should keep the cx prop when merging the css prop with a className express
     "import { cx } from "vindur";
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
-        className={[
-          className,
-          "v1560qbr-1-css-prop-1 " +
-            cx({
-              disabled: !on,
-            }),
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={
+          (className || "") +
+          " v1560qbr-1-css-prop-1 " +
+          cx({
+            disabled: !on,
+          })
+        }
       />
     );
     "

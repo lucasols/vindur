@@ -358,16 +358,15 @@ describe('imported file hash generation', () => {
       const styles = "v1560qbr-1-styles";
       const App = () => (
         <div
-          className={[
-            styles,
+          className={
+            styles +
+            " " +
             cx({
               "v1560qbr-2-active": true,
               "v1560qbr-3-loading": false,
               "v1560qbr-4-disabled": true,
-            }),
-          ]
-            .filter(Boolean)
-            .join(" ")}
+            })
+          }
         />
       );
       "
@@ -636,14 +635,13 @@ describe('imported file hash generation', () => {
       const containerStyles = "v1560qbr-4-containerStyles";
       const App = () => (
         <div
-          className={[
-            containerStyles,
+          className={
+            containerStyles +
+            " " +
             cx({
               "v1560qbr-5-active": true,
-            }),
-          ]
-            .filter(Boolean)
-            .join(" ")}
+            })
+          }
         >
           <button
             {...themeColor._sp("#red", {

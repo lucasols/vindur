@@ -17,7 +17,7 @@ use super::{
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
-    styled_jsx_helpers::class_name_value_source,
+    styled_jsx_helpers::{class_name_concat_source, class_name_value_source},
 };
 
 pub(crate) struct JsxCssTransform<'a> {
@@ -337,16 +337,24 @@ impl JsxCssVisitor<'_> {
             ));
             return;
         }
-        let existing = class_name_value_source(attribute, self.output.source);
-        let vindur_class_name = cx_call.map_or_else(
-            || format!("\"{class_name}\""),
-            |cx_call| format!("\"{class_name} \" + {cx_call}"),
+        let replacement = cx_call.map_or_else(
+            || {
+                let existing = class_name_value_source(attribute, self.output.source);
+                format!("className={{[{existing}, \"{class_name}\"].filter(Boolean).join(\" \")}}")
+            },
+            |cx_call| {
+                let existing = class_name_concat_source(
+                    attribute,
+                    self.output.source,
+                    self.output.constants,
+                    self.output.scoping,
+                );
+                format!("className={{{existing} + \" {class_name} \" + {cx_call}}}")
+            },
         );
         self.output.edits.push(Edit {
             span: attribute.span,
-            replacement: format!(
-                "className={{[{existing}, {vindur_class_name}].filter(Boolean).join(\" \")}}"
-            ),
+            replacement,
         });
     }
 

@@ -234,6 +234,35 @@ pub(super) fn class_name_value_source(
     }
 }
 
+/// Returns the existing className expression to be concatenated with vindur class names,
+/// guarding values that can be falsy at runtime, e.g. an optional `className` prop
+pub(super) fn class_name_concat_source(
+    attribute: &JSXAttribute<'_>,
+    source: &str,
+    constants: &FxHashMap<String, crate::facts::StaticValue>,
+    scoping: &Scoping,
+) -> String {
+    let value_source = class_name_value_source(attribute, source);
+    let is_static_string = match &attribute.value {
+        Some(JSXAttributeValue::ExpressionContainer(container)) => match &container.expression {
+            oxc_ast::ast::JSXExpression::Identifier(identifier) => matches!(
+                resolved_constant(identifier, constants, scoping),
+                Some(
+                    crate::facts::StaticValue::CssClass { .. }
+                        | crate::facts::StaticValue::String(_)
+                )
+            ),
+            _ => false,
+        },
+        _ => false,
+    };
+    if is_static_string {
+        value_source
+    } else {
+        format!("({value_source} || \"\")")
+    }
+}
+
 pub(super) fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
     let end = element.opening_element.span.end.saturating_sub(1);
     if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {

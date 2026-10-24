@@ -621,15 +621,14 @@ describe('JSX cx prop transformation', () => {
           function Component({ isFeatured, isCompact }) {
             return (
               <div
-                className={[
-                  cardStyles,
+                className={
+                  cardStyles +
+                  " " +
                   cx({
                     "v1560qbr-2-featured": isFeatured,
                     "v1560qbr-3-compact": isCompact,
-                  }),
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                  })
+                }
               >
                 Card content
               </div>

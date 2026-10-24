@@ -9,7 +9,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    static_evaluation::resolved_constant, styled::StyledComponent,
+    styled_jsx_helpers::class_name_concat_source,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct CxElementTransform {
@@ -296,12 +299,19 @@ impl JsxCxVisitor<'_> {
                         existing.trim_matches('"'),
                         component.class_name
                     ),
-                    // The existing class name can be undefined, e.g. an optional `className` prop
-                    (_, None) => format!("[{existing}, {cx_call}].filter(Boolean).join(\" \")"),
-                    (_, Some(component)) => format!(
-                        "[{existing}, \"{} \" + {cx_call}].filter(Boolean).join(\" \")",
-                        component.class_name
-                    ),
+                    (_, component) => {
+                        let existing = class_name_concat_source(
+                            class_attribute,
+                            self.output.source,
+                            self.output.constants,
+                            self.output.scoping,
+                        );
+                        let separator = component.map_or_else(
+                            || " ".to_owned(),
+                            |component| format!(" {} ", component.class_name),
+                        );
+                        format!("{existing} + \"{separator}\" + {cx_call}")
+                    }
                 };
                 self.output.edits.push(Edit {
                     span: class_attribute.span,
