@@ -12,7 +12,8 @@ use super::interpolation_validation::{
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
 };
-use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, unsupported_syntax_error};
+use super::template_css::{EvaluatedTemplate, validate_template_css};
+use super::unsupported_css_syntax::unsupported_syntax_error;
 
 pub(crate) struct TemplateContext<'a> {
     pub variable_name: Option<&'a str>,
@@ -42,6 +43,7 @@ pub(crate) fn collect_constants(
     constants
 }
 
+/// Evaluates a style template to CSS, the result is validated with the CSS parser
 pub(crate) fn evaluate_template(
     template: &TemplateLiteral<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -50,12 +52,50 @@ pub(crate) fn evaluate_template(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Result<String, CompilerDiagnostic> {
-    let mut output = String::new();
-    let mut segments = Vec::new();
+    let build = |forced_extension| {
+        build_template_css(
+            template,
+            constants,
+            scoping,
+            file_path,
+            source,
+            context,
+            forced_extension,
+        )
+    };
+    let evaluated = build(None)?;
+    if let Some(diagnostic) = unsupported_syntax_error(
+        &evaluated.css,
+        &evaluated.segments,
+        template.span,
+        context.tag_type,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
+    }
+    validate_template_css(&evaluated, template, file_path, source, context, |index| {
+        build(Some(index))
+    })?;
+    Ok(evaluated.css)
+}
+
+/// `forced_extension` evaluates the CSS class interpolation at that index as a style extension,
+/// as if it was followed by `;`
+fn build_template_css(
+    template: &TemplateLiteral<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+    context: &TemplateContext<'_>,
+    forced_extension: Option<usize>,
+) -> Result<EvaluatedTemplate, CompilerDiagnostic> {
+    let mut evaluated = EvaluatedTemplate::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
-        let quasi_start = output.len();
-        output.push_str(
+        let quasi_start = evaluated.css.len();
+        evaluated.css.push_str(
             quasi
                 .value
                 .cooked
@@ -63,10 +103,7 @@ pub(crate) fn evaluate_template(
                 .unwrap_or(&quasi.value.raw)
                 .as_str(),
         );
-        segments.push(TemplateSegment {
-            range: quasi_start..output.len(),
-            origin: SegmentOrigin::Quasi(quasi.span),
-        });
+        evaluated.map_quasi(quasi_start, quasi);
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
@@ -148,8 +185,12 @@ pub(crate) fn evaluate_template(
                 format!("Binary expression evaluation failed: {message}"),
             ));
         }
+        let expression_start = evaluated.css.len();
         if let Some(reference) = forward_styled_reference(expression) {
-            output.push_str(&format!("__VINDUR_STYLED_REF_{reference}__"));
+            evaluated
+                .css
+                .push_str(&format!("__VINDUR_STYLED_REF_{reference}__"));
+            evaluated.map_expression(expression_start, expression.span());
             continue;
         }
         let Some(value) = evaluate_expression(expression, constants, scoping) else {
@@ -163,7 +204,7 @@ pub(crate) fn evaluate_template(
         if matches!(value, StaticValue::LayerFunction) {
             return Err(interpolation_error(expression, file_path, source, context));
         }
-        let followed_by_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
+        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value
                 .cooked
                 .as_ref()
@@ -171,6 +212,11 @@ pub(crate) fn evaluate_template(
                 .trim_start()
                 .starts_with(';')
         });
+        let forced_semicolon = !has_semicolon && forced_extension == Some(index);
+        let followed_by_semicolon = has_semicolon || forced_semicolon;
+        if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
+            evaluated.selector_classes.push(index);
+        }
         let is_css_extension =
             matches!(value, StaticValue::CssClass { .. }) && followed_by_semicolon;
         let static_before_expression = quasi
@@ -181,10 +227,9 @@ pub(crate) fn evaluate_template(
             .trim()
             .trim_matches(';')
             .trim();
-        let expression_start = output.len();
         if is_css_extension && (previous_was_css_extension || !static_before_expression.is_empty())
         {
-            output.push('\n');
+            evaluated.css.push('\n');
         }
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
@@ -194,33 +239,28 @@ pub(crate) fn evaluate_template(
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
                 imported_function_preserves_boundary(expression, constants, scoping);
-            if preserves_boundary && !output.trim_end_matches([' ', '\t']).ends_with("\n\n") {
-                output.push('\n');
+            if preserves_boundary
+                && !evaluated
+                    .css
+                    .trim_end_matches([' ', '\t'])
+                    .ends_with("\n\n")
+            {
+                evaluated.css.push('\n');
             }
-            output.push_str(value.trim());
+            evaluated.css.push_str(value.trim());
             if value.contains(';') && !followed_by_semicolon && preserves_boundary {
-                output.push('\n');
+                evaluated.css.push('\n');
             }
         } else {
-            output.push_str(&value);
+            evaluated.css.push_str(&value);
         }
-        segments.push(TemplateSegment {
-            range: expression_start..output.len(),
-            origin: SegmentOrigin::Interpolation(expression.span()),
-        });
+        if forced_semicolon {
+            evaluated.css.push(';');
+        }
+        evaluated.map_expression(expression_start, expression.span());
         previous_was_css_extension = is_css_extension;
     }
-    if let Some(diagnostic) = unsupported_syntax_error(
-        &output,
-        &segments,
-        template.span,
-        context.tag_type,
-        file_path,
-        source,
-    ) {
-        return Err(diagnostic);
-    }
-    Ok(output)
+    Ok(evaluated)
 }
 
 fn binary_expression_error(

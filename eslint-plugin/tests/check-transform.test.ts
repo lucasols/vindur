@@ -220,7 +220,7 @@ describe('warning system - onWarning callback functionality', () => {
       `);
     });
 
-    test('should report warnings for css extensions missing trailing semicolons', async () => {
+    test('should report errors for css extensions missing trailing semicolons', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -262,14 +262,14 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
           loc: '5:5'
         "
       `);
     });
 
-    test('should report warnings for css extensions missing trailing semicolons before interpolated property values', async () => {
+    test('should report errors for css extensions missing trailing semicolons before interpolated property values', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -312,14 +312,14 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
           loc: '6:5'
         "
       `);
     });
 
-    test('should report warnings for css extensions followed by another interpolation before declarations', async () => {
+    test('should report errors for css extensions followed by another interpolation before declarations', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -366,14 +366,14 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
           loc: '5:5'
         "
       `);
     });
 
-    test('should report warnings for css tag extensions missing trailing semicolons', async () => {
+    test('should report errors for css tag extensions missing trailing semicolons', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -415,14 +415,14 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
           loc: '5:5'
         "
       `);
     });
 
-    test('should report warnings for css tag extensions followed by another interpolation before declarations', async () => {
+    test('should report errors for css tag extensions followed by another interpolation before declarations', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -469,14 +469,14 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
           loc: '5:5'
         "
       `);
     });
 
-    test('should report warnings for css tag extensions missing trailing semicolons before interpolated property values', async () => {
+    test('should report errors for css tag extensions missing trailing semicolons before interpolated property values', async () => {
       mockExistsSync.mockImplementation((path) => {
         return String(path).includes('/styles.ts');
       });
@@ -519,8 +519,8 @@ describe('warning system - onWarning callback functionality', () => {
 
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
-        - messageId: 'transformWarning'
-          msg: 'Possible missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
+        - messageId: 'transformError'
+          msg: 'Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.'
           loc: '6:5'
         "
       `);

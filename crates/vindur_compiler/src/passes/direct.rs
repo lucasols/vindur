@@ -8,6 +8,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::Vindur
 
 use super::{
     css::{clean_css, generate_class_rules},
+    css_syntax::css_error_diagnostic,
     scoped::process_scoped_variables,
     static_value::{TemplateContext, evaluate_template},
     styled::styled_tag_element,
@@ -93,20 +94,35 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
         };
         let generated_name = format!("{}-{}", self.output.file_hash, self.output.id_index);
         *self.output.id_index += 1;
-        let content = process_scoped_variables(
+        let rules = process_scoped_variables(
             &content,
             self.output.file_hash,
             self.output.dev,
             self.output.id_index,
             self.output.scoped_variables,
-        );
-        if !content.is_empty() {
-            let rules = if tag_name == "keyframes" {
-                vec![format!("@keyframes {generated_name} {{\n  {content}\n}}")]
+        )
+        .and_then(|content| {
+            if content.is_empty() {
+                Ok(Vec::new())
+            } else if tag_name == "keyframes" {
+                Ok(vec![format!(
+                    "@keyframes {generated_name} {{\n  {content}\n}}"
+                )])
             } else {
                 generate_class_rules(&generated_name, &content)
-            };
-            self.output.css_rules.extend(rules);
+            }
+        });
+        match rules {
+            Ok(rules) => self.output.css_rules.extend(rules),
+            Err(error) => {
+                self.diagnostic = Some(css_error_diagnostic(
+                    self.output.file_path,
+                    self.output.source,
+                    tagged.span,
+                    error,
+                ));
+                return;
+            }
         }
         self.output.edits.push(Edit {
             span: tagged.span,

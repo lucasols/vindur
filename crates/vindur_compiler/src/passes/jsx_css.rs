@@ -11,6 +11,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     css::clean_css,
+    css_syntax::css_error_diagnostic,
     jsx_cx::CxElementTransform,
     scoped::process_scoped_variables,
     static_evaluation::resolved_constant,
@@ -199,13 +200,24 @@ impl JsxCssVisitor<'_> {
                 } else {
                     format!("{}-{index}", self.output.file_hash)
                 };
-                let content = process_scoped_variables(
+                let content = match process_scoped_variables(
                     &content,
                     self.output.file_hash,
                     self.output.dev,
                     self.output.id_index,
                     self.output.scoped_variables,
-                );
+                ) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        self.diagnostic = Some(css_error_diagnostic(
+                            self.output.file_path,
+                            self.output.source,
+                            template.span,
+                            error,
+                        ));
+                        return;
+                    }
+                };
                 (name, Some(content))
             }
             expression => {

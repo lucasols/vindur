@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     css::clean_css,
-    css_warnings::css_extension_warnings,
+    css_syntax::css_error_diagnostic,
     cx_optimize::optimize_cx_calls,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -209,8 +209,11 @@ pub(crate) fn transform_program(
                         false,
                         &mut id_index,
                         &mut scoped_variables,
-                    );
-                    for name in declared_scoped_variable_names(&content) {
+                    )
+                    .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
+                    for name in declared_scoped_variable_names(&content).map_err(|error| {
+                        css_error_diagnostic(file_path, source, tagged.span, error)
+                    })? {
                         scoped_declaration_spans.entry(name).or_insert(tagged.span);
                     }
                     if !content.is_empty() {
@@ -246,7 +249,8 @@ pub(crate) fn transform_program(
                         options.dev,
                         &mut id_index,
                         &mut scoped_variables,
-                    );
+                    )
+                    .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(format!(".{generated_name} {{\n  {content}\n}}"));
                     }
@@ -375,12 +379,6 @@ pub(crate) fn transform_program(
             needs_merge_helper: &mut needs_merge_helper,
         },
     )?;
-
-    if options.dev {
-        warnings.extend(css_extension_warnings(
-            program, &constants, scoping, file_path, source,
-        ));
-    }
 
     let mut runtime_helpers = Vec::new();
     if needs_styled_helper {

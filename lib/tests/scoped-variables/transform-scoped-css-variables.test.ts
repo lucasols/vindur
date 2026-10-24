@@ -575,4 +575,40 @@ describe('scoped CSS variables', () => {
       "
     `);
   });
+
+  test('should ignore scoped variable names inside strings and comments', async () => {
+    const warnings: TransformWarning[] = [];
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---color: red;
+          /* ---old-color: blue; */
+          color: var(---color);
+
+          &::before {
+            content: "---color";
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(warnings).toHaveLength(0);
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        --v1560qbr-2-color: red;
+        /* ---old-color: blue; */
+        color: var(--v1560qbr-2-color);
+
+        &::before {
+          content: "---color";
+        }
+      }
+      "
+    `);
+  });
 });

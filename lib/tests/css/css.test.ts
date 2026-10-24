@@ -694,7 +694,7 @@ describe('corner cases', () => {
     `);
   });
 
-  test('should handle invalid css syntax gracefully', () => {
+  test('should throw error for invalid css syntax', () => {
     const source = dedent`
       import { css } from 'vindur'
 
@@ -705,24 +705,19 @@ describe('corner cases', () => {
       \`
     `;
 
-    const result = transform({
-      source,
-      fileAbsPath: '/src/invalid.ts',
-      fs: emptyFs,
-      transformFunctionCache: {},
-      transformDynamicColorCache: {},
-      importAliases,
-    });
-
-    expect(result.css).toMatchInlineSnapshot(`
-      ".vidwcaw-1 {
-        color: ;
-        font-size;
-        background: red blue green yellow orange;
-      }"
+    expect(() =>
+      transform({
+        source,
+        fileAbsPath: '/src/invalid.ts',
+        fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
+        importAliases,
+      }),
+    ).toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /src/invalid.ts: Invalid CSS at \`... style = css\`: expect token \`:\`, but found \`;\`
+      loc: 5:11]
     `);
-
-    expect(result.code).toMatchInlineSnapshot(`"const style = "vidwcaw-1";"`);
   });
 
   test('should handle very long css content', () => {

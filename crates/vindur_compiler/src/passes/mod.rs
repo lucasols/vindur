@@ -1,5 +1,5 @@
 mod css;
-mod css_warnings;
+mod css_syntax;
 mod cx_optimize;
 mod direct;
 mod dynamic_color;
@@ -21,6 +21,7 @@ mod style_flags;
 mod styled;
 mod styled_jsx;
 mod styled_jsx_helpers;
+mod template_css;
 mod theme_color;
 mod transform_support;
 mod unsupported_css_syntax;

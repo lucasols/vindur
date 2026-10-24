@@ -277,4 +277,57 @@ describe('CSS layers with layer() function', () => {
       "
     `);
   });
+
+  test('should ignore braces inside strings in layer blocks', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        const Card = styled.div\`
+          \${layer('base')} {
+            &::before {
+              content: "}";
+            }
+          }
+          color: red;
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base {
+        .v1560qbr-1-Card {
+          &::before {
+            content: "}";
+          }
+        }
+      }
+
+      .v1560qbr-1-Card {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should throw when layer() is used inside a nested rule', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled, layer } from 'vindur'
+
+          const Card = styled.div\`
+            &:hover {
+              \${layer('base')} {
+                color: red;
+              }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: layer() can only be used at the top level of a style block
+      loc: 3:13]
+    `);
+  });
 });

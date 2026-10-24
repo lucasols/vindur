@@ -54,32 +54,18 @@ pub(super) fn unsupported_syntax_error(
     source: &str,
 ) -> Option<CompilerDiagnostic> {
     let syntax = find_unsupported_syntax(css, tag_type)?;
-    let end = syntax.offset + syntax.len;
-    let segment_at = |offset: usize| {
-        segments
-            .iter()
-            .find(|segment| segment.range.contains(&offset))
-    };
-    let (Some(start_segment), Some(end_segment)) = (segment_at(syntax.offset), segment_at(end - 1))
-    else {
+    let Some((span, start_segment)) = template_source_span(
+        css,
+        source,
+        segments,
+        syntax.offset..syntax.offset + syntax.len,
+    ) else {
         return Some(CompilerDiagnostic::error(
             file_path,
             source,
             template_span,
             syntax.message,
         ));
-    };
-    let first = segment_source_span(
-        css,
-        source,
-        start_segment,
-        syntax.offset..end.min(start_segment.range.end),
-    );
-    let span = if std::ptr::eq(start_segment, end_segment) {
-        first
-    } else {
-        let last = segment_source_span(css, source, end_segment, end_segment.range.start..end);
-        Span::new(first.start, last.end)
     };
     let message = match start_segment.origin {
         SegmentOrigin::Interpolation(_) => {
@@ -88,6 +74,43 @@ pub(super) fn unsupported_syntax_error(
         SegmentOrigin::Quasi(_) => syntax.message,
     };
     Some(CompilerDiagnostic::error(file_path, source, span, message))
+}
+
+// Maps a non empty range of the evaluated template CSS to the source code that
+// produced it, along with the segment where the range starts
+pub(super) fn template_source_span<'a>(
+    css: &str,
+    source: &str,
+    segments: &'a [TemplateSegment],
+    range: Range<usize>,
+) -> Option<(Span, &'a TemplateSegment)> {
+    let segment_at = |offset: usize| {
+        segments
+            .iter()
+            .find(|segment| segment.range.contains(&offset))
+    };
+    if range.is_empty() {
+        return None;
+    }
+    let (Some(start_segment), Some(end_segment)) =
+        (segment_at(range.start), segment_at(range.end - 1))
+    else {
+        return None;
+    };
+    let first = segment_source_span(
+        css,
+        source,
+        start_segment,
+        range.start..range.end.min(start_segment.range.end),
+    );
+    let span = if std::ptr::eq(start_segment, end_segment) {
+        first
+    } else {
+        let last =
+            segment_source_span(css, source, end_segment, end_segment.range.start..range.end);
+        Span::new(first.start, last.end)
+    };
+    Some((span, start_segment))
 }
 
 // The evaluated quasi text can differ from the source (escapes are cooked and

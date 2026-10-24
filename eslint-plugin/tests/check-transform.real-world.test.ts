@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 describe('real-world regressions', () => {
-  test('should report warnings for real-world helper usage patterns from agent-eval', async () => {
+  test('should report errors for real-world helper usage patterns from agent-eval', async () => {
     mockExistsSync.mockImplementation((path) => {
       const pathStr = String(path);
       return pathStr.includes('/src/style/helpers.ts')
@@ -115,20 +115,14 @@ describe('real-world regressions', () => {
       getErrorsWithMsgFromResult({
         ...result,
         messages: result.messages.filter((message) =>
-          message.message.startsWith('Possible missing `;` after'),
+          message.message.startsWith('Missing `;` after'),
         ),
       }),
     ).toMatchInlineSnapshot(`
       "
-      - messageId: 'transformWarning'
-        msg: 'Possible missing \`;\` after \`\${kicker}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${kicker};\` when extending styles.'
+      - messageId: 'transformError'
+        msg: 'Missing \`;\` after \`\${kicker}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${kicker};\` when extending styles.'
         loc: '6:5'
-      - messageId: 'transformWarning'
-        msg: 'Possible missing \`;\` after \`\${centerContent}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${centerContent};\` when extending styles.'
-        loc: '11:5'
-      - messageId: 'transformWarning'
-        msg: 'Possible missing \`;\` after \`\${kicker}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${kicker};\` when extending styles.'
-        loc: '17:5'
       "
     `);
   });

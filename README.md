@@ -465,7 +465,7 @@ const Container = styled.div`
 
 ### CSS Style Extension
 
-Extend CSS styles from `css` function into styled components using semicolon extension:
+Extend CSS styles from `css` function into styled components using semicolon extension. Without the `;` the interpolation is used as a class selector, so a missing `;` before declarations fails the build with a hint:
 
 ```tsx
 import { css, styled } from 'vindur';

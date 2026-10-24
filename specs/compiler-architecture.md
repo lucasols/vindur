@@ -21,6 +21,7 @@ Keeping the compiler independent from the binding keeps the hot transform code s
 7. Non-overlapping source edits are applied in one batch.
 8. The compatibility normalizer reparses edited output before applying formatting-only edits while retaining untouched source trivia.
 9. Oxc template offsets are returned with generated CSS for source-map encoding.
+10. Evaluated style templates are parsed with `oxc-css-parser` (plain CSS syntax, parsing the template as a block's contents). Scoped CSS variables and `layer()` blocks are found in the CSS AST, so strings, comments and nested braces are never mistaken for CSS structure.
 
 The cache belongs to a long-lived compiler instance. Integrations should reuse their transform cache object and invalidate changed dependency paths, allowing unchanged imported functions, constants, objects, colors, keyframes, and CSS to avoid repeated analysis.
 
@@ -28,7 +29,7 @@ Oxc Transformer and Oxc Minifier are deliberately not part of Vindur. Vite owns 
 
 ## Failure model
 
-The pipeline is fail-fast. Parser and semantic diagnostics are converted directly from Oxc diagnostics; resolution, evaluation, or transform errors stop output generation and carry the nearest Oxc source span. Warnings are reserved for optimization and unused-style guidance.
+The pipeline is fail-fast. Parser and semantic diagnostics are converted directly from Oxc diagnostics; resolution, evaluation, or transform errors stop output generation and carry the nearest Oxc source span. Invalid CSS is a transform error located at the template position that produced it; when adding `;` after a CSS class interpolation would make the CSS valid, the error points to the missing `;`. Warnings are reserved for optimization and unused-style guidance.
 
 ## Compatibility testing
 

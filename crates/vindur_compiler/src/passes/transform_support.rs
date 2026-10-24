@@ -11,6 +11,7 @@ use crate::{
 
 use super::{
     css::{clean_css, generate_class_rules},
+    css_syntax::css_error_diagnostic,
     function_validation::validate_vindur_function,
     scoped::process_scoped_variables,
     static_value::{TemplateContext, evaluate_template},
@@ -202,14 +203,20 @@ pub(super) fn process_variable_declaration(
                 &content,
                 identifier.span,
                 transform.scoped_declaration_spans,
-            );
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             let content = process_scoped_variables(
                 &content,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
                 transform.scoped_variables,
-            );
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             let style_flags = if own_style_flags.is_empty() {
                 base_component.style_flags.clone()
             } else {
@@ -269,7 +276,16 @@ pub(super) fn process_variable_declaration(
             let content = rewrite_style_flag_selectors(&content, &style_flags);
             transform
                 .css_rules
-                .extend(generate_class_rules(&generated_name, &content));
+                .extend(
+                    generate_class_rules(&generated_name, &content).map_err(|error| {
+                        css_error_diagnostic(
+                            transform.file_path,
+                            transform.source,
+                            tagged.span,
+                            error,
+                        )
+                    })?,
+                );
             let complete_class_name = if base_component.class_name.is_empty() {
                 generated_name.clone()
             } else {
@@ -356,14 +372,20 @@ pub(super) fn process_variable_declaration(
                 &content,
                 identifier.span,
                 transform.scoped_declaration_spans,
-            );
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             let content = process_scoped_variables(
                 &content,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
                 transform.scoped_variables,
-            );
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             if !content.is_empty() {
                 transform.css_rules.push(content);
             }
@@ -407,19 +429,27 @@ pub(super) fn process_variable_declaration(
             &content,
             identifier.span,
             transform.scoped_declaration_spans,
-        );
+        )
+        .map_err(|error| {
+            css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+        })?;
         let content = process_scoped_variables(
             &content,
             transform.file_hash,
             transform.dev,
             transform.id_index,
             transform.scoped_variables,
-        );
+        )
+        .map_err(|error| {
+            css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+        })?;
         if !content.is_empty() {
             let rules = if tag_name == "keyframes" {
                 vec![format!("@keyframes {generated_name} {{\n  {content}\n}}")]
             } else {
-                generate_class_rules(&generated_name, &content)
+                generate_class_rules(&generated_name, &content).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
             };
             transform.css_rules.extend(rules);
         }
