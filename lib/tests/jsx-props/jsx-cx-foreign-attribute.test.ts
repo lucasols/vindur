@@ -245,3 +245,88 @@ test('should not allocate a class index for custom component cx with a string cs
     "
   `);
 });
+
+test('should apply cx classes of styled custom components with their own css prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Pie } from 'recharts'
+
+      const StyledPie = styled(Pie)\`
+        opacity: 0.5;
+
+        &.active {
+          opacity: 1;
+        }
+      \`
+
+      export const Chart = ({ active, label }: { active: boolean; label: string }) => (
+        <>
+          <StyledPie cx={{ active }} css="pie" />
+          <StyledPie cx={{ active }} css={label} />
+          <StyledPie cx={{ active }} css />
+          <div css={\`color: blue;\`} />
+        </>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    import { Pie } from "recharts";
+    export const Chart = ({
+      active,
+      label,
+    }: {
+      active: boolean;
+      label: string;
+    }) => (
+      <>
+        <Pie
+          css="pie"
+          className={
+            "v1560qbr-1-StyledPie " +
+            cx({
+              "v1560qbr-2-active": active,
+            })
+          }
+        />
+        <Pie
+          css={label}
+          className={
+            "v1560qbr-1-StyledPie " +
+            cx({
+              "v1560qbr-2-active": active,
+            })
+          }
+        />
+        <Pie
+          css
+          className={
+            "v1560qbr-1-StyledPie " +
+            cx({
+              "v1560qbr-2-active": active,
+            })
+          }
+        />
+        <div className="v1560qbr-4-css-prop-4" />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledPie {
+      opacity: 0.5;
+
+      &.v1560qbr-2-active {
+        opacity: 1;
+      }
+    }
+
+    .v1560qbr-4-css-prop-4 {
+      color: blue;
+    }
+    "
+  `);
+});

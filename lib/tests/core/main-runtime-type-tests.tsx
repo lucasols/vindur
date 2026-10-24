@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
- 
+
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
 import {
   forwardRef,
@@ -220,7 +220,13 @@ test('styled components keep native cx values', () => {
     </>
   );
 
-  function Pie({ className, cx }: { className?: string; cx?: string | number }) {
+  function Pie({
+    className,
+    cx,
+  }: {
+    className?: string;
+    cx?: string | number;
+  }) {
     return <div className={className} />;
   }
 
@@ -234,6 +240,29 @@ test('styled components keep native cx values', () => {
       <StyledPie cx={{ active: true }} />
     </>
   );
+
+  function Marker({ className, cx }: { className?: string; cx: number }) {
+    return (
+      <div
+        className={className}
+        data-cx={cx}
+      />
+    );
+  }
+
+  const StyledMarker = styled(Marker)`
+    opacity: 0.5;
+  `;
+
+  type MarkerProps = ComponentProps<typeof StyledMarker>;
+
+  expectTypesAre<MarkerProps['cx'], number | Record<string, unknown>>('equal');
+  expectTypesAre<
+    Partial<Pick<MarkerProps, 'cx'>> extends Pick<MarkerProps, 'cx'> ?
+      'optional'
+    : 'required',
+    'required'
+  >('equal');
 });
 
 test('styled components from custom components without className should not be supported', () => {

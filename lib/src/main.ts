@@ -64,12 +64,17 @@ type WithVindurAttributes<
   Props,
   Attributes extends VindurClassNameBasedAttributes,
 > =
-  Props extends { cx?: infer NativeCx } ?
+  Props extends unknown ?
     'cx' extends keyof Props ?
       Omit<Props, 'cx'>
-        & Omit<Attributes, 'cx'> & { cx?: NativeCx | Attributes['cx'] }
+        & Omit<Attributes, 'cx'> & {
+          // keeps a required `cx` required
+          [K in keyof Pick<Props, 'cx'>]:
+            | Props[K]
+            | NonNullable<Attributes['cx']>;
+        }
     : Props & Attributes
-  : Props & Attributes;
+  : never;
 
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 

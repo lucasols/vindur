@@ -139,14 +139,16 @@ impl JsxCssVisitor<'_> {
     }
 
     fn process_css_attribute(&mut self, element: &JSXElement<'_>, attribute: &JSXAttribute<'_>) {
+        if is_foreign_css_attribute(
+            element,
+            attribute,
+            self.output.styled_components,
+            self.output.constants,
+            self.output.scoping,
+        ) {
+            return;
+        }
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            let is_foreign = styled_component(element, self.output.styled_components).map_or_else(
-                || is_custom_component(&element.opening_element.name),
-                |styled| is_foreign_styled_css_attribute(styled, attribute),
-            );
-            if is_foreign {
-                return;
-            }
             self.invalid_value(attribute.span);
             return;
         };
@@ -154,17 +156,10 @@ impl JsxCssVisitor<'_> {
             let Some(StaticValue::CssClass { .. }) =
                 resolved_constant(identifier, self.output.constants, self.output.scoping)
             else {
-                if is_custom_component(&element.opening_element.name) {
-                    return;
-                }
                 self.invalid_value(identifier.span);
                 return;
             };
-            let styled = styled_component(element, self.output.styled_components);
-            if is_custom_component(&element.opening_element.name) && styled.is_none() {
-                return;
-            }
-            if let Some(styled) = styled {
+            if let Some(styled) = styled_component(element, self.output.styled_components) {
                 self.output.edits.push(Edit {
                     span: attribute.span,
                     replacement: format!(
@@ -255,9 +250,6 @@ impl JsxCssVisitor<'_> {
                 (name, rules)
             }
             expression => {
-                if is_custom_component(&element.opening_element.name) {
-                    return;
-                }
                 self.invalid_value(expression.span());
                 return;
             }
@@ -402,6 +394,35 @@ fn styled_component<'a>(
         JSXElementName::Identifier(identifier) => components.get(identifier.name.as_str()),
         JSXElementName::IdentifierReference(identifier) => components.get(identifier.name.as_str()),
         _ => None,
+    }
+}
+
+// `css` values vindur doesn't transform are the custom component's own prop
+pub(super) fn is_foreign_css_attribute(
+    element: &JSXElement<'_>,
+    attribute: &JSXAttribute<'_>,
+    styled_components: &FxHashMap<String, StyledComponent>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    let is_custom = is_custom_component(&element.opening_element.name);
+    let styled = styled_component(element, styled_components);
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return styled.map_or(is_custom, |styled| {
+            is_foreign_styled_css_attribute(styled, attribute)
+        });
+    };
+    match &container.expression {
+        JSXExpression::TemplateLiteral(_) => false,
+        JSXExpression::Identifier(identifier) => {
+            is_custom
+                && (styled.is_none()
+                    || !matches!(
+                        resolved_constant(identifier, constants, scoping),
+                        Some(StaticValue::CssClass { .. })
+                    ))
+        }
+        _ => is_custom,
     }
 }
 

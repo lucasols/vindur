@@ -79,8 +79,13 @@ impl<'a> Visit<'a> for JsxFeatureVisitor {
         let cx = find_attribute(element, "cx")
             .filter(|attribute| !is_foreign_cx_attribute(&element.opening_element.name, attribute));
         if css.is_some() || cx.is_some() {
+            // A string or valueless `css` is a custom component's own prop, or an error
             let css_count = u32::from(
-                cx.is_some() && css.is_some() || css.is_some_and(css_attribute_allocates_class),
+                cx.is_some()
+                    && css.is_some_and(|css| {
+                        matches!(css.value, Some(JSXAttributeValue::ExpressionContainer(_)))
+                    })
+                    || css.is_some_and(css_attribute_allocates_class),
             );
             let context = jsx_name(&element.opening_element.name)
                 .filter(|name| name.chars().next().is_some_and(char::is_uppercase))

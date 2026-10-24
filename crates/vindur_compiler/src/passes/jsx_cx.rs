@@ -9,7 +9,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    jsx_css::is_foreign_css_attribute, static_evaluation::resolved_constant,
+    styled::StyledComponent,
+};
 
 // SVG elements with a native `cx` attribute
 const SVG_CX_ELEMENTS: [&str; 3] = ["circle", "ellipse", "radialGradient"];
@@ -169,14 +172,23 @@ impl JsxCxVisitor<'_> {
             return;
         };
 
-        let has_css_context = styled.is_some()
-            || find_attribute(element, "css").is_some()
-            || self.class_name_is_css_reference(element);
+        // A foreign `css` is left as is by the css pass, so cx takes the className path
+        let has_vindur_css = find_attribute(element, "css").is_some_and(|css| {
+            !is_foreign_css_attribute(
+                element,
+                css,
+                self.output.styled_components,
+                self.output.constants,
+                self.output.scoping,
+            )
+        });
+        let has_css_context =
+            styled.is_some() || has_vindur_css || self.class_name_is_css_reference(element);
         let context_key = styled.as_ref().map_or_else(
             || format!("css:{}", element.span.start),
             |_| format!("styled:{element_name}"),
         );
-        let css_index = if find_attribute(element, "css").is_some() {
+        let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
             Some(index)
