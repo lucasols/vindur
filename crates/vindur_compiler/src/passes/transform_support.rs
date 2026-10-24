@@ -3,7 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -42,6 +42,8 @@ pub(super) struct VariableTransform<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
     pub is_exported: bool,
+    /// Styled components referenced as values stay runtime components
+    pub value_referenced_names: &'a FxHashSet<String>,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
@@ -276,7 +278,10 @@ pub(super) fn process_variable_declaration(
                 StaticValue::ClassName(generated_name.clone()),
             );
             let attrs = own_attrs.or_else(|| base_component.attrs.clone());
-            let runtime = transform.is_exported || attrs.is_some() || base_component.runtime;
+            let runtime = transform.is_exported
+                || transform.value_referenced_names.contains(variable_name)
+                || attrs.is_some()
+                || base_component.runtime;
             if runtime {
                 let attrs_argument = attrs
                     .as_ref()
