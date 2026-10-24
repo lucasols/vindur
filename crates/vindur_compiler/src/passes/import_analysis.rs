@@ -1,5 +1,4 @@
 use oxc_ast::ast::{BindingPattern, Expression, ImportDeclarationSpecifier, Program, Statement};
-use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -248,59 +247,4 @@ pub(super) fn collect_resolved_import_edits(
             },
         });
     }
-}
-
-pub(super) fn vindur_import_quote(program: &Program<'_>, source: &str) -> char {
-    program
-        .body
-        .iter()
-        .find_map(|statement| {
-            let Statement::ImportDeclaration(import) = statement else {
-                return None;
-            };
-            if import.source.value.as_str() != "vindur" {
-                return None;
-            }
-            source
-                .as_bytes()
-                .get(import.source.span.start as usize)
-                .copied()
-                .map(char::from)
-        })
-        .filter(|quote| matches!(quote, '\'' | '"'))
-        .unwrap_or('"')
-}
-
-pub(super) fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
-    program.body.iter().any(|statement| {
-        let Statement::ImportDeclaration(import) = statement else {
-            return false;
-        };
-        if import.source.value.as_str() != "vindur" {
-            return false;
-        }
-        import.specifiers.as_ref().is_some_and(|specifiers| {
-            specifiers.iter().any(|specifier| {
-                let oxc_ast::ast::ImportDeclarationSpecifier::ImportSpecifier(specifier) =
-                    specifier
-                else {
-                    return false;
-                };
-                // An aliased import doesn't bind the name generated code calls
-                specifier.imported.name().as_str() == name && specifier.local.name.as_str() == name
-            })
-        })
-    })
-}
-
-// A local binding named like a helper the generated code calls would clash with the injected import
-pub(super) fn runtime_helper_conflict<'h>(
-    scoping: &Scoping,
-    helpers: &[&'h str],
-) -> Option<(&'h str, oxc_span::Span)> {
-    helpers.iter().find_map(|helper| {
-        scoping
-            .get_root_binding((*helper).into())
-            .map(|symbol| (*helper, scoping.symbol_span(symbol)))
-    })
 }

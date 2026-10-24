@@ -388,7 +388,7 @@ test('should inject the cx helper when the user imports cx under an alias', asyn
       return (
         <circle
           className={[
-            "base",
+            classNames("base"),
             cx({
               active: active,
             }),
@@ -423,19 +423,55 @@ test('should keep the user cx import while it has references besides optimized c
   `);
 });
 
-test('should throw when a local binding conflicts with an injected helper', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import cx from 'classnames';
+test('should import helpers under an alias when another binding uses their name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import cx from 'classnames';
 
-        export const Component = ({ active }) => (
-          <div className={cx('base')} cx={{ $active: active }} />
-        );
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "cx" is already declared in this file, but vindur needs to import its "cx" helper. Rename it or import "cx" from 'vindur'
-    loc: 1:7]
+      export const Component = ({ active }) => (
+        <div className={cx('base')} cx={{ $active: active }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx as _vCx } from "vindur";
+    import cx from "classnames";
+    export const Component = ({ active }) => (
+      <div
+        className={[
+          cx("base"),
+          _vCx({
+            active: active,
+          }),
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      />
+    );
+    "
+  `);
+});
+
+test('should not let a type-only cx import stand in for the cx helper', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import type { cx } from 'vindur';
+
+      export const Component = ({ active }) => <div cx={{ $active: active }} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx as _vCx } from "vindur";
+    import type { cx } from "vindur";
+    export const Component = ({ active }) => (
+      <div
+        className={_vCx({
+          active: active,
+        })}
+      />
+    );
+    "
   `);
 });

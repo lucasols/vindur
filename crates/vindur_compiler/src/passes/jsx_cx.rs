@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
-    JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind, Program, PropertyKind,
+    IdentifierReference, JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName,
+    JSXExpression, ObjectPropertyKind, Program, PropertyKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -11,12 +11,16 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     cx_selectors::{contains_class_selector, rewrite_cx_selectors},
+    jsx_attributes::{
+        find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
+    },
     jsx_class_name::{
         ClassNameMerge, class_name_merge, js_string_literal, jsx_string_value,
         wrap_class_expression,
     },
     jsx_css::is_foreign_css_attribute,
     jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
+    runtime_helpers::RuntimeHelperNames,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
 };
@@ -44,6 +48,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
+    pub helper_names: &'a RuntimeHelperNames,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -269,7 +274,7 @@ impl JsxCxVisitor<'_> {
             self.rewrite_css_reference(element, &mappings);
         }
         let object_source = format!("{{\n{},\n}}", properties.join(",\n"));
-        let cx_call = format!("cx({object_source})");
+        let cx_call = format!("{}({object_source})", self.output.helper_names.cx);
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
@@ -306,7 +311,8 @@ impl JsxCxVisitor<'_> {
                 self.output.edits.push(Edit {
                     span: oxc_span::Span::new(offset, offset),
                     replacement: format!(
-                        " className={{mergeClassNames([{}], {complete})}}",
+                        " className={{{}([{}], {complete})}}",
+                        self.output.helper_names.merge_class_names,
                         runtime.inputs.join(", ")
                     ),
                 });
@@ -459,55 +465,5 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
-    }
-}
-
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element.opening_element.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        (attribute_name(attribute) == Some(name)).then_some(&**attribute)
-    })
-}
-
-fn find_last_attribute<'a>(
-    element: &'a JSXElement<'a>,
-    name: &str,
-) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .rev()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            (attribute_name(attribute) == Some(name)).then_some(&**attribute)
-        })
-}
-
-fn attribute_name<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a str> {
-    let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-        return None;
-    };
-    Some(identifier.name.as_str())
-}
-
-fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
-    match name {
-        JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
-        JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
     }
 }

@@ -2,7 +2,7 @@
 // `&.active.selected`, `&:hover.active`, `&[data-open].active` or `&:not(.active)`, to their
 // hashed classes. Whole class names are matched, so `&.active` doesn't touch `&.activeIcon`
 pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)]) -> String {
-    rewrite_compound_classes(css, &mut |class_name| {
+    rewrite_compound_classes(css, &|class_name| {
         mappings
             .iter()
             .find(|(original, _, should_rewrite)| *should_rewrite && original == class_name)
@@ -12,27 +12,27 @@ pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)
 
 // Whether `class_name` is one of the classes `rewrite_cx_selectors` would rewrite
 pub(super) fn contains_class_selector(css: &str, class_name: &str) -> bool {
-    let mut found = false;
-    rewrite_compound_classes(css, &mut |token| {
-        found |= token == class_name;
-        None
-    });
-    found
+    // A marker that can't appear in CSS, so only rewritten occurrences are found
+    const MARKER: &str = "\u{0}";
+    rewrite_compound_classes(css, &|token| {
+        (token == class_name).then(|| MARKER.to_owned())
+    })
+    .contains(MARKER)
 }
 
-type ClassMapper<'m> = dyn FnMut(&str) -> Option<String> + 'm;
+type ClassMapper<'m> = dyn Fn(&str) -> Option<String> + 'm;
 
-fn rewrite_compound_classes(css: &str, map: &mut ClassMapper<'_>) -> String {
+fn rewrite_compound_classes(css: &str, map: &ClassMapper<'_>) -> String {
     let mut output = String::with_capacity(css.len());
     let mut index = 0;
     while let Some(character) = css[index..].chars().next() {
         if matches!(character, '"' | '\'') || css[index..].starts_with("/*") {
-            let end = skipped_end(css, index);
+            let end = skipped_end(css, index, css.len());
             output.push_str(&css[index..end]);
             index = end;
         } else if character == '&' {
             output.push('&');
-            index = rewrite_compound(css, index + 1, &mut output, map);
+            index = rewrite_compound(css, index + 1, css.len(), &mut output, map);
         } else {
             output.push(character);
             index += character.len_utf8();
@@ -42,17 +42,18 @@ fn rewrite_compound_classes(css: &str, map: &mut ClassMapper<'_>) -> String {
 }
 
 // Rewrites the `.class` tokens of the compound selector starting at `index`, returning where it
-// ends
+// ends. Scanning never goes past `limit`, the end of the enclosing argument list
 fn rewrite_compound(
     css: &str,
     mut index: usize,
+    limit: usize,
     output: &mut String,
-    map: &mut ClassMapper<'_>,
+    map: &ClassMapper<'_>,
 ) -> usize {
     loop {
-        match css[index..].chars().next() {
+        match css[index..limit].chars().next() {
             Some('.') => {
-                let token = identifier(&css[index + 1..]);
+                let token = identifier(&css[index + 1..limit]);
                 output.push('.');
                 match map(token) {
                     Some(hashed) => output.push_str(&hashed),
@@ -61,18 +62,18 @@ fn rewrite_compound(
                 index += 1 + token.len();
             }
             Some(':') => {
-                let name = identifier(&css[index + 1..]);
+                let name = identifier(&css[index + 1..limit]);
                 output.push(':');
                 output.push_str(name);
                 index += 1 + name.len();
-                if css[index..].starts_with('(') {
+                if css[index..limit].starts_with('(') {
                     // These match the same element, `:has(.x)` or `:nth-child(2 of .x)` don't
                     let same_element = matches!(name, "not" | "is" | "where" | "matches");
-                    index = rewrite_arguments(css, index, output, map, same_element);
+                    index = rewrite_arguments(css, index, limit, output, map, same_element);
                 }
             }
             Some('[') => {
-                let end = skipped_end(css, index);
+                let end = skipped_end(css, index, limit);
                 output.push_str(&css[index..end]);
                 index = end;
             }
@@ -86,11 +87,12 @@ fn rewrite_compound(
 fn rewrite_arguments(
     css: &str,
     open: usize,
+    limit: usize,
     output: &mut String,
-    map: &mut ClassMapper<'_>,
+    map: &ClassMapper<'_>,
     rewrite: bool,
 ) -> usize {
-    let end = skipped_end(css, open);
+    let end = skipped_end(css, open, limit);
     if !rewrite {
         output.push_str(&css[open..end]);
         return end;
@@ -106,10 +108,13 @@ fn rewrite_arguments(
         let whitespace = css[index..close].len() - css[index..close].trim_start().len();
         output.push_str(&css[index..index + whitespace]);
         index += whitespace;
-        let compound_end = rewrite_compound(css, index, &mut String::new(), &mut |_| None);
+        // Rewritten once into a buffer, rescanning nested arguments would take exponential time
+        let mut rewritten = String::new();
+        let compound_end = rewrite_compound(css, index, close, &mut rewritten, map);
         let after = css[compound_end..close].trim_start();
         if compound_end > index && (after.is_empty() || after.starts_with(',')) {
-            index = rewrite_compound(css, index, output, map);
+            output.push_str(&rewritten);
+            index = compound_end;
         }
         let argument_end = next_argument(css, index, close);
         output.push_str(&css[index..argument_end]);
@@ -122,8 +127,12 @@ fn rewrite_arguments(
 // The end of the next `,`-separated argument, including the `,`
 fn next_argument(css: &str, mut index: usize, close: usize) -> usize {
     while let Some(character) = css[index..close].chars().next() {
+        if css[index..close].starts_with("/*") {
+            index = skipped_end(css, index, close);
+            continue;
+        }
         match character {
-            '"' | '\'' | '(' | '[' => index = skipped_end(css, index).min(close),
+            '"' | '\'' | '(' | '[' => index = skipped_end(css, index, close),
             ',' => return index + 1,
             _ => index += character.len_utf8(),
         }
@@ -131,28 +140,35 @@ fn next_argument(css: &str, mut index: usize, close: usize) -> usize {
     close
 }
 
-// The end of the string, comment, or balanced `(...)` / `[...]` section starting at `index`
-fn skipped_end(css: &str, index: usize) -> usize {
-    let rest = &css[index..];
+// The end of the string, comment, or balanced `(...)` / `[...]` section starting at `index`,
+// never past `limit`
+fn skipped_end(css: &str, index: usize, limit: usize) -> usize {
+    let rest = &css[index..limit];
     if let Some(comment) = rest.strip_prefix("/*") {
-        return comment
-            .find("*/")
-            .map_or(css.len(), |end| index + 2 + end + 2);
+        return comment.find("*/").map_or(limit, |end| index + 2 + end + 2);
     }
     let Some(opening) = rest.chars().next() else {
         return index;
     };
+    let is_string = matches!(opening, '"' | '\'');
     let mut position = index + opening.len_utf8();
     let mut depth = 1_usize;
-    while let Some(character) = css[position..].chars().next() {
+    while let Some(character) = css[position..limit].chars().next() {
+        if !is_string && css[position..limit].starts_with("/*") {
+            position = skipped_end(css, position, limit);
+            continue;
+        }
         position += character.len_utf8();
         match (opening, character) {
             (_, '\\') => {
-                position += css[position..].chars().next().map_or(0, char::len_utf8);
+                position += css[position..limit]
+                    .chars()
+                    .next()
+                    .map_or(0, char::len_utf8);
             }
             ('"' | '\'', quote) if quote == opening => return position,
             ('"' | '\'', _) => {}
-            (_, '"' | '\'') => position = skipped_end(css, position - 1),
+            (_, '"' | '\'') => position = skipped_end(css, position - 1, limit),
             ('(', '(') | ('[', '[') => depth += 1,
             ('(', ')') | ('[', ']') => {
                 depth -= 1;
@@ -163,7 +179,7 @@ fn skipped_end(css: &str, index: usize) -> usize {
             _ => {}
         }
     }
-    css.len()
+    limit
 }
 
 // A CSS identifier, including escapes like `active\:icon`

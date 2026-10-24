@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression,
+    ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -13,12 +13,14 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_selectors::rewrite_cx_selectors,
+    jsx_attributes::{find_attribute, opening_attribute_insertion_offset},
     jsx_class_name::{
         ClassNameMerge, class_name_merge, extend_jsx_string, js_string_literal, jsx_string_value,
         wrap_class_expression,
     },
     jsx_cx::CxElementTransform,
     jsx_cx_attribute::is_component_name,
+    runtime_helpers::RuntimeHelperNames,
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
@@ -38,6 +40,7 @@ pub(crate) struct JsxCssTransform<'a> {
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
     pub needs_merge_helper: &'a mut bool,
+    pub helper_names: &'a RuntimeHelperNames,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
     pub scoped_variables: &'a mut ScopedVariables,
 }
@@ -300,7 +303,8 @@ impl JsxCssVisitor<'_> {
                 self.output.edits.push(Edit {
                     span: oxc_span::Span::new(insertion_offset, insertion_offset),
                     replacement: format!(
-                        " className={{mergeClassNames([{}], {})}}",
+                        " className={{{}([{}], {})}}",
+                        self.output.helper_names.merge_class_names,
                         runtime.inputs.join(", "),
                         complete_expression.unwrap_or_else(|| format!("\"{complete_class}\""))
                     ),
@@ -369,29 +373,6 @@ impl JsxCssVisitor<'_> {
     }
 }
 
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            attribute_name(attribute)
-                .is_some_and(|attribute_name| attribute_name == name)
-                .then_some(attribute)
-        })
-        .map(|attribute| &**attribute)
-}
-
-fn attribute_name<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a str> {
-    let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-        return None;
-    };
-    Some(identifier.name.as_str())
-}
-
 fn styled_component<'a>(
     element: &JSXElement<'_>,
     components: &'a FxHashMap<String, StyledComponent>,
@@ -446,13 +427,4 @@ pub(super) fn is_foreign_styled_css_attribute(
             attribute.value,
             Some(JSXAttributeValue::ExpressionContainer(_))
         )
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
-    }
 }

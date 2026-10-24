@@ -1,10 +1,10 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use super::jsx_attributes::{find_attribute, jsx_name};
 use super::jsx_cx_attribute::is_foreign_cx_attribute;
 
 #[derive(Clone, Copy)]
@@ -132,26 +132,6 @@ fn cx_class_names(attribute: &JSXAttribute<'_>, context: &str) -> Vec<String> {
             (!name.starts_with('$')).then(|| format!("{context}:{name}"))
         })
         .collect()
-}
-
-fn find_attribute<'a>(element: &'a JSXElement<'a>, expected: &str) -> Option<&'a JSXAttribute<'a>> {
-    element.opening_element.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        let JSXAttributeName::Identifier(name) = &attribute.name else {
-            return None;
-        };
-        (name.name.as_str() == expected).then_some(&**attribute)
-    })
-}
-
-fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
-    match name {
-        JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
-        JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use oxc_ast::ast::{
-    Argument, Expression, ImportDeclarationSpecifier, ObjectPropertyKind, Program, Statement,
+    Argument, Expression, ImportDeclarationSpecifier, ObjectPropertyKind, Program, PropertyKind,
+    Statement,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::{Scoping, SymbolId};
@@ -68,16 +69,17 @@ struct CxCallVisitor<'a> {
 
 impl<'a> Visit<'a> for CxCallVisitor<'_> {
     fn visit_call_expression(&mut self, call: &oxc_ast::ast::CallExpression<'a>) {
-        // Only calls of vindur's `cx`, a `cx` from another library may differ
+        // Only calls of vindur's `cx` under its own name, a `cx` from another library may differ
         let Expression::Identifier(callee) = &call.callee else {
             walk::walk_call_expression(self, call);
             return;
         };
-        let is_vindur_cx = self
-            .scoping
-            .get_reference(callee.reference_id())
-            .symbol_id()
-            .is_some_and(|symbol| self.cx_symbols.contains(&symbol));
+        let is_vindur_cx = callee.name.as_str() == "cx"
+            && self
+                .scoping
+                .get_reference(callee.reference_id())
+                .symbol_id()
+                .is_some_and(|symbol| self.cx_symbols.contains(&symbol));
         if !is_vindur_cx {
             walk::walk_call_expression(self, call);
             return;
@@ -182,7 +184,13 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
     }
     match parts.as_slice() {
         [] => Some(quoted("")),
-        [single] => Some(single.trim_matches(['(', ')']).to_owned()),
+        [single] => Some(
+            single
+                .strip_prefix('(')
+                .and_then(|inner| inner.strip_suffix(')'))
+                .unwrap_or(single)
+                .to_owned(),
+        ),
         _ => Some(parts.join(" + ")),
     }
 }
@@ -225,9 +233,8 @@ fn collect_argument_tokens(
         Argument::ObjectExpression(object) => collect_object_tokens(object, source, tokens)?,
         Argument::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
             let value = class_value_source(&logical.right, source)?;
-            let span = logical.left.span();
             tokens.push(CxToken::Conditional {
-                condition: source[span.start as usize..span.end as usize].to_owned(),
+                condition: condition_source(&logical.left, source),
                 value,
             });
         }
@@ -247,7 +254,8 @@ fn collect_object_tokens(
         let ObjectPropertyKind::ObjectProperty(property) = property else {
             return None;
         };
-        if property.computed {
+        // Getters, setters and methods are kept as a runtime call
+        if property.computed || property.kind != PropertyKind::Init || property.method {
             return None;
         }
         let name = property.key.static_name()?.into_owned();
@@ -257,9 +265,8 @@ fn collect_object_tokens(
             }
             Expression::BooleanLiteral(_) => {}
             expression => {
-                let span = expression.span();
                 dynamic_properties.push(CxToken::Conditional {
-                    condition: source[span.start as usize..span.end as usize].to_owned(),
+                    condition: condition_source(expression, source),
                     value: name,
                 });
             }
@@ -268,6 +275,25 @@ fn collect_object_tokens(
     tokens.extend(static_properties);
     tokens.extend(dynamic_properties);
     Some(())
+}
+
+// The condition of a generated `condition ? class : ""`, parenthesized when its own operator
+// binds looser than `?:` or would nest into it
+fn condition_source(expression: &Expression<'_>, source: &str) -> String {
+    let span = expression.span();
+    let text = &source[span.start as usize..span.end as usize];
+    if matches!(
+        expression,
+        Expression::ConditionalExpression(_)
+            | Expression::AssignmentExpression(_)
+            | Expression::SequenceExpression(_)
+            | Expression::ArrowFunctionExpression(_)
+            | Expression::YieldExpression(_)
+    ) {
+        format!("({text})")
+    } else {
+        text.to_owned()
+    }
 }
 
 fn class_value_source(expression: &Expression<'_>, source: &str) -> Option<String> {

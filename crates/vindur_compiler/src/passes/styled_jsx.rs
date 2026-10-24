@@ -7,12 +7,14 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit};
 
 use super::{
+    jsx_attributes::{jsx_name, opening_attribute_insertion_offset},
     jsx_class_name::{
         ClassNameMerge, RuntimeClassInputs, class_name_merge, extend_jsx_string,
         wrap_attribute_expression, wrap_class_expression,
     },
     jsx_css::is_foreign_styled_css_attribute,
     jsx_cx_attribute::is_foreign_styled_cx_attribute,
+    runtime_helpers::RuntimeHelperNames,
     styled::StyledComponent,
 };
 
@@ -25,6 +27,7 @@ pub(crate) struct StyledJsxTransform<'a> {
     pub source: &'a str,
     pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
+    pub helper_names: &'a RuntimeHelperNames,
 }
 
 pub(crate) fn rewrite_styled_jsx(
@@ -40,6 +43,7 @@ pub(crate) fn rewrite_styled_jsx(
         source: output.source,
         needs_cx_helper: output.needs_cx_helper,
         needs_merge_helper: output.needs_merge_helper,
+        helper_names: output.helper_names,
         diagnostic: None,
     };
     visitor.visit_program(program);
@@ -55,6 +59,7 @@ struct StyledJsxVisitor<'c, 'e, 's> {
     source: &'s str,
     needs_cx_helper: &'e mut bool,
     needs_merge_helper: &'e mut bool,
+    helper_names: &'c RuntimeHelperNames,
     diagnostic: Option<CompilerDiagnostic>,
 }
 
@@ -190,7 +195,8 @@ impl StyledJsxVisitor<'_, '_, '_> {
             });
         }
         format!(
-            "mergeClassNames([{}], \"{class_name}\")",
+            "{}([{}], \"{class_name}\")",
+            self.helper_names.merge_class_names,
             runtime.inputs.join(", ")
         )
     }
@@ -292,7 +298,8 @@ impl StyledJsxVisitor<'_, '_, '_> {
                     .chain(static_classes.iter().map(|class| format!("\"{class}\"")))
                     .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
                     .collect::<Vec<_>>();
-                self.insert_class_name(element, &format!("cx({})", cx_arguments.join(", ")));
+                let call = format!("{}({})", self.helper_names.cx, cx_arguments.join(", "));
+                self.insert_class_name(element, &call);
                 return;
             }
             ClassNameMerge::InPlace(attribute) => Some(attribute),

@@ -222,3 +222,34 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
     "
   `);
 });
+
+test('should leave malformed and commented selectors intact', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &:not(.active[x) { color: blue; }
+        &:is([data-x=foo/*)*/].active) { color: green; }
+        &.active { color: red; }
+      \`;
+
+      export const App = ({ a }) => <Box cx={{ active: a }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      &:not(.v1560qbr-2-active[x) {
+        color: blue;
+      }
+      &:is([data-x=foo/*)*/].v1560qbr-2-active) {
+        color: green;
+      }
+      &.v1560qbr-2-active {
+        color: red;
+      }
+    }
+    "
+  `);
+});

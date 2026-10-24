@@ -84,7 +84,9 @@ fn merge_vindur_imports(program: &Program<'_>, source: &str, edits: &mut Vec<cra
             let Statement::ImportDeclaration(import) = statement else {
                 return None;
             };
-            (import.source.value.as_str() == "vindur").then_some(&**import)
+            // Type-only imports are left alone, merging would turn them into value imports
+            (import.source.value.as_str() == "vindur" && import.import_kind.is_value())
+                .then_some(&**import)
         })
         .collect::<Vec<_>>();
     if imports.len() < 2 {

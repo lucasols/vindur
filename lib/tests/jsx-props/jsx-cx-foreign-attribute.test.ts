@@ -407,3 +407,51 @@ test('should keep cx and css props of underscore prefixed components', async () 
     "
   `);
 });
+
+test('should not let a cx prop variable shadow the cx helper', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Dot = styled.circle<{ active: boolean }>\`
+        fill: red;
+        &.active { fill: blue; }
+      \`;
+
+      export function Point({ cx, cy, active, p }) {
+        return <Dot {...p} cx={cx} cy={cy} active={active} />;
+      }
+
+      export function App({ cx }) {
+        return <div cx={{ $active: true }} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx as _vCx, mergeClassNames } from "vindur";
+    export function Point({ cx, cy, active, p }) {
+      return (
+        <circle
+          {...p}
+          cx={cx}
+          cy={cy}
+          className={_vCx(
+            mergeClassNames([p], "v1560qbr-1-Dot"),
+            active && "voctcyj-active",
+          )}
+        />
+      );
+    }
+    export function App({ cx }) {
+      return (
+        <div
+          className={_vCx({
+            active: true,
+          })}
+        />
+      );
+    }
+    "
+  `);
+});
