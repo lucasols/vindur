@@ -191,12 +191,12 @@ impl JsxCxVisitor<'_> {
             properties.push(format!("\"{output_name}\": {value}"));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
-        if mappings
-            .iter()
-            .any(|(_, _, should_rewrite)| *should_rewrite)
-            && let Some((span, message)) =
-                unsupported_css_reference_modifiers(element_name, styled.is_some(), &css_references)
-        {
+        if let Some((span, message)) = unsupported_css_reference_modifiers(
+            element_name,
+            styled.is_some(),
+            &css_references,
+            &mappings,
+        ) {
             self.set_error(span, message);
             return;
         }
@@ -256,7 +256,11 @@ impl JsxCxVisitor<'_> {
         } else {
             rewrite_css_references(self.output.css_rules, &css_references, &mappings);
         }
-        let object_source = format!("{{\n{},\n}}", properties.join(",\n"));
+        let object_source = if properties.is_empty() {
+            "{}".to_owned()
+        } else {
+            format!("{{\n{},\n}}", properties.join(",\n"))
+        };
         let cx_call = format!("cx({object_source})");
         if let Some(css_index) = css_index {
             self.output.elements.insert(

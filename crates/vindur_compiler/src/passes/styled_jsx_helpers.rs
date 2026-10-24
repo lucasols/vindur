@@ -308,10 +308,7 @@ pub(super) fn replace_modifier_selector(css: &str, original: &str, hashed: &str)
     let mut rest = css;
     while let Some(start) = rest.find(&pattern) {
         let end = start + pattern.len();
-        let is_whole_class = rest[end..]
-            .chars()
-            .next()
-            .is_none_or(|character| !is_class_name_character(character));
+        let is_whole_class = is_class_name_end(&rest[end..]);
         result.push_str(&rest[..start]);
         if is_whole_class {
             result.push_str("&.");
@@ -323,6 +320,20 @@ pub(super) fn replace_modifier_selector(css: &str, original: &str, hashed: &str)
     }
     result.push_str(rest);
     result
+}
+
+/// Whether `css` has a `&.original` modifier selector, ignoring longer class names that share
+/// the same prefix
+pub(super) fn contains_modifier_selector(css: &str, original: &str) -> bool {
+    let pattern = format!("&.{original}");
+    css.match_indices(&pattern)
+        .any(|(start, _)| is_class_name_end(&css[start + pattern.len()..]))
+}
+
+fn is_class_name_end(rest: &str) -> bool {
+    rest.chars()
+        .next()
+        .is_none_or(|character| !is_class_name_character(character))
 }
 
 fn is_class_name_character(character: char) -> bool {

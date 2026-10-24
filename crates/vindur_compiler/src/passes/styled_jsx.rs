@@ -309,11 +309,19 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 .map(|class| format!("\"{class}\""))
                 .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
                 .collect::<Vec<_>>();
+            let (inputs, replaced_attributes) =
+                merge_class_name_inputs(element, self.source, self.constants, self.scoping);
+            for span in replaced_attributes {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
             cx_arguments.insert(
                 0,
                 format!(
                     "mergeClassNames([{}], \"{}\")",
-                    spreads.join(", "),
+                    inputs.join(", "),
                     component.class_name
                 ),
             );

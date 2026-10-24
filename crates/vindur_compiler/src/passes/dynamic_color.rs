@@ -367,7 +367,7 @@ fn color_merge_object(
         Some(format!(
             "mergeClassNames([{}], {})",
             spread_names,
-            base_class.map_or("undefined".to_owned(), |base| format!("\"{base}\""))
+            base_class.map_or("\"\"".to_owned(), |base| format!("\"{base}\""))
         ))
     } else {
         match (base_class, class_attribute) {

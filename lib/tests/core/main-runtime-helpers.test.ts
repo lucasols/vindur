@@ -51,6 +51,13 @@ describe('createDynamicCssColor', () => {
     );
   });
 
+  test('should not require merge props in _sp', () => {
+    const color = createDynamicCssColor('test-hash', true);
+
+    expect(color._sp(undefined, undefined)).toEqual({});
+    expect(color._sp('#ff0000', undefined).className).toBeTypeOf('string');
+  });
+
   test('should create color object with proper methods in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
@@ -282,6 +289,10 @@ describe('mergeClassNames', () => {
     Object.setPrototypeOf(inherited, { className: undefined });
     const result = mergeClassNames(['explicit', inherited], 'vindur-class');
     expect(result).toBe('explicit vindur-class');
+  });
+
+  test('should not add a separator for an empty vindur className', () => {
+    expect(mergeClassNames([{ className: 'x' }], '')).toBe('x');
   });
 });
 

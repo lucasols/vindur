@@ -282,3 +282,160 @@ test('should throw for non-identifier spreads merged with css or cx props', asyn
     loc: 2:7]
   `);
 });
+
+test('should allow cx modifiers declared outside the css references', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+      import { base } from '#/styles';
+
+      const layout = css\`
+        display: flex;
+      \`;
+
+      const Box = styled.div\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <>
+          <Box className={layout} cx={{ active: on }} />
+          <div className={base} css={\`&.active { color: blue; }\`} cx={{ active: on }} />
+        </>
+      );
+    `,
+    overrideDefaultFs: createFsMock({
+      'styles.ts': dedent`
+        import { css } from 'vindur';
+
+        export const base = css\`
+          padding: 1px;
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const layout = "v1560qbr-1-layout";
+    export const A = ({ on }: { on: boolean }) => (
+      <>
+        <div
+          className={
+            layout +
+            " v1560qbr-2-Box " +
+            cx({
+              "v1560qbr-3-active": on,
+            })
+          }
+        />
+        <div
+          className={
+            base +
+            " v1560qbr-4-css-prop-4 " +
+            cx({
+              "v1560qbr-5-active": on,
+            })
+          }
+        />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-layout {
+      display: flex;
+    }
+
+    .v1560qbr-2-Box {
+      &.v1560qbr-3-active {
+        color: red;
+      }
+    }
+
+    .v1560qbr-4-css-prop-4 {
+      &.v1560qbr-5-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('should handle an empty cx prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const A = () => <div cx={{}} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = () => <div className={cx({})} />;
+    "
+  `);
+});
+
+test('should keep explicit className on style flag components with spreads', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Btn = styled.button<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      export const A = (props: { className?: string }) => (
+        <Btn {...props} className="explicit" active />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    export const A = (props: { className?: string }) => (
+      <button
+        {...props}
+        className={cx(
+          mergeClassNames([props, "explicit"], "v1560qbr-1-Btn"),
+          "voctcyj-active",
+        )}
+      />
+    );
+    "
+  `);
+});
+
+test('should not pass undefined as the vindur class name when merging dynamic colors with spreads', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur';
+
+      const color = createDynamicCssColor();
+
+      export const A = (props: { className?: string }) => (
+        <div {...props} dynamicColor={color.set('#f00')} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const A = (props: { className?: string }) => (
+      <div
+        {...props}
+        {...color._sp("#f00", {
+          className: mergeClassNames([props], ""),
+          style: mergeStyles([props]),
+        })}
+      />
+    );
+    "
+  `);
+});

@@ -307,9 +307,10 @@ export function mergeClassNames(
     }
   }
 
-  if (finalClassName) return `${finalClassName} ${vindurClassName}`;
+  if (!finalClassName) return vindurClassName;
+  if (!vindurClassName) return finalClassName;
 
-  return vindurClassName;
+  return `${finalClassName} ${vindurClassName}`;
 }
 
 /**
