@@ -179,7 +179,12 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
                 self.edits.push(Edit {
                     span: value.span,
-                    replacement: format!("\"{} {}\"", component.class_name, value.value),
+                    replacement: wrap_jsx_string(
+                        value,
+                        self.source,
+                        &format!("{} ", component.class_name),
+                        "",
+                    ),
                 });
             } else if matches!(
                 &attribute.value,

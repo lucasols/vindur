@@ -10,8 +10,12 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    static_evaluation::resolved_constant, styled::StyledComponent,
-    styled_jsx_helpers::class_name_concat_source,
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+    styled_jsx_helpers::{
+        class_name_concat_source, decode_jsx_entities, has_spread_attribute, js_string_literal,
+        merge_class_name_inputs,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -36,6 +40,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_cx_helper: &'a mut bool,
+    pub needs_merge_helper: &'a mut bool,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -251,21 +256,29 @@ impl JsxCxVisitor<'_> {
             });
             return;
         }
-        let spreads = spread_sources(element, self.output.source);
-        if !spreads.is_empty() {
+        if has_spread_attribute(element) {
             let complete = styled.as_ref().map_or(cx_call.clone(), |component| {
                 format!("\"{} \" + {cx_call}", component.class_name)
             });
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
+            let (inputs, replaced_attributes) = merge_class_name_inputs(
+                element,
+                self.output.source,
+                self.output.constants,
+                self.output.scoping,
+            );
+            *self.output.needs_merge_helper = true;
+            for span in replaced_attributes.into_iter().chain([attribute.span]) {
+                self.output.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
             let offset = opening_attribute_insertion_offset(element, self.output.source);
             self.output.edits.push(Edit {
                 span: oxc_span::Span::new(offset, offset),
                 replacement: format!(
                     " className={{mergeClassNames([{}], {complete})}}",
-                    spreads.join(", ")
+                    inputs.join(", ")
                 ),
             });
             return;
@@ -289,17 +302,16 @@ impl JsxCxVisitor<'_> {
         let replacement = match (styled.as_ref(), find_last_attribute(element, "className")) {
             (Some(_), None) | (None, None) => String::new(),
             (component, Some(class_attribute)) => {
-                let existing = class_name_value_source(class_attribute, self.output.source);
-                let value = match (&class_attribute.value, component) {
-                    (Some(JSXAttributeValue::StringLiteral(_)), None) => {
-                        format!("\"{} \" + {cx_call}", existing.trim_matches('"'))
+                let value = match &class_attribute.value {
+                    Some(JSXAttributeValue::StringLiteral(value)) => {
+                        let existing = decode_jsx_entities(&value.value);
+                        let prefix = component.map_or_else(
+                            || format!("{existing} "),
+                            |component| format!("{existing} {} ", component.class_name),
+                        );
+                        format!("{} + {cx_call}", js_string_literal(&prefix))
                     }
-                    (Some(JSXAttributeValue::StringLiteral(_)), Some(component)) => format!(
-                        "\"{} {} \" + {cx_call}",
-                        existing.trim_matches('"'),
-                        component.class_name
-                    ),
-                    (_, component) => {
+                    _ => {
                         let existing = class_name_concat_source(
                             class_attribute,
                             self.output.source,
@@ -402,26 +414,28 @@ impl JsxCxVisitor<'_> {
         element: &JSXElement<'_>,
         mappings: &[(String, String, bool)],
     ) {
-        let Some(attribute) = find_last_attribute(element, "className") else {
-            return;
-        };
-        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            return;
-        };
-        let JSXExpression::Identifier(identifier) = &container.expression else {
-            return;
-        };
-        let Some(StaticValue::CssClass { name, .. }) =
-            resolved_constant(identifier, self.output.constants, self.output.scoping)
-        else {
-            return;
-        };
-        for rule in self
-            .output
-            .css_rules
-            .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{name} {{")))
-        {
+        let names = ["className", "css"]
+            .into_iter()
+            .filter_map(|attribute_name| {
+                let attribute = find_last_attribute(element, attribute_name)?;
+                let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value
+                else {
+                    return None;
+                };
+                let JSXExpression::Identifier(identifier) = &container.expression else {
+                    return None;
+                };
+                match resolved_constant(identifier, self.output.constants, self.output.scoping) {
+                    Some(StaticValue::CssClass { name, .. }) => Some(name.clone()),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+        for rule in self.output.css_rules.iter_mut().filter(|rule| {
+            names
+                .iter()
+                .any(|name| rule.starts_with(&format!(".{name} {{")))
+        }) {
             for (original, hashed, should_rewrite) in mappings {
                 if *should_rewrite {
                     *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
@@ -479,32 +493,6 @@ fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
         JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
         _ => None,
     }
-}
-
-fn class_name_value_source(attribute: &JSXAttribute<'_>, source: &str) -> String {
-    match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
-        Some(JSXAttributeValue::ExpressionContainer(container)) => {
-            let span = container.expression.span();
-            source[span.start as usize..span.end as usize].to_owned()
-        }
-        _ => "undefined".to_owned(),
-    }
-}
-
-fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<String> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
-            let span = spread.argument.span();
-            Some(source[span.start as usize..span.end as usize].to_owned())
-        })
-        .collect()
 }
 
 fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {

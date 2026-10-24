@@ -112,9 +112,10 @@ pub(super) fn class_name_expression(
         .map(|class| format!(" {class}"))
         .collect::<String>();
     match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => {
-            format!("\"{styled_class_name} {}{static_suffix}\"", value.value)
-        }
+        Some(JSXAttributeValue::StringLiteral(value)) => js_string_literal(&format!(
+            "{styled_class_name} {}{static_suffix}",
+            decode_jsx_entities(&value.value)
+        )),
         Some(JSXAttributeValue::ExpressionContainer(container)) => {
             let span = container.expression.span();
             let expression = &source[span.start as usize..span.end as usize];
@@ -140,6 +141,14 @@ pub(super) fn jsx_spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<
             Some(source[span.start as usize..span.end as usize].to_owned())
         })
         .collect()
+}
+
+pub(super) fn has_spread_attribute(element: &JSXElement<'_>) -> bool {
+    element
+        .opening_element
+        .attributes
+        .iter()
+        .any(|item| matches!(item, JSXAttributeItem::SpreadAttribute(_)))
 }
 
 pub(super) struct StyledSpread {
@@ -219,7 +228,7 @@ pub(super) fn class_name_value_source(
     source: &str,
 ) -> String {
     let Some(value) = &attribute.value else {
-        return "true".to_owned();
+        return "undefined".to_owned();
     };
     match value {
         JSXAttributeValue::ExpressionContainer(container) => match &container.expression {
@@ -229,7 +238,9 @@ pub(super) fn class_name_value_source(
                 source[span.start as usize..span.end as usize].to_owned()
             }
         },
-        JSXAttributeValue::StringLiteral(value) => format!("\"{}\"", value.value),
+        JSXAttributeValue::StringLiteral(value) => {
+            js_string_literal(&decode_jsx_entities(&value.value))
+        }
         _ => "undefined".to_owned(),
     }
 }
@@ -243,24 +254,134 @@ pub(super) fn class_name_concat_source(
     scoping: &Scoping,
 ) -> String {
     let value_source = class_name_value_source(attribute, source);
-    let is_static_string = match &attribute.value {
-        Some(JSXAttributeValue::ExpressionContainer(container)) => match &container.expression {
-            oxc_ast::ast::JSXExpression::Identifier(identifier) => matches!(
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return match &attribute.value {
+            Some(JSXAttributeValue::StringLiteral(_)) => value_source,
+            _ => "\"\"".to_owned(),
+        };
+    };
+    match &container.expression {
+        oxc_ast::ast::JSXExpression::Identifier(identifier)
+            if matches!(
                 resolved_constant(identifier, constants, scoping),
                 Some(
                     crate::facts::StaticValue::CssClass { .. }
                         | crate::facts::StaticValue::String(_)
                 )
-            ),
-            _ => false,
-        },
-        _ => false,
-    };
-    if is_static_string {
-        value_source
-    } else {
-        format!("({value_source} || \"\")")
+            ) =>
+        {
+            value_source
+        }
+        // Operands that bind tighter than `||` don't need to be parenthesized
+        oxc_ast::ast::JSXExpression::Identifier(_)
+        | oxc_ast::ast::JSXExpression::StaticMemberExpression(_)
+        | oxc_ast::ast::JSXExpression::ComputedMemberExpression(_)
+        | oxc_ast::ast::JSXExpression::CallExpression(_) => format!("({value_source} || \"\")"),
+        _ => format!("(({value_source}) || \"\")"),
     }
+}
+
+/// `mergeClassNames` inputs: spread props and explicit `className` values in source order,
+/// plus the spans of the `className` attributes they replace
+pub(super) fn merge_class_name_inputs(
+    element: &JSXElement<'_>,
+    source: &str,
+    constants: &FxHashMap<String, crate::facts::StaticValue>,
+    scoping: &Scoping,
+) -> (Vec<String>, Vec<oxc_span::Span>) {
+    let mut inputs = Vec::new();
+    let mut replaced_attributes = Vec::new();
+    for item in &element.opening_element.attributes {
+        match item {
+            JSXAttributeItem::SpreadAttribute(spread) => {
+                let span = spread.argument.span();
+                inputs.push(source[span.start as usize..span.end as usize].to_owned());
+            }
+            JSXAttributeItem::Attribute(attribute)
+                if is_named_attribute(attribute, "className") =>
+            {
+                inputs.push(class_name_concat_source(
+                    attribute, source, constants, scoping,
+                ));
+                replaced_attributes.push(attribute.span);
+            }
+            JSXAttributeItem::Attribute(_) => {}
+        }
+    }
+    (inputs, replaced_attributes)
+}
+
+/// Rewrites a JSX attribute string keeping its raw content and quotes, so entities still work
+pub(super) fn wrap_jsx_string(
+    value: &oxc_ast::ast::StringLiteral<'_>,
+    source: &str,
+    prefix: &str,
+    suffix: &str,
+) -> String {
+    let raw = &source[value.span.start as usize..value.span.end as usize];
+    let quote = &raw[..1];
+    let content = &raw[1..raw.len() - 1];
+    format!("{quote}{prefix}{content}{suffix}{quote}")
+}
+
+/// Serializes a value as a double-quoted JS string literal
+pub(super) fn js_string_literal(value: &str) -> String {
+    let mut literal = String::with_capacity(value.len() + 2);
+    literal.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => literal.push_str("\\\""),
+            '\\' => literal.push_str("\\\\"),
+            '\n' => literal.push_str("\\n"),
+            '\r' => literal.push_str("\\r"),
+            '\u{2028}' => literal.push_str("\\u2028"),
+            '\u{2029}' => literal.push_str("\\u2029"),
+            character => literal.push(character),
+        }
+    }
+    literal.push('"');
+    literal
+}
+
+/// Decodes the HTML entities of a JSX attribute string, e.g. `&quot;`, `&#34;` or `&#x22;`
+pub(super) fn decode_jsx_entities(value: &str) -> String {
+    let mut decoded = String::with_capacity(value.len());
+    let mut rest = value;
+    while let Some(start) = rest.find('&') {
+        decoded.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        match after
+            .find(';')
+            .and_then(|end| decode_jsx_entity(&after[..end]).map(|character| (character, end)))
+        {
+            Some((character, end)) => {
+                decoded.push(character);
+                rest = &after[end + 1..];
+            }
+            None => {
+                decoded.push('&');
+                rest = after;
+            }
+        }
+    }
+    decoded.push_str(rest);
+    decoded
+}
+
+fn decode_jsx_entity(entity: &str) -> Option<char> {
+    let Some(number) = entity.strip_prefix('#') else {
+        return oxc_syntax::xml_entities::XML_ENTITIES.get(entity).copied();
+    };
+    let code = match number.strip_prefix('x') {
+        Some(hex) if !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) => {
+            u32::from_str_radix(hex, 16).ok()?
+        }
+        None if !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()) => {
+            number.parse().ok()?
+        }
+        _ => return None,
+    };
+    char::from_u32(code)
 }
 
 pub(super) fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
