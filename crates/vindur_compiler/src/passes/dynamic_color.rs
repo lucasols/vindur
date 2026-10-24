@@ -13,7 +13,14 @@ use crate::{
     facts::StaticValue,
 };
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+    styled_jsx_helpers::{
+        class_name_concat_source, css_attribute_is_compile_time, decode_jsx_entities,
+        js_string_literal,
+    },
+};
 
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
@@ -78,8 +85,20 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
-        let component = jsx_name(&element.opening_element.name)
-            .and_then(|name| self.output.styled_components.get(name));
+        let element_name = jsx_name(&element.opening_element.name);
+        let component = element_name.and_then(|name| self.output.styled_components.get(name));
+        let is_native =
+            element_name.is_some_and(|name| name.chars().next().is_some_and(char::is_lowercase));
+        if (is_native || component.is_some())
+            && find_last_attribute(element, "className").is_some()
+            && self.has_compile_time_class_attribute(element)
+        {
+            self.error(
+                attribute.span,
+                "dynamicColor prop cannot be combined with both className and css or cx props on the same element. Apply dynamicColor to a wrapper element or move the className into the css or cx props".to_owned(),
+            );
+            return;
+        }
         if let Some(component) = component
             && !component.runtime
         {
@@ -136,6 +155,8 @@ impl DynamicColorVisitor<'_> {
                 &spreads,
                 &mut AttributeSources {
                     source: self.output.source,
+                    constants: self.output.constants,
+                    scoping: self.output.scoping,
                     edits: self.output.edits,
                 },
                 self.output.needs_merge_class_names,
@@ -296,8 +317,15 @@ impl DynamicColorVisitor<'_> {
         };
         Some(vec![ColorExpression {
             name: color.name.to_string(),
-            value: format!("\"{}\"", value.value),
+            value: js_string_literal(&value.value),
         }])
+    }
+
+    fn has_compile_time_class_attribute(&self, element: &JSXElement<'_>) -> bool {
+        find_attribute(element, "cx").is_some()
+            || find_attribute(element, "css").is_some_and(|attribute| {
+                css_attribute_is_compile_time(attribute, self.output.constants, self.output.scoping)
+            })
     }
 
     fn error(&mut self, span: oxc_span::Span, message: String) {
@@ -347,12 +375,13 @@ fn color_merge_object(
             (Some(base), None) => Some(format!("\"{base}\"")),
             (None, Some(attribute)) => Some(sources.value(attribute)),
             (Some(base), Some(attribute)) => match &attribute.value {
-                Some(JSXAttributeValue::StringLiteral(value)) => {
-                    Some(format!("\"{base} {}\"", value.value))
-                }
+                Some(JSXAttributeValue::StringLiteral(value)) => Some(js_string_literal(&format!(
+                    "{base} {}",
+                    decode_jsx_entities(&value.value)
+                ))),
                 _ => Some(format!(
-                    "[\"{base}\", {}].filter(Boolean).join(\" \")",
-                    sources.value(attribute)
+                    "\"{base} \" + {}",
+                    sources.class_name_concat(attribute)
                 )),
             },
         }
@@ -380,18 +409,26 @@ fn color_merge_object(
 /// them (like renamed scoped variables in `style`)
 struct AttributeSources<'a> {
     source: &'a str,
+    constants: &'a FxHashMap<String, StaticValue>,
+    scoping: &'a Scoping,
     edits: &'a mut Vec<Edit>,
 }
 
 impl AttributeSources<'_> {
     fn value(&mut self, attribute: &JSXAttribute<'_>) -> String {
         match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
+            Some(JSXAttributeValue::StringLiteral(value)) => {
+                js_string_literal(&decode_jsx_entities(&value.value))
+            }
             Some(JSXAttributeValue::ExpressionContainer(container)) => {
                 take_edited_source(self.source, container.expression.span(), self.edits)
             }
             _ => "undefined".to_owned(),
         }
+    }
+
+    fn class_name_concat(&self, attribute: &JSXAttribute<'_>) -> String {
+        class_name_concat_source(attribute, self.source, self.constants, self.scoping)
     }
 }
 

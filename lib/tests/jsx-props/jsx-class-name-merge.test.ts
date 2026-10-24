@@ -287,3 +287,191 @@ test('should merge spread props with explicit className and import mergeClassNam
     "
   `);
 });
+
+test('should share cx modifier classes between elements using the same css reference', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+
+      const card = css\`
+        &.active {
+          color: red;
+        }
+        &.active-extra {
+          color: blue;
+        }
+      \`;
+
+      export const A = ({ on, extra }: { on: boolean; extra: boolean }) => (
+        <>
+          <div css={card} cx={{ active: on, 'active-extra': extra }} />
+          <div className={card} cx={{ active: !on }} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const card = "v1560qbr-1-card";
+    export const A = ({ on, extra }: { on: boolean; extra: boolean }) => (
+      <>
+        <div
+          className={
+            "v1560qbr-1-card " +
+            cx({
+              "v1560qbr-3-active": on,
+              "v1560qbr-4-active-extra": extra,
+            })
+          }
+        />
+        <div
+          className={
+            card +
+            " " +
+            cx({
+              "v1560qbr-3-active": !on,
+            })
+          }
+        />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-card {
+      &.v1560qbr-3-active {
+        color: red;
+      }
+      &.v1560qbr-4-active-extra {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('should rewrite cx modifiers inside layered css references', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, layer } from 'vindur';
+
+      const card = css\`
+        \${layer('base')} {
+          &.active {
+            color: red;
+          }
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <div className={card} cx={{ active: on }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const card = "v1560qbr-1-card";
+    export const A = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          card +
+          " " +
+          cx({
+            "v1560qbr-2-active": on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@layer base {
+      .v1560qbr-1-card {
+        &.v1560qbr-2-active {
+          color: red;
+        }
+      }
+    }
+    "
+  `);
+});
+
+test('should concat className expressions on styled components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, createDynamicCssColor } from 'vindur';
+
+      const color = createDynamicCssColor();
+
+      const Box = styled.div\`
+        color: \${color.var};
+      \`;
+
+      const Btn = styled.button<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      export const A = ({ on, className }: { on: boolean; className?: string }) => (
+        <>
+          <Box className={className} />
+          <Btn className={className} active />
+          <Box className={className} dynamicColor={color.set('#f00')} />
+          <Box className='a"b' dynamicColor={color.set('#f00')} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const A = ({ on, className }: { on: boolean; className?: string }) => (
+      <>
+        <div className={"v1560qbr-2-Box " + (className || "")} />
+        <button
+          className={"v1560qbr-3-Btn " + (className || "") + " voctcyj-active"}
+        />
+        <div
+          {...color._sp("#f00", {
+            className: "v1560qbr-2-Box " + (className || ""),
+          })}
+        />
+        <div
+          {...color._sp("#f00", {
+            className: 'v1560qbr-2-Box a"b',
+          })}
+        />
+      </>
+    );
+    "
+  `);
+});
+
+test('should throw when dynamicColor is combined with className and the css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+
+        export const A = ({ className }: { className?: string }) => (
+          <div
+            className={className}
+            css={\`color: red;\`}
+            dynamicColor={color.set('#f00')}
+          />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: dynamicColor prop cannot be combined with both className and css or cx props on the same element. Apply dynamicColor to a wrapper element or move the className into the css or cx props
+    loc: 9:4]
+  `);
+});

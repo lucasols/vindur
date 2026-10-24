@@ -106,6 +106,8 @@ pub(super) fn class_name_expression(
     styled_class_name: &str,
     static_classes: &[String],
     source: &str,
+    constants: &FxHashMap<String, crate::facts::StaticValue>,
+    scoping: &Scoping,
 ) -> String {
     let static_suffix = static_classes
         .iter()
@@ -116,13 +118,13 @@ pub(super) fn class_name_expression(
             "{styled_class_name} {}{static_suffix}",
             decode_jsx_entities(&value.value)
         )),
-        Some(JSXAttributeValue::ExpressionContainer(container)) => {
-            let span = container.expression.span();
-            let expression = &source[span.start as usize..span.end as usize];
-            format!(
-                "[\"{styled_class_name}\", {expression}, \"{}\"].filter(Boolean).join(\" \")",
-                static_classes.join(" ")
-            )
+        Some(JSXAttributeValue::ExpressionContainer(_)) => {
+            let existing = class_name_concat_source(attribute, source, constants, scoping);
+            if static_suffix.is_empty() {
+                format!("\"{styled_class_name} \" + {existing}")
+            } else {
+                format!("\"{styled_class_name} \" + {existing} + \"{static_suffix}\"")
+            }
         }
         _ => format!("\"{styled_class_name}{static_suffix}\""),
     }
@@ -279,6 +281,45 @@ pub(super) fn class_name_concat_source(
         | oxc_ast::ast::JSXExpression::CallExpression(_) => format!("({value_source} || \"\")"),
         _ => format!("(({value_source}) || \"\")"),
     }
+}
+
+/// Whether a generated CSS rule is the root rule of `class_name`, including `@layer` sections
+pub(super) fn is_class_rule(rule: &str, class_name: &str) -> bool {
+    let selector = format!(".{class_name} {{");
+    rule.starts_with(&selector)
+        || rule
+            .strip_prefix("@layer ")
+            .and_then(|layered| layered.split_once(" {\n  "))
+            .is_some_and(|(_, inner)| inner.starts_with(&selector))
+}
+
+/// Replaces `&.original` modifier selectors with `&.hashed`, skipping longer class names
+/// that share the same prefix, e.g. `&.active-extra` when replacing `active`
+pub(super) fn replace_modifier_selector(css: &str, original: &str, hashed: &str) -> String {
+    let pattern = format!("&.{original}");
+    let mut result = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find(&pattern) {
+        let end = start + pattern.len();
+        let is_whole_class = rest[end..]
+            .chars()
+            .next()
+            .is_none_or(|character| !is_class_name_character(character));
+        result.push_str(&rest[..start]);
+        if is_whole_class {
+            result.push_str("&.");
+            result.push_str(hashed);
+        } else {
+            result.push_str(&pattern);
+        }
+        rest = &rest[end..];
+    }
+    result.push_str(rest);
+    result
+}
+
+fn is_class_name_character(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, '-' | '_') || !character.is_ascii()
 }
 
 /// `mergeClassNames` inputs: spread props and explicit `className` values in source order,

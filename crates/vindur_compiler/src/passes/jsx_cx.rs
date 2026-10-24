@@ -13,8 +13,8 @@ use super::{
     static_evaluation::resolved_constant,
     styled::StyledComponent,
     styled_jsx_helpers::{
-        class_name_concat_source, decode_jsx_entities, has_spread_attribute, js_string_literal,
-        merge_class_name_inputs,
+        class_name_concat_source, decode_jsx_entities, has_spread_attribute, is_class_rule,
+        js_string_literal, merge_class_name_inputs, replace_modifier_selector,
     },
 };
 
@@ -118,10 +118,13 @@ impl JsxCxVisitor<'_> {
         let has_css_context = styled.is_some()
             || find_attribute(element, "css").is_some()
             || self.class_name_is_css_reference(element);
-        let context_key = styled.as_ref().map_or_else(
-            || format!("css:{}", element.span.start),
-            |_| format!("styled:{element_name}"),
-        );
+        let css_references = self.css_reference_names(element);
+        // Css references share their rewritten rule across elements, so they share the indices
+        let context_key = match (&styled, css_references.is_empty()) {
+            (Some(_), _) => format!("styled:{element_name}"),
+            (None, false) => format!("css-ref:{}", css_references.join(",")),
+            (None, true) => format!("css:{}", element.span.start),
+        };
         let css_index = if find_attribute(element, "css").is_some() {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
@@ -237,7 +240,7 @@ impl JsxCxVisitor<'_> {
         if let Some(styled) = &styled {
             self.rewrite_styled_css(styled, &mappings);
         } else {
-            self.rewrite_css_reference(element, &mappings);
+            self.rewrite_css_references(&css_references, &mappings);
         }
         let object_source = format!("{{\n{},\n}}", properties.join(",\n"));
         let cx_call = format!("cx({object_source})");
@@ -350,7 +353,7 @@ impl JsxCxVisitor<'_> {
             .output
             .css_rules
             .iter()
-            .find(|rule| rule.starts_with(&format!(".{base_class} {{")))
+            .find(|rule| is_class_rule(rule, base_class))
             .map(String::as_str);
         mappings
             .iter()
@@ -395,26 +398,12 @@ impl JsxCxVisitor<'_> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
             return;
         };
-        for rule in self
-            .output
-            .css_rules
-            .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{base_class} {{")))
-        {
-            for (original, hashed, should_rewrite) in mappings {
-                if *should_rewrite {
-                    *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-                }
-            }
-        }
+        rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings);
     }
 
-    fn rewrite_css_reference(
-        &mut self,
-        element: &JSXElement<'_>,
-        mappings: &[(String, String, bool)],
-    ) {
-        let names = ["className", "css"]
+    /// Class names of the `css` function references used in `className` or `css`
+    fn css_reference_names(&self, element: &JSXElement<'_>) -> Vec<String> {
+        ["className", "css"]
             .into_iter()
             .filter_map(|attribute_name| {
                 let attribute = find_last_attribute(element, attribute_name)?;
@@ -430,18 +419,11 @@ impl JsxCxVisitor<'_> {
                     _ => None,
                 }
             })
-            .collect::<Vec<_>>();
-        for rule in self.output.css_rules.iter_mut().filter(|rule| {
-            names
-                .iter()
-                .any(|name| rule.starts_with(&format!(".{name} {{")))
-        }) {
-            for (original, hashed, should_rewrite) in mappings {
-                if *should_rewrite {
-                    *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-                }
-            }
-        }
+            .collect()
+    }
+
+    fn rewrite_css_references(&mut self, names: &[String], mappings: &[(String, String, bool)]) {
+        rewrite_class_rules(self.output.css_rules, names, mappings);
     }
 
     fn set_error(&mut self, span: oxc_span::Span, message: String) {
@@ -451,6 +433,24 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
+    }
+}
+
+fn rewrite_class_rules(
+    css_rules: &mut [String],
+    class_names: &[String],
+    mappings: &[(String, String, bool)],
+) {
+    for rule in css_rules.iter_mut().filter(|rule| {
+        class_names
+            .iter()
+            .any(|class_name| is_class_rule(rule, class_name))
+    }) {
+        for (original, hashed, should_rewrite) in mappings {
+            if *should_rewrite {
+                *rule = replace_modifier_selector(rule, original, hashed);
+            }
+        }
     }
 }
 

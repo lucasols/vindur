@@ -203,9 +203,14 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.edits.push(Edit {
                     span: attribute.span,
                     replacement: format!(
-                        "className={{[\"{}\", {}].filter(Boolean).join(\" \")}}",
+                        "className={{\"{} \" + {}}}",
                         component.class_name,
-                        class_name_value_source(attribute, self.source)
+                        class_name_concat_source(
+                            attribute,
+                            self.source,
+                            self.constants,
+                            self.scoping
+                        )
                     ),
                 });
             }
@@ -347,6 +352,8 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 &component.class_name,
                 &static_classes,
                 self.source,
+                self.constants,
+                self.scoping,
             );
             self.edits.push(Edit {
                 span: attribute.span,

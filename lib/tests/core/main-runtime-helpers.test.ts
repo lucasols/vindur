@@ -260,6 +260,22 @@ describe('mergeClassNames', () => {
     );
     expect(result).toBe('valid-class vindur-class');
   });
+
+  test('should ignore null and undefined spread props', () => {
+    const result = mergeClassNames(
+      ['explicit', null, undefined],
+      'vindur-class',
+    );
+    expect(result).toBe('explicit vindur-class');
+  });
+
+  test('should let a later undefined className override earlier classes', () => {
+    const result = mergeClassNames(
+      ['explicit', { className: undefined }],
+      'vindur-class',
+    );
+    expect(result).toBe('vindur-class');
+  });
 });
 
 describe('mergeStyles', () => {

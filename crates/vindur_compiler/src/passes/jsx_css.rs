@@ -19,7 +19,7 @@ use super::{
     styled::StyledComponent,
     styled_jsx_helpers::{
         class_name_concat_source, decode_jsx_entities, has_spread_attribute, js_string_literal,
-        merge_class_name_inputs, wrap_jsx_string,
+        merge_class_name_inputs, replace_modifier_selector, wrap_jsx_string,
     },
 };
 
@@ -206,8 +206,7 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     for (original, hashed, should_rewrite) in &cx.mappings {
                         if *should_rewrite {
-                            content =
-                                content.replace(&format!("&.{original}"), &format!("&.{hashed}"));
+                            content = replace_modifier_selector(&content, original, hashed);
                         }
                     }
                 }
