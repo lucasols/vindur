@@ -114,3 +114,92 @@ test('should not fail when importing a file that uses svg cx attributes', async 
     "
   `);
 });
+
+test('should keep the native cx attribute of styled svg elements', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Pie } from 'recharts'
+
+      const Dot = styled.circle\`
+        fill: red;
+      \`
+
+      const StyledPie = styled(Pie)\`
+        opacity: 0.5;
+      \`
+
+      export const Chart = () => (
+        <svg>
+          <Dot cx="50" cy="50" r="4" />
+          <StyledPie cx="50%" />
+        </svg>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Pie } from "recharts";
+    export const Chart = () => (
+      <svg>
+        <circle cx="50" cy="50" r="4" className="v1560qbr-1-Dot" />
+        <Pie cx="50%" className="v1560qbr-2-StyledPie" />
+      </svg>
+    );
+    "
+  `);
+});
+
+test('should still throw for wrapped or conditional cx objects on svg elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const Dot = ({ active }: { active: boolean }) => (
+          <circle cx={({ $active: active }) as const} r="2" />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop only accepts object expressions
+    loc: 2:14]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const Dot = ({ active }: { active: boolean }) => (
+          <circle cx={active ? { $active: true } : {}} r="2" />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop only accepts object expressions
+    loc: 2:14]
+  `);
+});
+
+test('should not allocate a class index for custom component cx with a string css prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { Pie } from 'recharts'
+
+      export const Chart = () => (
+        <>
+          <Pie cx="50%" css="pie" />
+          <div css={\`color: blue;\`} />
+        </>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Pie } from "recharts";
+    export const Chart = () => (
+      <>
+        <Pie cx="50%" css="pie" />
+        <div className="v1560qbr-1-css-prop-1" />
+      </>
+    );
+    "
+  `);
+});

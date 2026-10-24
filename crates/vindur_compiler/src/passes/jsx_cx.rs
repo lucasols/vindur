@@ -1,5 +1,5 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
+    Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
     JSXElementName, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
@@ -20,11 +20,26 @@ pub(super) fn is_foreign_cx_attribute(element_name: &str, attribute: &JSXAttribu
     let is_object = matches!(
         &attribute.value,
         Some(JSXAttributeValue::ExpressionContainer(container))
-            if matches!(container.expression, JSXExpression::ObjectExpression(_))
+            if container.expression.as_expression().is_some_and(is_object_like)
     );
     !is_object
         && (SVG_CX_ELEMENTS.contains(&element_name)
             || element_name.chars().next().is_some_and(char::is_uppercase))
+}
+
+// Wrapped or conditional objects stay vindur's so they fail fast instead of
+// reaching the DOM as `[object Object]`
+fn is_object_like(expression: &Expression<'_>) -> bool {
+    match expression.get_inner_expression() {
+        Expression::ObjectExpression(_) => true,
+        Expression::ConditionalExpression(conditional) => {
+            is_object_like(&conditional.consequent) || is_object_like(&conditional.alternate)
+        }
+        Expression::LogicalExpression(logical) => {
+            is_object_like(&logical.left) || is_object_like(&logical.right)
+        }
+        _ => false,
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -98,7 +113,10 @@ impl JsxCxVisitor<'_> {
             return;
         };
         let styled = self.output.styled_components.get(element_name).cloned();
-        if styled.is_none() && is_foreign_cx_attribute(element_name, attribute) {
+        let rendered_element = styled
+            .as_ref()
+            .map_or(element_name, |component| component.element.as_str());
+        if is_foreign_cx_attribute(rendered_element, attribute) {
             return;
         }
         let native = element_name.chars().next().is_some_and(char::is_lowercase);
