@@ -299,7 +299,11 @@ impl JsxCssVisitor<'_> {
                 span: attribute.span,
                 replacement: String::new(),
             });
-            self.merge_class_attribute(class_attribute, &complete_class);
+            self.merge_class_attribute(
+                class_attribute,
+                &complete_class,
+                cx_transform.map(|cx| cx.call.as_str()),
+            );
         } else {
             self.output.edits.push(Edit {
                 span: attribute.span,
@@ -311,11 +315,25 @@ impl JsxCssVisitor<'_> {
         }
     }
 
-    fn merge_class_attribute(&mut self, attribute: &JSXAttribute<'_>, class_name: &str) {
+    fn merge_class_attribute(
+        &mut self,
+        attribute: &JSXAttribute<'_>,
+        class_name: &str,
+        cx_call: Option<&str>,
+    ) {
         if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
-            self.output.edits.push(Edit {
-                span: value.span,
-                replacement: format!("\"{} {class_name}\"", value.value),
+            self.output.edits.push(match cx_call {
+                Some(cx_call) => Edit {
+                    span: attribute.span,
+                    replacement: format!(
+                        "className={{\"{} {class_name} \" + {cx_call}}}",
+                        value.value
+                    ),
+                },
+                None => Edit {
+                    span: value.span,
+                    replacement: format!("\"{} {class_name}\"", value.value),
+                },
             });
             return;
         }
@@ -323,10 +341,14 @@ impl JsxCssVisitor<'_> {
             let span = value.span();
             &self.output.source[span.start as usize..span.end as usize]
         });
+        let class_expression = cx_call.map_or_else(
+            || format!("\"{class_name}\""),
+            |cx_call| format!("\"{class_name} \" + {cx_call}"),
+        );
         self.output.edits.push(Edit {
             span: attribute.span,
             replacement: format!(
-                "className={{[{}, \"{class_name}\"].filter(Boolean).join(\" \")}}",
+                "className={{[{}, {class_expression}].filter(Boolean).join(\" \")}}",
                 value_source.trim_matches(['{', '}'])
             ),
         });
