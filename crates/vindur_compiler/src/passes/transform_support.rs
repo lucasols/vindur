@@ -236,9 +236,23 @@ pub(super) fn process_variable_declaration(
                         && (transform.source.contains("cx=")
                             || transform.source.contains("className={`")));
                 if !suppress_undeclared {
+                    // Dynamic color selectors (`color.self.isDark`) add vindur's own classes
+                    let dynamic_color_prefixes = transform
+                        .constants
+                        .values()
+                        .filter_map(|value| match value {
+                            StaticValue::DynamicColor { id } => Some(format!("{id}-")),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
                     transform.warnings.extend(
                         undeclared_style_classes(&content, &style_flags)
                             .into_iter()
+                            .filter(|class_name| {
+                                !dynamic_color_prefixes
+                                    .iter()
+                                    .any(|prefix| class_name.starts_with(prefix))
+                            })
                             .map(|class_name| {
                                 CompilerDiagnostic::warning(
                                     "",
