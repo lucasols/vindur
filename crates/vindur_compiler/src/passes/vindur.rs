@@ -490,7 +490,8 @@ fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
                 else {
                     return false;
                 };
-                specifier.imported.name().as_str() == name
+                // An aliased import doesn't bind the name generated code calls
+                specifier.imported.name().as_str() == name && specifier.local.name.as_str() == name
             })
         })
     })

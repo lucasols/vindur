@@ -1,7 +1,4 @@
-use oxc_ast::ast::{
-    Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName,
-};
+use oxc_ast::ast::{Expression, JSXAttributeItem, JSXAttributeValue, JSXElement, JSXElementName};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
@@ -151,13 +148,6 @@ pub(super) fn validate_styled_spreads(
         }
     }
     Ok(())
-}
-
-pub(super) fn is_named_attribute(attribute: &JSXAttribute<'_>, expected: &str) -> bool {
-    let JSXAttributeName::Identifier(name) = &attribute.name else {
-        return false;
-    };
-    name.name.as_str() == expected
 }
 
 pub(super) fn format_spread_expression(source: &str) -> String {

@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
-    JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind, Program, PropertyKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -164,6 +164,14 @@ impl JsxCxVisitor<'_> {
                 self.set_error(
                     property.span,
                     "cx prop object must only contain non-computed properties".to_owned(),
+                );
+                return;
+            }
+            if property.kind != PropertyKind::Init || property.method {
+                self.set_error(
+                    property.span,
+                    "cx prop object must only contain `key: value` properties, not methods, getters or setters"
+                        .to_owned(),
                 );
                 return;
             }

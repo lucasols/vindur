@@ -1,28 +1,38 @@
-// Rewrites `&.name` modifier selectors to their hashed classes, matching whole
-// class names only so `&.active` doesn't touch `&.activeIcon`
+// Rewrites the classes of compound selectors attached to `&`, like
+// `&.active.selected` or `&:hover.active`, to their hashed classes. Whole class names are matched,
+// so `&.active` doesn't touch `&.activeIcon`
 pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)]) -> String {
-    let mut output = css.to_owned();
-    for (original, hashed, should_rewrite) in mappings {
-        if !*should_rewrite {
-            continue;
-        }
-        let needle = format!("&.{original}");
-        let mut rewritten = String::with_capacity(output.len());
-        let mut rest = output.as_str();
-        while let Some(index) = rest.find(&needle) {
-            let end = index + needle.len();
-            rewritten.push_str(&rest[..index]);
-            if continues_class_name(&rest[end..]) {
-                rewritten.push_str(&needle);
+    let mut output = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(index) = rest.find('&') {
+        output.push_str(&rest[..=index]);
+        rest = &rest[index + 1..];
+        // `.class` and argument-less `:pseudo` tokens of the same compound selector
+        while let Some(marker) = rest
+            .chars()
+            .next()
+            .filter(|marker| matches!(marker, '.' | ':'))
+        {
+            let name = &rest[1..];
+            let length = name
+                .char_indices()
+                .find(|(_, character)| !is_class_name_character(*character))
+                .map_or(name.len(), |(index, _)| index);
+            let token = &name[..length];
+            let replacement = if marker == '.' {
+                mappings
+                    .iter()
+                    .find(|(original, _, should_rewrite)| *should_rewrite && original == token)
+                    .map_or(token, |(_, hashed, _)| hashed.as_str())
             } else {
-                rewritten.push_str("&.");
-                rewritten.push_str(hashed);
-            }
-            rest = &rest[end..];
+                token
+            };
+            output.push(marker);
+            output.push_str(replacement);
+            rest = &name[length..];
         }
-        rewritten.push_str(rest);
-        output = rewritten;
     }
+    output.push_str(rest);
     output
 }
 
@@ -33,10 +43,12 @@ pub(super) fn contains_class_selector(css: &str, class_name: &str) -> bool {
 }
 
 fn continues_class_name(rest: &str) -> bool {
-    rest.chars().next().is_some_and(|character| {
-        character.is_ascii_alphanumeric()
-            || character == '_'
-            || character == '-'
-            || !character.is_ascii()
-    })
+    rest.chars().next().is_some_and(is_class_name_character)
+}
+
+fn is_class_name_character(character: char) -> bool {
+    character.is_ascii_alphanumeric()
+        || character == '_'
+        || character == '-'
+        || !character.is_ascii()
 }

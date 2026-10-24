@@ -76,7 +76,7 @@ fn class_name_attribute<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a JSXAtt
 
 // Wrapped in an object so a nullish explicit className still overrides
 // earlier spreads, like it does in JSX
-fn explicit_class_input(attribute: &JSXAttribute<'_>, source: &str) -> String {
+pub(super) fn explicit_class_input(attribute: &JSXAttribute<'_>, source: &str) -> String {
     match &attribute.value {
         Some(JSXAttributeValue::StringLiteral(value)) => jsx_string_literal(&value.value),
         Some(JSXAttributeValue::ExpressionContainer(container))
@@ -98,6 +98,20 @@ pub(super) fn wrap_class_expression(
     attribute: &JSXAttribute<'_>,
     class_expression: &str,
 ) -> Option<[Edit; 2]> {
+    wrap_attribute_expression(
+        attribute,
+        "className={[",
+        &format!(", {class_expression}].filter(Boolean).join(\" \")}}"),
+    )
+}
+
+// Replaces the text before and after an expression attribute's value, keeping
+// edits other passes make inside it
+pub(super) fn wrap_attribute_expression(
+    attribute: &JSXAttribute<'_>,
+    prefix: &str,
+    suffix: &str,
+) -> Option<[Edit; 2]> {
     let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
         return None;
     };
@@ -108,11 +122,11 @@ pub(super) fn wrap_class_expression(
     Some([
         Edit {
             span: Span::new(attribute.span.start, expression.start),
-            replacement: "className={[".to_owned(),
+            replacement: prefix.to_owned(),
         },
         Edit {
             span: Span::new(expression.end, attribute.span.end),
-            replacement: format!(", {class_expression}].filter(Boolean).join(\" \")}}"),
+            replacement: suffix.to_owned(),
         },
     ])
 }

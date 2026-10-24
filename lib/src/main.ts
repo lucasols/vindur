@@ -327,6 +327,8 @@ export function mergeClassNames(
     }
   }
 
+  if (!vindurClassName) return finalClassName;
+
   if (finalClassName) return `${finalClassName} ${vindurClassName}`;
 
   return vindurClassName;

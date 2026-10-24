@@ -248,3 +248,57 @@ describe('Dynamic Colors - Spread Props', () => {
     `);
   });
 });
+
+test('should merge className before spread props with dynamic colors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const Button = styled.button\`
+        background: \${color.var};
+      \`
+
+      const Component = ({ buttonProps, props, value }) => {
+        return (
+          <>
+            <Button className="base" {...buttonProps} dynamicColor={color.set(value)}>Click me</Button>
+            <div {...props} dynamicColor={color.set(value)} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    const Component = ({ buttonProps, props, value }) => {
+      return (
+        <>
+          <button
+            {...buttonProps}
+            {...color._sp(value, {
+              className: mergeClassNames(
+                ["base", buttonProps],
+                "v1560qbr-2-Button",
+              ),
+              style: mergeStyles([buttonProps]),
+            })}
+          >
+            Click me
+          </button>
+          <div
+            {...props}
+            {...color._sp(value, {
+              className: mergeClassNames([props], ""),
+              style: mergeStyles([props]),
+            })}
+          />
+        </>
+      );
+    };
+    "
+  `);
+});

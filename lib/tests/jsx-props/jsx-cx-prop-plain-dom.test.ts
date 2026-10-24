@@ -126,3 +126,18 @@ test('should escape quotes in pass-through cx class names', async () => {
     "
   `);
 });
+
+test('should throw for getters and methods in cx objects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        function Component({ active }) {
+          return <div cx={{ get $active() { return active; } }} />;
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop object must only contain \`key: value\` properties, not methods, getters or setters
+    loc: 2:20]
+  `);
+});

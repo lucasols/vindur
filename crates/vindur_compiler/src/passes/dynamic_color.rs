@@ -14,7 +14,9 @@ use crate::{
 };
 
 use super::{
-    jsx_class_name::{js_string_literal, jsx_string_literal, jsx_string_value},
+    jsx_class_name::{
+        explicit_class_input, js_string_literal, jsx_string_literal, jsx_string_value,
+    },
     jsx_cx_attribute::{
         is_component_name, is_foreign_cx_attribute, is_foreign_styled_cx_attribute,
     },
@@ -354,10 +356,23 @@ fn color_merge_object(
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
     let class_name = if !spreads.is_empty() && !class_after_spreads {
         *needs_merge_class_names = true;
+        // The explicit className and the spreads after it, in source order,
+        // for `mergeClassNames`' last-one-wins semantics
+        let class_start = class_attribute.map_or(0, |attribute| attribute.span.start);
+        let inputs = class_attribute
+            .map(|attribute| explicit_class_input(attribute, source))
+            .into_iter()
+            .chain(
+                spreads
+                    .iter()
+                    .filter(|spread| spread.start > class_start)
+                    .map(|spread| spread.source.clone()),
+            )
+            .collect::<Vec<_>>();
         Some(format!(
-            "mergeClassNames([{}], {})",
-            spread_names,
-            base_class.map_or("undefined".to_owned(), |base| format!("\"{base}\""))
+            "mergeClassNames([{}], \"{}\")",
+            inputs.join(", "),
+            base_class.unwrap_or_default()
         ))
     } else {
         match (base_class, class_attribute) {

@@ -327,3 +327,49 @@ test('should merge explicit className with spread props on style flag components
     "
   `);
 });
+
+test('should keep css nested in className of style flag components with spread props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+
+      const Box = styled.div<{ active: boolean }>\`
+        color: red;
+        &.active { color: blue; }
+      \`;
+
+      function Component({ props, active }) {
+        return <Box {...props} active={active} className={css\`background: green;\`} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ props, active }) {
+      return (
+        <div
+          {...props}
+          className={
+            ["v1560qbr-1-Box", "v1560qbr-2", ""].filter(Boolean).join(" ") +
+            (active ? " voctcyj-active" : "")
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      color: red;
+      &.voctcyj-active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2 {
+      background: green;
+    }
+    "
+  `);
+});
