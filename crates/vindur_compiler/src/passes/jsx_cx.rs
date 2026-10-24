@@ -287,23 +287,25 @@ impl JsxCxVisitor<'_> {
             (Some(_), None) | (None, None) => String::new(),
             (component, Some(class_attribute)) => {
                 let existing = class_name_value_source(class_attribute, self.output.source);
-                let prefix = component.map_or_else(
-                    || match &class_attribute.value {
-                        Some(JSXAttributeValue::StringLiteral(_)) => {
-                            format!("\"{} \"", existing.trim_matches('"'))
-                        }
-                        _ => format!("{existing} + \" \""),
-                    },
-                    |value| match &class_attribute.value {
-                        Some(JSXAttributeValue::StringLiteral(_)) => {
-                            format!("\"{} {} \"", existing.trim_matches('"'), value.class_name)
-                        }
-                        _ => format!("{existing} + \" {} \"", value.class_name),
-                    },
-                );
+                let value = match (&class_attribute.value, component) {
+                    (Some(JSXAttributeValue::StringLiteral(_)), None) => {
+                        format!("\"{} \" + {cx_call}", existing.trim_matches('"'))
+                    }
+                    (Some(JSXAttributeValue::StringLiteral(_)), Some(component)) => format!(
+                        "\"{} {} \" + {cx_call}",
+                        existing.trim_matches('"'),
+                        component.class_name
+                    ),
+                    // The existing class name can be undefined, e.g. an optional `className` prop
+                    (_, None) => format!("[{existing}, {cx_call}].filter(Boolean).join(\" \")"),
+                    (_, Some(component)) => format!(
+                        "[{existing}, \"{} \" + {cx_call}].filter(Boolean).join(\" \")",
+                        component.class_name
+                    ),
+                };
                 self.output.edits.push(Edit {
                     span: class_attribute.span,
-                    replacement: format!("className={{{prefix} + {cx_call}}}"),
+                    replacement: format!("className={{{value}}}"),
                 });
                 String::new()
             }

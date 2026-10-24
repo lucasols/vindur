@@ -17,6 +17,7 @@ use super::{
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
+    styled_jsx_helpers::class_name_value_source,
 };
 
 pub(crate) struct JsxCssTransform<'a> {
@@ -300,7 +301,11 @@ impl JsxCssVisitor<'_> {
                 span: attribute.span,
                 replacement: String::new(),
             });
-            self.merge_class_attribute(class_attribute, &complete_class);
+            self.merge_class_attribute(
+                class_attribute,
+                &complete_class,
+                cx_transform.map(|cx| cx.call.as_str()),
+            );
         } else {
             self.output.edits.push(Edit {
                 span: attribute.span,
@@ -312,23 +317,35 @@ impl JsxCssVisitor<'_> {
         }
     }
 
-    fn merge_class_attribute(&mut self, attribute: &JSXAttribute<'_>, class_name: &str) {
+    fn merge_class_attribute(
+        &mut self,
+        attribute: &JSXAttribute<'_>,
+        class_name: &str,
+        cx_call: Option<&str>,
+    ) {
         if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
-            self.output.edits.push(Edit {
-                span: value.span,
-                replacement: format!("\"{} {class_name}\"", value.value),
-            });
+            let merged = format!("{} {class_name}", value.value);
+            self.output.edits.push(cx_call.map_or_else(
+                || Edit {
+                    span: value.span,
+                    replacement: format!("\"{merged}\""),
+                },
+                |cx_call| Edit {
+                    span: attribute.span,
+                    replacement: format!("className={{\"{merged} \" + {cx_call}}}"),
+                },
+            ));
             return;
         }
-        let value_source = attribute.value.as_ref().map_or("undefined", |value| {
-            let span = value.span();
-            &self.output.source[span.start as usize..span.end as usize]
-        });
+        let existing = class_name_value_source(attribute, self.output.source);
+        let vindur_class_name = cx_call.map_or_else(
+            || format!("\"{class_name}\""),
+            |cx_call| format!("\"{class_name} \" + {cx_call}"),
+        );
         self.output.edits.push(Edit {
             span: attribute.span,
             replacement: format!(
-                "className={{[{}, \"{class_name}\"].filter(Boolean).join(\" \")}}",
-                value_source.trim_matches(['{', '}'])
+                "className={{[{existing}, {vindur_class_name}].filter(Boolean).join(\" \")}}"
             ),
         });
     }
