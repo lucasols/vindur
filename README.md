@@ -1277,7 +1277,7 @@ const Button = styled.button`
 `;
 ```
 
-The generated css will be optimized with the values of the colors:
+The generated css will be optimized with the values of the colors. An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime:
 
 ```css
 .v1560qbr-1-Button {
