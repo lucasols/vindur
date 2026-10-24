@@ -1048,7 +1048,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-Only object values are compiled. Other `cx` values are kept as regular props, so the native `cx` attribute of `circle`, `ellipse` and `radialGradient` (including styled versions of them) and `cx` props of custom components keep working:
+On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On other elements `cx` must be an object literal:
 
 ```tsx
 <circle cx="50" cy="50" r="10" />

@@ -7,9 +7,12 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit};
 
 use super::{
-    jsx_class_name::{ClassNameMerge, class_name_merge, extend_jsx_string},
+    jsx_class_name::{
+        ClassNameMerge, RuntimeClassInputs, class_name_merge, extend_jsx_string,
+        wrap_class_expression,
+    },
     jsx_css::is_foreign_styled_css_attribute,
-    jsx_cx::is_foreign_styled_cx_attribute,
+    jsx_cx_attribute::is_foreign_styled_cx_attribute,
     styled::StyledComponent,
 };
 
@@ -141,75 +144,27 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             self.rewrite_style_flags(element, component, has_dynamic_css_attribute);
         } else if has_compile_time_class_attribute {
             // The JSX prop passes emit the combined styled and generated class names.
-        } else if let ClassNameMerge::Runtime(runtime) = class_name_merge(element, self.source) {
-            *self.needs_merge_helper = true;
-            if let Some(span) = runtime.moved_class_name {
-                self.edits.push(Edit {
-                    span,
-                    replacement: String::new(),
-                });
-            }
-            let offset = opening_attribute_insertion_offset(element, self.source);
-            self.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(
-                    " className={{mergeClassNames([{}], \"{}\")}}",
-                    runtime.inputs.join(", "),
-                    component.class_name
-                ),
-            });
-        } else if let Some(attribute) = element.opening_element.attributes.iter().find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            let JSXAttributeName::Identifier(name) = &attribute.name else {
-                return None;
-            };
-            (name.name.as_str() == "className").then_some(attribute)
-        }) {
-            if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
-                self.edits.push(Edit {
-                    span: value.span,
-                    replacement: extend_jsx_string(
-                        value,
-                        self.source,
-                        &format!("{} ", component.class_name),
-                        "",
-                    ),
-                });
-            } else if matches!(
-                &attribute.value,
-                Some(JSXAttributeValue::ExpressionContainer(container))
-                    if matches!(&container.expression, oxc_ast::ast::JSXExpression::TemplateLiteral(_))
-            ) {
-                self.edits.push(Edit {
-                    span: attribute.span,
-                    replacement: format!(
-                        "className={{`{} ${{{}}}`}}",
-                        component.class_name,
-                        class_name_value_source(attribute, self.source)
-                    ),
-                });
-            } else {
-                self.edits.push(Edit {
-                    span: attribute.span,
-                    replacement: format!(
-                        "className={{[\"{}\", {}].filter(Boolean).join(\" \")}}",
-                        component.class_name,
-                        class_name_value_source(attribute, self.source)
-                    ),
-                });
-            }
         } else {
-            let offset = opening_attribute_insertion_offset(element, self.source);
-            self.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: if has_dynamic_css_attribute {
-                    format!(" className={{\"{}\"}}", component.class_name)
-                } else {
-                    format!(" className=\"{}\"", component.class_name)
-                },
-            });
+            match class_name_merge(element, self.source) {
+                ClassNameMerge::Runtime(runtime) => {
+                    let merged = self.runtime_class_name(runtime, &component.class_name);
+                    self.insert_class_name(element, &merged);
+                }
+                ClassNameMerge::InPlace(attribute) => {
+                    self.merge_class_name_in_place(attribute, component);
+                }
+                ClassNameMerge::Insert => {
+                    let offset = opening_attribute_insertion_offset(element, self.source);
+                    self.edits.push(Edit {
+                        span: oxc_span::Span::new(offset, offset),
+                        replacement: if has_dynamic_css_attribute {
+                            format!(" className={{\"{}\"}}", component.class_name)
+                        } else {
+                            format!(" className=\"{}\"", component.class_name)
+                        },
+                    });
+                }
+            }
         }
 
         if let Some(closing) = &element.closing_element {
@@ -224,6 +179,75 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
 }
 
 impl StyledJsxVisitor<'_, '_, '_> {
+    // Removes the explicit className moved into the runtime merge and returns
+    // the `mergeClassNames` call
+    fn runtime_class_name(&mut self, runtime: RuntimeClassInputs, class_name: &str) -> String {
+        *self.needs_merge_helper = true;
+        if let Some(span) = runtime.moved_class_name {
+            self.edits.push(Edit {
+                span,
+                replacement: String::new(),
+            });
+        }
+        format!(
+            "mergeClassNames([{}], \"{class_name}\")",
+            runtime.inputs.join(", ")
+        )
+    }
+
+    fn insert_class_name(&mut self, element: &JSXElement<'_>, expression: &str) {
+        let offset = opening_attribute_insertion_offset(element, self.source);
+        self.edits.push(Edit {
+            span: oxc_span::Span::new(offset, offset),
+            replacement: format!(" className={{{expression}}}"),
+        });
+    }
+
+    fn merge_class_name_in_place(
+        &mut self,
+        attribute: &oxc_ast::ast::JSXAttribute<'_>,
+        component: &StyledComponent,
+    ) {
+        if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
+            self.edits.push(Edit {
+                span: value.span,
+                replacement: extend_jsx_string(
+                    value,
+                    self.source,
+                    &format!("{} ", component.class_name),
+                    "",
+                ),
+            });
+        } else if matches!(
+            &attribute.value,
+            Some(JSXAttributeValue::ExpressionContainer(container))
+                if matches!(&container.expression, oxc_ast::ast::JSXExpression::TemplateLiteral(_))
+        ) {
+            self.edits.push(Edit {
+                span: attribute.span,
+                replacement: format!(
+                    "className={{`{} ${{{}}}`}}",
+                    component.class_name,
+                    class_name_value_source(attribute, self.source)
+                ),
+            });
+        } else if let Some(edits) =
+            wrap_class_expression(attribute, &format!("\"{}\"", component.class_name))
+        {
+            // Keeps edits other passes make inside the expression, like a nested css``
+            self.edits.extend(edits);
+        } else {
+            self.edits.push(Edit {
+                span: attribute.span,
+                replacement: format!(
+                    "className={{[\"{}\", {}].filter(Boolean).join(\" \")}}",
+                    component.class_name,
+                    class_name_value_source(attribute, self.source)
+                ),
+            });
+        }
+    }
+
     fn rewrite_style_flags(
         &mut self,
         element: &JSXElement<'_>,
@@ -267,7 +291,6 @@ impl StyledJsxVisitor<'_, '_, '_> {
             .iter()
             .map(|class| class.concat.as_str())
             .collect::<String>();
-        let spreads = jsx_spread_sources(element, self.source);
         if has_dynamic_css_attribute {
             *self.needs_cx_helper = true;
             let mut cx_arguments = static_classes
@@ -301,38 +324,21 @@ impl StyledJsxVisitor<'_, '_, '_> {
             });
             return;
         }
-        if !spreads.is_empty() {
-            *self.needs_merge_helper = true;
-            *self.needs_cx_helper = true;
-            let mut cx_arguments = static_classes
-                .iter()
-                .map(|class| format!("\"{class}\""))
-                .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
-                .collect::<Vec<_>>();
-            cx_arguments.insert(
-                0,
-                format!(
-                    "mergeClassNames([{}], \"{}\")",
-                    spreads.join(", "),
-                    component.class_name
-                ),
-            );
-            let offset = opening_attribute_insertion_offset(element, self.source);
-            self.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" className={{cx({})}}", cx_arguments.join(", ")),
-            });
-            return;
-        }
-        if let Some(attribute) = element.opening_element.attributes.iter().find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            let JSXAttributeName::Identifier(name) = &attribute.name else {
-                return None;
-            };
-            (name.name.as_str() == "className").then_some(attribute)
-        }) {
+        let class_attribute = match class_name_merge(element, self.source) {
+            ClassNameMerge::Runtime(runtime) => {
+                *self.needs_cx_helper = true;
+                let merged = self.runtime_class_name(runtime, &component.class_name);
+                let cx_arguments = std::iter::once(merged)
+                    .chain(static_classes.iter().map(|class| format!("\"{class}\"")))
+                    .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
+                    .collect::<Vec<_>>();
+                self.insert_class_name(element, &format!("cx({})", cx_arguments.join(", ")));
+                return;
+            }
+            ClassNameMerge::InPlace(attribute) => Some(attribute),
+            ClassNameMerge::Insert => None,
+        };
+        if let Some(attribute) = class_attribute {
             let base = class_name_expression(
                 attribute,
                 &component.class_name,

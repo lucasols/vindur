@@ -9,7 +9,12 @@ use crate::edit::{Edit, expand_removal_to_line};
 
 use super::import_analysis::is_compile_time_import;
 
-pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) {
+pub(crate) fn optimize_cx_calls(
+    program: &Program<'_>,
+    source: &str,
+    edits: &mut Vec<Edit>,
+    needs_cx_helper: bool,
+) {
     let mut visitor = CxCallVisitor {
         source,
         edits,
@@ -17,7 +22,10 @@ pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut
         optimized_calls: 0,
     };
     visitor.visit_program(program);
-    if visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls {
+    // Generated code may still call the user's `cx` import, which suppressed
+    // injecting the runtime helper.
+    if !needs_cx_helper && visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls
+    {
         remove_cx_import(program, source, visitor.edits);
     }
 }

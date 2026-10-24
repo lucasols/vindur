@@ -15,7 +15,9 @@ use crate::{
 
 use super::{
     jsx_class_name::{js_string_literal, jsx_string_literal, jsx_string_value},
-    jsx_cx::{is_component_name, is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
+    jsx_cx_attribute::{
+        is_component_name, is_foreign_cx_attribute, is_foreign_styled_cx_attribute,
+    },
     static_evaluation::resolved_constant,
     styled::StyledComponent,
 };

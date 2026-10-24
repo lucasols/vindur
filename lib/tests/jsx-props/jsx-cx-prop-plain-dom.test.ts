@@ -102,3 +102,27 @@ describe('JSX cx prop on plain DOM elements without CSS context', () => {
     expect(result.css).toMatchInlineSnapshot(`""`);
   });
 });
+
+test('should escape quotes in pass-through cx class names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      function Component({ active }) {
+        return <div cx={{ '$after:content-["hello"]': active }} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function Component({ active }) {
+      return (
+        <div
+          className={cx({
+            'after:content-["hello"]': active,
+          })}
+        />
+      );
+    }
+    "
+  `);
+});

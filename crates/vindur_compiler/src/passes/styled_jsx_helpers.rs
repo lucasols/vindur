@@ -129,21 +129,6 @@ pub(super) fn class_name_expression(
     }
 }
 
-pub(super) fn jsx_spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<String> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
-            let span = spread.argument.span();
-            Some(source[span.start as usize..span.end as usize].to_owned())
-        })
-        .collect()
-}
-
 pub(super) struct InvalidStyledSpread {
     pub(super) span: oxc_span::Span,
     pub(super) source: String,

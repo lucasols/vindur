@@ -158,6 +158,21 @@ describe('createDynamicCssColor', () => {
     });
   });
 
+  test('should handle _sp method without props to merge', () => {
+    const color = createDynamicCssColor('test-hash', true);
+
+    expect(color._sp(null, undefined)).toEqual({});
+    expect(color._sp('#ff0000', undefined)).toEqual({
+      className:
+        'test-hash-self-is-dark test-hash-self-is-defined test-hash-self-is-not-very-dark test-hash-self-is-not-very-light',
+      style: {
+        '--test-hash': '#ff0000',
+        '--test-hash-c': '#ffffff',
+        '--test-hash-c-optimal': '#ffffff',
+      },
+    });
+  });
+
   test('should handle set method with warning', () => {
     const color = createDynamicCssColor('test-hash', true);
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

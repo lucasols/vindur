@@ -12,11 +12,13 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_selectors::rewrite_cx_selectors,
     jsx_class_name::{
         ClassNameMerge, class_name_merge, extend_jsx_string, js_string_literal, jsx_string_value,
         wrap_class_expression,
     },
-    jsx_cx::{CxElementTransform, is_component_name, rewrite_cx_selectors},
+    jsx_cx::CxElementTransform,
+    jsx_cx_attribute::is_component_name,
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},

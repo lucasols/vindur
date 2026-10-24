@@ -333,3 +333,40 @@ test('should throw for dynamicColor with className and css prop', async () => {
     loc: 8:6]
   `);
 });
+
+test('should keep the user cx import when generated classes still call cx', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { cx, styled } from 'vindur';
+
+      const Btn = styled.button\`
+        color: red;
+        &.active { color: blue; }
+      \`;
+
+      function Component({ big, active }) {
+        return <Btn className={cx('base', { big })} cx={{ active }} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function Component({ big, active }) {
+      return (
+        <button
+          className={[
+            "base" + (big ? " big" : ""),
+            "v1560qbr-1-Btn " +
+              cx({
+                "v1560qbr-2-active": active,
+              }),
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        />
+      );
+    }
+    "
+  `);
+});

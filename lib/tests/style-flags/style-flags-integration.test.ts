@@ -283,3 +283,47 @@ test('should preserve conditional expression precedence in dynamic flags', async
     "
   `);
 });
+
+test('should merge explicit className with spread props on style flag components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Flag = styled.div<{ active: boolean }>\`
+        color: red;
+        &.active { color: blue; }
+      \`;
+
+      function Component({ p, x }) {
+        return (
+          <>
+            <Flag className="a" {...p} active={x} />
+            <Flag {...p} className="a" active={x} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    function Component({ p, x }) {
+      return (
+        <>
+          <div
+            {...p}
+            className={cx(
+              mergeClassNames(["a", p], "v1560qbr-1-Flag"),
+              x && "voctcyj-active",
+            )}
+          />
+          <div
+            {...p}
+            className={"v1560qbr-1-Flag a" + (x ? " voctcyj-active" : "")}
+          />
+        </>
+      );
+    }
+    "
+  `);
+});

@@ -229,3 +229,49 @@ describe('styled components - basic functionality', () => {
     );
   });
 });
+
+test('should keep css classes nested in a styled component className', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+
+      const Box = styled.div\`
+        color: red;
+      \`;
+
+      function Component({ extra }) {
+        return (
+          <>
+            <Box className={css\`color: blue;\`} />
+            <Box className={extra} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ extra }) {
+      return (
+        <>
+          <div
+            className={["v1560qbr-2", "v1560qbr-1-Box"].filter(Boolean).join(" ")}
+          />
+          <div className={[extra, "v1560qbr-1-Box"].filter(Boolean).join(" ")} />
+        </>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      color: red;
+    }
+
+    .v1560qbr-2 {
+      color: blue;
+    }
+    "
+  `);
+});

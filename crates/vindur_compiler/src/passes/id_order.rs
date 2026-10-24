@@ -5,7 +5,7 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::jsx_cx::is_foreign_cx_attribute;
+use super::jsx_cx_attribute::is_foreign_cx_attribute;
 
 #[derive(Clone, Copy)]
 pub(crate) struct IdEvent {

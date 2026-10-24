@@ -29,7 +29,10 @@ export type DynamicCssColor = ColorOps & {
   set: (color: string | null | false | undefined) => DynamicColorSet;
   _sp: (
     color: string | null | false | undefined,
-    mergeWith: { className?: string; style?: Record<string, unknown> },
+    // Omitted by the compiler when the element has no className or style
+    mergeWith:
+      | { className?: string; style?: Record<string, unknown> }
+      | undefined,
   ) => { className?: string; style?: Record<string, unknown> };
   self: {
     isDark: string;
@@ -212,7 +215,7 @@ export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
     },
     _sp: (
       colorValue: string | null | false | undefined,
-      mergeWith: { className?: string; style?: Record<string, unknown> },
+      mergeWith: { className?: string; style?: Record<string, unknown> } = {},
     ) => {
       if (!colorValue) return mergeWith;
       const colorProps = color.setProps(colorValue, {
