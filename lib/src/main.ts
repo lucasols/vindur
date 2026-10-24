@@ -303,9 +303,11 @@ export function cx(
 
 /**
  * Merge classNames from spread props with vindur-generated classNames
+ *
+ * Inputs are spread props and explicit `className` values in source order
  */
 export function mergeClassNames(
-  spreadProps: (Record<string, unknown> | string)[],
+  spreadProps: unknown[],
   vindurClassName: string,
 ): string {
   let finalClassName = '';
@@ -314,7 +316,11 @@ export function mergeClassNames(
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       finalClassName = prop;
-    } else if (typeof prop === 'object' && 'className' in prop) {
+    } else if (
+      typeof prop === 'object'
+      && prop !== null
+      && 'className' in prop
+    ) {
       const className = prop.className;
       if (typeof className === 'string') {
         finalClassName = className;

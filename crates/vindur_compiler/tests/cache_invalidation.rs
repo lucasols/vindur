@@ -85,7 +85,8 @@ const App = ({ active }) => <div className={cx('base', { active })} css={`color:
 #[test]
 fn merges_mixed_vindur_import_cleanup_after_cx_optimization() {
     let source = r#"import { cx, styled } from 'vindur';
-const Box = styled.div<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
+import { Card } from 'ui';
+const Box = styled(Card)<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
 const App = ({ active, css }) => <Box tone="soft" css={css} className={cx({ active })} />;"#;
 
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());

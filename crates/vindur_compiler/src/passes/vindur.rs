@@ -326,6 +326,7 @@ pub(crate) fn transform_program(
             elements: &mut cx_elements,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
+            needs_merge_helper: &mut needs_merge_helper,
         },
     )?;
 

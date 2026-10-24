@@ -12,7 +12,8 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    jsx_cx::CxElementTransform,
+    jsx_class_name::{js_string_literal, jsx_string_value, spread_class_inputs},
+    jsx_cx::{CxElementTransform, rewrite_cx_selectors},
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
@@ -205,12 +206,7 @@ impl JsxCssVisitor<'_> {
                     }
                 };
                 if let Some(cx) = cx_transform {
-                    for (original, hashed, should_rewrite) in &cx.mappings {
-                        if *should_rewrite {
-                            content =
-                                content.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-                        }
-                    }
+                    content = rewrite_cx_selectors(&content, &cx.mappings);
                 }
                 let index = cx_transform.map_or_else(
                     || {
@@ -274,19 +270,24 @@ impl JsxCssVisitor<'_> {
         });
         let complete_expression =
             cx_transform.map(|cx| format!("\"{complete_class} \" + {}", cx.call));
-        let spreads = spread_sources(element, self.output.source);
-        if !spreads.is_empty() {
+        if let Some(spread) = spread_class_inputs(element, self.output.source) {
             *self.output.needs_merge_helper = true;
             self.output.edits.push(Edit {
                 span: attribute.span,
                 replacement: String::new(),
             });
+            for span in spread.class_name_spans {
+                self.output.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
             let insertion_offset = opening_attribute_insertion_offset(element, self.output.source);
             self.output.edits.push(Edit {
                 span: oxc_span::Span::new(insertion_offset, insertion_offset),
                 replacement: format!(
                     " className={{mergeClassNames([{}], {})}}",
-                    spreads.join(", "),
+                    spread.inputs.join(", "),
                     complete_expression
                         .as_deref()
                         .unwrap_or(&format!("\"{complete_class}\""))
@@ -326,8 +327,11 @@ impl JsxCssVisitor<'_> {
                 Some(cx_call) => Edit {
                     span: attribute.span,
                     replacement: format!(
-                        "className={{\"{} {class_name} \" + {cx_call}}}",
-                        value.value
+                        "className={{{} + {cx_call}}}",
+                        js_string_literal(&format!(
+                            "{} {class_name} ",
+                            jsx_string_value(&value.value)
+                        ))
                     ),
                 },
                 None => Edit {
@@ -429,6 +433,10 @@ pub(super) fn is_foreign_css_attribute(
 ) -> bool {
     let is_custom = is_custom_component(&element.opening_element.name);
     let styled = styled_component(element, styled_components);
+    // Styled native elements render a DOM node, so any css value there is vindur's
+    if styled.is_some_and(|styled| !styled.element_is_identifier) {
+        return false;
+    }
     let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
         return styled.map_or(is_custom, |styled| {
             is_foreign_styled_css_attribute(styled, attribute)
@@ -467,21 +475,6 @@ fn is_custom_component(name: &JSXElementName<'_>) -> bool {
         _ => return true,
     };
     identifier.chars().next().is_some_and(char::is_uppercase)
-}
-
-fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<String> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
-            let span = spread.argument.span();
-            Some(source[span.start as usize..span.end as usize].to_owned())
-        })
-        .collect()
 }
 
 fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {

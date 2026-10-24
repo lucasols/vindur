@@ -330,3 +330,64 @@ test('should apply cx classes of styled custom components with their own css pro
     "
   `);
 });
+
+test('should import mergeClassNames for cx on styled custom components with spread props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Pie } from 'recharts'
+
+      const StyledPie = styled(Pie)\`
+        opacity: 0.5;
+
+        &.active {
+          opacity: 1;
+        }
+      \`
+
+      export const Chart = ({ active, ...props }: { active: boolean }) => (
+        <StyledPie {...props} css="pie" cx={{ active }} />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    import { Pie } from "recharts";
+    export const Chart = ({ active, ...props }: { active: boolean }) => (
+      <Pie
+        {...props}
+        css="pie"
+        className={mergeClassNames(
+          [props],
+          "v1560qbr-1-StyledPie " +
+            cx({
+              "v1560qbr-2-active": active,
+            }),
+        )}
+      />
+    );
+    "
+  `);
+});
+
+test('should throw for non vindur css values on styled native elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div\`
+          color: red;
+        \`
+
+        export const Card = ({ active }: { active: boolean }) => (
+          <Box css={active ? \`color: blue;\` : \`color: green;\`} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported
+    loc: 8:12]
+  `);
+});

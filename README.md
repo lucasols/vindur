@@ -989,6 +989,8 @@ const CustomComponent = ({
 <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
 ```
 
+Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop, including on styled custom components like `styled(Pie)`.
+
 ### JSX CX Prop
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
@@ -1044,6 +1046,13 @@ const App = ({ isActive, isDisabled }) => (
     Content with conditional classes
   </Container>
 );
+```
+
+Only object values are compiled. Other `cx` values are kept as regular props, so the native `cx` attribute of `circle`, `ellipse` and `radialGradient` (including styled versions of them) and `cx` props of custom components keep working:
+
+```tsx
+<circle cx="50" cy="50" r="10" />
+<Pie cx="50%" data={data} />
 ```
 
 ### `cx` utility function

@@ -7,6 +7,7 @@ use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use super::{
+    jsx_class_name::{js_string_literal, jsx_string_literal, jsx_string_value},
     static_evaluation::resolved_constant,
     styled::{StyleFlag, StyleFlagKind},
 };
@@ -112,9 +113,10 @@ pub(super) fn class_name_expression(
         .map(|class| format!(" {class}"))
         .collect::<String>();
     match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => {
-            format!("\"{styled_class_name} {}{static_suffix}\"", value.value)
-        }
+        Some(JSXAttributeValue::StringLiteral(value)) => js_string_literal(&format!(
+            "{styled_class_name} {}{static_suffix}",
+            jsx_string_value(&value.value)
+        )),
         Some(JSXAttributeValue::ExpressionContainer(container)) => {
             let span = container.expression.span();
             let expression = &source[span.start as usize..span.end as usize];
@@ -229,7 +231,7 @@ pub(super) fn class_name_value_source(
                 source[span.start as usize..span.end as usize].to_owned()
             }
         },
-        JSXAttributeValue::StringLiteral(value) => format!("\"{}\"", value.value),
+        JSXAttributeValue::StringLiteral(value) => jsx_string_literal(&value.value),
         _ => "undefined".to_owned(),
     }
 }

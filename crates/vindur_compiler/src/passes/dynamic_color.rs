@@ -13,7 +13,11 @@ use crate::{
     facts::StaticValue,
 };
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    jsx_class_name::{js_string_literal, jsx_string_literal, jsx_string_value},
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+};
 
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
@@ -347,9 +351,10 @@ fn color_merge_object(
             (Some(base), None) => Some(format!("\"{base}\"")),
             (None, Some(attribute)) => Some(sources.value(attribute)),
             (Some(base), Some(attribute)) => match &attribute.value {
-                Some(JSXAttributeValue::StringLiteral(value)) => {
-                    Some(format!("\"{base} {}\"", value.value))
-                }
+                Some(JSXAttributeValue::StringLiteral(value)) => Some(js_string_literal(&format!(
+                    "{base} {}",
+                    jsx_string_value(&value.value)
+                ))),
                 _ => Some(format!(
                     "[\"{base}\", {}].filter(Boolean).join(\" \")",
                     sources.value(attribute)
@@ -386,7 +391,7 @@ struct AttributeSources<'a> {
 impl AttributeSources<'_> {
     fn value(&mut self, attribute: &JSXAttribute<'_>) -> String {
         match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
+            Some(JSXAttributeValue::StringLiteral(value)) => jsx_string_literal(&value.value),
             Some(JSXAttributeValue::ExpressionContainer(container)) => {
                 take_edited_source(self.source, container.expression.span(), self.edits)
             }
