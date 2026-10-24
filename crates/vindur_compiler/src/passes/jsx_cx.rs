@@ -119,10 +119,11 @@ impl JsxCxVisitor<'_> {
             || find_attribute(element, "css").is_some()
             || self.class_name_is_css_reference(element);
         let css_references = self.css_reference_names(element);
-        // Css references share their rewritten rule across elements, so they share the indices
+        // Css reference rules are rewritten in place and can be combined in any way across
+        // elements, so all of them share a single file-wide index per modifier name
         let context_key = match (&styled, css_references.is_empty()) {
             (Some(_), _) => format!("styled:{element_name}"),
-            (None, false) => format!("css-ref:{}", css_references.join(",")),
+            (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
         let css_index = if find_attribute(element, "css").is_some() {
@@ -353,22 +354,19 @@ impl JsxCxVisitor<'_> {
             .output
             .css_rules
             .iter()
-            .find(|rule| is_class_rule(rule, base_class))
-            .map(String::as_str);
+            .filter(|rule| is_class_rule(rule, base_class))
+            .collect::<Vec<_>>();
+        let searched_css = if relevant_css.is_empty() {
+            self.output.css_rules.iter().collect()
+        } else {
+            relevant_css
+        };
         mappings
             .iter()
             .filter_map(|(original, hashed, should_rewrite)| {
-                let declared = relevant_css.map_or_else(
-                    || {
-                        self.output.css_rules.iter().any(|rule| {
-                            rule.contains(&format!(".{original}"))
-                                || rule.contains(&format!(".{hashed}"))
-                        })
-                    },
-                    |css| {
-                        css.contains(&format!(".{original}")) || css.contains(&format!(".{hashed}"))
-                    },
-                );
+                let declared = searched_css.iter().any(|css| {
+                    css.contains(&format!(".{original}")) || css.contains(&format!(".{hashed}"))
+                });
                 (*should_rewrite && !declared).then_some(original.clone())
             })
             .collect()

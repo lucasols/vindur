@@ -276,6 +276,13 @@ describe('mergeClassNames', () => {
     );
     expect(result).toBe('vindur-class');
   });
+
+  test('should ignore inherited className properties', () => {
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { className: undefined });
+    const result = mergeClassNames(['explicit', inherited], 'vindur-class');
+    expect(result).toBe('explicit vindur-class');
+  });
 });
 
 describe('mergeStyles', () => {
@@ -296,6 +303,11 @@ describe('mergeStyles', () => {
   test('should handle empty props', () => {
     const result = mergeStyles([]);
     expect(result).toEqual({});
+  });
+
+  test('should ignore null and undefined spread props', () => {
+    const result = mergeStyles([null, { style: { color: 'red' } }, undefined]);
+    expect(result).toEqual({ color: 'red' });
   });
 
   test('should ignore invalid style properties', () => {

@@ -139,24 +139,13 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 .is_none_or(|attribute| attribute.span.start < last_spread.start)
         {
             *self.needs_merge_helper = true;
-            let mut inputs = Vec::new();
-            for item in &element.opening_element.attributes {
-                match item {
-                    JSXAttributeItem::SpreadAttribute(spread) => {
-                        let span = spread.argument.span();
-                        inputs.push(self.source[span.start as usize..span.end as usize].to_owned());
-                    }
-                    JSXAttributeItem::Attribute(attribute)
-                        if is_named_attribute(attribute, "className") =>
-                    {
-                        inputs.push(class_name_value_source(attribute, self.source));
-                        self.edits.push(Edit {
-                            span: attribute.span,
-                            replacement: String::new(),
-                        });
-                    }
-                    _ => {}
-                }
+            let (inputs, replaced_attributes) =
+                merge_class_name_inputs(element, self.source, self.constants, self.scoping);
+            for span in replaced_attributes {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
             }
             let offset = opening_attribute_insertion_offset(element, self.source);
             self.edits.push(Edit {

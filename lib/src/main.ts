@@ -296,7 +296,12 @@ export function mergeClassNames(
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       finalClassName = prop;
-    } else if (prop && typeof prop === 'object' && 'className' in prop) {
+    } else if (
+      prop &&
+      typeof prop === 'object' &&
+      // JSX spreads only copy own enumerable properties
+      Object.prototype.propertyIsEnumerable.call(prop, 'className')
+    ) {
       const className = prop.className;
       finalClassName = typeof className === 'string' ? className : '';
     }
@@ -311,12 +316,12 @@ export function mergeClassNames(
  * Merge styles from spread props
  */
 export function mergeStyles(
-  spreadProps: Record<string, unknown>[],
+  spreadProps: (Record<string, unknown> | null | undefined)[],
 ): Record<string, unknown> {
   const mergedStyle: Record<string, unknown> = {};
 
   for (const prop of spreadProps) {
-    if (typeof prop === 'object' && 'style' in prop) {
+    if (prop && typeof prop === 'object' && 'style' in prop) {
       const style = prop.style;
       if (style && typeof style === 'object') {
         Object.assign(mergedStyle, style);
