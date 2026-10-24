@@ -22,6 +22,7 @@ mod styled_jsx;
 mod styled_jsx_helpers;
 mod theme_color;
 mod transform_support;
+mod unsupported_css_syntax;
 mod vindur;
 mod with_component;
 

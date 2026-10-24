@@ -673,6 +673,8 @@ const slideAnimation = keyframes`
 `;
 ```
 
+`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed at the top level of `createGlobalStyle`.
+
 ### Scoped CSS Variables
 
 Define CSS custom properties that are automatically scoped to avoid naming conflicts across components. Use the `---var` syntax (triple dash) to create scoped variables that are processed at compile time.
@@ -880,6 +882,8 @@ createGlobalStyle`
   }
 `;
 ```
+
+`:global(...)` is not supported and is a compile error. Class names written in templates are never hashed, so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`.
 
 ### Mixins and Functions
 

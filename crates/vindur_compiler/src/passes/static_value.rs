@@ -14,6 +14,9 @@ use super::function_evaluation::{evaluate_argument, function_binary_expression_e
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
 };
+use super::unsupported_css_syntax::{
+    unsupported_interpolation_syntax_error, unsupported_template_syntax_error,
+};
 
 pub(crate) struct TemplateContext<'a> {
     pub variable_name: Option<&'a str>,
@@ -51,6 +54,11 @@ pub(crate) fn evaluate_template(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Result<String, CompilerDiagnostic> {
+    if let Some(diagnostic) =
+        unsupported_template_syntax_error(template, context.tag_type, file_path, source)
+    {
+        return Err(diagnostic);
+    }
     let mut output = String::new();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
@@ -185,6 +193,15 @@ pub(crate) fn evaluate_template(
             StaticValue::CssClass { name, .. } => format!(".{name}"),
             value => static_value_to_string(value),
         };
+        if let Some(diagnostic) = unsupported_interpolation_syntax_error(
+            &value,
+            expression.span(),
+            context.tag_type,
+            file_path,
+            source,
+        ) {
+            return Err(diagnostic);
+        }
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
                 imported_function_preserves_boundary(expression, constants, scoping);
