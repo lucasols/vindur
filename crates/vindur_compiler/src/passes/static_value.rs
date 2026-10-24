@@ -1,22 +1,18 @@
-use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, Program, Statement, TemplateLiteral,
-};
+use oxc_ast::ast::{Expression, IdentifierReference, Program, Statement, TemplateLiteral};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{
-    CompilerDiagnostic,
-    facts::{FunctionParameter, StaticValue},
-};
+use crate::{CompilerDiagnostic, facts::StaticValue};
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::interpolation_validation::{
+    invalid_array_argument_error, invalid_dynamic_color_method_error, invalid_layer_error,
+};
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
 };
-use super::unsupported_css_syntax::{
-    unsupported_interpolation_syntax_error, unsupported_template_syntax_error,
-};
+use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, unsupported_syntax_error};
 
 pub(crate) struct TemplateContext<'a> {
     pub variable_name: Option<&'a str>,
@@ -54,14 +50,11 @@ pub(crate) fn evaluate_template(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Result<String, CompilerDiagnostic> {
-    if let Some(diagnostic) =
-        unsupported_template_syntax_error(template, context.tag_type, file_path, source)
-    {
-        return Err(diagnostic);
-    }
     let mut output = String::new();
+    let mut segments = Vec::new();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
+        let quasi_start = output.len();
         output.push_str(
             quasi
                 .value
@@ -70,6 +63,10 @@ pub(crate) fn evaluate_template(
                 .unwrap_or(&quasi.value.raw)
                 .as_str(),
         );
+        segments.push(TemplateSegment {
+            range: quasi_start..output.len(),
+            origin: SegmentOrigin::Quasi(quasi.span),
+        });
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
@@ -184,6 +181,7 @@ pub(crate) fn evaluate_template(
             .trim()
             .trim_matches(';')
             .trim();
+        let expression_start = output.len();
         if is_css_extension && (previous_was_css_extension || !static_before_expression.is_empty())
         {
             output.push('\n');
@@ -193,15 +191,6 @@ pub(crate) fn evaluate_template(
             StaticValue::CssClass { name, .. } => format!(".{name}"),
             value => static_value_to_string(value),
         };
-        if let Some(diagnostic) = unsupported_interpolation_syntax_error(
-            &value,
-            expression.span(),
-            context.tag_type,
-            file_path,
-            source,
-        ) {
-            return Err(diagnostic);
-        }
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
                 imported_function_preserves_boundary(expression, constants, scoping);
@@ -215,7 +204,21 @@ pub(crate) fn evaluate_template(
         } else {
             output.push_str(&value);
         }
+        segments.push(TemplateSegment {
+            range: expression_start..output.len(),
+            origin: SegmentOrigin::Interpolation(expression.span()),
+        });
         previous_was_css_extension = is_css_extension;
+    }
+    if let Some(diagnostic) = unsupported_syntax_error(
+        &output,
+        &segments,
+        template.span,
+        context.tag_type,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
     }
     Ok(output)
 }
@@ -347,70 +350,6 @@ fn imported_function_preserves_boundary(
     quasis.last().is_some_and(|quasi| quasi.contains('\n'))
 }
 
-fn invalid_layer_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::Identifier(callee) = &call.callee else {
-        return None;
-    };
-    if !matches!(
-        resolved_constant(callee, constants, scoping),
-        Some(StaticValue::LayerFunction)
-    ) {
-        return None;
-    }
-    if matches!(call.arguments.as_slice(), [Argument::StringLiteral(_)]) {
-        return None;
-    }
-    let span = call.arguments.first().map_or(call.span, GetSpan::span);
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        span,
-        "layer() must be called with a string literal layer name".to_owned(),
-    ))
-}
-
-fn invalid_dynamic_color_method_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::StaticMemberExpression(callee) = &call.callee else {
-        return None;
-    };
-    let method = callee.property.name.as_str();
-    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
-        return None;
-    }
-    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-    if !matches!(
-        receiver,
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
-    ) || matches!(call.arguments.as_slice(), [Argument::NumericLiteral(_)])
-    {
-        return None;
-    }
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        format!("Method {method} requires a numeric argument"),
-    ))
-}
-
 fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
     let Expression::ArrowFunctionExpression(arrow) = expression else {
         return None;
@@ -425,51 +364,6 @@ fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e st
         return None;
     };
     Some(identifier.name.as_str())
-}
-
-fn invalid_array_argument_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::Identifier(callee) = &call.callee else {
-        return None;
-    };
-    let function = match resolved_constant(callee, constants, scoping)? {
-        StaticValue::Function(function) | StaticValue::ImportedFunction(function) => function,
-        _ => return None,
-    };
-    for (index, argument) in call.arguments.iter().enumerate() {
-        let Argument::ArrayExpression(array) = argument else {
-            continue;
-        };
-        let is_valid = array.elements.iter().all(|element| {
-            matches!(
-                element.as_expression(),
-                Some(Expression::StringLiteral(_) | Expression::NumericLiteral(_))
-            )
-        });
-        if is_valid {
-            continue;
-        }
-        let FunctionParameter::Identifier { name, .. } = function.parameters.get(index)? else {
-            return None;
-        };
-        return Some(CompilerDiagnostic::error(
-            file_path,
-            source,
-            array.span,
-            format!(
-                "Array argument for parameter '{name}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals."
-            ),
-        ));
-    }
-    None
 }
 
 fn interpolation_error(

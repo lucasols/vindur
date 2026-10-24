@@ -152,6 +152,143 @@ describe(':global', () => {
       "
     `);
   });
+  test('should throw for :global followed by a comma', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            :global, .other {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, use \`createGlobalStyle\` for styles that should apply outside this component, or remove the wrapper to scope them to it, e.g. \`:global(.ant-btn)\` -> \`.ant-btn\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for :global split by an interpolation', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const name = 'global'
+
+          const style = css\`
+            :\${name}(.dark) & {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 6:2]
+    `);
+  });
+
+  test('should report the source location of :global in CRLF files', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            .é:global(.dark) & {
+              color: white;
+            }
+          \`
+        `.replaceAll('\n', '\r\n'),
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 4:4]
+    `);
+  });
+
+  test('should throw for :global after a comment marker inside a string', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            content: "/*";
+
+            :global(.dark) & {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`:global\` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. \`:global(.dark) &\` -> \`.dark &\`
+      loc: 6:2]
+    `);
+  });
+
+  test('should ignore :global and @keyframes inside strings and urls', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          content: ':global ';
+          quotes: "@keyframes" "x";
+          background: url(/img/:global.png);
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        content: ":global ";
+        quotes: "@keyframes" "x";
+        background: url(/img/:global.png);
+      }
+      "
+    `);
+  });
+
+  test('should ignore :global inside comments split by interpolations', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const note = 'old'
+
+        const style = css\`
+          /* \${note} :global(.dark) & */
+          color: red;
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const note = "old";
+      const style = "v1560qbr-1-style";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        /* old :global(.dark) & */
+        color: red;
+      }
+      "
+    `);
+  });
+
 });
 
 describe('@keyframes inside templates', () => {
@@ -218,6 +355,91 @@ describe('@keyframes inside templates', () => {
         }
         to {
           opacity: 1;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should throw for the first vendor prefixed @keyframes', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            @-moz-keyframes a { from { opacity: 0; } }
+            @keyframes b { from { opacity: 0; } }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`@-moz-keyframes\` is not supported inside \`css\` templates, use the \`keyframes\` function instead
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for @keyframes in keyframes templates', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { keyframes } from 'vindur'
+
+          const fade = keyframes\`
+            @keyframes inner {
+              from { opacity: 0; }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`@keyframes\` is not supported inside \`keyframes\` templates, they already generate the \`@keyframes\` rule so write only the frames, e.g. \`from { ... } to { ... }\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for @keyframes nested in style rules in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur'
+
+          createGlobalStyle\`
+            .box {
+              @KEYFRAMES spin { from { opacity: 0; } }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`@KEYFRAMES\` is not supported inside style rules, move it to the top level of \`createGlobalStyle\`
+      loc: 5:4]
+    `);
+  });
+
+  test('should allow @keyframes nested in at-rules in createGlobalStyle', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @media (prefers-reduced-motion: no-preference) {
+            @keyframes fade {
+              from { opacity: 0; }
+            }
+          }
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`""`);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@media (prefers-reduced-motion: no-preference) {
+        @keyframes fade {
+          from {
+            opacity: 0;
+          }
         }
       }
       "

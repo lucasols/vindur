@@ -394,7 +394,7 @@ pub(super) fn process_variable_declaration(
             transform.source,
             &TemplateContext {
                 variable_name: Some(variable_name),
-                tag_type: "css",
+                tag_type: tag_name,
             },
         )?;
         let content = clean_css(&content);
