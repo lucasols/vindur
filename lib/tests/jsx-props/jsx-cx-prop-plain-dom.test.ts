@@ -141,3 +141,32 @@ test('should throw for getters and methods in cx objects', async () => {
     loc: 2:20]
   `);
 });
+
+test('should handle empty cx objects and __proto__ class names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const App = ({ active }) => (
+        <>
+          <div cx={{}} />
+          <div cx={{ $__proto__: active, $other: true }} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ active }) => (
+      <>
+        <div className={cx({})} />
+        <div
+          className={cx({
+            ["__proto__"]: active,
+            other: true,
+          })}
+        />
+      </>
+    );
+    "
+  `);
+});

@@ -253,3 +253,34 @@ test('should leave malformed and commented selectors intact', async () => {
     "
   `);
 });
+
+test('should rewrite cx classes after type and id selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div\`
+        &:not(div.active) { opacity: 0.5; }
+        &:is(*.active, #main.active) { color: red; }
+        &#main.active { color: blue; }
+      \`;
+
+      export const App = ({ a }) => <Item cx={{ active: a }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Item {
+      &:not(div.v1560qbr-2-active) {
+        opacity: 0.5;
+      }
+      &:is(*.v1560qbr-2-active, #main.v1560qbr-2-active) {
+        color: red;
+      }
+      &#main.v1560qbr-2-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});

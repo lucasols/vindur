@@ -214,7 +214,13 @@ impl JsxCxVisitor<'_> {
                 };
             let value_span = property.value.span();
             let value = &self.output.source[value_span.start as usize..value_span.end as usize];
-            properties.push(format!("{}: {value}", js_string_literal(&output_name)));
+            // A `"__proto__"` key would set the prototype instead of adding the class
+            let key = if output_name == "__proto__" {
+                format!("[{}]", js_string_literal(&output_name))
+            } else {
+                js_string_literal(&output_name)
+            };
+            properties.push(format!("{key}: {value}"));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
 
@@ -273,7 +279,11 @@ impl JsxCxVisitor<'_> {
         } else {
             self.rewrite_css_reference(element, &mappings);
         }
-        let object_source = format!("{{\n{},\n}}", properties.join(",\n"));
+        let object_source = if properties.is_empty() {
+            "{}".to_owned()
+        } else {
+            format!("{{\n{},\n}}", properties.join(",\n"))
+        };
         let cx_call = format!("{}({object_source})", self.output.helper_names.cx);
         if let Some(css_index) = css_index {
             self.output.elements.insert(

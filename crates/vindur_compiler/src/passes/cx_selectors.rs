@@ -1,5 +1,5 @@
 // Rewrites the classes of compound selectors attached to `&`, like
-// `&.active.selected`, `&:hover.active`, `&[data-open].active` or `&:not(.active)`, to their
+// `&.active.selected`, `&:hover.active`, `&[data-open].active` or `&:not(div.active)`, to their
 // hashed classes. Whole class names are matched, so `&.active` doesn't touch `&.activeIcon`
 pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)]) -> String {
     rewrite_compound_classes(css, &|class_name| {
@@ -72,6 +72,12 @@ fn rewrite_compound(
                     index = rewrite_arguments(css, index, limit, output, map, same_element);
                 }
             }
+            Some('#') => {
+                let id = identifier(&css[index + 1..limit]);
+                output.push('#');
+                output.push_str(id);
+                index += 1 + id.len();
+            }
             Some('[') => {
                 let end = skipped_end(css, index, limit);
                 output.push_str(&css[index..end]);
@@ -109,8 +115,10 @@ fn rewrite_arguments(
         output.push_str(&css[index..index + whitespace]);
         index += whitespace;
         // Rewritten once into a buffer, rescanning nested arguments would take exponential time
-        let mut rewritten = String::new();
-        let compound_end = rewrite_compound(css, index, close, &mut rewritten, map);
+        // An argument may start with a type selector, like `:not(div.active)`
+        let type_end = index + type_selector(&css[index..close]).len();
+        let mut rewritten = css[index..type_end].to_owned();
+        let compound_end = rewrite_compound(css, type_end, close, &mut rewritten, map);
         let after = css[compound_end..close].trim_start();
         if compound_end > index && (after.is_empty() || after.starts_with(',')) {
             output.push_str(&rewritten);
@@ -180,6 +188,17 @@ fn skipped_end(css: &str, index: usize, limit: usize) -> usize {
         }
     }
     limit
+}
+
+// A leading `*` or element name, like the `div` of `div.active`
+fn type_selector(rest: &str) -> &str {
+    if rest.starts_with('*') {
+        return &rest[..1];
+    }
+    if rest.starts_with(|character: char| character.is_ascii_alphabetic()) {
+        return identifier(rest);
+    }
+    ""
 }
 
 // A CSS identifier, including escapes like `active\:icon`

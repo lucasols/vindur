@@ -5,11 +5,11 @@ use crate::edit::Edit;
 
 // The names generated code calls the runtime helpers by. A helper keeps its own name unless
 // another binding in the file uses it, like `import cx from 'classnames'` or a `cx` parameter of
-// an SVG component, which would shadow it, then it's imported under a reserved alias
+// an SVG component, which would shadow it, then it's imported under an unused alias
 pub(crate) struct RuntimeHelperNames {
-    pub cx: &'static str,
-    pub merge_class_names: &'static str,
-    pub merge_styles: &'static str,
+    pub cx: String,
+    pub merge_class_names: String,
+    pub merge_styles: String,
 }
 
 const HELPERS: [(&str, &str); 3] = [
@@ -25,7 +25,11 @@ impl RuntimeHelperNames {
             let shadowed = scoping.symbol_ids().any(|symbol| {
                 scoping.symbol_name(symbol) == helper && !own_imports.contains(&symbol)
             });
-            if shadowed { alias } else { helper }
+            if shadowed {
+                unused_name(scoping, alias)
+            } else {
+                helper.to_owned()
+            }
         });
         Self {
             cx,
@@ -33,6 +37,29 @@ impl RuntimeHelperNames {
             merge_styles,
         }
     }
+}
+
+// `alias`, or `alias2`, `alias3`... when a binding or a global reference already uses it
+fn unused_name(scoping: &Scoping, alias: &str) -> String {
+    let is_used = |name: &str| {
+        scoping
+            .symbol_ids()
+            .any(|symbol| scoping.symbol_name(symbol) == name)
+            || scoping
+                .root_unresolved_references()
+                .keys()
+                .any(|reference| reference.as_str() == name)
+    };
+    (1..)
+        .map(|suffix| {
+            if suffix == 1 {
+                alias.to_owned()
+            } else {
+                format!("{alias}{suffix}")
+            }
+        })
+        .find(|name| !is_used(name))
+        .unwrap_or_else(|| alias.to_owned())
 }
 
 // The import of the helpers generated code calls, skipping the ones the file already imports
@@ -47,9 +74,9 @@ pub(super) fn runtime_helper_import(
         .iter()
         .filter_map(|helper| {
             let name = match *helper {
-                "cx" => names.cx,
-                "mergeClassNames" => names.merge_class_names,
-                "mergeStyles" => names.merge_styles,
+                "cx" => names.cx.as_str(),
+                "mergeClassNames" => names.merge_class_names.as_str(),
+                "mergeStyles" => names.merge_styles.as_str(),
                 _ => helper,
             };
             if !vindur_value_imports(program, helper, name).is_empty() {
@@ -66,12 +93,24 @@ pub(super) fn runtime_helper_import(
         return None;
     }
     let quote = vindur_import_quote(program, source);
+    let import = format!(
+        "import {{ {} }} from {quote}vindur{quote};",
+        specifiers.join(", "),
+    );
+    // After a hashbang and directives like `'use client'`, which must stay first
+    let prologue_end = program
+        .directives
+        .last()
+        .map(|directive| directive.span.end)
+        .or_else(|| program.hashbang.as_ref().map(|hashbang| hashbang.span.end))
+        .unwrap_or(0);
     Some(Edit {
-        span: oxc_span::Span::new(0, 0),
-        replacement: format!(
-            "import {{ {} }} from {quote}vindur{quote};\n",
-            specifiers.join(", "),
-        ),
+        span: oxc_span::Span::new(prologue_end, prologue_end),
+        replacement: if prologue_end == 0 {
+            format!("{import}\n")
+        } else {
+            format!("\n{import}")
+        },
     })
 }
 

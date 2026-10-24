@@ -9,7 +9,7 @@ use oxc_syntax::operator::LogicalOperator;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
-use super::import_analysis::is_compile_time_import;
+use super::{import_analysis::is_compile_time_import, jsx_class_name::js_string_literal};
 
 pub(crate) fn optimize_cx_calls(
     program: &Program<'_>,
@@ -96,7 +96,7 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
             self.optimized_calls += 1;
             self.edits.push(Edit {
                 span: call.span,
-                replacement: value,
+                replacement: value.into_replacement(),
             });
         } else if let Some(value) = format_computed_object_call(&call.arguments, self.source) {
             self.edits.push(Edit {
@@ -110,11 +110,38 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
 
 #[derive(Debug)]
 enum CxToken {
-    Conditional { condition: String, value: String },
+    Conditional {
+        condition: String,
+        value: Vec<ClassPart>,
+    },
     Static(String),
 }
 
-fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String> {
+// A piece of a conditional class value, `size-${size}` is the text `size-` and the expression
+// `size`
+#[derive(Debug)]
+enum ClassPart {
+    Text(String),
+    Expression(String),
+}
+
+// The expression replacing an optimized `cx(...)` call
+enum CxValue {
+    Literal(String),
+    Expression(String),
+}
+
+impl CxValue {
+    // Expressions are parenthesized, the call may be an operand, like `cx({ a }) + " b"`
+    fn into_replacement(self) -> String {
+        match self {
+            Self::Literal(value) => value,
+            Self::Expression(value) => format!("({value})"),
+        }
+    }
+}
+
+fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<CxValue> {
     if let Some(value) = static_cx_value(arguments) {
         let object_index = arguments
             .iter()
@@ -124,13 +151,13 @@ fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String
         {
             let prefix = static_cx_value(&arguments[..index])?;
             let suffix = static_cx_value(&arguments[index..])?;
-            return Some(format!(
+            return Some(CxValue::Expression(format!(
                 "{} + {}",
-                quoted(&prefix),
-                quoted(&format!(" {suffix}"))
-            ));
+                js_string_literal(&prefix),
+                js_string_literal(&format!(" {suffix}"))
+            )));
         }
-        return Some(quoted(&value));
+        return Some(CxValue::Literal(js_string_literal(&value)));
     }
 
     if let [
@@ -140,22 +167,25 @@ fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String
     {
         let mut object_tokens = Vec::new();
         collect_object_tokens(object, source, &mut object_tokens)?;
-        return Some(format!(
-            "{} + ({})",
-            quoted(prefix.value.as_str()),
-            render_tokens(object_tokens, true)?
-        ));
+        let rendered = match render_tokens(object_tokens, true) {
+            CxValue::Literal(value) | CxValue::Expression(value) => value,
+        };
+        return Some(CxValue::Expression(format!(
+            "{} + ({rendered})",
+            js_string_literal(prefix.value.as_str()),
+        )));
     }
 
     let mut tokens = Vec::new();
     for argument in arguments {
         collect_argument_tokens(argument, source, &mut tokens)?;
     }
-    render_tokens(tokens, false)
+    Some(render_tokens(tokens, false))
 }
 
-fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
+fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> CxValue {
     let mut parts = Vec::new();
+    let mut only_static = true;
     for token in tokens {
         match token {
             CxToken::Static(value) => {
@@ -167,7 +197,7 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                parts.push(quoted(&spaced));
+                parts.push(js_string_literal(&spaced));
                 has_prior = true;
             }
             CxToken::Conditional { condition, value } => {
@@ -176,22 +206,24 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                let value_expression = dynamic_class_expression(&value)?;
+                let value_expression = class_parts_expression(value);
                 parts.push(format!("({condition} ? {value_expression} : \"\")"));
                 has_prior = true;
+                only_static = false;
             }
         }
     }
     match parts.as_slice() {
-        [] => Some(quoted("")),
-        [single] => Some(
+        [] => CxValue::Literal(js_string_literal("")),
+        [single] if only_static => CxValue::Literal(single.clone()),
+        [single] => CxValue::Expression(
             single
                 .strip_prefix('(')
                 .and_then(|inner| inner.strip_suffix(')'))
                 .unwrap_or(single)
                 .to_owned(),
         ),
-        _ => Some(parts.join(" + ")),
+        _ => CxValue::Expression(parts.join(" + ")),
     }
 }
 
@@ -232,7 +264,7 @@ fn collect_argument_tokens(
         Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {}
         Argument::ObjectExpression(object) => collect_object_tokens(object, source, tokens)?,
         Argument::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
-            let value = class_value_source(&logical.right, source)?;
+            let value = class_value_parts(&logical.right, source)?;
             tokens.push(CxToken::Conditional {
                 condition: condition_source(&logical.left, source),
                 value,
@@ -267,7 +299,7 @@ fn collect_object_tokens(
             expression => {
                 dynamic_properties.push(CxToken::Conditional {
                     condition: condition_source(expression, source),
-                    value: name,
+                    value: vec![ClassPart::Text(name)],
                 });
             }
         }
@@ -296,48 +328,61 @@ fn condition_source(expression: &Expression<'_>, source: &str) -> String {
     }
 }
 
-fn class_value_source(expression: &Expression<'_>, source: &str) -> Option<String> {
+// The class of a `condition && class` argument, read from the AST so template expressions keep
+// their own grouping, like `${mode ? "lg" : "sm"}`
+fn class_value_parts(expression: &Expression<'_>, source: &str) -> Option<Vec<ClassPart>> {
     match expression {
-        Expression::StringLiteral(literal) => Some(literal.value.to_string()),
+        Expression::StringLiteral(literal) => {
+            Some(vec![ClassPart::Text(literal.value.to_string())])
+        }
         Expression::TemplateLiteral(template) => {
-            let span = template.span;
-            Some(source[span.start as usize..span.end as usize].to_owned())
+            let mut parts = Vec::new();
+            for (index, quasi) in template.quasis.iter().enumerate() {
+                parts.push(ClassPart::Text(quasi.value.cooked?.to_string()));
+                if let Some(expression) = template.expressions.get(index) {
+                    let span = expression.span();
+                    parts.push(ClassPart::Expression(
+                        source[span.start as usize..span.end as usize].to_owned(),
+                    ));
+                }
+            }
+            Some(parts)
         }
         _ => None,
     }
 }
 
-fn add_leading_space(value: String) -> String {
-    value
-        .strip_prefix('`')
-        .map_or_else(|| format!(" {value}"), |template| format!("` {template}"))
+fn add_leading_space(mut parts: Vec<ClassPart>) -> Vec<ClassPart> {
+    match parts.first_mut() {
+        Some(ClassPart::Text(text)) => text.insert(0, ' '),
+        _ => parts.insert(0, ClassPart::Text(" ".to_owned())),
+    }
+    parts
 }
 
-fn dynamic_class_expression(value: &str) -> Option<String> {
-    let Some(template_source) = value.strip_prefix('`') else {
-        return Some(quoted(value));
+fn class_parts_expression(parts: Vec<ClassPart>) -> String {
+    let rendered = parts
+        .into_iter()
+        .filter_map(|part| match part {
+            ClassPart::Text(text) if text.is_empty() => None,
+            ClassPart::Text(text) => Some((true, js_string_literal(&text))),
+            ClassPart::Expression(expression) => Some((false, format!("({expression})"))),
+        })
+        .collect::<Vec<_>>();
+    // Template values are strings, `${a}` or `${a}${b}` must not become a number
+    let needs_string_start = match rendered.as_slice() {
+        [] => true,
+        [(is_text, _)] => !is_text,
+        [(first_is_text, _), (second_is_text, _), ..] => !first_is_text && !second_is_text,
     };
-    let template_source = template_source.strip_suffix('`')?;
-    let mut parts = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(relative_start) = template_source[cursor..].find("${") {
-        let start = cursor + relative_start;
-        if start > cursor {
-            parts.push(quoted(&template_source[cursor..start]));
-        }
-        let expression_start = start + 2;
-        let relative_end = template_source[expression_start..].find('}')?;
-        let end = expression_start + relative_end;
-        parts.push(template_source[expression_start..end].to_owned());
-        cursor = end + 1;
+    let mut expressions = rendered
+        .into_iter()
+        .map(|(_, expression)| expression)
+        .collect::<Vec<_>>();
+    if needs_string_start {
+        expressions.insert(0, js_string_literal(""));
     }
-    if cursor < template_source.len() {
-        parts.push(quoted(&template_source[cursor..]));
-    }
-    if parts.is_empty() {
-        return Some(quoted(template_source));
-    }
-    Some(parts.join(" + "))
+    expressions.join(" + ")
 }
 
 fn static_cx_value(arguments: &[Argument<'_>]) -> Option<String> {
@@ -426,8 +471,4 @@ fn remove_cx_import(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) 
             edits.push(Edit { span, replacement });
         }
     }
-}
-
-fn quoted(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }

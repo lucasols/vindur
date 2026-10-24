@@ -455,3 +455,63 @@ test('should not let a cx prop variable shadow the cx helper', async () => {
     "
   `);
 });
+
+test('should pick an unused alias when the cx helper alias is taken', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const _vCx = 1;
+      const Dot = styled.circle<{ active: boolean }>\`
+        fill: red;
+        &.active { fill: blue; }
+      \`;
+
+      export function Point({ cx, active, p }) {
+        return <Dot {...p} cx={cx} active={active} data-x={_vCx} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx as _vCx2, mergeClassNames } from "vindur";
+    const _vCx = 1;
+    export function Point({ cx, active, p }) {
+      return (
+        <circle
+          {...p}
+          cx={cx}
+          data-x={_vCx}
+          className={_vCx2(
+            mergeClassNames([p], "v1560qbr-1-Dot"),
+            active && "voctcyj-active",
+          )}
+        />
+      );
+    }
+    "
+  `);
+});
+
+test('should insert the helper import after directives', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      'use client';
+
+      export const App = ({ a }) => <div cx={{ $on: a }} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    ""use client";
+    import { cx } from "vindur";
+    export const App = ({ a }) => (
+      <div
+        className={cx({
+          on: a,
+        })}
+      />
+    );
+    "
+  `);
+});
