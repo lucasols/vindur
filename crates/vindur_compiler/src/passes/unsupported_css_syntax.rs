@@ -6,6 +6,8 @@ use crate::CompilerDiagnostic;
 
 const GLOBAL_SELECTOR: &str = ":global";
 const KEYFRAMES_AT_RULE: &str = "keyframes";
+// At-rules whose blocks can contain other rules like `@keyframes`
+const GROUPING_AT_RULES: [&str; 5] = ["media", "supports", "layer", "container", "document"];
 
 pub(super) enum SegmentOrigin {
     Quasi(Span),
@@ -24,10 +26,11 @@ struct UnsupportedSyntax {
     message: String,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Block {
-    AtRule,
-    StyleRule,
+#[derive(Clone, Copy)]
+enum Block<'a> {
+    Grouping,
+    Style,
+    OtherAtRule(&'a str),
 }
 
 // Syntax that vindur doesn't process would be emitted as invalid CSS that the
@@ -118,36 +121,18 @@ fn segment_source_span(
 
 fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSyntax> {
     let bytes = css.as_bytes();
-    let mut blocks: Vec<Block> = Vec::new();
-    let mut prelude_is_at_rule: Option<bool> = None;
+    let mut blocks: Vec<Block<'_>> = Vec::new();
+    let mut prelude_start: Option<usize> = None;
+    let mut paren_depth = 0_usize;
     let mut index = 0;
     while index < bytes.len() {
+        if let Some(end) = skipped_token_end(css, index) {
+            index = end;
+            continue;
+        }
         let rest = &css[index..];
-        if let Some(comment) = rest.strip_prefix("/*") {
-            index = comment
-                .find("*/")
-                .map_or(css.len(), |end| index + 2 + end + 2);
-            continue;
-        }
         let byte = bytes[index];
-        if byte == b'"' || byte == b'\'' {
-            index = string_end(css, index);
-            continue;
-        }
-        if byte == b'\\' {
-            index += 1 + rest[1..].chars().next().map_or(0, char::len_utf8);
-            continue;
-        }
-        if is_url_function(css, index) {
-            index = url_end(css, index);
-            continue;
-        }
-        if rest.starts_with(GLOBAL_SELECTOR)
-            && !rest[GLOBAL_SELECTOR.len()..]
-                .chars()
-                .next()
-                .is_some_and(is_ident_char)
-        {
+        if is_global_selector(rest) && starts_rule_block(css, index) {
             return Some(UnsupportedSyntax {
                 offset: index,
                 len: GLOBAL_SELECTOR.len(),
@@ -155,39 +140,112 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             });
         }
         if byte == b'@'
-            && let Some(at_rule) = keyframes_at_rule(rest)
+            && let Some((at_rule, name)) = at_rule_name(rest)
+            && name == KEYFRAMES_AT_RULE
         {
-            let is_allowed = tag_type == "createGlobalStyle" && !blocks.contains(&Block::StyleRule);
-            if !is_allowed {
+            let enclosing_block = blocks
+                .iter()
+                .rev()
+                .find(|block| !matches!(block, Block::Grouping));
+            if tag_type != "createGlobalStyle" || enclosing_block.is_some() {
                 return Some(UnsupportedSyntax {
                     offset: index,
                     len: at_rule.len(),
-                    message: keyframes_message(at_rule, tag_type),
+                    message: keyframes_message(at_rule, tag_type, enclosing_block),
                 });
             }
         }
         match byte {
+            b'(' | b'[' => paren_depth += 1,
+            b')' | b']' => paren_depth = paren_depth.saturating_sub(1),
+            // Braces and semicolons inside parentheses are part of the prelude or
+            // value, e.g. `@supports (--x: {a:b})`
+            _ if paren_depth > 0 => {}
             b'{' => {
-                blocks.push(if prelude_is_at_rule == Some(true) {
-                    Block::AtRule
-                } else {
-                    Block::StyleRule
-                });
-                prelude_is_at_rule = None;
+                blocks.push(block_kind(css, prelude_start));
+                prelude_start = None;
             }
             b'}' => {
                 blocks.pop();
-                prelude_is_at_rule = None;
+                prelude_start = None;
             }
-            b';' => prelude_is_at_rule = None,
-            byte if !byte.is_ascii_whitespace() && prelude_is_at_rule.is_none() => {
-                prelude_is_at_rule = Some(byte == b'@');
+            b';' => prelude_start = None,
+            byte if !byte.is_ascii_whitespace() && prelude_start.is_none() => {
+                prelude_start = Some(index);
             }
             _ => {}
         }
         index += rest.chars().next().map_or(1, char::len_utf8);
     }
     None
+}
+
+// Comments, strings, escapes and unquoted urls can't contain unsupported syntax
+fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
+    let rest = &css[index..];
+    if let Some(comment) = rest.strip_prefix("/*") {
+        return Some(
+            comment
+                .find("*/")
+                .map_or(css.len(), |end| index + 2 + end + 2),
+        );
+    }
+    match rest.as_bytes().first() {
+        Some(b'"' | b'\'') => Some(string_end(css, index)),
+        Some(b'\\') => Some(escape_end(css, index)),
+        _ if is_url_function(css, index) => Some(url_end(css, index)),
+        _ => None,
+    }
+}
+
+fn escape_end(css: &str, start: usize) -> usize {
+    start + 1 + css[start + 1..].chars().next().map_or(0, char::len_utf8)
+}
+
+fn is_global_selector(rest: &str) -> bool {
+    rest.starts_with(GLOBAL_SELECTOR)
+        && !rest[GLOBAL_SELECTOR.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_ident_char)
+}
+
+// `:global` is only a selector when its statement opens a block, otherwise it
+// is part of a declaration value like `animation-name:global;`
+fn starts_rule_block(css: &str, start: usize) -> bool {
+    let bytes = css.as_bytes();
+    let mut paren_depth = 0_usize;
+    let mut index = start;
+    while index < bytes.len() {
+        if let Some(end) = skipped_token_end(css, index) {
+            index = end;
+            continue;
+        }
+        match bytes[index] {
+            b'(' | b'[' => paren_depth += 1,
+            b')' | b']' => paren_depth = paren_depth.saturating_sub(1),
+            _ if paren_depth > 0 => {}
+            b'{' => return true,
+            b';' | b'}' => return false,
+            _ => {}
+        }
+        index += 1;
+    }
+    false
+}
+
+fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
+    let Some((at_rule, name)) = prelude_start
+        .filter(|start| css.as_bytes()[*start] == b'@')
+        .and_then(|start| at_rule_name(&css[start..]))
+    else {
+        return Block::Style;
+    };
+    if GROUPING_AT_RULES.contains(&name.as_str()) {
+        Block::Grouping
+    } else {
+        Block::OtherAtRule(at_rule)
+    }
 }
 
 fn string_end(css: &str, start: usize) -> usize {
@@ -218,24 +276,30 @@ fn url_end(css: &str, start: usize) -> usize {
     if arguments.trim_start().starts_with(['"', '\'']) {
         return arguments_start;
     }
-    arguments
-        .find(')')
-        .map_or(css.len(), |end| arguments_start + end + 1)
+    let mut index = arguments_start;
+    while index < css.len() {
+        match css.as_bytes()[index] {
+            b'\\' => index = escape_end(css, index),
+            b')' => return index + 1,
+            _ => index += 1,
+        }
+    }
+    css.len()
 }
 
-// Matches `@keyframes` and vendor prefixed variants like `@-webkit-keyframes`,
-// at-rule names are case-insensitive
-fn keyframes_at_rule(rest: &str) -> Option<&str> {
+// Returns the at-rule and its lowercase name without vendor prefix, e.g.
+// `@-webkit-Keyframes` -> `keyframes`, at-rule names are case-insensitive
+fn at_rule_name(rest: &str) -> Option<(&str, String)> {
     let name_len = rest[1..]
         .find(|character: char| !is_ident_char(character))
         .map_or(rest.len(), |end| end + 1);
     let at_rule = &rest[..name_len];
     let name = at_rule[1..].to_ascii_lowercase();
     let unprefixed = match name.strip_prefix('-') {
-        Some(prefixed) => prefixed.split_once('-')?.1,
-        None => name.as_str(),
+        Some(prefixed) => prefixed.split_once('-')?.1.to_owned(),
+        None => name,
     };
-    (unprefixed == KEYFRAMES_AT_RULE).then_some(at_rule)
+    Some((at_rule, unprefixed))
 }
 
 fn is_ident_char(character: char) -> bool {
@@ -246,12 +310,15 @@ fn is_ident_char(character: char) -> bool {
         || !character.is_ascii()
 }
 
-fn keyframes_message(at_rule: &str, tag_type: &str) -> String {
-    match tag_type {
-        "createGlobalStyle" => format!(
+fn keyframes_message(at_rule: &str, tag_type: &str, enclosing_block: Option<&Block<'_>>) -> String {
+    match (tag_type, enclosing_block) {
+        ("createGlobalStyle", Some(Block::OtherAtRule(enclosing_at_rule))) => format!(
+            "`{at_rule}` is not supported inside `{enclosing_at_rule}` rules, move it to the top level of `createGlobalStyle`"
+        ),
+        ("createGlobalStyle", _) => format!(
             "`{at_rule}` is not supported inside style rules, move it to the top level of `createGlobalStyle`"
         ),
-        "keyframes" => format!(
+        ("keyframes", _) => format!(
             "`{at_rule}` is not supported inside `keyframes` templates, they already generate the `@keyframes` rule so write only the frames, e.g. `from {{ ... }} to {{ ... }}`"
         ),
         _ => format!(
@@ -281,5 +348,22 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
         "`:global` is not supported, plain class selectors are not hashed so remove the wrapper, e.g. `:global(.dark) &` -> `.dark &`"
     } else {
         "`:global` is not supported, use `createGlobalStyle` for styles that should apply outside this component, or remove the wrapper to scope them to it, e.g. `:global(.ant-btn)` -> `.ant-btn`"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_unsupported_syntax;
+
+    #[test]
+    fn skips_escaped_parentheses_in_unquoted_urls() {
+        assert!(
+            find_unsupported_syntax("background:url(/img/icon\\):global.png);", "css").is_none()
+        );
+        let css = "background:url(/img/icon\\)); :global(.a) {}";
+        assert_eq!(
+            find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
+            css.find(":global")
+        );
     }
 }

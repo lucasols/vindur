@@ -260,6 +260,34 @@ describe(':global', () => {
     `);
   });
 
+  test('should ignore :global in declaration values', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          animation-name:global;
+          font-family:global,Arial;
+          --mode:var(--x,:global);
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const style = "v1560qbr-1-style";
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        animation-name: global;
+        font-family: global, Arial;
+        --mode: var(--x, : global);
+      }
+      "
+    `);
+  });
+
   test('should ignore :global inside comments split by interpolations', async () => {
     const result = await transformWithFormat({
       source: dedent`
@@ -417,6 +445,25 @@ describe('@keyframes inside templates', () => {
     `);
   });
 
+  test('should throw for @keyframes nested in non grouping at-rules in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur'
+
+          createGlobalStyle\`
+            @keyframes outer {
+              @keyframes inner { from { opacity: 0; } }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`@keyframes\` is not supported inside \`@keyframes\` rules, move it to the top level of \`createGlobalStyle\`
+      loc: 5:4]
+    `);
+  });
+
   test('should allow @keyframes nested in at-rules in createGlobalStyle', async () => {
     const result = await transformWithFormat({
       source: dedent`
@@ -428,6 +475,10 @@ describe('@keyframes inside templates', () => {
               from { opacity: 0; }
             }
           }
+
+          @supports (--theme: {color:red}) {
+            @keyframes slide { from { opacity: 0; } }
+          }
         \`
       `,
     });
@@ -437,6 +488,14 @@ describe('@keyframes inside templates', () => {
     expect(result.css).toMatchInlineSnapshot(`
       "@media (prefers-reduced-motion: no-preference) {
         @keyframes fade {
+          from {
+            opacity: 0;
+          }
+        }
+      }
+
+      @supports (--theme: {color: red}) {
+        @keyframes slide {
           from {
             opacity: 0;
           }
