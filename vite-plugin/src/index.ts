@@ -19,6 +19,8 @@ export type VindurPluginOptions = {
 };
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
+const JS_FILE_RE = /\.[jt]sx?$/;
+const NODE_MODULES_RE = /node_modules/;
 const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
@@ -64,7 +66,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       if (mod.map && typeof mod.map === 'object') {
         const hasInlineMap = INLINE_SOURCEMAP_RE.test(mod.code);
         if (!hasInlineMap) {
-          const base64 = Buffer.from(JSON.stringify(mod.map)).toString('base64');
+          const base64 = Buffer.from(JSON.stringify(mod.map)).toString(
+            'base64',
+          );
           const codeWithMap = `${mod.code}\n/*# sourceMappingURL=data:application/json;base64,${base64} */`;
           return { code: codeWithMap, map: mod.map };
         }
@@ -72,85 +76,99 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       return { code: mod.code, map: mod.map };
     },
 
-    transform(code, id) {
-      // eslint-disable-next-line @ls-stack/prefer-named-functions -- we need to access the context
-      const log = (message: string) => {
-        if (debugLogs) {
-          this.info(`[vindur-plugin] ${message}`);
-        }
-      };
+    transform: {
+      // Run before other `enforce: 'pre'` transforms (e.g. the plugin-react
+      // React Compiler) so vindur always receives the original JSX
+      order: 'pre',
+      // Lets Vite 6.3+/rolldown skip non-vindur files without calling the handler,
+      // older versions ignore it and rely on the `hasVindurStyles` check below
+      filter: {
+        id: { include: JS_FILE_RE, exclude: NODE_MODULES_RE },
+        code: [VINDUR_MODULE_IMPORT_RE, VINDUR_JSX_PROP_RE],
+      },
+      handler(code, id) {
+        // eslint-disable-next-line @ls-stack/prefer-named-functions -- we need to access the context
+        const log = (message: string) => {
+          if (debugLogs) {
+            this.info(`[vindur-plugin] ${message}`);
+          }
+        };
 
-      log(`TRANSFORM CALLED: ${id}`);
+        log(`TRANSFORM CALLED: ${id}`);
 
-      const shouldTransformFile = hasVindurStyles(code, id);
+        const shouldTransformFile = hasVindurStyles(code, id);
 
-      log(`Transform check for ${id}: shouldTransform=${shouldTransformFile}`);
+        log(
+          `Transform check for ${id}: shouldTransform=${shouldTransformFile}`,
+        );
 
-      if (!shouldTransformFile) return null;
+        if (!shouldTransformFile) return null;
 
-      log(`Processing file: ${id}`);
+        log(`Processing file: ${id}`);
 
-      let result: VindurTransformResult;
+        let result: VindurTransformResult;
 
-      try {
-        result = transform({
-          fileAbsPath: id,
-          source: code,
-          dev: devServer?.config.command === 'serve',
-          debug:
-            debugLogs ?
-              {
-                log: (message: string) => console.info(`[vindur] ${message}`),
-                warn: (message: string) => console.warn(`[vindur] ${message}`),
-              }
-            : undefined,
-          fs,
-          transformFunctionCache: functionCache,
-          transformDynamicColorCache: dynamicColorCache,
-          importAliases,
-          sourcemap: sourcemap ?? !!devServer,
-        });
-      } catch (error) {
-        if (error instanceof TransformError) {
+        try {
+          result = transform({
+            fileAbsPath: id,
+            source: code,
+            dev: devServer?.config.command === 'serve',
+            debug:
+              debugLogs ?
+                {
+                  log: (message: string) => console.info(`[vindur] ${message}`),
+                  warn: (message: string) =>
+                    console.warn(`[vindur] ${message}`),
+                }
+              : undefined,
+            fs,
+            transformFunctionCache: functionCache,
+            transformDynamicColorCache: dynamicColorCache,
+            importAliases,
+            sourcemap: sourcemap ?? !!devServer,
+          });
+        } catch (error) {
+          if (error instanceof TransformError) {
+            return this.error({
+              code: 'VINDUR_TRANSFORM_FAILED',
+              id,
+              message: error.message,
+              loc: error.loc,
+            });
+          }
+
           return this.error({
             code: 'VINDUR_TRANSFORM_FAILED',
             id,
-            message: error.message,
-            loc: error.loc,
+            message: error instanceof Error ? error.message : String(error),
           });
         }
 
-        return this.error({
-          code: 'VINDUR_TRANSFORM_FAILED',
-          id,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
+        // Expose CSS via a virtual CSS module and inject import
+        const virtualId = makeVirtualId(id);
+        if (result.css && result.css.length > 0) {
+          virtualCssModules.set(virtualId, {
+            code: result.css,
+            map: result.cssMap ?? null,
+          });
+        } else {
+          virtualCssModules.delete(virtualId);
+        }
 
-      // Expose CSS via a virtual CSS module and inject import
-      const virtualId = makeVirtualId(id);
-      if (result.css && result.css.length > 0) {
-        virtualCssModules.set(virtualId, {
-          code: result.css,
-          map: result.cssMap ?? null,
-        });
-      } else {
-        virtualCssModules.delete(virtualId);
-      }
+        // Update dependency graphs for precise HMR
+        updateDepGraph(id, result.styleDependencies);
+        for (const dep of result.styleDependencies) this.addWatchFile(dep);
 
-      // Update dependency graphs for precise HMR
-      updateDepGraph(id, result.styleDependencies);
-      for (const dep of result.styleDependencies) this.addWatchFile(dep);
+        // Cache the transform result for HMR and virtual load()
+        sourceCache.set(id, result);
 
-      // Cache the transform result for HMR and virtual load()
-      sourceCache.set(id, result);
-
-      const codeWithCssImport =
-        result.css && result.css.length > 0
-          ? injectCssImport(result.code, virtualId)
+        const codeWithCssImport =
+          result.css && result.css.length > 0 ?
+            injectCssImport(result.code, virtualId)
           : result.code;
 
-      return { code: codeWithCssImport, map: result.map };
+        return { code: codeWithCssImport, map: result.map };
+      },
     },
 
     async handleHotUpdate(ctx) {
@@ -168,12 +186,12 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           source: code,
           dev: true,
           debug:
-            debugLogs
-              ? {
-                  log: (message: string) => console.info(`[vindur] ${message}`),
-                  warn: (message: string) => console.warn(`[vindur] ${message}`),
-                }
-              : undefined,
+            debugLogs ?
+              {
+                log: (message: string) => console.info(`[vindur] ${message}`),
+                warn: (message: string) => console.warn(`[vindur] ${message}`),
+              }
+            : undefined,
           fs,
           transformFunctionCache: functionCache,
           transformDynamicColorCache: dynamicColorCache,
@@ -204,12 +222,13 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             source: srcCode,
             dev: true,
             debug:
-              debugLogs
-                ? {
-                    log: (message: string) => console.info(`[vindur] ${message}`),
-                    warn: (message: string) => console.warn(`[vindur] ${message}`),
-                  }
-                : undefined,
+              debugLogs ?
+                {
+                  log: (message: string) => console.info(`[vindur] ${message}`),
+                  warn: (message: string) =>
+                    console.warn(`[vindur] ${message}`),
+                }
+              : undefined,
             fs,
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
@@ -255,12 +274,13 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             source: srcCode,
             dev: true,
             debug:
-              debugLogs
-                ? {
-                    log: (message: string) => console.info(`[vindur] ${message}`),
-                    warn: (message: string) => console.warn(`[vindur] ${message}`),
-                  }
-                : undefined,
+              debugLogs ?
+                {
+                  log: (message: string) => console.info(`[vindur] ${message}`),
+                  warn: (message: string) =>
+                    console.warn(`[vindur] ${message}`),
+                }
+              : undefined,
             fs,
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
@@ -361,7 +381,10 @@ function getVirtualCssIdPrefix(id: string): string {
 
 function makeVirtualId(srcId: string): string {
   const prefix = getVirtualCssIdPrefix(srcId);
-  return `${VIRTUAL_PREFIX}${prefix}.css?src=${encodeURIComponent(srcId)}`;
+  // `&lang.css` keeps the id ending in `.css`, otherwise the encoded source
+  // path (e.g. `App.tsx`) matches the JS filters of other plugins, like the
+  // React Compiler in @vitejs/plugin-react
+  return `${VIRTUAL_PREFIX}${prefix}.css?src=${encodeURIComponent(srcId)}&lang.css`;
 }
 
 function resolveVirtualId(id: string): string {

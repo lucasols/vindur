@@ -1,7 +1,8 @@
 /* eslint-disable no-console -- test file */
 import { invariant } from '@ls-stack/utils/assertions';
 import { vindurPlugin } from '@vindur-css/vite-plugin';
-import react from '@vitejs/plugin-react-swc';
+import reactOxc from '@vitejs/plugin-react';
+import reactSwc from '@vitejs/plugin-react-swc';
 import {
   cpSync,
   existsSync,
@@ -12,9 +13,27 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'path';
-import { createServer, build as viteBuild, preview as vitePreview } from 'vite';
+import {
+  createServer,
+  build as viteBuild,
+  preview as vitePreview,
+  type PluginOption,
+} from 'vite';
 
 const usedPorts = new Set<number>();
+
+type StartEnvOptions = {
+  /** `oxc-compiler` uses @vitejs/plugin-react with the oxc React Compiler */
+  reactPlugin: 'swc' | 'oxc-compiler';
+};
+
+const defaultStartEnvOptions: StartEnvOptions = { reactPlugin: 'swc' };
+
+function createReactPlugin(
+  reactPlugin: StartEnvOptions['reactPlugin'],
+): PluginOption {
+  return reactPlugin === 'swc' ? reactSwc() : reactOxc({ compiler: true });
+}
 
 type TempFile = {
   path: string;
@@ -42,6 +61,7 @@ export type TestEnv = {
 export async function startEnv(
   testId: string,
   initialFiles: Record<string, string> & { 'App.tsx': string },
+  options: StartEnvOptions = defaultStartEnvOptions,
 ): Promise<TestEnv> {
   const baseCodeDir = path.join(import.meta.dirname, '..', 'base-code');
   const testsRunsDir = path.join(import.meta.dirname, '..', 'test-runs');
@@ -148,7 +168,7 @@ export async function startEnv(
 
   const server = await createServer({
     plugins: [
-      react(),
+      createReactPlugin(options.reactPlugin),
       vindurPlugin({
         debugLogs: !!process.env.DEBUG,
         importAliases: {
@@ -274,6 +294,7 @@ export async function startEnv(
 export async function startEnvProd(
   testId: string,
   initialFiles: Record<string, string> & { 'App.tsx': string },
+  options: StartEnvOptions = defaultStartEnvOptions,
 ): Promise<TestEnv> {
   const baseCodeDir = path.join(import.meta.dirname, '..', 'base-code');
   const testsRunsDir = path.join(import.meta.dirname, '..', 'test-runs');
@@ -326,7 +347,7 @@ export async function startEnvProd(
 
   await viteBuild({
     plugins: [
-      react(),
+      createReactPlugin(options.reactPlugin),
       vindurPlugin({
         debugLogs: !!process.env.DEBUG,
         importAliases: {
