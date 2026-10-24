@@ -139,13 +139,29 @@ test('should keep multiline and escaped className strings valid when merging cx 
 test('should merge explicit className with spread props', async () => {
   const result = await transformWithFormat({
     source: dedent`
-      import { cx } from 'vindur';
+      import { css } from 'vindur';
 
-      function Component({ isActive, ...props }) {
+      function Component({ isActive, next, count, extra, ...props }) {
         return (
           <>
             <div {...props} className="base" css={\`color: red;\`} />
-            <div {...props} className="base" cx={{ $active: isActive }} />
+            <div
+              {...props}
+              className={isActive ? 'on' : undefined}
+              cx={{ $active: isActive }}
+            />
+            <div
+              {...props}
+              className={next()}
+              data-count={count}
+              css={\`color: blue;\`}
+            />
+            <div
+              {...props}
+              className={css\`color: green;\`}
+              cx={{ $active: isActive }}
+            />
+            <div className={extra} {...props} css={\`color: gray;\`} />
           </>
         );
       }
@@ -153,21 +169,48 @@ test('should merge explicit className with spread props', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { mergeClassNames, cx } from "vindur";
-    function Component({ isActive, ...props }) {
+    "import { cx, mergeClassNames } from "vindur";
+    function Component({ isActive, next, count, extra, ...props }) {
       return (
         <>
+          <div {...props} className="base v1560qbr-1-css-prop-1" />
           <div
             {...props}
-            className={mergeClassNames([props, "base"], "v1560qbr-1-css-prop-1")}
+            className={[
+              isActive ? "on" : undefined,
+              cx({
+                active: isActive,
+              }),
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          />
+          <div
+            {...props}
+            className={[next(), "v1560qbr-2-css-prop-2"].filter(Boolean).join(" ")}
+            data-count={count}
+          />
+          <div
+            {...props}
+            className={[
+              "v1560qbr-4",
+              cx({
+                active: isActive,
+              }),
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
           <div
             {...props}
             className={mergeClassNames(
-              [props, "base"],
-              cx({
-                active: isActive,
-              }),
+              [
+                {
+                  className: extra,
+                },
+                props,
+              ],
+              "v1560qbr-3-css-prop-3",
             )}
           />
         </>
@@ -177,9 +220,116 @@ test('should merge explicit className with spread props', async () => {
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-css-prop-1 {
+    ".v1560qbr-4 {
+      color: green;
+    }
+
+    .v1560qbr-1-css-prop-1 {
       color: red;
     }
+
+    .v1560qbr-2-css-prop-2 {
+      color: blue;
+    }
+
+    .v1560qbr-3-css-prop-3 {
+      color: gray;
+    }
     "
+  `);
+});
+
+test('should merge styled component class names with an explicit className before spread props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        color: red;
+      \`;
+
+      function Component({ extra, ...props }) {
+        return <Box className={extra} {...props} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { mergeClassNames } from "vindur";
+    function Component({ extra, ...props }) {
+      return (
+        <div
+          {...props}
+          className={mergeClassNames(
+            [
+              {
+                className: extra,
+              },
+              props,
+            ],
+            "v1560qbr-1-Box",
+          )}
+        />
+      );
+    }
+    "
+  `);
+});
+
+test('should keep the quotes of single quoted className strings', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        color: red;
+      \`;
+
+      function Component() {
+        return (
+          <>
+            <div className='say "hi"' css={\`color: red;\`} />
+            <Box className='say "hi"' />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component() {
+      return (
+        <>
+          <div className='say "hi" v1560qbr-2-css-prop-2' />
+          <div className='v1560qbr-1-Box say "hi"' />
+        </>
+      );
+    }
+    "
+  `);
+});
+
+test('should throw for dynamicColor with className and css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+
+        function Component({ value }) {
+          return (
+            <div
+              className="base"
+              css={\`color: \${color.var};\`}
+              dynamicColor={color.set(value)}
+            />
+          );
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: dynamicColor can't be combined with both className and the css or cx prop on the same element
+    loc: 8:6]
   `);
 });

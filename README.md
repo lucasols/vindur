@@ -989,7 +989,7 @@ const CustomComponent = ({
 <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
 ```
 
-Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop, including on styled custom components like `styled(Pie)`.
+Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop, including on styled custom components like `styled(Pie)`. Styled native elements like `styled.div` render a DOM element, so any other `css` value on them is a compile error.
 
 ### JSX CX Prop
 

@@ -7,7 +7,9 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit};
 
 use super::{
-    jsx_css::is_foreign_styled_css_attribute, jsx_cx::is_foreign_styled_cx_attribute,
+    jsx_class_name::{ClassNameMerge, class_name_merge, extend_jsx_string},
+    jsx_css::is_foreign_styled_css_attribute,
+    jsx_cx::is_foreign_styled_cx_attribute,
     styled::StyledComponent,
 };
 
@@ -84,21 +86,18 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             return;
         }
 
-        let spreads = match styled_spread_sources(element, self.source) {
-            Ok(spreads) => spreads,
-            Err(spread) => {
-                self.diagnostic = Some(CompilerDiagnostic::error(
-                    self.file_path,
-                    self.source,
-                    spread.span,
-                    format!(
-                        "Unsupported spread expression \"{}\" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.",
-                        format_spread_expression(&spread.source)
-                    ),
-                ));
-                return;
-            }
-        };
+        if let Err(spread) = validate_styled_spreads(element, self.source) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                spread.span,
+                format!(
+                    "Unsupported spread expression \"{}\" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.",
+                    format_spread_expression(&spread.source)
+                ),
+            ));
+            return;
+        }
 
         let opening_name_span = element.opening_element.name.span();
         self.edits.push(Edit {
@@ -142,38 +141,20 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             self.rewrite_style_flags(element, component, has_dynamic_css_attribute);
         } else if has_compile_time_class_attribute {
             // The JSX prop passes emit the combined styled and generated class names.
-        } else if let Some(last_spread) = spreads.last()
-            && let class_attributes = class_name_attributes(element)
-            && class_attributes
-                .last()
-                .is_none_or(|attribute| attribute.span.start < last_spread.start)
-        {
+        } else if let ClassNameMerge::Runtime(runtime) = class_name_merge(element, self.source) {
             *self.needs_merge_helper = true;
-            let mut inputs = Vec::new();
-            for item in &element.opening_element.attributes {
-                match item {
-                    JSXAttributeItem::SpreadAttribute(spread) => {
-                        let span = spread.argument.span();
-                        inputs.push(self.source[span.start as usize..span.end as usize].to_owned());
-                    }
-                    JSXAttributeItem::Attribute(attribute)
-                        if is_named_attribute(attribute, "className") =>
-                    {
-                        inputs.push(class_name_value_source(attribute, self.source));
-                        self.edits.push(Edit {
-                            span: attribute.span,
-                            replacement: String::new(),
-                        });
-                    }
-                    _ => {}
-                }
+            if let Some(span) = runtime.moved_class_name {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
             }
             let offset = opening_attribute_insertion_offset(element, self.source);
             self.edits.push(Edit {
                 span: oxc_span::Span::new(offset, offset),
                 replacement: format!(
                     " className={{mergeClassNames([{}], \"{}\")}}",
-                    inputs.join(", "),
+                    runtime.inputs.join(", "),
                     component.class_name
                 ),
             });
@@ -189,7 +170,12 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
                 self.edits.push(Edit {
                     span: value.span,
-                    replacement: format!("\"{} {}\"", component.class_name, value.value),
+                    replacement: extend_jsx_string(
+                        value,
+                        self.source,
+                        &format!("{} ", component.class_name),
+                        "",
+                    ),
                 });
             } else if matches!(
                 &attribute.value,

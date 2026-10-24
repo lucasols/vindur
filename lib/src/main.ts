@@ -66,13 +66,13 @@ type WithVindurAttributes<
 > =
   Props extends unknown ?
     'cx' extends keyof Props ?
-      Omit<Props, 'cx'>
-        & Omit<Attributes, 'cx'> & {
-          // keeps a required `cx` required
-          [K in keyof Pick<Props, 'cx'>]:
-            | Props[K]
-            | NonNullable<Attributes['cx']>;
-        }
+      {} extends Pick<Props, 'cx'> ?
+        Omit<Props, 'cx'>
+          & Omit<Attributes, 'cx'> & {
+            cx?: Props['cx'] | NonNullable<Attributes['cx']>;
+          }
+      : // cx classes would remove a required `cx`, so only the native value is allowed
+        Props & Omit<Attributes, 'cx'>
     : Props & Attributes
   : never;
 
@@ -304,7 +304,8 @@ export function cx(
 /**
  * Merge classNames from spread props with vindur-generated classNames
  *
- * Inputs are spread props and explicit `className` values in source order
+ * Inputs are spread props and explicit `className` values in source order. Like
+ * JSX, the last input that sets `className` wins, even when it's nullish
  */
 export function mergeClassNames(
   spreadProps: unknown[],
@@ -322,9 +323,7 @@ export function mergeClassNames(
       && 'className' in prop
     ) {
       const className = prop.className;
-      if (typeof className === 'string') {
-        finalClassName = className;
-      }
+      finalClassName = typeof className === 'string' ? className : '';
     }
   }
 

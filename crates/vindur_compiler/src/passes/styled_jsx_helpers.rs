@@ -144,52 +144,28 @@ pub(super) fn jsx_spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<
         .collect()
 }
 
-pub(super) struct StyledSpread {
-    pub(super) start: u32,
-}
-
 pub(super) struct InvalidStyledSpread {
     pub(super) span: oxc_span::Span,
     pub(super) source: String,
 }
 
-pub(super) fn styled_spread_sources(
+pub(super) fn validate_styled_spreads(
     element: &JSXElement<'_>,
     source: &str,
-) -> Result<Vec<StyledSpread>, InvalidStyledSpread> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
+) -> Result<(), InvalidStyledSpread> {
+    for item in &element.opening_element.attributes {
+        let JSXAttributeItem::SpreadAttribute(spread) = item else {
+            continue;
+        };
+        if !matches!(&spread.argument, Expression::Identifier(_)) {
             let span = spread.argument.span();
-            if matches!(&spread.argument, Expression::Identifier(_)) {
-                Some(Ok(StyledSpread { start: span.start }))
-            } else {
-                Some(Err(InvalidStyledSpread {
-                    span: spread.span,
-                    source: source[span.start as usize..span.end as usize].to_owned(),
-                }))
-            }
-        })
-        .collect()
-}
-
-pub(super) fn class_name_attributes<'a>(element: &'a JSXElement<'a>) -> Vec<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            is_named_attribute(attribute, "className").then_some(&**attribute)
-        })
-        .collect()
+            return Err(InvalidStyledSpread {
+                span: spread.span,
+                source: source[span.start as usize..span.end as usize].to_owned(),
+            });
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn is_named_attribute(attribute: &JSXAttribute<'_>, expected: &str) -> bool {

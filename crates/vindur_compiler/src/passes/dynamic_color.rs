@@ -15,6 +15,7 @@ use crate::{
 
 use super::{
     jsx_class_name::{js_string_literal, jsx_string_literal, jsx_string_value},
+    jsx_cx::{is_component_name, is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
     static_evaluation::resolved_constant,
     styled::StyledComponent,
 };
@@ -110,6 +111,17 @@ impl DynamicColorVisitor<'_> {
                     Some(StaticValue::DynamicColor { .. })
                 )
             });
+        if !preserve_native_attributes
+            && let Some(class_attribute) = class_attribute
+            && has_class_merging_prop(element, component)
+        {
+            self.error(
+                class_attribute.span,
+                "dynamicColor can't be combined with both className and the css or cx prop on the same element"
+                    .to_owned(),
+            );
+            return;
+        }
         if !preserve_native_attributes {
             for item in &element.opening_element.attributes {
                 let JSXAttributeItem::Attribute(other) = item else {
@@ -458,6 +470,35 @@ fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<SpreadSource> {
             })
         })
         .collect()
+}
+
+// The css and cx passes merge their classes into className, which this pass
+// also rewrites, so the combination is rejected instead of overlapping edits
+fn has_class_merging_prop(element: &JSXElement<'_>, component: Option<&StyledComponent>) -> bool {
+    let name = &element.opening_element.name;
+    element.opening_element.attributes.iter().any(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return false;
+        };
+        let JSXAttributeName::Identifier(attribute_name) = &attribute.name else {
+            return false;
+        };
+        match attribute_name.name.as_str() {
+            // Custom components get the css class as their own prop instead
+            "css" => {
+                matches!(
+                    &attribute.value,
+                    Some(JSXAttributeValue::ExpressionContainer(container))
+                        if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+                ) && (component.is_some() || !is_component_name(name))
+            }
+            "cx" => !component.map_or_else(
+                || is_foreign_cx_attribute(name, attribute),
+                |component| is_foreign_styled_cx_attribute(component, attribute),
+            ),
+            _ => false,
+        }
+    })
 }
 
 fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {

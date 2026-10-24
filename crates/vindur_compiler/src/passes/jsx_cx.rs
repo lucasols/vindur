@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    Expression, IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName,
+    JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -10,7 +10,10 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    jsx_class_name::{js_string_literal, jsx_string_value, spread_class_inputs},
+    jsx_class_name::{
+        ClassNameMerge, class_name_merge, js_string_literal, jsx_string_value,
+        wrap_class_expression,
+    },
     jsx_css::is_foreign_css_attribute,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
@@ -25,11 +28,17 @@ pub(super) fn is_foreign_cx_attribute(
     element: &JSXElementName<'_>,
     attribute: &JSXAttribute<'_>,
 ) -> bool {
-    // Member expression tags (`<R.Pie />`) are always custom components
-    let accepts_native_cx = jsx_name(element).is_none_or(|name| {
-        SVG_CX_ELEMENTS.contains(&name) || name.chars().next().is_some_and(char::is_uppercase)
-    });
+    let accepts_native_cx = match element {
+        JSXElementName::Identifier(name) => SVG_CX_ELEMENTS.contains(&name.name.as_str()),
+        _ => is_component_name(element),
+    };
     accepts_native_cx && !is_object_attribute(attribute)
+}
+
+// The parser follows JSX: lowercase names are intrinsic elements, other tags
+// (`<Pie />`, `<_Pie />`, `<R.Pie />`) are treated as components
+pub(super) fn is_component_name(element: &JSXElementName<'_>) -> bool {
+    !matches!(element, JSXElementName::Identifier(_))
 }
 
 pub(super) fn is_foreign_styled_cx_attribute(
@@ -81,14 +90,8 @@ pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)
         let mut rest = output.as_str();
         while let Some(index) = rest.find(&needle) {
             let end = index + needle.len();
-            let continues_class = rest[end..].chars().next().is_some_and(|character| {
-                character.is_ascii_alphanumeric()
-                    || character == '_'
-                    || character == '-'
-                    || !character.is_ascii()
-            });
             rewritten.push_str(&rest[..index]);
-            if continues_class {
+            if continues_class_name(&rest[end..]) {
                 rewritten.push_str(&needle);
             } else {
                 rewritten.push_str("&.");
@@ -100,6 +103,21 @@ pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)
         output = rewritten;
     }
     output
+}
+
+fn contains_class_selector(css: &str, class_name: &str) -> bool {
+    let needle = format!(".{class_name}");
+    css.match_indices(&needle)
+        .any(|(index, _)| !continues_class_name(&css[index + needle.len()..]))
+}
+
+fn continues_class_name(rest: &str) -> bool {
+    rest.chars().next().is_some_and(|character| {
+        character.is_ascii_alphanumeric()
+            || character == '_'
+            || character == '-'
+            || !character.is_ascii()
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -183,8 +201,7 @@ impl JsxCxVisitor<'_> {
         }
         let source = self.output.source;
         let element_name = &source[name.span().start as usize..name.span().end as usize];
-        let native =
-            jsx_name(name).is_some_and(|name| name.chars().next().is_some_and(char::is_lowercase));
+        let native = matches!(name, JSXElementName::Identifier(_));
         if !native && styled.is_none() {
             self.set_error(
                 element.opening_element.span,
@@ -359,74 +376,73 @@ impl JsxCxVisitor<'_> {
             });
             return;
         }
-        if let Some(spread) = spread_class_inputs(element, self.output.source) {
-            *self.output.needs_merge_helper = true;
-            let complete = styled.as_ref().map_or(cx_call.clone(), |component| {
-                format!("\"{} \" + {cx_call}", component.class_name)
-            });
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
-            for span in spread.class_name_spans {
-                self.output.edits.push(Edit {
-                    span,
-                    replacement: String::new(),
-                });
-            }
-            let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(
-                    " className={{mergeClassNames([{}], {complete})}}",
-                    spread.inputs.join(", ")
-                ),
-            });
-            return;
-        }
-        if find_last_attribute(element, "className").is_none() {
-            let class_name = styled.as_ref().map_or_else(
-                || format!("className={{{cx_call}}}"),
-                |component| format!("className={{\"{} \" + {cx_call}}}", component.class_name),
-            );
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
-            let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" {class_name}"),
-            });
-            return;
-        }
-        let replacement = match (styled.as_ref(), find_last_attribute(element, "className")) {
-            (Some(_), None) | (None, None) => String::new(),
-            (component, Some(class_attribute)) => {
-                let styled_class =
-                    component.map_or(String::new(), |value| format!("{} ", value.class_name));
-                let prefix = match &class_attribute.value {
-                    Some(JSXAttributeValue::StringLiteral(value)) => js_string_literal(&format!(
-                        "{} {styled_class}",
-                        jsx_string_value(&value.value)
-                    )),
-                    _ => format!(
-                        "({}) + {}",
-                        class_name_value_source(class_attribute, self.output.source),
-                        js_string_literal(&format!(" {styled_class}"))
-                    ),
-                };
-                self.output.edits.push(Edit {
-                    span: class_attribute.span,
-                    replacement: format!("className={{{prefix} + {cx_call}}}"),
-                });
-                String::new()
-            }
-        };
+        let complete = styled.as_ref().map_or_else(
+            || cx_call.clone(),
+            |component| format!("\"{} \" + {cx_call}", component.class_name),
+        );
         self.output.edits.push(Edit {
             span: attribute.span,
-            replacement,
+            replacement: String::new(),
         });
+        match class_name_merge(element, self.output.source) {
+            ClassNameMerge::Runtime(runtime) => {
+                *self.output.needs_merge_helper = true;
+                if let Some(span) = runtime.moved_class_name {
+                    self.output.edits.push(Edit {
+                        span,
+                        replacement: String::new(),
+                    });
+                }
+                let offset = opening_attribute_insertion_offset(element, self.output.source);
+                self.output.edits.push(Edit {
+                    span: oxc_span::Span::new(offset, offset),
+                    replacement: format!(
+                        " className={{mergeClassNames([{}], {complete})}}",
+                        runtime.inputs.join(", ")
+                    ),
+                });
+            }
+            ClassNameMerge::InPlace(class_attribute) => {
+                let styled_class = styled.as_ref().map_or(String::new(), |component| {
+                    format!("{} ", component.class_name)
+                });
+                if let Some(JSXAttributeValue::StringLiteral(value)) = &class_attribute.value {
+                    self.output.edits.push(Edit {
+                        span: class_attribute.span,
+                        replacement: format!(
+                            "className={{{} + {cx_call}}}",
+                            js_string_literal(&format!(
+                                "{} {styled_class}",
+                                jsx_string_value(&value.value)
+                            ))
+                        ),
+                    });
+                } else if let Some(reference) = self.css_reference_class_name(class_attribute) {
+                    // A css reference is never empty, so it's concatenated directly
+                    self.output.edits.push(Edit {
+                        span: oxc_span::Span::new(reference.span.end, class_attribute.span.end),
+                        replacement: format!(
+                            " + {} + {cx_call}}}",
+                            js_string_literal(&format!(" {styled_class}"))
+                        ),
+                    });
+                } else if let Some(edits) = wrap_class_expression(class_attribute, &complete) {
+                    self.output.edits.extend(edits);
+                } else {
+                    self.output.edits.push(Edit {
+                        span: class_attribute.span,
+                        replacement: format!("className={{{complete}}}"),
+                    });
+                }
+            }
+            ClassNameMerge::Insert => {
+                let offset = opening_attribute_insertion_offset(element, self.output.source);
+                self.output.edits.push(Edit {
+                    span: oxc_span::Span::new(offset, offset),
+                    replacement: format!(" className={{{complete}}}"),
+                });
+            }
+        }
     }
 
     fn missing_styled_classes(
@@ -446,16 +462,12 @@ impl JsxCxVisitor<'_> {
         mappings
             .iter()
             .filter_map(|(original, hashed, should_rewrite)| {
+                let declares = |css: &str| {
+                    contains_class_selector(css, original) || contains_class_selector(css, hashed)
+                };
                 let declared = relevant_css.map_or_else(
-                    || {
-                        self.output.css_rules.iter().any(|rule| {
-                            rule.contains(&format!(".{original}"))
-                                || rule.contains(&format!(".{hashed}"))
-                        })
-                    },
-                    |css| {
-                        css.contains(&format!(".{original}")) || css.contains(&format!(".{hashed}"))
-                    },
+                    || self.output.css_rules.iter().any(|rule| declares(rule)),
+                    declares,
                 );
                 (*should_rewrite && !declared).then_some(original.clone())
             })
@@ -463,19 +475,25 @@ impl JsxCxVisitor<'_> {
     }
 
     fn class_name_is_css_reference(&self, element: &JSXElement<'_>) -> bool {
-        let Some(attribute) = find_last_attribute(element, "className") else {
-            return false;
-        };
+        find_last_attribute(element, "className")
+            .is_some_and(|attribute| self.css_reference_class_name(attribute).is_some())
+    }
+
+    fn css_reference_class_name<'a>(
+        &self,
+        attribute: &'a JSXAttribute<'a>,
+    ) -> Option<&'a IdentifierReference<'a>> {
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            return false;
+            return None;
         };
         let JSXExpression::Identifier(identifier) = &container.expression else {
-            return false;
+            return None;
         };
         matches!(
             resolved_constant(identifier, self.output.constants, self.output.scoping),
             Some(StaticValue::CssClass { .. })
         )
+        .then_some(&**identifier)
     }
 
     fn rewrite_styled_css(
@@ -573,16 +591,6 @@ fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
         JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
         JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
         _ => None,
-    }
-}
-
-fn class_name_value_source(attribute: &JSXAttribute<'_>, source: &str) -> String {
-    match &attribute.value {
-        Some(JSXAttributeValue::ExpressionContainer(container)) => {
-            let span = container.expression.span();
-            source[span.start as usize..span.end as usize].to_owned()
-        }
-        _ => "undefined".to_owned(),
     }
 }
 

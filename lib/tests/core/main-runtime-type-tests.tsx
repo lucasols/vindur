@@ -256,7 +256,7 @@ test('styled components keep native cx values', () => {
 
   type MarkerProps = ComponentProps<typeof StyledMarker>;
 
-  expectTypesAre<MarkerProps['cx'], number | Record<string, unknown>>('equal');
+  expectTypesAre<MarkerProps['cx'], number>('equal');
   expectTypesAre<
     Partial<Pick<MarkerProps, 'cx'>> extends Pick<MarkerProps, 'cx'> ?
       'optional'

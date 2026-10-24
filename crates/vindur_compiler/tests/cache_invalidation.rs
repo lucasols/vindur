@@ -78,7 +78,12 @@ const App = ({ active }) => <div className={cx('base', { active })} css={`color:
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());
 
     assert!(output.diagnostics.is_empty());
-    assert!(output.code.contains("cx('base', { active })"));
+    // The css class is merged around the className expression, so the cx call inside is still optimized
+    assert!(
+        output
+            .code
+            .contains(r#"["base" + (active ? " active" : ""), "#)
+    );
     assert!(output.css.contains("color: red;"));
 }
 

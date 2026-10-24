@@ -391,3 +391,19 @@ test('should throw for non vindur css values on styled native elements', async (
     loc: 8:12]
   `);
 });
+
+test('should keep cx and css props of underscore prefixed components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { Pie as _Pie } from 'recharts';
+
+      export const Chart = () => <_Pie cx="50%" css="pie" />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Pie as _Pie } from "recharts";
+    export const Chart = () => <_Pie cx="50%" css="pie" />;
+    "
+  `);
+});

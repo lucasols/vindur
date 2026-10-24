@@ -1,5 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 test('should only rewrite whole cx modifier class names in css', async () => {
@@ -76,6 +78,33 @@ test('should only rewrite whole cx modifier class names in css', async () => {
         color: blue;
       }
     }
+    "
+  `);
+});
+
+test('should warn about cx modifiers only declared as a prefix of another class', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &.activeIcon { color: blue; }
+      \`;
+
+      function Component({ isActive }) {
+        return <Box cx={{ active: isActive }} />;
+      }
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#: { message: 'Warning: Missing CSS classes for cx modifiers in Box: active', loc: 'current_file:8:9' }
     "
   `);
 });
