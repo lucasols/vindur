@@ -241,3 +241,63 @@ test('should fail on static theme color method amounts that are not static', asy
     loc: 6:11]
   `);
 });
+
+test('should treat an undefined optimal contrast option as omitted', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createStaticThemeColors, createDynamicCssColor } from 'vindur';
+
+      const colors = createStaticThemeColors({ light: '#f7fafc' });
+      const color = createDynamicCssColor();
+
+      export const styles = css\`
+        color: \${colors.light.contrast.optimal(undefined)};
+        border-color: \${colors.light.contrast.optimal({ alpha: undefined })};
+        background: \${color.contrast.optimal(undefined)};
+        outline-color: \${color.contrast.optimal({ alpha: undefined })};
+      \`;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2 {
+      color: #002a46;
+      border-color: #002a46;
+      background: var(--v1560qbr-1-c-optimal);
+      outline-color: var(--v1560qbr-1-c-optimal);
+    }
+    "
+  `);
+});
+
+test('should evaluate constant amounts of dynamic color methods', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createDynamicCssColor } from 'vindur';
+
+      const AMOUNT = 0.2;
+      const color = createDynamicCssColor();
+
+      export const styles = css\`
+        color: \${color.saturatedDarker(AMOUNT)};
+        background: \${color.darker(AMOUNT)};
+        border-color: \${color.alpha(AMOUNT)};
+      \`;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2 {
+      color: hsl(
+        var(--v1560qbr-1-h),
+        var(--v1560qbr-1-sds),
+        calc(var(--v1560qbr-1-l) * 0.8)
+      );
+      background: color-mix(in srgb, var(--v1560qbr-1) 80%, #000);
+      border-color: color-mix(in srgb, var(--v1560qbr-1) 20%, transparent);
+    }
+    "
+  `);
+});

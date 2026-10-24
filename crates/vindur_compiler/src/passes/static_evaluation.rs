@@ -442,7 +442,8 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
 }
 
 /// The amount of a color method, e.g. `darker(0.2)` or `optimal({ alpha: 0.5 })`.
-/// `None` when the argument can't be evaluated, so the caller fails instead of using 0
+/// `None` when the argument can't be evaluated, so the caller fails instead of using 0.
+/// An `undefined` argument or alpha is the same as omitting it
 fn color_method_amount(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -450,10 +451,11 @@ fn color_method_amount(
 ) -> Option<Option<f64>> {
     match evaluate_expression(argument.as_expression()?, constants, scoping)? {
         StaticValue::Number(value) => Some(Some(value)),
+        StaticValue::Undefined => Some(None),
         StaticValue::Object(properties) => match properties.get("alpha") {
             Some(StaticValue::Number(value)) => Some(Some(*value)),
+            Some(StaticValue::Undefined) | None => Some(None),
             Some(_) => None,
-            None => Some(None),
         },
         _ => None,
     }

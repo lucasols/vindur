@@ -40,7 +40,8 @@ describe('Dynamic Colors - Edge Cases', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const Component = () => {
+      "import { themeColor } from "#/colors";
+      const Component = () => {
         return (
           <button
             {...themeColor._sp("#ff6b6b", {

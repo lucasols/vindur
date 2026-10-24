@@ -382,8 +382,13 @@ fn invalid_dynamic_color_method_error(
     if !matches!(
         receiver,
         StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
-    ) || matches!(call.arguments.as_slice(), [Argument::NumericLiteral(_)])
-    {
+    ) || matches!(
+        call.arguments.as_slice(),
+        [argument] if argument
+            .as_expression()
+            .and_then(|expression| evaluate_expression(expression, constants, scoping))
+            .is_some_and(|value| matches!(value, StaticValue::Number(_)))
+    ) {
         return None;
     }
     Some(CompilerDiagnostic::error(

@@ -170,6 +170,7 @@ pub(super) fn collect_resolved_import_edits(
     program: &Program<'_>,
     source: &str,
     imported_values: &FxHashMap<String, StaticValue>,
+    runtime_referenced_names: &FxHashSet<String>,
     edits: &mut Vec<Edit>,
 ) {
     for statement in &program.body {
@@ -214,10 +215,15 @@ pub(super) fn collect_resolved_import_edits(
                 runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
                 continue;
             }
+            // Dynamic colors are runtime objects, e.g. `dynamicColor` props compile to
+            // `color._sp()`, only their uses in templates are compiled away
+            let runtime_dynamic_color = matches!(value, StaticValue::DynamicColor { .. })
+                && runtime_referenced_names.contains(named.local.name.as_str());
             if matches!(
                 value,
                 StaticValue::ClassName(_) | StaticValue::ThemeColors(_)
-            ) {
+            ) || runtime_dynamic_color
+            {
                 let span = specifier.span();
                 runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
                 continue;

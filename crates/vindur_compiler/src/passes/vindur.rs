@@ -26,6 +26,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
+    runtime_references::runtime_referenced_names,
     scoped::{declared_scoped_variable_names, process_scoped_variables},
     source_map::css_template_offsets,
     stable::{
@@ -57,7 +58,13 @@ pub(crate) fn transform_program(
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, source, &mut imports, &mut edits);
-    collect_resolved_import_edits(program, source, imported_values, &mut edits);
+    collect_resolved_import_edits(
+        program,
+        source,
+        imported_values,
+        &runtime_referenced_names(program, scoping, &imports),
+        &mut edits,
+    );
 
     let mut constants = collect_constants(program, scoping);
     constants.extend(imported_values.iter().map(|(name, value)| {
@@ -352,7 +359,6 @@ pub(crate) fn transform_program(
         DynamicColorTransform {
             constants: &constants,
             scoping,
-            imported_values,
             edits: &mut edits,
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,

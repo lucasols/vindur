@@ -6,7 +6,8 @@ test.describe.configure({ mode: 'serial' });
 
 const files = {
   'App.tsx': dedent`
-    import { styled, createDynamicCssColor } from "vindur";
+    import { css, styled, createDynamicCssColor } from "vindur";
+    import { themeColor } from "#src/colors";
 
     const bg = createDynamicCssColor();
 
@@ -35,6 +36,11 @@ const files = {
       }
     \`;
 
+    const importedBox = css\`
+      background: \${themeColor.var};
+      outline-style: dotted;
+    \`;
+
     export default function App() {
       return (
         <div>
@@ -48,9 +54,16 @@ const files = {
             <Label data-testid="none-label">none</Label>
           </Card>
           <div data-testid="scheme" {...bg.setProps("#f1f5f9", { setColorScheme: { fallback: "dark" } })} />
+          <div data-testid="imported" className={importedBox} style={{ padding: 4 }} dynamicColor={themeColor.set("#1e293b")} />
+          <div data-testid="imported-none" className={importedBox} style={{ padding: 4 }} dynamicColor={themeColor.set(null)} />
         </div>
       );
     }
+  `,
+  'colors.ts': dedent`
+    import { createDynamicCssColor } from "vindur";
+
+    export const themeColor = createDynamicCssColor();
   `,
 };
 
@@ -77,6 +90,16 @@ async function expectDynamicColorSelectors(target: Page) {
   );
 
   await expect(target.getByTestId('scheme')).toHaveCSS('color-scheme', 'light');
+
+  // An imported color keeps the element's className and style
+  for (const testId of ['imported', 'imported-none']) {
+    await expect(target.getByTestId(testId)).toHaveCSS('outline-style', 'dotted');
+    await expect(target.getByTestId(testId)).toHaveCSS('padding-top', '4px');
+  }
+  await expect(target.getByTestId('imported')).toHaveCSS(
+    'background-color',
+    'rgb(30, 41, 59)',
+  );
 }
 
 let env: TestEnv;

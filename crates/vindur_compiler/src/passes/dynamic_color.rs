@@ -14,7 +14,6 @@ use super::{static_evaluation::resolved_constant, styled::StyledComponent};
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
-    pub imported_values: &'a FxHashMap<String, StaticValue>,
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -94,47 +93,33 @@ impl DynamicColorVisitor<'_> {
         let class_attribute = find_last_attribute(element, "className");
         let style_attribute = find_last_attribute(element, "style");
         let spreads = spread_sources(element, self.output.source);
-        let preserve_native_attributes = component.is_none()
-            && spreads.is_empty()
-            && colors.iter().all(|color| {
-                matches!(
-                    self.output.imported_values.get(&color.name),
-                    Some(StaticValue::DynamicColor { .. })
-                )
-            });
-        if !preserve_native_attributes {
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                if matches!(name.name.as_str(), "className" | "style") {
-                    self.output.edits.push(Edit {
-                        span: other.span,
-                        replacement: String::new(),
-                    });
-                }
+        // className and style are merged into the `_sp` call, a spread after them
+        // would override them
+        for item in &element.opening_element.attributes {
+            let JSXAttributeItem::Attribute(other) = item else {
+                continue;
+            };
+            let JSXAttributeName::Identifier(name) = &other.name else {
+                continue;
+            };
+            if matches!(name.name.as_str(), "className" | "style") {
+                self.output.edits.push(Edit {
+                    span: other.span,
+                    replacement: String::new(),
+                });
             }
         }
 
         let base_class = component.map(|component| component.class_name.as_str());
-        let merge = if preserve_native_attributes
-            && (class_attribute.is_some() || style_attribute.is_some())
-        {
-            Some("{}".to_owned())
-        } else {
-            color_merge_object(
-                base_class,
-                class_attribute,
-                style_attribute,
-                &spreads,
-                self.output.source,
-                self.output.needs_merge_class_names,
-                self.output.needs_merge_styles,
-            )
-        };
+        let merge = color_merge_object(
+            base_class,
+            class_attribute,
+            style_attribute,
+            &spreads,
+            self.output.source,
+            self.output.needs_merge_class_names,
+            self.output.needs_merge_styles,
+        );
         let call = colors.iter().rev().fold(merge, |inner, color| {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
