@@ -109,30 +109,12 @@ pub(super) fn evaluate_expression(
                 }
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-                let amount = call.arguments.first().and_then(|argument| match argument {
-                    Argument::NumericLiteral(value) => Some(value.value),
-                    Argument::ObjectExpression(object) => {
-                        let StaticValue::Object(properties) =
-                            evaluate_object(object, constants, scoping)?
-                        else {
-                            return None;
-                        };
-                        let StaticValue::Number(value) = properties.get("alpha")? else {
-                            return None;
-                        };
-                        Some(*value)
-                    }
-                    _ => None,
-                });
-                dynamic_color_method(&receiver, callee.property.name.as_str(), amount).or_else(
-                    || {
-                        theme_method(
-                            &receiver,
-                            callee.property.name.as_str(),
-                            amount.unwrap_or(0.0),
-                        )
-                    },
-                )
+                let amount = match call.arguments.first() {
+                    Some(argument) => color_method_amount(argument, constants, scoping)?,
+                    None => None,
+                };
+                dynamic_color_method(&receiver, callee.property.name.as_str(), amount)
+                    .or_else(|| theme_method(&receiver, callee.property.name.as_str(), amount))
             } else {
                 None
             }
@@ -456,5 +438,23 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
 
     fn unknown_global_side_effects(&self) -> bool {
         true
+    }
+}
+
+/// The amount of a color method, e.g. `darker(0.2)` or `optimal({ alpha: 0.5 })`.
+/// `None` when the argument can't be evaluated, so the caller fails instead of using 0
+fn color_method_amount(
+    argument: &Argument<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<Option<f64>> {
+    match evaluate_expression(argument.as_expression()?, constants, scoping)? {
+        StaticValue::Number(value) => Some(Some(value)),
+        StaticValue::Object(properties) => match properties.get("alpha") {
+            Some(StaticValue::Number(value)) => Some(Some(*value)),
+            Some(_) => None,
+            None => Some(None),
+        },
+        _ => None,
     }
 }

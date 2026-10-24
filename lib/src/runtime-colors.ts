@@ -60,9 +60,10 @@ export type DynamicCssColor = ColorOps & {
     options?: DynamicColorSetPropsOptions,
   ) => { className: string; style: Record<string, unknown> };
   set: (color: DynamicColorValue) => DynamicColorSet;
+  // The compiler omits `mergeWith` when there is nothing to merge
   _sp: (
     color: DynamicColorValue,
-    mergeWith: { className?: string; style?: Record<string, unknown> },
+    mergeWith?: { className?: string; style?: Record<string, unknown> },
   ) => { className?: string; style?: Record<string, unknown> };
   self: ColorConditions;
   container: ColorConditions;
@@ -218,7 +219,7 @@ export function createDynamicCssColor(hashId?: string, _devMode?: boolean) {
       console.error('color.set() should not be called at runtime');
       return { __color: colorValue, __dynamicColorId: hashId };
     },
-    _sp: (colorValue, mergeWith) =>
+    _sp: (colorValue, mergeWith = {}) =>
       setProps(colorValue, {
         className: mergeWith.className,
         style: mergeWith.style,
@@ -251,7 +252,9 @@ function staticColorOps(hex: string): ColorOps {
     contrast: {
       var: contrastHex,
       optimal: (options) =>
-        options?.alpha ? alphaHex(optimalRgb, options.alpha) : optimalHex,
+        options?.alpha === undefined ?
+          optimalHex
+        : alphaHex(optimalRgb, options.alpha),
       alpha: (alpha) => alphaHex(contrastRgb, alpha),
     },
   };
@@ -312,7 +315,7 @@ export function buildColorOps({
     contrast: {
       var: contrastBase,
       optimal: (options?: { saturation?: number; alpha?: number }) => {
-        if (options?.alpha) {
+        if (options?.alpha !== undefined) {
           return `color-mix(in srgb, ${contrastOptimalBase} ${colorMixPercentage(options.alpha)}, transparent)`;
         }
         return contrastOptimalBase;

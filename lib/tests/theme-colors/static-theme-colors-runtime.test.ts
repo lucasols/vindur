@@ -40,15 +40,21 @@ test('runtime color operations match the compiled production output', () => {
     dark: '#1e293b',
     white: '#ffffff',
     black: '#000000',
+    // float noise in the hue math changed the runtime value
+    olive: '#907d1e',
   };
   const operations = [
     'darker(0.2)',
     'lighter(0.35)',
     'saturatedDarker(0.3)',
+    'saturatedDarker(0.5)',
     'alpha(0.4)',
+    'alpha(0)',
     'contrast.var',
     'contrast.alpha(0.5)',
     'contrast.optimal()',
+    'contrast.optimal({ alpha: 0 })',
+    'contrast.optimal({ alpha: AMOUNT })',
   ];
   const colors = createStaticThemeColors(palette);
   const runtimeValues = Object.values(colors).flatMap((color) => {
@@ -56,10 +62,14 @@ test('runtime color operations match the compiled production output', () => {
       color.darker(0.2),
       color.lighter(0.35),
       color.saturatedDarker(0.3),
+      color.saturatedDarker(0.5),
       color.alpha(0.4),
+      color.alpha(0),
       color.contrast.var,
       color.contrast.alpha(0.5),
       color.contrast.optimal(),
+      color.contrast.optimal({ alpha: 0 }),
+      color.contrast.optimal({ alpha: 0.3 }),
     ];
   });
 
@@ -71,6 +81,7 @@ test('runtime color operations match the compiled production output', () => {
     source: `
       import { createStaticThemeColors, css } from 'vindur'
       const colors = createStaticThemeColors(${JSON.stringify(palette)})
+      const AMOUNT = 0.3
       export const style = css\`${declarations.join('\n')}\`
     `,
     fs: { readFile: () => '', exists: () => false },

@@ -34,6 +34,9 @@ describe('createDynamicCssColor runtime', () => {
     expect(color.contrast.optimal({ alpha: 0.6 })).toBe(
       'color-mix(in srgb, var(--test-123-c-optimal) 60%, transparent)',
     );
+    expect(color.contrast.optimal({ alpha: 0 })).toBe(
+      'color-mix(in srgb, var(--test-123-c-optimal) 0%, transparent)',
+    );
     expect(color.contrast.alpha(0.8)).toBe(
       'color-mix(in srgb, var(--test-123-c) 80%, transparent)',
     );
@@ -198,6 +201,30 @@ describe('createDynamicCssColor runtime', () => {
       expect(
         color.setProps('#f7fafc', { veryLightThreshold: 0.99 }).className,
       ).toContain('test-123-s7');
+    });
+  });
+
+  describe('_sp function', () => {
+    test('should work without props to merge', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      expect(color._sp('#2d3748').className).toBe(
+        'test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s4 test-123-c4 test-123-s7 test-123-c7',
+      );
+      expect(color._sp(null)).toEqual({
+        className: 'test-123-s3 test-123-c3',
+        style: {},
+      });
+    });
+
+    test('should merge chained colors', () => {
+      const first = createDynamicCssColor('first', false);
+      const second = createDynamicCssColor('second', false);
+
+      expect(first._sp(null, second._sp(null))).toEqual({
+        className: 'second-s3 second-c3 first-s3 first-c3',
+        style: {},
+      });
     });
   });
 

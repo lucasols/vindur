@@ -54,7 +54,9 @@ export function rgbToHsl({ r, g, b }: Rgb): Hsl {
   const s = delta / (1 - Math.abs(2 * l - 1));
   let h: number;
   if (max === red) {
-    h = ((((green - blue) / delta) % 6) + 6) % 6;
+    // Same as Rust's `rem_euclid(6.0)`, adding 6 to positive values changes the float result
+    const remainder = ((green - blue) / delta) % 6;
+    h = remainder < 0 ? remainder + 6 : remainder;
   } else if (max === green) {
     h = (blue - red) / delta + 2;
   } else {

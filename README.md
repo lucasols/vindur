@@ -1367,7 +1367,7 @@ Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3)
 #### Conditional Selectors
 
 - **`self.*`**: Selectors for the component that sets the color, e.g. `${color.self.isDark} { ... }`
-- **`container.*`**: Selectors for descendants of the component that sets the color, used as an ancestor selector, e.g. `${color.container.isDark} & { ... }`
+- **`container.*`**: Selectors for descendants of the component that sets the color, used as an ancestor selector, e.g. `${color.container.isDark} & { ... }`. When the same color is set on nested elements, a descendant matches the conditions of every ancestor that sets it, not only the nearest one
 
 Available conditional selectors:
 

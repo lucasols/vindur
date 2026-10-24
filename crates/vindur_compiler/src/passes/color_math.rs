@@ -12,6 +12,10 @@ pub(super) const OPTIMAL_CONTRAST_SATURATED_DARKER: f64 = 0.86;
 
 pub(super) fn parse_hex(hex: &str) -> Option<Rgb> {
     let value = hex.strip_prefix('#')?;
+    // Also keeps the byte slicing below on char boundaries
+    if !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
     let expanded = if value.len() == 3 {
         value
             .chars()
@@ -156,4 +160,24 @@ fn apca_contrast(text: Rgb, background: Rgb) -> f64 {
 /// Whether black text has more APCA contrast than white text on `background`
 pub(super) fn prefers_black_text(background: Rgb) -> bool {
     apca_contrast((0, 0, 0), background).abs() > apca_contrast((255, 255, 255), background).abs()
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::parse_hex;
+
+    #[test]
+    fn parses_short_and_long_hex_colors() {
+        assert_eq!(parse_hex("#0af"), Some((0, 170, 255)));
+        assert_eq!(parse_hex("#00aaff"), Some((0, 170, 255)));
+    }
+
+    #[test]
+    fn rejects_non_hex_characters_without_panicking() {
+        assert_eq!(parse_hex("#0é000"), None);
+        assert_eq!(parse_hex("#00aafg"), None);
+        assert_eq!(parse_hex("#ff000080"), None);
+    }
 }

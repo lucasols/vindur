@@ -90,38 +90,44 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
 pub(super) fn theme_method(
     receiver: &StaticValue,
     method: &str,
-    amount: f64,
+    amount: Option<f64>,
 ) -> Option<StaticValue> {
     let (name, hex, prefix) = match receiver {
         StaticValue::ThemeColor { name, hex } => (name, hex, ""),
         StaticValue::ThemeColorContrast { name, hex, .. } => (name, hex, "contrast-"),
         _ => return None,
     };
-    let escaped_amount = amount.to_string().replace('.', "\\.");
     let rgb = parse_hex(hex)?;
-    let result = match method {
-        "alpha" => alpha_hex(rgb, amount),
-        "darker" => compress_hex(mix(rgb, 0.0, amount), None),
-        "lighter" => compress_hex(mix(rgb, 255.0, amount), None),
-        "saturatedDarker" => compress_hex(saturated_darker(rgb, amount), None),
+    let (result, amount) = match method {
         "optimal" => {
             let StaticValue::ThemeColorContrast { base_hex, .. } = receiver else {
                 return None;
             };
             let optimal = optimal_contrast_hex(base_hex)?;
-            if amount > 0.0 {
-                alpha_hex(parse_hex(&optimal)?, amount)
-            } else {
-                optimal
+            match amount {
+                Some(alpha) => (alpha_hex(parse_hex(&optimal)?, alpha), Some(alpha)),
+                None => (optimal, None),
             }
         }
-        _ => return None,
+        _ => {
+            let amount = amount?;
+            let result = match method {
+                "alpha" => alpha_hex(rgb, amount),
+                "darker" => compress_hex(mix(rgb, 0.0, amount), None),
+                "lighter" => compress_hex(mix(rgb, 255.0, amount), None),
+                "saturatedDarker" => compress_hex(saturated_darker(rgb, amount), None),
+                _ => return None,
+            };
+            (result, Some(amount))
+        }
     };
-    let operation = if method == "optimal" {
-        format!("{prefix}optimal")
-    } else {
-        format!("{prefix}{method}-{escaped_amount}")
-    };
+    let operation = amount.map_or_else(
+        || format!("{prefix}{method}"),
+        |amount| {
+            let escaped_amount = amount.to_string().replace('.', "\\.");
+            format!("{prefix}{method}-{escaped_amount}")
+        },
+    );
     Some(StaticValue::String(format!(
         "var(--stc-{name}-{operation}, {result})"
     )))

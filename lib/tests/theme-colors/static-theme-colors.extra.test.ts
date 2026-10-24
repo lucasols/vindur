@@ -193,3 +193,51 @@ describe('createStaticThemeColors', () => {
     });
   });
 });
+
+test('should evaluate constant and negative amounts of static theme color methods', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+      const AMOUNT = 0.2;
+      const OPTIONS = { alpha: 0.5 };
+
+      export const style = css\`
+        color: \${colors.primary.darker(AMOUNT)};
+        background: \${colors.primary.lighter(-0.1)};
+        border-color: \${colors.primary.contrast.optimal(OPTIONS)};
+        outline-color: \${colors.primary.contrast.optimal({ alpha: 0 })};
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: var(--stc-primary-darker-0\\.2, #0062cc);
+      background: var(--stc-primary-lighter--0\\.1, #006eff);
+      border-color: var(--stc-primary-contrast-optimal-0\\.5, #ffffff80);
+      outline-color: var(--stc-primary-contrast-optimal-0, #fff0);
+    }
+    "
+  `);
+});
+
+test('should fail on static theme color method amounts that are not static', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createStaticThemeColors } from 'vindur';
+
+        const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        export const style = css\`
+          color: \${colors.primary.darker(getAmount())};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${colors.primary.darker(getAmount())}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: 6:11]
+  `);
+});
