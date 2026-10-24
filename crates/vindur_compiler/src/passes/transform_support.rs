@@ -24,7 +24,7 @@ use super::{
         StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
-    theme_color::{parse_theme_colors, static_color_fallbacks},
+    theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
 
@@ -186,11 +186,6 @@ pub(super) fn process_variable_declaration(
                 },
             )?;
             let content = clean_css(&content);
-            let content = if transform.dev {
-                content
-            } else {
-                static_color_fallbacks(&content)
-            };
             if transform.dev {
                 transform.warnings.extend(
                     missing_style_flag_selectors(&content, &style_flags)
@@ -401,11 +396,6 @@ pub(super) fn process_variable_declaration(
             },
         )?;
         let content = clean_css(&content);
-        let content = if transform.dev {
-            content
-        } else {
-            static_color_fallbacks(&content)
-        };
         let content = process_scoped_variables(
             &content,
             BlockKind::from_tag_type(tag_name),

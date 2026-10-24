@@ -407,3 +407,51 @@ test('should interpolate defaultHex of static theme colors as written', async ()
     "
   `);
 });
+
+test('should resolve static colors to hex in every kind of style in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, css, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      createGlobalStyle\`
+        body {
+          color: \${colors.primary.value};
+        }
+      \`;
+
+      const Box = styled.div\`
+        color: \${colors.primary.value};
+      \`;
+
+      export const A = () => (
+        <>
+          <div className={css\`border-color: \${colors.primary.value};\`} />
+          <div css={\`outline-color: \${colors.primary.value};\`} />
+          <Box />
+        </>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      color: #007bff;
+    }
+
+    .v1560qbr-2 {
+      color: #007bff;
+    }
+
+    .v1560qbr-4 {
+      border-color: #007bff;
+    }
+
+    .v1560qbr-3 {
+      outline-color: #007bff;
+    }
+    "
+  `);
+});

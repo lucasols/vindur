@@ -37,6 +37,7 @@ use super::{
     static_value::{TemplateContext, collect_constants, evaluate_template},
     styled::{resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
+    theme_color::static_color_fallbacks,
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
     vindur_fn_references::runtime_vindur_fn_reference_error,
 };
@@ -463,6 +464,12 @@ pub(crate) fn transform_program(
         ));
     }
     let css = css_rules.join("\n\n");
+    // Static theme colors resolve to their hex value in every production style
+    let css = if options.dev {
+        css
+    } else {
+        static_color_fallbacks(&css)
+    };
     warnings.extend(scoped_variable_warnings(
         &scoped_variables,
         file_path,
