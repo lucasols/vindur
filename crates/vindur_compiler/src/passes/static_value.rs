@@ -31,8 +31,8 @@ pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
     imports: &VindurImports<'_>,
+    mut constants: FxHashMap<String, StaticValue>,
 ) -> FxHashMap<String, StaticValue> {
-    let mut constants = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
@@ -165,6 +165,22 @@ fn build_template_css(
                 source,
                 expression.span(),
                 format!("Function \"{imported_name}\" not found in {source_path}"),
+            ));
+        }
+        if let Expression::Identifier(identifier) = expression
+            && let Some(
+                StaticValue::InvalidFunction { source_path }
+                | StaticValue::InvalidObject { source_path },
+            ) = resolved_constant(identifier, constants, scoping)
+        {
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                expression.span(),
+                format!(
+                    "\"{}\" imported from {source_path} is not a static value, only strings, numbers and other statically analyzable values can be interpolated",
+                    identifier.name
+                ),
             ));
         }
         if let Expression::CallExpression(call) = expression

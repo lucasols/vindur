@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{SourceType, Span};
@@ -197,7 +197,7 @@ impl Compiler {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
             };
-            if import.source.value.as_str() == "vindur" {
+            if import.source.value.as_str() == "vindur" || is_type_only_import(import) {
                 continue;
             }
             let resolved = resolve_import_path(
@@ -295,6 +295,9 @@ impl Compiler {
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
                     continue;
                 };
+                if specifier.import_kind.is_type() {
+                    continue;
+                }
                 if let Some(value) = facts.exports.get(specifier.imported.name().as_str()) {
                     needs_dependency |= !matches!(value, StaticValue::Keyframes(_));
                     let value = match value {
@@ -426,6 +429,22 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
         diagnostics: vec![diagnostic],
         css_source_offsets: Vec::new(),
     }
+}
+
+/// Type-only imports have no values to resolve, following them only adds work and
+/// import cycles
+fn is_type_only_import(import: &ImportDeclaration<'_>) -> bool {
+    import.import_kind.is_type()
+        || import.specifiers.as_ref().is_some_and(|specifiers| {
+            !specifiers.is_empty()
+                && specifiers.iter().all(|specifier| {
+                    matches!(
+                        specifier,
+                        ImportDeclarationSpecifier::ImportSpecifier(specifier)
+                            if specifier.import_kind.is_type()
+                    )
+                })
+        })
 }
 
 #[cfg(test)]
