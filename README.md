@@ -1035,7 +1035,7 @@ const App = ({ isActive, isDisabled }) => (
       background: red;
     `}
     // cx can be used with the dynamicColor
-    dynamicColor={dynamicColor}
+    dynamicColor={dynamicColor.set('#ff6b6b')}
   >
     Content with conditional classes
   </Container>
@@ -1321,10 +1321,11 @@ const ChildElement = styled.div`
   color: ${dynamicColor.contrast.var};
 `;
 
-// for dom elements, and styled components you can use the dynamicColors prop to set the color
-const MyComponent = () => {
+// for dom elements and styled components, use the dynamicColor prop to set the color
+// the value is required: `dynamicColor={dynamicColor}` is a compile error
+const MyComponent = ({ color }: { color: string | null }) => {
   return (
-    <div dynamicColor={dynamicColor}>
+    <div dynamicColor={dynamicColor.set(color)}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1342,7 +1343,9 @@ const MyComponent = () => {
 // multiple colors can be passed to dynamicColor prop
 const MyComponent = () => {
   return (
-    <div dynamicColor={[dynamicColor1, dynamicColor2]}>
+    <div
+      dynamicColor={[dynamicColor1.set('#ff6b6b'), dynamicColor2.set('#333')]}
+    >
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1356,7 +1359,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
 #### Color Setting
 
 - **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
-  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `var` and `contrast.var` still resolve to the color of an ancestor that sets the same color
+  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `var` and `contrast.var` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `var` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. The `color-mix` based methods still work with them
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
   - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set

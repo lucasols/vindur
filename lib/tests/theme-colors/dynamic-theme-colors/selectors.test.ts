@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
+import { createDynamicCssColor } from '../../../src/main';
 import { transformWithFormat } from '../../testUtils';
 
 describe('Dynamic Colors - Conditional Selectors', () => {
@@ -24,7 +25,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
       const Component = () => {
         return (
-          <div dynamicColor={dynamicColor}>
+          <div dynamicColor={dynamicColor.set('#ff6b6b')}>
             <Container>Dev mode content</Container>
           </div>
         );
@@ -37,7 +38,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const dynamicColor = createDynamicCssColor("v1560qbr-1", true);
+      const dynamicColor = createDynamicCssColor("v1560qbr-1-dynamicColor", true);
       const Component = () => {
         return (
           <div {...dynamicColor._sp("#ff6b6b")}>
@@ -50,14 +51,14 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Container {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-dynamicColor);
+        color: var(--v1560qbr-1-dynamicColor-c);
 
-        &.v1560qbr-1-s0 {
+        &.v1560qbr-1-dynamicColor-self-isDark {
           border: 2px solid white;
         }
 
-        &.v1560qbr-1-s1 {
+        &.v1560qbr-1-dynamicColor-self-isLight {
           border: 2px solid black;
         }
       }
@@ -94,7 +95,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
       const Component = () => {
         return (
-          <div dynamicColor={color}>
+          <div dynamicColor={color.set('#ff6b6b')}>
             <Card>Card content</Card>
           </div>
         );
@@ -107,7 +108,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <div {...color._sp("#ff6b6b")}>
@@ -123,19 +124,19 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         background: white;
         padding: 20px;
 
-        .v1560qbr-1-c1 & {
+        .v1560qbr-1-color-container-isLight & {
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .v1560qbr-1-c0 & {
+        .v1560qbr-1-color-container-isDark & {
           box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
         }
 
-        .v1560qbr-1-c2 & {
+        .v1560qbr-1-color-container-isDefined & {
           border-radius: 8px;
         }
 
-        .v1560qbr-1-c3 & {
+        .v1560qbr-1-color-container-isNotDefined & {
           border: 1px solid #ccc;
         }
       }
@@ -186,7 +187,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       \`
 
       const Component = () => {
-        return <ComplexComponent dynamicColor={color}>All selectors test</ComplexComponent>;
+        return <ComplexComponent dynamicColor={color.set('#ff6b6b')}>All selectors test</ComplexComponent>;
       }
     `;
 
@@ -196,7 +197,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <div
@@ -213,37 +214,37 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-ComplexComponent {
-        background: var(--v1560qbr-1);
+        background: var(--v1560qbr-1-color);
 
-        &.v1560qbr-1-s0 {
+        &.v1560qbr-1-color-self-isDark {
           color: white;
         }
 
-        &.v1560qbr-1-s1 {
+        &.v1560qbr-1-color-self-isLight {
           color: black;
         }
 
-        &.v1560qbr-1-s2 {
+        &.v1560qbr-1-color-self-isDefined {
           border: 1px solid;
         }
 
-        &.v1560qbr-1-s3 {
+        &.v1560qbr-1-color-self-isNotDefined {
           border: 1px dashed #ccc;
         }
 
-        &.v1560qbr-1-s4 {
+        &.v1560qbr-1-color-self-isVeryDark {
           font-weight: bold;
         }
 
-        &.v1560qbr-1-s5 {
+        &.v1560qbr-1-color-self-isNotVeryDark {
           font-weight: normal;
         }
 
-        &.v1560qbr-1-s6 {
+        &.v1560qbr-1-color-self-isVeryLight {
           text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
         }
 
-        &.v1560qbr-1-s7 {
+        &.v1560qbr-1-color-self-isNotVeryLight {
           text-shadow: none;
         }
       }
@@ -287,7 +288,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
       const Component = () => {
         return (
-          <div dynamicColor={color}>
+          <div dynamicColor={color.set('#ff6b6b')}>
             <Card>
               <div className="title">Title</div>
               <div className="content">Content</div>
@@ -303,7 +304,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <div {...color._sp("#ff6b6b")}>
@@ -324,11 +325,11 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         .title {
           font-size: 24px;
 
-          .v1560qbr-1-c1 & {
+          .v1560qbr-1-color-container-isLight & {
             color: #333;
           }
 
-          .v1560qbr-1-c0 & {
+          .v1560qbr-1-color-container-isDark & {
             color: #fff;
           }
         }
@@ -336,16 +337,95 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         .content {
           margin-top: 16px;
 
-          .v1560qbr-1-c2 & {
+          .v1560qbr-1-color-container-isDefined & {
             opacity: 1;
           }
 
-          .v1560qbr-1-c3 & {
+          .v1560qbr-1-color-container-isNotDefined & {
             opacity: 0.7;
           }
         }
       }
       "
+    `);
+  });
+});
+
+const conditions = [
+  'isDark',
+  'isLight',
+  'isDefined',
+  'isNotDefined',
+  'isVeryDark',
+  'isNotVeryDark',
+  'isVeryLight',
+  'isNotVeryLight',
+] as const;
+
+const dynamicColorIdRegex = /createDynamicCssColor\("([^"]+)"/;
+const nestedSelectorRegex = /^ +(.+) \{$/gm;
+
+async function getCompiledSelectors(production: boolean) {
+  const rules = conditions.flatMap((condition) => [
+    `\${bg.self.${condition}} { --self-${condition}: 1; }`,
+    `\${bg.container.${condition}} & { --container-${condition}: 1; }`,
+  ]);
+  const result = await transformWithFormat({
+    source: [
+      `import { createDynamicCssColor, css } from 'vindur'`,
+      `const bg = createDynamicCssColor()`,
+      `export const styles = css\`${rules.join('\n')}\``,
+    ].join('\n'),
+    production,
+  });
+
+  const id = dynamicColorIdRegex.exec(result.code)?.[1];
+  if (!id) throw new Error('Dynamic color id not found');
+
+  return {
+    id,
+    selectors: [...result.css.matchAll(nestedSelectorRegex)].map(
+      (match) => match[1],
+    ),
+  };
+}
+
+describe('Dynamic Colors - compiled selectors match the runtime classes', () => {
+  test('in dev mode', async () => {
+    const { id, selectors } = await getCompiledSelectors(false);
+    const color = createDynamicCssColor(id, true);
+
+    expect(id).toBe('v1560qbr-1-bg');
+    expect(selectors).toEqual(
+      conditions.flatMap((condition) => [
+        color.self[condition],
+        `${color.container[condition]} &`,
+      ]),
+    );
+    expect(selectors.slice(0, 2)).toMatchInlineSnapshot(`
+      [
+        "&.v1560qbr-1-bg-self-isDark",
+        ".v1560qbr-1-bg-container-isDark &",
+      ]
+    `);
+  });
+
+  test('in production', async () => {
+    const { id, selectors } = await getCompiledSelectors(true);
+    const color = createDynamicCssColor(id, false);
+
+    expect(id).toBe('v1560qbr-1');
+    expect(selectors).toEqual(
+      conditions.flatMap((condition) => [
+        color.self[condition],
+        `${color.container[condition]} &`,
+      ]),
+    );
+    expect(selectors.slice(0, 2)).toMatchInlineSnapshot(`
+      [
+        "&.v1560qbr-1-s0",
+        ".v1560qbr-1-c0 &",
+      ]
     `);
   });
 });

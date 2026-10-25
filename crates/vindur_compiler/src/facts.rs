@@ -29,10 +29,13 @@ pub enum StaticValue {
     },
     DynamicColor {
         id: String,
+        /// Dev selectors use readable class names, e.g. `{id}-self-isDark`
+        dev: bool,
     },
     DynamicColorPath {
         id: String,
         path: String,
+        dev: bool,
     },
     Keyframes(String),
     LayerFunction,

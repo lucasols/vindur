@@ -73,6 +73,16 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
+        if let Some(identifier) = self.bare_color_identifier(&container.expression) {
+            self.error(
+                identifier.span,
+                format!(
+                    "dynamicColor requires a value, use `{}.set(value)`",
+                    identifier.name
+                ),
+            );
+            return;
+        }
         let Some(colors) = self.color_expressions(&container.expression) else {
             if let Some(message) = self.conditional_error_message(&container.expression) {
                 self.error(container.expression.span(), message);
@@ -233,18 +243,13 @@ impl DynamicColorVisitor<'_> {
 
     fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
         match expression {
-            JSXExpression::Identifier(identifier) => self.identifier_color(identifier),
             JSXExpression::CallExpression(call) => self.call_color(call),
             JSXExpression::ArrayExpression(array) => array
                 .elements
                 .iter()
-                .map(|element| {
-                    let expression = element.as_expression()?;
-                    match expression {
-                        Expression::Identifier(identifier) => self.identifier_color(identifier),
-                        Expression::CallExpression(call) => self.call_color(call),
-                        _ => None,
-                    }
+                .map(|element| match element.as_expression()? {
+                    Expression::CallExpression(call) => self.call_color(call),
+                    _ => None,
                 })
                 .collect::<Option<Vec<_>>>()
                 .map(|groups| groups.into_iter().flatten().collect()),
@@ -252,20 +257,32 @@ impl DynamicColorVisitor<'_> {
         }
     }
 
-    fn identifier_color(
+    /// A dynamic color passed without `.set()`, e.g. `dynamicColor={color}`, has no value
+    fn bare_color_identifier<'e, 'a>(
         &self,
-        identifier: &IdentifierReference<'_>,
-    ) -> Option<Vec<ColorExpression>> {
-        matches!(
-            resolved_constant(identifier, self.output.constants, self.output.scoping),
-            Some(StaticValue::DynamicColor { .. })
-        )
-        .then(|| {
-            vec![ColorExpression {
-                name: identifier.name.to_string(),
-                value: "\"#ff6b6b\"".to_owned(),
-            }]
-        })
+        expression: &'e JSXExpression<'a>,
+    ) -> Option<&'e IdentifierReference<'a>> {
+        let is_color = |identifier: &IdentifierReference<'_>| {
+            matches!(
+                resolved_constant(identifier, self.output.constants, self.output.scoping),
+                Some(StaticValue::DynamicColor { .. })
+            )
+        };
+        match expression {
+            JSXExpression::Identifier(identifier) => is_color(identifier).then_some(&**identifier),
+            JSXExpression::ArrayExpression(array) => {
+                array
+                    .elements
+                    .iter()
+                    .find_map(|element| match element.as_expression()? {
+                        Expression::Identifier(identifier) if is_color(identifier) => {
+                            Some(&**identifier)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        }
     }
 
     fn call_color(&self, call: &oxc_ast::ast::CallExpression<'_>) -> Option<Vec<ColorExpression>> {

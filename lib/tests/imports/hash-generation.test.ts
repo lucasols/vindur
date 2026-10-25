@@ -64,7 +64,7 @@ describe('imported file hash generation', () => {
         display: flex;
         align-items: center;
         animation: v1vylsmj-2-fadeAnimation 0.3s;
-        color: var(--v1vylsmj-3);
+        color: var(--v1vylsmj-3-primaryColor);
       }
       "
     `);
@@ -117,7 +117,7 @@ describe('imported file hash generation', () => {
         padding: 12px 24px;
         border: 1px solid #ddd;
         animation: v1gz5uqy-1-slideIn 0.5s;
-        background: var(--vip4ilp-1);
+        background: var(--vip4ilp-1-themeColor);
       }
       "
     `);
@@ -229,7 +229,7 @@ describe('imported file hash generation', () => {
     // publicColor should be index 4, PublicButton should be index 5
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-styles {
-        color: var(--v1faagz9-4);
+        color: var(--v1faagz9-4-publicColor);
       }
       "
     `);
@@ -266,8 +266,8 @@ describe('imported file hash generation', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-styles {
-        color: var(--vckpm80-1);
-        background: var(--vckpm80-2);
+        color: var(--vckpm80-1-primaryColor);
+        background: var(--vckpm80-2-secondaryColor);
       }
       "
     `);
@@ -329,7 +329,7 @@ describe('imported file hash generation', () => {
         height: 60px;
         background: white;
         animation: v17amvo7-2-fadeIn 0.3s;
-        color: var(--v17amvo7-3);
+        color: var(--v17amvo7-3-themeColor);
         min-height: 100vh;
       }
       "
@@ -628,7 +628,7 @@ describe('imported file hash generation', () => {
       const fadeIn = "v1560qbr-1-fadeIn";
 
       // Index 3
-      const themeColor = createDynamicCssColor("v1560qbr-2", true);
+      const themeColor = createDynamicCssColor("v1560qbr-2-themeColor", true);
 
       // Index 4
 
@@ -671,7 +671,7 @@ describe('imported file hash generation', () => {
       .v1560qbr-3-Button {
         padding: 12px;
         animation: v1560qbr-1-fadeIn 0.3s;
-        color: var(--v1560qbr-2);
+        color: var(--v1560qbr-2-themeColor);
       }
 
       .v1560qbr-4-containerStyles {

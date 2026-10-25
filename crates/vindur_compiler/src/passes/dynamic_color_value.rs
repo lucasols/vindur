@@ -2,22 +2,27 @@ use crate::facts::StaticValue;
 
 pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
-        StaticValue::DynamicColor { id } => match property {
+        StaticValue::DynamicColor { id, dev } => match property {
             "var" => Some(StaticValue::String(format!("var(--{id})"))),
             "contrast" | "self" | "container" => Some(StaticValue::DynamicColorPath {
                 id: id.clone(),
                 path: property.to_owned(),
+                dev: *dev,
             }),
             _ => None,
         },
-        StaticValue::DynamicColorPath { id, path } if path == "contrast" && property == "var" => {
+        StaticValue::DynamicColorPath { id, path, .. }
+            if path == "contrast" && property == "var" =>
+        {
             Some(StaticValue::String(format!("var(--{id}-c)")))
         }
-        StaticValue::DynamicColorPath { id, path } if path == "self" => {
-            selector_index(property).map(|index| StaticValue::String(format!("&.{id}-s{index}")))
+        StaticValue::DynamicColorPath { id, path, dev } if path == "self" => {
+            selector_class_name(id, path, property, *dev)
+                .map(|class_name| StaticValue::String(format!("&.{class_name}")))
         }
-        StaticValue::DynamicColorPath { id, path } if path == "container" => {
-            selector_index(property).map(|index| StaticValue::String(format!(".{id}-c{index}")))
+        StaticValue::DynamicColorPath { id, path, dev } if path == "container" => {
+            selector_class_name(id, path, property, *dev)
+                .map(|class_name| StaticValue::String(format!(".{class_name}")))
         }
         _ => None,
     }
@@ -29,8 +34,8 @@ pub(super) fn dynamic_color_method(
     amount: Option<f64>,
 ) -> Option<StaticValue> {
     let (id, contrast) = match receiver {
-        StaticValue::DynamicColor { id } => (id, false),
-        StaticValue::DynamicColorPath { id, path } if path == "contrast" => (id, true),
+        StaticValue::DynamicColor { id, .. } => (id, false),
+        StaticValue::DynamicColorPath { id, path, .. } if path == "contrast" => (id, true),
         _ => return None,
     };
     let base = if contrast {
@@ -67,6 +72,18 @@ pub(super) fn dynamic_color_method(
         _ => return None,
     };
     Some(StaticValue::String(value))
+}
+
+/// Matches `getClassName` in lib/src/runtime-colors.ts: readable `{id}-self-isDark` in
+/// dev, short `{id}-s0` in production
+fn selector_class_name(id: &str, path: &str, property: &str, dev: bool) -> Option<String> {
+    let index = selector_index(property)?;
+    Some(if dev {
+        format!("{id}-{path}-{property}")
+    } else {
+        let short_path = if path == "self" { "s" } else { "c" };
+        format!("{id}-{short_path}{index}")
+    })
 }
 
 fn selector_index(property: &str) -> Option<u8> {

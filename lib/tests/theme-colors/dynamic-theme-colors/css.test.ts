@@ -21,7 +21,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
       \`
 
       const Component = () => {
-        return <div className={cardStyles} dynamicColor={color}>Styled with CSS</div>;
+        return <div className={cardStyles} dynamicColor={color.set('#ff6b6b')}>Styled with CSS</div>;
       }
     `;
 
@@ -31,7 +31,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         return (
@@ -49,13 +49,13 @@ describe('Dynamic Colors - CSS Function Usage', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-cardStyles {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
         padding: 20px;
         border-radius: 8px;
 
-        &.v1560qbr-1-s0 {
-          border: 1px solid color-mix(in srgb, var(--v1560qbr-1) 80%, #fff);
+        &.v1560qbr-1-color-self-isDark {
+          border: 1px solid color-mix(in srgb, var(--v1560qbr-1-color) 80%, #fff);
         }
       }
       "
@@ -86,7 +86,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
             style={{
               padding: '10px',
             }}
-            dynamicColor={color}
+            dynamicColor={color.set('#ff6b6b')}
           >
             Styled with CSS
           </div>
@@ -100,7 +100,7 @@ describe('Dynamic Colors - CSS Function Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const cardStyles = "v1560qbr-2-cardStyles";
       const Component = () => {
         const divProps = {

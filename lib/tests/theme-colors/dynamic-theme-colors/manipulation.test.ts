@@ -23,7 +23,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       \`
 
       const Component = () => {
-        return <Button dynamicColor={color}>Click me</Button>;
+        return <Button dynamicColor={color.set('#ff6b6b')}>Click me</Button>;
       }
     `;
 
@@ -33,7 +33,7 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <button
@@ -50,23 +50,27 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Button {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
 
-        --darker: color-mix(in srgb, var(--v1560qbr-1) 90%, #000);
-        --alpha: color-mix(in srgb, var(--v1560qbr-1) 80%, transparent);
-        --lighter: color-mix(in srgb, var(--v1560qbr-1) 70%, #fff);
-        --contrast-alpha: color-mix(in srgb, var(--v1560qbr-1-c) 60%, transparent);
-        --contrast-optimal: var(--v1560qbr-1-c-optimal);
+        --darker: color-mix(in srgb, var(--v1560qbr-1-color) 90%, #000);
+        --alpha: color-mix(in srgb, var(--v1560qbr-1-color) 80%, transparent);
+        --lighter: color-mix(in srgb, var(--v1560qbr-1-color) 70%, #fff);
+        --contrast-alpha: color-mix(
+          in srgb,
+          var(--v1560qbr-1-color-c) 60%,
+          transparent
+        );
+        --contrast-optimal: var(--v1560qbr-1-color-c-optimal);
         --contrast-optimal-alpha: color-mix(
           in srgb,
-          var(--v1560qbr-1-c-optimal) 60%,
+          var(--v1560qbr-1-color-c-optimal) 60%,
           transparent
         );
         --saturated-darker: hsl(
-          var(--v1560qbr-1-h),
-          var(--v1560qbr-1-sds),
-          calc(var(--v1560qbr-1-l) * 0.9)
+          var(--v1560qbr-1-color-h),
+          var(--v1560qbr-1-color-sds),
+          calc(var(--v1560qbr-1-color-l) * 0.9)
         );
       }
       "

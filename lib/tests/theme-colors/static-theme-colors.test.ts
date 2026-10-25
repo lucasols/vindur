@@ -279,7 +279,7 @@ describe('createStaticThemeColors', () => {
   
         &.light {
           background: \${colors.light.var};
-          color: \${colors.light.contrast.optimal({ saturation: 0.8 })};
+          color: \${colors.light.contrast.optimal()};
         }
       \`
 

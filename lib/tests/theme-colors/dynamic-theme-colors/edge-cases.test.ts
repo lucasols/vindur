@@ -57,14 +57,14 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Button {
-        background: var(--vip4ilp-1);
-        color: var(--vip4ilp-1-c);
+        background: var(--vip4ilp-1-themeColor);
+        color: var(--vip4ilp-1-themeColor-c);
 
-        &.vip4ilp-1-s0 {
+        &.vip4ilp-1-themeColor-self-isDark {
           border: 1px solid white;
         }
 
-        .vip4ilp-1-c1 & {
+        .vip4ilp-1-themeColor-container-isLight & {
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
       }
@@ -98,7 +98,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ condition }) => {
         return (
           <button
@@ -115,8 +115,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -148,7 +148,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ themeColor }) => {
         return (
           <button
@@ -165,8 +165,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -198,7 +198,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ isActive }) => {
         return (
           <button
@@ -215,8 +215,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);

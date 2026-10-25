@@ -105,11 +105,22 @@ pub(super) fn process_variable_declaration(
                         .to_owned(),
                 ));
             }
-            let id = format!("{}-{}", transform.file_hash, *transform.id_index);
+            // Dev ids include the variable name, like other dev class names
+            let id = if transform.dev {
+                format!(
+                    "{}-{}-{}",
+                    transform.file_hash, *transform.id_index, identifier.name
+                )
+            } else {
+                format!("{}-{}", transform.file_hash, *transform.id_index)
+            };
             *transform.id_index += 1;
             transform.constants.insert(
                 identifier.name.to_string(),
-                StaticValue::DynamicColor { id: id.clone() },
+                StaticValue::DynamicColor {
+                    id: id.clone(),
+                    dev: transform.dev,
+                },
             );
             transform.edits.push(Edit {
                 span: call.span,

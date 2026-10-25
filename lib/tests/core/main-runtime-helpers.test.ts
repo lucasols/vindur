@@ -78,13 +78,15 @@ describe('createDynamicCssColor', () => {
     );
   });
 
-  test('should generate the same class names in dev mode', () => {
+  test('should generate readable class names in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color.self.isDark).toBe('&.test-hash-s0');
-    expect(color.self.isLight).toBe('&.test-hash-s1');
-    expect(color.container.isDefined).toBe('.test-hash-c2');
-    expect(color.container.isNotDefined).toBe('.test-hash-c3');
+    expect(color.self.isDark).toBe('&.test-hash-self-isDark');
+    expect(color.self.isLight).toBe('&.test-hash-self-isLight');
+    expect(color.container.isDefined).toBe('.test-hash-container-isDefined');
+    expect(color.container.isNotDefined).toBe(
+      '.test-hash-container-isNotDefined',
+    );
   });
 
   test('should generate production class names', () => {
@@ -97,7 +99,7 @@ describe('createDynamicCssColor', () => {
   });
 
   test('should handle setProps for light colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#ffffff', { className: 'user-class' });
 
     expect(result.className).toBe(
@@ -115,7 +117,7 @@ describe('createDynamicCssColor', () => {
   });
 
   test('should handle setProps for dark colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#000000');
 
     expect(result.className).toBe(
@@ -133,7 +135,7 @@ describe('createDynamicCssColor', () => {
   });
 
   test('should handle _sp method with null color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp(null, {
       className: 'base',
       style: { margin: '10px' },
@@ -146,7 +148,7 @@ describe('createDynamicCssColor', () => {
   });
 
   test('should handle _sp method with valid color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp('#ff0000', {
       className: 'base',
       style: { margin: '10px' },

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { createDynamicCssColor } from '../../src/main';
 
 describe('createDynamicCssColor runtime', () => {
@@ -64,13 +64,15 @@ describe('createDynamicCssColor runtime', () => {
     expect(color.container.isNotVeryLight).toBe('.hash-456-c7');
   });
 
-  test('should generate the same selector classes in dev mode', () => {
+  test('should generate readable selector classes in dev mode', () => {
     const color = createDynamicCssColor('hash-456', true);
 
-    expect(color.self.isDark).toBe('&.hash-456-s0');
-    expect(color.self.isNotVeryLight).toBe('&.hash-456-s7');
-    expect(color.container.isLight).toBe('.hash-456-c1');
-    expect(color.container.isNotDefined).toBe('.hash-456-c3');
+    expect(color.self.isDark).toBe('&.hash-456-self-isDark');
+    expect(color.self.isNotVeryLight).toBe('&.hash-456-self-isNotVeryLight');
+    expect(color.container.isLight).toBe('.hash-456-container-isLight');
+    expect(color.container.isNotDefined).toBe(
+      '.hash-456-container-isNotDefined',
+    );
   });
 
   describe('setProps function', () => {
@@ -154,13 +156,20 @@ describe('createDynamicCssColor runtime', () => {
       });
     });
 
-    test('should generate the same class names in dev mode', () => {
+    test('should generate readable class names in dev mode', () => {
       const color = createDynamicCssColor('test-123', true);
       const result = color.setProps('#333333');
 
-      expect(result.className).toBe(
-        'test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s4 test-123-c4 test-123-s7 test-123-c7',
-      );
+      expect(result.className.split(' ')).toEqual([
+        'test-123-self-isDark',
+        'test-123-container-isDark',
+        'test-123-self-isDefined',
+        'test-123-container-isDefined',
+        'test-123-self-isVeryDark',
+        'test-123-container-isVeryDark',
+        'test-123-self-isNotVeryLight',
+        'test-123-container-isNotVeryLight',
+      ]);
     });
 
     test('should add not defined classes when no color is set', () => {
@@ -172,6 +181,48 @@ describe('createDynamicCssColor runtime', () => {
           style: {},
         });
       }
+    });
+
+    test('should only set the var and defined classes for non hex colors', () => {
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      const color = createDynamicCssColor('test-123', false);
+      const setColorScheme = { fallback: 'dark' } as const;
+
+      expect(
+        color.setProps('rgb(0 0 0)', {
+          className: 'base',
+          style: { margin: 4 },
+          setColorScheme,
+        }),
+      ).toEqual({
+        className: 'base test-123-s2 test-123-c2',
+        style: { '--test-123': 'rgb(0 0 0)', colorScheme: 'dark', margin: 4 },
+      });
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    test('should log an error for non hex colors in dev mode', () => {
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      const color = createDynamicCssColor('test-123', true);
+
+      expect(color.setProps('red').className).toBe(
+        'test-123-self-isDefined test-123-container-isDefined',
+      );
+      expect(consoleSpy.mock.calls).toMatchInlineSnapshot(`
+        [
+          [
+            "Dynamic color "red" is not a 3 or 6 digit hex color. Only hex colors get contrast colors, saturatedDarker and the light/dark selectors",
+          ],
+        ]
+      `);
+
+      consoleSpy.mockRestore();
     });
 
     test('should set the color scheme', () => {

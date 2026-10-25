@@ -40,7 +40,7 @@ test('should merge css prop class and className of imported dynamic color', asyn
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-css-prop-1 {
-      background: var(--vip4ilp-1);
+      background: var(--vip4ilp-1-themeColor);
     }
     "
   `);
@@ -69,7 +69,7 @@ test('should merge cx classes, css className and scoped style into the dynamic c
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const Component = ({ active, size }) => (
       <div
         {...color._sp(null, {
@@ -93,7 +93,7 @@ test('should merge cx classes, css className and scoped style into the dynamic c
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-2 {
       --v1560qbr-3-size: 1px;
-      color: var(--v1560qbr-1-c);
+      color: var(--v1560qbr-1-color-c);
     }
     "
   `);
@@ -123,7 +123,7 @@ test('should keep className and style before a spread as fallbacks', async () =>
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const Component = (props) => (
       <div
         {...props}
