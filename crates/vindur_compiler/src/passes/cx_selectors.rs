@@ -1,5 +1,8 @@
-use super::css_tokens::{
-    css_escape, escape_end, identifier, is_css_whitespace, skipped_end, type_selector, unescape,
+use super::{
+    css::LAYER_MARKER_PREFIX,
+    css_tokens::{
+        css_escape, escape_end, identifier, is_css_whitespace, skipped_end, type_selector, unescape,
+    },
 };
 
 // Rewrites the classes of the compound selectors that match the styled element, like
@@ -69,7 +72,7 @@ fn rewrite_rules(css: &str, map: &ClassMapper<'_>, initial: RuleContext) -> Stri
                 let prelude = &css[skip_trivia(css, index, end)..end];
                 let is_at_rule = prelude.starts_with('@');
                 let is_scope =
-                    is_at_rule && identifier(&prelude[1..]).eq_ignore_ascii_case("scope");
+                    is_at_rule && unescape(identifier(&prelude[1..])).eq_ignore_ascii_case("scope");
                 if context != RuleContext::StyledElement || (is_at_rule && !is_scope) {
                     output.push_str(&css[index..end]);
                 } else if is_scope {
@@ -123,7 +126,7 @@ fn segment_end(css: &str, mut index: usize) -> usize {
 }
 
 // Whether a nested rule may still match the parent's element. Only a prelude whose selectors
-// all clearly target another element doesn't, so anything uncertain, like `.tab`, `:is(&)` or
+// all clearly target another element doesn't, so anything uncertain, like `:is(&)` or
 // `&:hover, & .tab`, keeps rewriting the modifiers as before nesting was tracked
 fn nested_rule_matches_parent(css: &str, start: usize, end: usize) -> bool {
     let mut index = start;
@@ -145,13 +148,18 @@ fn nested_rule_matches_parent(css: &str, start: usize, end: usize) -> bool {
 }
 
 // Whether the `(root)` of an `@scope` prelude may match the parent's element. `&` in the
-// scope body is the root, so a root on another element moves the body off the styled element
+// scope body is the root, so a root on another element moves the body off the styled element.
+// A prelude without a root, like `@scope to (.stop)`, is rooted at the parent's element
 fn scope_root_matches_parent(css: &str, start: usize, end: usize) -> bool {
-    css[start..end].find('(').is_none_or(|offset| {
-        let close = skipped_end(css, start + offset, end);
-        let root_end = close - usize::from(css[..close].ends_with(')'));
-        nested_rule_matches_parent(css, start + offset + 1, root_end)
-    })
+    let at_rule = skip_trivia(css, start, end);
+    let name_end = at_rule + 1 + identifier(&css[at_rule + 1..end]).len();
+    let root_start = skip_trivia(css, name_end, end);
+    if !css[root_start..end].starts_with('(') {
+        return true;
+    }
+    let close = skipped_end(css, root_start, end);
+    let root_end = close - usize::from(css[..close].ends_with(')'));
+    nested_rule_matches_parent(css, root_start + 1, root_end)
 }
 
 // Rewrites the `&` compounds of the `(root) to (limit)` selectors of an `@scope` prelude
@@ -179,12 +187,17 @@ fn rewrite_scope_prelude(
 }
 
 // Whether a selector clearly targets another element: a `&` before its last compound and none
-// in that compound, like `& .tab` or `& > .icon`
+// in that compound, like `& .tab` or `& > .icon`, or no `&` at all, like `.tab` or `> .icon`,
+// which nesting makes relative to the parent's element. The marker a `layer()` section is
+// replaced with isn't a selector, its rules stay on the parent's element
 fn targets_other_element(css: &str, start: usize, end: usize) -> bool {
     let compounds = compound_ranges(css, start, end);
     let Some((&(subject_start, subject_end), ancestors)) = compounds.split_last() else {
         return false;
     };
+    if !contains_ampersand(css, start, end, true) {
+        return !css[subject_start..end].starts_with(LAYER_MARKER_PREFIX);
+    }
     !contains_ampersand(css, subject_start, subject_end, true)
         && ancestors.iter().any(|&(compound_start, compound_end)| {
             contains_ampersand(css, compound_start, compound_end, false)

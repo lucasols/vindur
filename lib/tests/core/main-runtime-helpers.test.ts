@@ -308,6 +308,15 @@ describe('mergeClassNames', () => {
 
     expect(result).toBe('vindur-class');
   });
+
+  test('should read class names of spread functions like JSX', () => {
+    const result = mergeClassNames(
+      [Object.assign(() => null, { className: 'user' })],
+      'vindur-class',
+    );
+
+    expect(result).toBe('user vindur-class');
+  });
 });
 
 describe('mergeStyles', () => {
@@ -348,6 +357,14 @@ describe('mergeStyles', () => {
 
   test('should skip nullish spread props', () => {
     const result = mergeStyles([null, undefined, { style: { color: 'red' } }]);
+
+    expect(result).toEqual({ color: 'red' });
+  });
+
+  test('should read styles of spread functions like JSX', () => {
+    const result = mergeStyles([
+      Object.assign(() => null, { style: { color: 'red' } }),
+    ]);
 
     expect(result).toEqual({ color: 'red' });
   });

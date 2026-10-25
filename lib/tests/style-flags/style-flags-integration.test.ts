@@ -373,3 +373,38 @@ test('should keep css nested in className of style flag components with spread p
     "
   `);
 });
+
+test('should escape and decode string union style flag values in class names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div<{ size: 'a"b' | 'x&y' }>\`
+        color: red;
+      \`;
+
+      export const App = ({ c }) => (
+        <>
+          <Box size={'a"b'} />
+          <Box size="x&amp;y" className="c" />
+          <Box size={'a"b'} className={c} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = ({ c }) => (
+      <>
+        <div className={'v1560qbr-1-Box vr4ikfs-size-a"b'} />
+        <div className={"v1560qbr-1-Box c vr4ikfs-size-x&y"} />
+        <div
+          className={["v1560qbr-1-Box", c, 'vr4ikfs-size-a"b']
+            .filter(Boolean)
+            .join(" ")}
+        />
+      </>
+    );
+    "
+  `);
+});

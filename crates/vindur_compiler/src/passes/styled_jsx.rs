@@ -9,7 +9,7 @@ use crate::{CompilerDiagnostic, edit::Edit};
 use super::{
     jsx_attributes::{jsx_name, opening_attribute_insertion_offset},
     jsx_class_name::{
-        ClassNameMerge, RuntimeClassInputs, class_name_merge, extend_jsx_string,
+        ClassNameMerge, RuntimeClassInputs, class_name_merge, extend_jsx_string, js_string_literal,
         wrap_attribute_expression, wrap_class_expression,
     },
     jsx_css::is_foreign_styled_css_attribute,
@@ -295,7 +295,12 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 *self.needs_cx_helper = true;
                 let merged = self.runtime_class_name(runtime, &component.class_name);
                 let cx_arguments = std::iter::once(merged)
-                    .chain(static_classes.iter().map(|class| format!("\"{class}\"")))
+                    .chain(
+                        static_classes
+                            .iter()
+                            .map(String::as_str)
+                            .map(js_string_literal),
+                    )
                     .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
                     .collect::<Vec<_>>();
                 let call = format!("{}({})", self.helper_names.cx, cx_arguments.join(", "));
@@ -311,8 +316,8 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 attribute,
                 &format!("className={{[\"{}\", ", component.class_name),
                 &format!(
-                    ", \"{}\"].filter(Boolean).join(\" \"){suffix}}}",
-                    static_classes.join(" ")
+                    ", {}].filter(Boolean).join(\" \"){suffix}}}",
+                    js_string_literal(&static_classes.join(" "))
                 ),
             ) {
                 self.edits.extend(edits);
@@ -332,7 +337,10 @@ impl StyledJsxVisitor<'_, '_, '_> {
             let offset = opening_attribute_insertion_offset(element, self.source);
             self.edits.push(Edit {
                 span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" className={{\"{static_class_name}\"{suffix}}}"),
+                replacement: format!(
+                    " className={{{}{suffix}}}",
+                    js_string_literal(&static_class_name)
+                ),
             });
         }
     }

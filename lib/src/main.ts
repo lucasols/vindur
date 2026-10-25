@@ -332,8 +332,9 @@ export function mergeClassNames(
     if (typeof prop === 'string') {
       finalClassName = prop;
     } else if (
-      typeof prop === 'object'
-      && prop !== null
+      // Like JSX, functions spread their own properties too
+      ((typeof prop === 'object' && prop !== null)
+        || typeof prop === 'function')
       && 'className' in prop
       && isSpreadProperty(prop, 'className')
     ) {
@@ -362,8 +363,9 @@ export function mergeStyles(spreadProps: unknown[]): Record<string, unknown> {
 
   for (const prop of spreadProps) {
     if (
-      typeof prop === 'object'
-      && prop !== null
+      // Like JSX, functions spread their own properties too
+      ((typeof prop === 'object' && prop !== null)
+        || typeof prop === 'function')
       && 'style' in prop
       && isSpreadProperty(prop, 'style')
     ) {

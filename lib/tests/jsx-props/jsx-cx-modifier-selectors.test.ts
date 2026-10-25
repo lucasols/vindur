@@ -620,3 +620,46 @@ test('should rewrite escaped commas, uppercase of and scoped roots on the styled
     "
   `);
 });
+
+test('should leave cx classes of relative nested rules and rewrite rootless and escaped @scope', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        .tab { &.active { color: red; } }
+        > .icon { &.active { color: blue; } }
+        @scope to (& .stop) { &.active { color: green; } }
+        @sc\\6f pe (&.active) { & { top: 0; } }
+      \`;
+
+      export const App = ({ a }) => <Box cx={{ active: a }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      .tab {
+        &.active {
+          color: red;
+        }
+      }
+      > .icon {
+        &.active {
+          color: blue;
+        }
+      }
+      @scope to (& .stop) {
+        &.v1560qbr-2-active {
+          color: green;
+        }
+      }
+      @sc \\6f pe (&.v1560qbr-2-active) {
+        & {
+          top: 0;
+        }
+      }
+    }
+    "
+  `);
+});

@@ -70,9 +70,11 @@ pub(super) fn collect_flag_class(
             _ => {}
         },
         StyleFlagKind::StringUnion(_) => match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => {
-                static_classes.push(format!("{}-{}", flag.hashed_class_name, value.value))
-            }
+            Some(JSXAttributeValue::StringLiteral(value)) => static_classes.push(format!(
+                "{}-{}",
+                flag.hashed_class_name,
+                jsx_string_value(&value.value)
+            )),
             Some(JSXAttributeValue::ExpressionContainer(container)) => {
                 match &container.expression {
                     oxc_ast::ast::JSXExpression::StringLiteral(value) => {
@@ -118,11 +120,11 @@ pub(super) fn class_name_expression(
             let span = container.expression.span();
             let expression = &source[span.start as usize..span.end as usize];
             format!(
-                "[\"{styled_class_name}\", {expression}, \"{}\"].filter(Boolean).join(\" \")",
-                static_classes.join(" ")
+                "[\"{styled_class_name}\", {expression}, {}].filter(Boolean).join(\" \")",
+                js_string_literal(&static_classes.join(" "))
             )
         }
-        _ => format!("\"{styled_class_name}{static_suffix}\""),
+        _ => js_string_literal(&format!("{styled_class_name}{static_suffix}")),
     }
 }
 
