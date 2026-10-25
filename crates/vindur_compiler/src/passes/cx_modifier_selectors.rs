@@ -75,6 +75,7 @@ fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, Cs
     let stylesheet = parse_style_block(&allocator, css)?;
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
+        scope_root_is_element: false,
     };
     match kind {
         ModifierCss::Block => {
@@ -96,6 +97,8 @@ fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, Cs
 
 struct ElementClassCollector {
     classes: Vec<ElementClass>,
+    /// In a `@scope` whose root is the element, so `:scope` is the element too
+    scope_root_is_element: bool,
 }
 
 impl ElementClassCollector {
@@ -111,9 +114,14 @@ impl ElementClassCollector {
                     self.statements(&rule.block.statements, nested);
                 }
                 Statement::AtRule(rule) => {
-                    let nested = self.at_rule(rule, context);
+                    let (nested, scope_root_is_element) = self.at_rule(rule, context);
                     if let Some(block) = &rule.block {
+                        let outer_scope_root = std::mem::replace(
+                            &mut self.scope_root_is_element,
+                            scope_root_is_element,
+                        );
                         self.statements(&block.statements, nested);
+                        self.scope_root_is_element = outer_scope_root;
                     }
                 }
                 _ => {}
@@ -121,22 +129,40 @@ impl ElementClassCollector {
         }
     }
 
-    /// Grouping rules like `@media` keep the context. In a `@scope` body `&` is the scope root,
-    /// so it's still the element only when every start selector is, e.g. `@scope (&.a)`
-    fn at_rule(&mut self, rule: &AtRule<'_>, context: Context) -> Context {
-        let Some(AtRulePrelude::Scope(prelude)) = &rule.prelude else {
-            return context;
+    /// Returns the context of the at-rule body and if its scope root is the element. Grouping
+    /// rules like `@media` keep both. In a `@scope` body `&` and `:scope` are the scope root, so
+    /// they're still the element only when every start selector is, e.g. `@scope (&.a)`, or when
+    /// there is no start selector, e.g. `@scope to (.x)`
+    fn at_rule(&mut self, rule: &AtRule<'_>, context: Context) -> (Context, bool) {
+        let is_scope = rule.name.name.eq_ignore_ascii_case("scope");
+        let prelude = match &rule.prelude {
+            Some(AtRulePrelude::Scope(prelude)) => Some(prelude.as_ref()),
+            _ if is_scope => None,
+            _ => return (context, self.scope_root_is_element),
         };
-        let start = match prelude.as_ref() {
-            ScopePrelude::StartOnly(start) => start,
-            ScopePrelude::Both(both) => &both.start,
-            ScopePrelude::EndOnly(_) => return context,
+        let (start, end) = match prelude {
+            Some(ScopePrelude::StartOnly(start)) => (Some(start), None),
+            Some(ScopePrelude::Both(both)) => (Some(&both.start), Some(&both.end)),
+            Some(ScopePrelude::EndOnly(end)) => (None, Some(end)),
+            None => (None, None),
         };
-        match (context, &start.selector) {
+        let body = match (context, start.map(|start| &start.selector)) {
             (Context::Outer, _) => Context::Outer,
-            (Context::Element, Some(list)) => self.selector_list(list),
+            (Context::Element, Some(Some(list))) => self.selector_list(list),
+            (Context::Element, None) => Context::Element,
             _ => Context::Other,
+        };
+        let scope_root_is_element = body == Context::Element;
+        // `&` and `:scope` in the end selectors are the scope root, other compounds are its
+        // descendants
+        if scope_root_is_element && let Some(Some(list)) = end.map(|end| &end.selector) {
+            let outer_scope_root = std::mem::replace(&mut self.scope_root_is_element, true);
+            for selector in &list.selectors {
+                self.selector(selector, false);
+            }
+            self.scope_root_is_element = outer_scope_root;
         }
+        (body, scope_root_is_element)
     }
 
     /// Collects the element classes of a rule nested in the element, the rule block is still
@@ -159,7 +185,8 @@ impl ElementClassCollector {
         let mut subject = false;
         for (index, compound) in compounds.iter().enumerate() {
             let is_subject = index + 1 == compounds.len();
-            let is_element = (is_subject && subject_is_element) || is_element_compound(compound);
+            let is_element = (is_subject && subject_is_element)
+                || is_element_compound(compound, self.scope_root_is_element);
             self.compound(compound, is_element);
             if is_subject {
                 subject = is_element;
@@ -190,7 +217,8 @@ impl ElementClassCollector {
                             }
                             SelectorArgument::Compound(compound) => self.compound(
                                 compound,
-                                subject_is_element || is_element_compound(compound),
+                                subject_is_element
+                                    || is_element_compound(compound, self.scope_root_is_element),
                             ),
                         }
                     }
@@ -267,18 +295,26 @@ fn pseudo_class_name_is(pseudo: &PseudoClassSelector<'_>, names: &[&str]) -> boo
         .any(|matching| name.name.eq_ignore_ascii_case(matching))
 }
 
-/// A compound with `&`, or one that only matches what its `&` arguments match, e.g. `:is(&.a)`
-fn is_element_compound(compound: &CompoundSelector<'_>) -> bool {
+/// A compound with `&` (or `:scope` when the scope root is the element), or one that only
+/// matches what its `&` arguments match, e.g. `:is(&.a)`
+fn is_element_compound(compound: &CompoundSelector<'_>, scope_root_is_element: bool) -> bool {
     compound.children.iter().any(|simple| match simple {
         SimpleSelector::Nesting(_) => true,
+        SimpleSelector::PseudoClass(pseudo)
+            if scope_root_is_element && pseudo_class_name_is(pseudo, &["scope"]) =>
+        {
+            true
+        }
         SimpleSelector::PseudoClass(pseudo) if selects_element(pseudo) => {
             let arguments = pseudo_class_selectors(pseudo);
             !arguments.is_empty()
                 && arguments.iter().all(|argument| match argument {
                     SelectorArgument::Complex(selector) => compounds(selector)
                         .last()
-                        .is_some_and(|subject| is_element_compound(subject)),
-                    SelectorArgument::Compound(compound) => is_element_compound(compound),
+                        .is_some_and(|subject| is_element_compound(subject, scope_root_is_element)),
+                    SelectorArgument::Compound(compound) => {
+                        is_element_compound(compound, scope_root_is_element)
+                    }
                 })
         }
         _ => false,
@@ -360,6 +396,11 @@ mod tests {
                 block("&:nth-child(1 of .active):nth-last-child(2 of &.disabled) { color: red; }"),
                 block("@scope (&.active) { &.disabled { color: red; } }"),
                 block("@scope to (.x) { &.active { color: red; } }"),
+                block("@scope (&) { :scope.active { color: red; } }"),
+                block("@scope (&) { :scope { &.active { color: red; } } }"),
+                block("@scope { :scope.active { color: red; } }"),
+                block("@scope (&) to (&.active > *) { .child { color: red; } }"),
+                block("@scope to (:scope.disabled > *) { color: red; }"),
             ],
             [
                 "&.h-active { color: red; }",
@@ -375,6 +416,11 @@ mod tests {
                 "&:nth-child(1 of .h-active):nth-last-child(2 of &.h-disabled) { color: red; }",
                 "@scope (&.h-active) { &.h-disabled { color: red; } }",
                 "@scope to (.x) { &.h-active { color: red; } }",
+                "@scope (&) { :scope.h-active { color: red; } }",
+                "@scope (&) { :scope { &.h-active { color: red; } } }",
+                "@scope { :scope.h-active { color: red; } }",
+                "@scope (&) to (&.h-active > *) { .child { color: red; } }",
+                "@scope to (:scope.h-disabled > *) { color: red; }",
             ]
         );
     }
@@ -394,6 +440,10 @@ mod tests {
             "&:nth-of-type(1) .active { color: red; }",
             "@scope (.x) { &.active { color: red; } }",
             "@scope (&) to (.active) { color: red; }",
+            "@scope (.x) to (&.active) { color: red; }",
+            "@scope (.x) { :scope.active { color: red; } }",
+            ":scope.active { color: red; }",
+            "& .child { @scope (&) { :scope.active { color: red; } } }",
             "content: \"&.active\"; /* &.active */",
             "---x: &.active;",
         ] {

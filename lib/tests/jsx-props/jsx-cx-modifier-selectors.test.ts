@@ -1014,3 +1014,62 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
     "
   `);
 });
+
+test('should rewrite cx modifiers in @scope limits and :scope selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        @scope (&) to (&.active > *) {
+          :scope.disabled {
+            color: red;
+          }
+        }
+
+        @scope (.child) {
+          :scope.active {
+            color: blue;
+          }
+        }
+      \`;
+
+      export const App = ({ on }: { on: boolean }) => (
+        <Box cx={{ active: on, disabled: !on }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1560qbr-1-Box " +
+          cx({
+            "v1560qbr-2-active": on,
+            "v1560qbr-3-disabled": !on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      @scope (&) to (&.v1560qbr-2-active > *) {
+        :scope.v1560qbr-3-disabled {
+          color: red;
+        }
+      }
+
+      @scope (.child) {
+        :scope.active {
+          color: blue;
+        }
+      }
+    }
+    "
+  `);
+});

@@ -440,19 +440,13 @@ impl JsxCxVisitor<'_> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
             return Ok(Vec::new());
         };
-        let relevant_css = self
+        let mut declared = Vec::new();
+        for rule in self
             .output
             .css_rules
             .iter()
             .filter(|rule| is_class_rule(rule, base_class))
-            .collect::<Vec<_>>();
-        let searched_css = if relevant_css.is_empty() {
-            self.output.css_rules.iter().collect()
-        } else {
-            relevant_css
-        };
-        let mut declared = Vec::new();
-        for rule in searched_css {
+        {
             declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
         }
         Ok(mappings

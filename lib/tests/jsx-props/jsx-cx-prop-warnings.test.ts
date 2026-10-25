@@ -613,4 +613,35 @@ describe('Warnings for Missing CSS Classes', () => {
       "
     `);
   });
+
+  test('should warn about cx modifiers only declared outside the styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        export const other = css\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Box = styled.div\`\`;
+
+        export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: 'Warning: Missing CSS classes for cx modifiers in Box: active'
+          loc: 'current_file:11:48'
+      "
+    `);
+  });
 });
