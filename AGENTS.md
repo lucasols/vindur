@@ -1,16 +1,5 @@
 This file provides guidance to Code Agents when working with code in this repository.
 
-# Project Structure
-
-This is a monorepo using pnpm workspaces for **Vindur** - a compile-time CSS-in-JS library focused on performance. The project is organized into:
-
-- `lib/` - Core library package with Babel transform logic
-- `app-test/` - React test application using Vite for development and testing
-- `e2e-tests/` - End-to-end tests using Playwright
-- `vite-plugin/` - Vite plugin for Vindur
-- `eslint-plugin/` - ESLint plugin for Vindur
-- `notes/spec.md` - Feature specifications and roadmap
-
 # Running ts code
 
 The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
@@ -20,78 +9,12 @@ The node version installed supports running ts code directly. No build step is n
 **Important:** Use `pnpm` only, never `npx`.
 DO NOT USE `npx` to run commands, NEVER.
 
-## From Root
-
-```bash
-pnpm test-all        # Run tests for all packages
-pnpm build-all       # Build all packages
-pnpm lint-all        # Run eslint + tsc in all packages
-pnpm tsc-all         # TypeScript compilation check in all packages
-```
-
-## Library (lib/)
-
-```bash
-cd lib
-pnpm test            # Run tests
-pnpm lint            # TypeScript + ESLint
-pnpm build           # Build library
-pnpm tsc             # TypeScript compilation check
-pnpm build           # Build library
-```
-
-## Vite Plugin (vite-plugin/)
-
-```bash
-cd vite-plugin
-pnpm build           # Build plugin
-pnpm lint            # TypeScript + ESLint
-pnpm tsc             # TypeScript compilation check
-pnpm build           # Build plugin
-```
-
-## E2E Tests (e2e-tests/)
-
-```bash
-cd e2e-tests
-pnpm test            # Run e2e tests
-pnpm eslint          # Run eslint
-pnpm lint            # TypeScript + ESLint
-pnpm tsc             # TypeScript compilation check
-```
-
 # Git and Publishing Workflow
 
 These are pre-approved, do them without asking the user for confirmation:
 
 - Always deliver changes through a pull request: create a branch from `main`, commit, push and open the PR with `gh pr create`. Never commit directly to `main`
 - Publish packages only from `main`, after the PR with the changes is merged: switch to an up-to-date `main` and run `pkg-manager publish <package-name> --type <patch|minor|major>` from the repo root, publishing only the affected packages in the order described in `RELEASING.md`
-
-# Architecture
-
-## Core Transform Logic
-
-The library centers around a Babel-based transform function in `lib/src/transform.ts` that:
-
-- Extracts CSS from template literals (`css` function calls)
-- Generates hashed class names
-- Returns both transformed JavaScript and extracted CSS
-
-## Build System
-
-- **tsup** for library building (ESM + CJS outputs)
-- **Vite** for test app development
-- **ESLint** with TypeScript integration
-- **pnpm** workspaces for monorepo management
-
-## Key Features (Planned)
-
-- `css` function for template literal styles
-- `styled.*` component functions
-- Variable interpolation and mixins
-- Scoped classes and CSS variables
-- JSX `cx` and `css` props
-- Global styles and media queries
 
 # Code Style Guidelines
 
@@ -142,8 +65,6 @@ Warnings are used to flag potential issues or suggest optimizations without fail
 
 - Abstract redundant types into a single type
 - Abstract redundant code into a single function
-- Split up large files (+500 lines) into smaller files
-  - Comments and empty lines are not counted towards the line count
 - Split up large or complex functions into smaller functions
 - Do not use barrel files
 - NEVER use re-exports
@@ -156,138 +77,7 @@ Warnings are used to flag potential issues or suggest optimizations without fail
 
 # Testing
 
-Tests use Vitest and are located in `lib/tests/`. Run tests from the lib directory:
-
-```bash
-# Must be in the lib directory
-cd lib
-
-# Run all tests
-pnpm test
-
-# Run tests for a specific file
-pnpm test tests/filename.test.ts
-
-# Run a specific test matching a pattern
-pnpm test tests/filename.test.ts -t "test name pattern"
-
-# Use additional arguments supported by Vitest
-pnpm test [...args]
-```
-
-- Prefer using `toMatchInlineSnapshot` when possible
-- Do not update snapshots via `vitest run --u`, update them manually
-- If there are too many snapshots to update manually, ask for the user to update them
-- Do not use top level `describe` in tests to group all tests in a file, use describe to group tests only
-
-- Use `compactSnapshot` when possible for inline snapshots of objects and arrays, it produces more readable snapshots in yaml format
-
-End-to-end tests use Playwright and are located in `e2e-tests/`. Run tests from the e2e-tests directory:
-
-```bash
-# Must be in the e2e-tests directory
-cd e2e-tests
-
-# Run all tests
-pnpm test
-
-# Run tests for a specific file
-pnpm test tests/filename.spec.ts
-
-# Run a specific test matching a pattern
-pnpm test tests/filename.spec.ts --grep "test name pattern"
-
-# Run with debug logs
-DEBUG=1 pnpm test ...
-
-# Use additional arguments supported by Playwright
-pnpm test [...args]
-```
-
-IMPORTANT: Playwright tests already have a 10s timeout configured
-
-# E2E Test Structure
-
-E2E tests follow a consistent pattern for performance and maintainability:
-
-**Key Guidelines:**
-
-- **Prefer reusing `startEnv`** calls, use new ones only if the test requires a different environment
-- **Serial execution** with `test.describe.configure({ mode: 'serial' })`
-- **Shared setup/teardown** using `beforeAll`/`afterAll` hooks
-- **Data-testid selectors** for reliable element targeting
-- **Simplified CSS** - minimal CSS for focused testing
-- **Test only the core features functionality related to the vite plugin** - implementations details are already tested in lib/ tests, e2e tests should only test if the vite plugin is working as expected
-- **Follow Playwright best practices**
-- **Tests should be concise**
-
-**Example structure:**
-
-```typescript
-test.describe.configure({ mode: 'serial' });
-
-let env: TestEnv;
-let page: Page;
-
-test.beforeAll(async ({ browser }) => {
-  page = await browser.newPage();
-  env = await startEnv('test-name', {
-    'App.tsx': dedent`
-        // Single comprehensive App component
-        // covering all test scenarios
-      `,
-  });
-  await page.goto(env.baseUrl);
-});
-
-test.afterAll(async () => {
-  await page.close();
-  await env.cleanup();
-});
-
-test('should test feature A', async () => {
-  const element = page.getByTestId('test-element');
-  await expect(element).toHaveCSS('property', 'value');
-});
-```
-
-## Debugging
-
-- The `test-results` and `test-runs` are auto generated directories from the `./tests` directory. Focus on the code inside `tests` to find bugs and issues.
-
-# Transform tests
-
-Tests for transform function should follow this structure:
-
-```tsx
-import { describe, expect, test } from 'vitest';
-import { dedent } from '@ls-stack/utils/dedent';
-import { transformWithFormat } from './testUtils';
-// ...
-
-test('should handle ...', async () => {
-  const result = await transformWithFormat({
-    // source should be inlined if it is not used multiple times
-    source: dedent`
-      // ...
-    `,
-    // prefer using default props for `fs` and `importAliases` unless the test requires it
-  });
-
-  // code assertion should come first, then css assertion
-  expect(result.code).toMatchInlineSnapshot(`
-    // ...
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    // ...
-  `);
-});
-```
-
-DON'T DO THIS:
-
-- using `toContain` instead of `toMatchInlineSnapshot`
+Package-specific testing guidance lives in `lib/CLAUDE.md` (Vitest, transform tests) and `e2e-tests/CLAUDE.md` (Playwright).
 
 # Documentation
 
@@ -327,12 +117,6 @@ When implementing features:
 6. Ensure all tests pass and no other features are broken
 7. Run tsc and lint and fix all errors
 8. Update ROADMAP.md
-9. Update CLAUDE.md Main features section if needed
-
-## Test Utility Memories
-
-- `overrideDefaultFs` should use `createFsMock`
-- do not use `overrideDefaultFs` and `overrideDefaultImportAliases` when using the default values
 
 ## Code Optimization Memories
 
@@ -381,86 +165,6 @@ const dynamicStyles = vindurFn(
 ```
 
 This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalStyle`.
-
-## Main features
-
-- **css tagged template**, eg. `` css`color: red` ``
-  - Template literals are statically analyzed and transformed to hashed class names at compile-time
-  - No runtime CSS processing, styles are extracted to separate CSS files
-  - CSS style interpolation with semicolon extension
-  - String and number variable interpolation
-  - Mixins/functions support
-
-- **styled components**, eg. `` styled.div`color: blue` ``
-  - Non-exported styled components: Class is injected directly into JSX usages, no intermediate component
-  - Exported styled components: Generate intermediate React components using `styledComponent` helper
-  - Style flags: Always generate intermediate components regardless of export status
-  - Component references are replaced with native elements + className for non-exported cases
-  - Style extension with `styled(Button)` syntax
-  - CSS selector usage in styled components used as a selector
-  - Styled component references with `&` selector
-  - **withComponent method**: Change element type while keeping styles, eg. `Button.withComponent('a')`
-
-- **css prop** - JSX prop that accepts template literals, eg. `<div css={`color: green`} />`
-  - Only works on native DOM elements (lowercase names) and styled components
-  - Transformed to className prop with extracted CSS at compile-time
-  - Template literals must be statically analyzable
-  - Replaces css prop with className in final output
-  - css extension with interpolation of other css variables
-  - Merges with existing className prop and handles spread props
-
-- **cx prop** - Conditional class name prop, eg. `<div cx={{ active: isActive, $notHashed: true }} />`
-  - Only works on native DOM elements and styled components
-  - Uses object syntax for conditional classes
-  - Properties prefixed with `$` are not hashed (pass-through)
-  - Merges with existing className prop via runtime `cx` function
-  - cx props not supports computed properties, eg. `cx={{ [styleName]: true }}`
-  - Class names are file-scoped with incremental indices
-  - Integrates with css prop, dynamicColor prop, and spread props
-
-- **vindurFn** - Compile-time CSS function utility, eg. `vindurFn((size: number) => \`width: \${size}px\`)`
-  - Functions must be wrapped with `vindurFn` for compile-time evaluation
-  - Must be synchronous and self-contained (no external dependencies)
-  - Used for creating reusable CSS utilities across files
-  - Variable interpolation from external files
-
-- **scoped css variables** - CSS custom properties with automatic scoping, eg. `---primaryColor: blue`
-  - Use `---variableName` syntax in CSS, reference with `var(---variableName)`
-  - Automatically prefixed with scope hash for isolation
-  - In dev mode includes original variable name for debugging
-  - Dynamic variables with style prop support
-  - Validation warnings for declared but unused variables
-  - File-level scoping with shared index assignment
-
-- **keyframes** - Animation definitions, eg. `` keyframes`from { opacity: 0 }` ``
-  - Extracted to CSS with unique identifiers
-  - Returns animation name for use in CSS
-  - Supports cross-file imports
-
-- **createGlobalStyle** - Global CSS injection, eg. `` createGlobalStyle`body { margin: 0 }` ``
-  - Build-time extraction and deduplication
-  - Injected once per unique style definition
-  - No runtime global style injection, expression produces no output
-
-- **style flags** - Boolean and string union props for styled components, eg. `styled.div<{ active: boolean; size: 'small' | 'large' }>`
-  - Automatic modifier class generation from component prop types
-  - Boolean props apply classes when true: `&.active { ... }`
-  - String union props apply value-based classes: `&.size-small { ... }`
-  - Always generates intermediate components using `vComponentWithModifiers`
-  - Hashed class names for optimal bundle size
-
-- **dynamic color props** - Runtime color application, eg. `<StyledButton dynamicColor={color.set('#ff6b6b')} />`
-  - Color identifier with `.set()` method for runtime color values
-  - Uses `color._sp` function injected by the compiler to merge className and style props
-  - Handles multiple dynamic colors and spread props
-  - Integrates with existing className, style, and other Vindur props
-
-- **static theme colors** - Compile-time color utilities
-  - Static color definitions for consistent theming
-  - Processed at build time for optimal performance
-
-- **stable IDs** - Deterministic identifier generation via `stableId` function
-  - Generates consistent IDs across builds for reliable references
 
 ## Hash generation
 
