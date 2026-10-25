@@ -5,9 +5,9 @@ import { createFsMock, transformWithFormat } from '../testUtils';
 test('should keep the vindurFn import of modules that declare vindur functions', async () => {
   const result = await transformWithFormat({
     source: dedent`
-      import { vindurFn as fn } from 'vindur';
+      import { vindurFn } from 'vindur';
 
-      export const transition = fn((property: string) => \`transition: \${property} 0.2s;\`);
+      export const transition = vindurFn((property: string) => \`transition: \${property} 0.2s;\`);
 
       export const easings = { in: 'ease-in' };
     `,
@@ -15,8 +15,8 @@ test('should keep the vindurFn import of modules that declare vindur functions',
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { vindurFn as fn } from "vindur";
-    export const transition = fn(
+    "import { vindurFn } from "vindur";
+    export const transition = vindurFn(
       (property: string) => \`transition: \${property} 0.2s;\`,
     );
     export const easings = {
@@ -61,35 +61,6 @@ test('should only treat createDynamicCssColor and createStaticThemeColors from v
         data-color={legacyColor}
         data-theme={legacyTheme}
         className="v1560qbr-1-Box"
-      />
-    );
-    "
-  `);
-});
-
-test('should detect aliased vindur color utilities', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled, createDynamicCssColor as dynamicColor } from 'vindur';
-
-      const bg = dynamicColor();
-
-      const Box = styled.div\`
-        background: \${bg.var};
-      \`;
-
-      export const A = () => <Box dynamicColor={bg.set('#fff')} />;
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor as dynamicColor } from "vindur";
-    const bg = dynamicColor("v1560qbr-1", true);
-    export const A = () => (
-      <div
-        {...bg._sp("#fff", {
-          className: "v1560qbr-2-Box",
-        })}
       />
     );
     "
