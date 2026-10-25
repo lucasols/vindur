@@ -22,7 +22,7 @@ test('should handle exported styled components with style flags', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "import { _vCWM } from "vindur";
     export const Button = _vCWM(
-      [["primary", "v1puiack-primary"]],
+      [["primary", "v1560qbr-1-Button-primary"]],
       "v1560qbr-1-Button",
       "button",
     );
@@ -33,7 +33,7 @@ test('should handle exported styled components with style flags', async () => {
     ".v1560qbr-1-Button {
       padding: 8px 16px;
 
-      &.v1puiack-primary {
+      &.v1560qbr-1-Button-primary {
         background: blue;
       }
     }

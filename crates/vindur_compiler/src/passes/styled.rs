@@ -41,6 +41,7 @@ pub(crate) struct StyledDefinition {
 }
 
 pub(crate) struct StyledTagContext<'a> {
+    pub class_name: &'a str,
     pub components: &'a FxHashMap<String, StyledComponent>,
     pub dev: bool,
     pub file_hash: &'a str,
@@ -134,6 +135,7 @@ pub(crate) fn styled_tag_component_with_attrs(
             &type_arguments.params,
             context.file_hash,
             context.dev,
+            context.class_name,
             context.program,
             context.file_path,
             context.source,

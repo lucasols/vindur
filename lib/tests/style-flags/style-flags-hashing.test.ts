@@ -34,7 +34,9 @@ test('should hash modifier class names in dev mode', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return <div className={"v1560qbr-1-Widget voctcyj-active"}>Content</div>;
+      return (
+        <div className={"v1560qbr-1-Widget v1560qbr-1-Widget-active"}>Content</div>
+      );
     }
     "
   `);
@@ -43,11 +45,11 @@ test('should hash modifier class names in dev mode', async () => {
     ".v1560qbr-1-Widget {
       background: white;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-Widget-active {
         background: blue;
       }
 
-      &.vnwmeu-featured {
+      &.v1560qbr-1-Widget-featured {
         border: 2px solid gold;
       }
     }
@@ -235,7 +237,7 @@ test('should support style flags with $ prefixed names', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <div className={"v1560qbr-1-Widget v1ytfoaf-_active vh12jjb-_size-small"} />
+        <div className={"v1560qbr-1-Widget v1560qbr-1-Widget-_active v1560qbr-1-Widget-_size-small"} />
       );
     }
     "
@@ -245,16 +247,182 @@ test('should support style flags with $ prefixed names', async () => {
     ".v1560qbr-1-Widget {
       background: white;
 
-      &.v1ytfoaf-_active {
+      &.v1560qbr-1-Widget-_active {
         background: blue;
       }
 
-      &.vh12jjb-_size-small {
+      &.v1560qbr-1-Widget-_size-small {
         padding: 4px;
       }
 
-      &.vh12jjb-_size-large {
+      &.v1560qbr-1-Widget-_size-large {
         padding: 16px;
+      }
+    }
+    "
+  `);
+});
+
+const componentPrefixedFlagsSource = dedent`
+  import { styled } from 'vindur';
+
+  const Button = styled.button<{
+    active: boolean;
+    size: 'small' | 'large';
+  }>\`
+    padding: 8px;
+
+    &.active {
+      color: red;
+    }
+
+    &.size-small {
+      padding: 4px;
+    }
+
+    &.size-large {
+      padding: 16px;
+    }
+  \`;
+
+  const IconButton = styled(Button)\`
+    gap: 4px;
+
+    &.active {
+      color: blue;
+    }
+  \`;
+
+  const Label = styled.span\`
+    \${Button}.active & {
+      font-weight: bold;
+    }
+  \`;
+
+  function Component({ active }: { active: boolean }) {
+    return (
+      <>
+        <Button active={active} size="small">
+          <Label>Button</Label>
+        </Button>
+        <IconButton active size="large" />
+      </>
+    );
+  }
+`;
+
+test('should prefix dev modifier class names with the component class', async () => {
+  const result = await transformWithFormat({
+    source: componentPrefixedFlagsSource,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <>
+          <button
+            className={
+              "v1560qbr-1-Button v1560qbr-1-Button-size-small" +
+              (active ? " v1560qbr-1-Button-active" : "")
+            }
+          >
+            <span className="v1560qbr-3-Label">Button</span>
+          </button>
+          <button
+            className={
+              "v1560qbr-1-Button v1560qbr-2-IconButton v1560qbr-1-Button-active v1560qbr-1-Button-size-large"
+            }
+          />
+        </>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      padding: 8px;
+
+      &.v1560qbr-1-Button-active {
+        color: red;
+      }
+
+      &.v1560qbr-1-Button-size-small {
+        padding: 4px;
+      }
+
+      &.v1560qbr-1-Button-size-large {
+        padding: 16px;
+      }
+    }
+
+    .v1560qbr-2-IconButton {
+      gap: 4px;
+
+      &.v1560qbr-1-Button-active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-3-Label {
+      .v1560qbr-1-Button.v1560qbr-1-Button-active & {
+        font-weight: bold;
+      }
+    }
+    "
+  `);
+});
+
+test('should keep production modifier class names unchanged', async () => {
+  const result = await transformWithFormat({
+    source: componentPrefixedFlagsSource,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <>
+          <button
+            className={"v1560qbr-1 vr4ikfs-small" + (active ? " voctcyj" : "")}
+          >
+            <span className="v1560qbr-3">Button</span>
+          </button>
+          <button className={"v1560qbr-1 v1560qbr-2 voctcyj vr4ikfs-large"} />
+        </>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      padding: 8px;
+
+      &.voctcyj {
+        color: red;
+      }
+
+      &.vr4ikfs-small {
+        padding: 4px;
+      }
+
+      &.vr4ikfs-large {
+        padding: 16px;
+      }
+    }
+
+    .v1560qbr-2 {
+      gap: 4px;
+
+      &.voctcyj {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-3 {
+      .v1560qbr-1.voctcyj & {
+        font-weight: bold;
       }
     }
     "

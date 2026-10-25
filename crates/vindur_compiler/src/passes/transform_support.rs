@@ -138,10 +138,18 @@ pub(super) fn process_variable_declaration(
         let Some(Expression::TaggedTemplateExpression(tagged)) = &declarator.init else {
             continue;
         };
+        let variable_name = identifier.name.as_str();
+        let component_class = generated_name(
+            transform.file_hash,
+            *transform.id_index,
+            variable_name,
+            transform.dev,
+        );
         let styled_definition = styled_tag_component_with_attrs(
             &tagged.tag,
             tagged.type_arguments.as_deref(),
             &StyledTagContext {
+                class_name: &component_class,
                 components: transform.styled_components,
                 dev: transform.dev,
                 file_hash: transform.file_hash,
@@ -163,13 +171,6 @@ pub(super) fn process_variable_declaration(
                     "Styled components must use their own variable declaration".to_owned(),
                 ));
             }
-            let variable_name = identifier.name.as_str();
-            let generated_name = generated_name(
-                transform.file_hash,
-                *transform.id_index,
-                variable_name,
-                transform.dev,
-            );
             *transform.id_index += 1;
             let style_flags = if own_style_flags.is_empty() {
                 base_component.style_flags.clone()
@@ -257,7 +258,7 @@ pub(super) fn process_variable_declaration(
             transform
                 .css_rules
                 .extend(
-                    generate_class_rules(&generated_name, &content).map_err(|error| {
+                    generate_class_rules(&component_class, &content).map_err(|error| {
                         css_error_diagnostic(
                             transform.file_path,
                             transform.source,
@@ -267,13 +268,13 @@ pub(super) fn process_variable_declaration(
                     })?,
                 );
             let complete_class_name = if base_component.class_name.is_empty() {
-                generated_name.clone()
+                component_class.clone()
             } else {
-                format!("{} {generated_name}", base_component.class_name)
+                format!("{} {component_class}", base_component.class_name)
             };
             transform.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(generated_name.clone()),
+                StaticValue::ClassName(component_class.clone()),
             );
             let attrs = own_attrs.or_else(|| base_component.attrs.clone());
             let runtime = transform.is_exported || attrs.is_some() || base_component.runtime;

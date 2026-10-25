@@ -350,15 +350,15 @@ describe('styled components - attrs functionality', () => {
         padding: 8px 16px;
         background: gray;
 
-        &.voctcyj-active {
+        &.v1560qbr-1-Button-active {
           background: blue;
         }
 
-        &.vr4ikfs-size-small {
+        &.v1560qbr-1-Button-size-small {
           padding: 4px 8px;
         }
 
-        &.vr4ikfs-size-large {
+        &.v1560qbr-1-Button-size-large {
           padding: 12px 24px;
         }
       }
@@ -369,8 +369,8 @@ describe('styled components - attrs functionality', () => {
       "import { _vCWM } from "vindur";
       export const Button = _vCWM(
         [
-          ["active", "voctcyj-active"],
-          ["size", "vr4ikfs-size"],
+          ["active", "v1560qbr-1-Button-active"],
+          ["size", "v1560qbr-1-Button-size"],
         ],
         "v1560qbr-1-Button",
         "button",

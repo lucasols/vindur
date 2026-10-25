@@ -233,7 +233,11 @@ test('should warn about missing modifier styles', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <div className={"v1560qbr-1-StyledWithModifier voctcyj-active"}>
+        <div
+          className={
+            "v1560qbr-1-StyledWithModifier v1560qbr-1-StyledWithModifier-active"
+          }
+        >
           Content
         </div>
       );

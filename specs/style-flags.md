@@ -248,6 +248,12 @@ The CSS output includes both base styles and modifier classes with hashed names:
 }
 ```
 
+### Modifier Class Names
+
+- **Development**: the component class plus the prop name, `{componentClass}-{prop}` (e.g., `v1560qbr-1-Button-active`). String unions add the value (`v1560qbr-1-Button-size-small`)
+- **Production**: `v{murmur2(fileHash-prop)}` (e.g., `voctcyj`), plus `-{value}` for string unions
+- Components extended with `styled(Base)` that declare no flags of their own reuse the base component's modifier classes
+
 ## Class Application Logic
 
 ### Boolean Props

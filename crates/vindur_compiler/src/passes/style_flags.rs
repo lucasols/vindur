@@ -9,6 +9,7 @@ pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
     file_hash: &str,
     dev: bool,
+    component_class: &str,
     program: &Program<'_>,
     file_path: &str,
     source: &str,
@@ -67,7 +68,13 @@ pub(super) fn extract_style_flags(
         .iter()
         .filter_map(|member| match member {
             TSSignature::TSPropertySignature(property) => Some(style_flag_from_property(
-                property, file_hash, dev, program, file_path, source,
+                property,
+                file_hash,
+                dev,
+                component_class,
+                program,
+                file_path,
+                source,
             )),
             _ => None,
         })
@@ -96,6 +103,7 @@ fn style_flag_from_property(
     property: &oxc_ast::ast::TSPropertySignature<'_>,
     file_hash: &str,
     dev: bool,
+    component_class: &str,
     program: &Program<'_>,
     file_path: &str,
     source: &str,
@@ -196,11 +204,11 @@ fn style_flag_from_property(
             ));
         }
     };
-    let hash = murmur2(&format!("{file_hash}-{prop_name}"));
+    // Dev names start with the component class, e.g. `v1560qbr-1-Button-active`
     let hashed_class_name = if dev {
-        format!("v{hash}-{}", css_class_name_part(&prop_name))
+        format!("{component_class}-{}", css_class_name_part(&prop_name))
     } else {
-        format!("v{hash}")
+        format!("v{}", murmur2(&format!("{file_hash}-{prop_name}")))
     };
     Ok(StyleFlag {
         hashed_class_name,
