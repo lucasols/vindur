@@ -69,7 +69,11 @@ pub(super) fn opening_attribute_insertion_offset(element: &JSXElement<'_>, sourc
             rest.find("*/")
                 .map_or(end, |comment_end| index + comment_end + 2)
         } else if rest.starts_with("//") {
-            rest.find('\n').map_or(end, |line_end| index + line_end + 1)
+            rest.char_indices()
+                .find(|(_, character)| matches!(character, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+                .map_or(end, |(line_end, terminator)| {
+                    index + line_end + terminator.len_utf8()
+                })
         } else if character == '/' {
             return u32::try_from(index).unwrap_or(opening.span.end);
         } else {

@@ -93,6 +93,16 @@ impl<'a> Visit<'a> for JsxCxVisitor<'_> {
     }
 }
 
+// Whether `rule` is the rule of `class_name`, alone or in the `@layer` of a `layer()` section
+fn is_class_rule(rule: &str, class_name: &str) -> bool {
+    let selector = format!(".{class_name} {{");
+    rule.starts_with(&selector)
+        || rule
+            .strip_prefix("@layer ")
+            .and_then(|rest| rest.split_once(" {\n  "))
+            .is_some_and(|(_, layered)| layered.starts_with(&selector))
+}
+
 impl JsxCxVisitor<'_> {
     fn process_cx_attribute(&mut self, element: &JSXElement<'_>, attribute: &JSXAttribute<'_>) {
         if let Some(index) = self.output.id_starts.get(&element.span.start) {
@@ -384,22 +394,23 @@ impl JsxCxVisitor<'_> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
             return Vec::new();
         };
-        let relevant_css = self
+        let relevant_css: Vec<&String> = self
             .output
             .css_rules
             .iter()
-            .find(|rule| rule.starts_with(&format!(".{base_class} {{")))
-            .map(String::as_str);
+            .filter(|rule| is_class_rule(rule, base_class))
+            .collect();
         mappings
             .iter()
             .filter_map(|(original, hashed, should_rewrite)| {
                 let declares = |css: &str| {
                     contains_class_selector(css, original) || contains_class_selector(css, hashed)
                 };
-                let declared = relevant_css.map_or_else(
-                    || self.output.css_rules.iter().any(|rule| declares(rule)),
-                    declares,
-                );
+                let declared = if relevant_css.is_empty() {
+                    self.output.css_rules.iter().any(|rule| declares(rule))
+                } else {
+                    relevant_css.iter().any(|rule| declares(rule))
+                };
                 (*should_rewrite && !declared).then_some(original.clone())
             })
             .collect()
@@ -439,7 +450,7 @@ impl JsxCxVisitor<'_> {
             .output
             .css_rules
             .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{base_class} {{")))
+            .filter(|rule| is_class_rule(rule, base_class))
         {
             *rule = rewrite_cx_selectors(rule, mappings);
         }
@@ -468,7 +479,7 @@ impl JsxCxVisitor<'_> {
             .output
             .css_rules
             .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{name} {{")))
+            .filter(|rule| is_class_rule(rule, name))
         {
             *rule = rewrite_cx_selectors(rule, mappings);
         }

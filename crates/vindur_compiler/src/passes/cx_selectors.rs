@@ -1,8 +1,8 @@
 // Rewrites the classes of the compound selectors that match the styled element, like
 // `&.active.selected`, `&:hover.active`, `&[data-open].active`, `.active&` or
-// `&:not(div.active)`, to their hashed classes. Whole class names are matched, so `&.active`
-// doesn't touch `&.activeIcon`, and escaped classes like `&.md\:active` match the `md:active`
-// key. Rules nested under a rule that clearly targets another element, like the `&.selected`
+// `&:not(div.active)` or `@scope (&.active)`, to their hashed classes. Whole class names are
+// matched, so `&.active` doesn't touch `&.activeIcon`, and escaped classes like `&.md\:active`
+// match the `md:active` key. Rules nested under a rule that clearly targets another element, like the `&.selected`
 // of `& .tab { &.selected {} }`, are left alone
 //
 // `css` holds whole rules like `.v1-Box { ... }`
@@ -62,11 +62,16 @@ fn rewrite_rules(css: &str, map: &ClassMapper<'_>, initial: RuleContext) -> Stri
         let context = contexts.last().copied().unwrap_or(initial);
         match css[end..].chars().next() {
             Some('{') => {
-                let is_at_rule = css[skip_trivia(css, index, end)..end].starts_with('@');
-                if !is_at_rule && context == RuleContext::StyledElement {
-                    rewrite_selector_list(css, index, end, &mut output, map, false);
-                } else {
+                let prelude = &css[skip_trivia(css, index, end)..end];
+                let is_at_rule = prelude.starts_with('@');
+                let is_scope =
+                    is_at_rule && identifier(&prelude[1..]).eq_ignore_ascii_case("scope");
+                if context != RuleContext::StyledElement || (is_at_rule && !is_scope) {
                     output.push_str(&css[index..end]);
+                } else if is_scope {
+                    rewrite_scope_prelude(css, index, end, &mut output, map);
+                } else {
+                    rewrite_selector_list(css, index, end, &mut output, map, false);
                 }
                 contexts.push(match context {
                     _ if is_at_rule => context,
@@ -101,7 +106,7 @@ fn segment_end(css: &str, mut index: usize) -> usize {
             '{' | '}' | ';' => return index,
             '"' | '\'' | '(' | '[' => skipped_end(css, index, css.len()),
             '/' if css[index..].starts_with("/*") => skipped_end(css, index, css.len()),
-            '\\' => index + 1 + css[index + 1..].chars().next().map_or(0, char::len_utf8),
+            '\\' => escape_end(css, index, css.len()),
             _ => index + character.len_utf8(),
         };
     }
@@ -130,6 +135,30 @@ fn nested_rule_matches_parent(css: &str, start: usize, end: usize) -> bool {
     !has_selector
 }
 
+// Rewrites the `&` compounds of the `(root) to (limit)` selectors of an `@scope` prelude
+fn rewrite_scope_prelude(
+    css: &str,
+    mut index: usize,
+    end: usize,
+    output: &mut String,
+    map: &ClassMapper<'_>,
+) {
+    while let Some(character) = css[index..end].chars().next() {
+        let next = match character {
+            '(' => {
+                index = rewrite_arguments(css, index, end, output, map, "scope", false);
+                continue;
+            }
+            '"' | '\'' | '[' => skipped_end(css, index, end),
+            '/' if css[index..end].starts_with("/*") => skipped_end(css, index, end),
+            '\\' => escape_end(css, index, end),
+            _ => index + character.len_utf8(),
+        };
+        output.push_str(&css[index..next]);
+        index = next;
+    }
+}
+
 // Whether a selector clearly targets another element: a `&` before its last compound and none
 // in that compound, like `& .tab` or `& > .icon`
 fn targets_other_element(css: &str, start: usize, end: usize) -> bool {
@@ -137,9 +166,9 @@ fn targets_other_element(css: &str, start: usize, end: usize) -> bool {
     let Some((&(subject_start, subject_end), ancestors)) = compounds.split_last() else {
         return false;
     };
-    !css[subject_start..subject_end].contains('&')
+    !contains_ampersand(css, subject_start, subject_end, true)
         && ancestors.iter().any(|&(compound_start, compound_end)| {
-            contains_ampersand(css, compound_start, compound_end)
+            contains_ampersand(css, compound_start, compound_end, false)
         })
 }
 
@@ -157,15 +186,17 @@ fn skip_trivia(css: &str, mut index: usize, end: usize) -> usize {
     end
 }
 
-// Whether the compound between `start` and `end` has a `&` outside its pseudo-class arguments
-fn contains_ampersand(css: &str, start: usize, end: usize) -> bool {
+// Whether the compound between `start` and `end` has a `&` outside strings, comments, escapes
+// and attribute selectors, and outside its pseudo-class arguments unless `in_arguments`
+fn contains_ampersand(css: &str, start: usize, end: usize, in_arguments: bool) -> bool {
     let mut index = start;
     while let Some(character) = css[index..end].chars().next() {
         index = match character {
             '&' => return true,
+            '(' if in_arguments => index + 1,
             '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
             '/' if css[index..end].starts_with("/*") => skipped_end(css, index, end),
-            '\\' => index + 1 + css[index + 1..end].chars().next().map_or(0, char::len_utf8),
+            '\\' => escape_end(css, index, end),
             _ => index + character.len_utf8(),
         };
     }
@@ -303,7 +334,7 @@ fn rewrite_complex_selector(
     for (position, &(compound_start, compound_end)) in compounds.iter().enumerate() {
         output.push_str(&css[index..compound_start]);
         let matches = (same_element && position + 1 == compounds.len())
-            || contains_ampersand(css, compound_start, compound_end);
+            || contains_ampersand(css, compound_start, compound_end, false);
         rewrite_compound_range(css, compound_start, compound_end, output, map, matches);
         index = compound_end;
     }
@@ -325,7 +356,7 @@ fn rewrite_compound_range(
         let next = if matches!(character, '"' | '\'') || css[index..end].starts_with("/*") {
             skipped_end(css, index, end)
         } else if character == '\\' {
-            index + 1 + css[index + 1..end].chars().next().map_or(0, char::len_utf8)
+            escape_end(css, index, end)
         } else {
             let next = rewrite_compound(css, index, end, output, map, rewrite_classes);
             if next > index {
@@ -339,17 +370,14 @@ fn rewrite_compound_range(
     }
 }
 
-// The ranges of the compound selectors between `start` and `end`, separated by whitespace,
-// comments and the `>`, `+` and `~` combinators
+// The ranges of the compound selectors between `start` and `end`, separated by whitespace and
+// the `>`, `+` and `~` combinators. Comments don't split a compound, `&/* c */.active` is one
 fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut compound_start = None;
     let mut index = start;
     while let Some(character) = css[index..end].chars().next() {
         if css[index..end].starts_with("/*") {
-            if let Some(range_start) = compound_start.take() {
-                ranges.push((range_start, index));
-            }
             index = skipped_end(css, index, end);
             continue;
         }
@@ -363,10 +391,7 @@ fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
         compound_start.get_or_insert(index);
         index = match character {
             '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
-            '\\' => {
-                let escaped = css[index + 1..end].chars().next().map_or(0, char::len_utf8);
-                index + 1 + escaped
-            }
+            '\\' => escape_end(css, index, end),
             _ => index + character.len_utf8(),
         };
     }
@@ -432,12 +457,7 @@ fn skipped_end(css: &str, index: usize, limit: usize) -> usize {
         }
         position += character.len_utf8();
         match (opening, character) {
-            (_, '\\') => {
-                position += css[position..limit]
-                    .chars()
-                    .next()
-                    .map_or(0, char::len_utf8);
-            }
+            (_, '\\') => position = escape_end(css, position - 1, limit),
             ('"' | '\'', quote) if quote == opening => return position,
             ('"' | '\'', _) => {}
             (_, '"' | '\'') => position = skipped_end(css, position - 1, limit),
@@ -465,17 +485,40 @@ fn type_selector(rest: &str) -> &str {
     ""
 }
 
-// A CSS identifier, including escapes like `active\:icon`
+// A CSS identifier, including escapes like `active\:icon` or `md\3a active`
 fn identifier(rest: &str) -> &str {
-    let mut characters = rest.char_indices();
-    while let Some((index, character)) = characters.next() {
-        if character == '\\' {
-            characters.next();
-        } else if !is_class_name_character(character) {
-            return &rest[..index];
-        }
+    let mut index = 0;
+    while let Some(character) = rest[index..].chars().next() {
+        index = if character == '\\' {
+            escape_end(rest, index, rest.len())
+        } else if is_class_name_character(character) {
+            index + character.len_utf8()
+        } else {
+            break;
+        };
     }
-    rest
+    &rest[..index]
+}
+
+// The end of the escape at the `\` at `index`: up to 6 hex digits and the whitespace that may
+// end them, or a single character (CSS Syntax 4.3.7)
+fn escape_end(css: &str, index: usize, limit: usize) -> usize {
+    let rest = &css[index + 1..limit];
+    let hex_digits = rest
+        .bytes()
+        .take(6)
+        .take_while(u8::is_ascii_hexdigit)
+        .count();
+    if hex_digits == 0 {
+        return index + 1 + rest.chars().next().map_or(0, char::len_utf8);
+    }
+    let after = &rest[hex_digits..];
+    let whitespace = if after.starts_with("\r\n") {
+        2
+    } else {
+        usize::from(after.starts_with([' ', '\t', '\n', '\r', '\u{c}']))
+    };
+    index + 1 + hex_digits + whitespace
 }
 
 fn is_class_name_character(character: char) -> bool {
@@ -503,7 +546,11 @@ fn unescape(identifier: &str) -> String {
         if hex.is_empty() {
             value.extend(characters.next());
         } else {
-            characters.next_if(|next| *next == ' ');
+            if characters.next_if_eq(&'\r').is_some() {
+                characters.next_if_eq(&'\n');
+            } else {
+                characters.next_if(|next| matches!(next, ' ' | '\t' | '\n' | '\u{c}'));
+            }
             let code_point = u32::from_str_radix(&hex, 16).unwrap_or(0xFFFD);
             value.push(char::from_u32(code_point).unwrap_or('\u{FFFD}'));
         }

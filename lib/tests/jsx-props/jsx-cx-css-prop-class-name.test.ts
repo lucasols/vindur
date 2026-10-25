@@ -508,6 +508,29 @@ test('should insert className before the end of the opening tag after comments',
   `);
 });
 
+test('should insert className before a self-closing tag after a line comment ended by a carriage return', async () => {
+  const result = await transformWithFormat({
+    source:
+      'export const App = ({ p, c }) => <div {...p} cx={{ $b: c }} // note\r/>;',
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    export const App = ({ p, c }) => (
+      <div
+        {...p} // note
+        className={mergeClassNames(
+          [p],
+          cx({
+            b: c,
+          }),
+        )}
+      />
+    );
+    "
+  `);
+});
+
 test('should throw for dynamicColor before a transformed prop with spread props', async () => {
   await expect(
     transformWithFormat({

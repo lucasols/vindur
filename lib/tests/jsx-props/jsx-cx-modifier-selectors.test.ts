@@ -491,3 +491,74 @@ test('should keep rewriting cx classes of nested rules that may match the styled
     "
   `);
 });
+
+test('should rewrite cx classes in @scope preludes, layers, commented compounds and hex escapes', async () => {
+  const warnings: TransformWarning[] = [];
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, layer } from 'vindur';
+
+      const Box = styled.div\`
+        @scope (&.active) to (&.done .stop) { & { color: red; } }
+        & a[href*="&"] { &:not(.disabled) { color: green; } }
+        &/* c */.active { top: 0; }
+        &.active/* c */.done { left: 0; }
+        &.md\\3a active { bottom: 0; }
+        &.a\\63 tive { right: 0; }
+        \${layer('base')} { &.done { margin: 0; } }
+      \`;
+
+      export const App = ({ a, b, c, d }) => (
+        <Box cx={{ active: a, disabled: b, done: c, 'md:active': d }} />
+      );
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      @scope (&.v1560qbr-2-active) to (&.v1560qbr-4-done .stop) {
+        & {
+          color: red;
+        }
+      }
+      & a[href*="&"] {
+        &:not(.disabled) {
+          color: green;
+        }
+      }
+      &/* c */.v1560qbr-2-active {
+        top: 0;
+      }
+      &.v1560qbr-2-active/* c */.v1560qbr-4-done {
+        left: 0;
+      }
+      &.v1560qbr-5-md\\:active {
+        bottom: 0;
+      }
+      &.v1560qbr-2-active {
+        right: 0;
+      }
+    }
+
+    @layer base {
+      .v1560qbr-1-Box {
+        &.v1560qbr-4-done {
+          margin: 0;
+        }
+      }
+    }
+    "
+  `);
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Warning: Missing CSS classes for cx modifiers in Box: disabled'
+        loc: 'current_file:14:2'
+    "
+  `);
+});
