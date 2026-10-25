@@ -280,6 +280,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const Component = ({ width, ...props }: { width: number }) => {
         return (
           <div
+            {...props}
             {...color._sp("#fff", {
               className: mergeClassNames([box, props], undefined),
               style: mergeStyles([
@@ -291,7 +292,6 @@ describe('Dynamic Colors - Spread Props', () => {
                 props,
               ]),
             })}
-            {...props}
           />
         );
       };
@@ -362,6 +362,41 @@ describe('Dynamic Colors - Spread Props', () => {
           {...props}
           {...color._sp("#fff", {
             className: mergeClassNames([null, props], undefined),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
+
+  test('should keep props after spreads when they contain JSX or calls', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, styled, stableId } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Icon = styled.span\`
+          color: red;
+        \`
+
+        const Component = (props) => (
+          <div dynamicColor={color.set('#fff')} {...props} icon={<Icon />} id={stableId()} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1", true);
+      const Component = (props) => (
+        <div
+          {...props}
+          icon={<span className="v1560qbr-2-Icon" />}
+          id={"v1560qbr-3"}
+          {...color._sp("#fff", {
+            className: mergeClassNames([props], undefined),
             style: mergeStyles([props]),
           })}
         />

@@ -217,3 +217,133 @@ test('should reject styled components used as style extensions', async () => {
     loc: 8:4]
   `);
 });
+
+test('should hint a missing `;` before a selector interpolation', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const highlighted = css\`outline: 1px solid;\`
+
+        const Card = styled.div\`
+          padding: 8px
+          &\${highlighted} { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... Card = styled\`: missing \`;\` before a nested rule, \`padding: 8px &.v1560qbr-1-highlighted\` is not a valid selector
+    loc: 6:2]
+  `);
+});
+
+test('should reject a `;` after a global rule', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          body { margin: 0; };
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: unexpected \`;\` after a rule, remove it
+    loc: 4:21]
+  `);
+});
+
+test('should accept class selectors followed by `;` inside strings and comments', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur'
+
+      const Base = styled.div\`
+        color: red;
+      \`
+
+      const style = css\`
+        content: "\${Base};";
+        /* \${Base}; */
+        color: blue;
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Base {
+      color: red;
+    }
+
+    .v1560qbr-2-style {
+      content: ".v1560qbr-1-Base;";
+      /* .v1560qbr-1-Base; */
+      color: blue;
+    }
+    "
+  `);
+});
+
+test('should escape quotes of class names merged with a dynamic color', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const App = () => (
+        <div className='a"b' dynamicColor={color.set('#fff')} />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    const App = () => (
+      <div
+        {...color._sp("#fff", {
+          className: 'a"b',
+        })}
+      />
+    );
+    "
+  `);
+});
+
+test('should reject top level at-rules inside style rules', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          @font-face { font-family: x; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@font-face\` is not supported inside \`css\` templates, move it to the top level of \`createGlobalStyle\`
+    loc: 4:2]
+  `);
+});
+
+test('should locate unsupported syntax after template escapes', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          content: "\\201C";
+          &:hover { @keyframes a { from { opacity: 0; } } }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@keyframes\` is not supported inside \`css\` templates, use the \`keyframes\` function instead
+    loc: 5:12]
+  `);
+});

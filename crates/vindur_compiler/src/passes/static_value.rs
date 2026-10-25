@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
+use super::css_tokens::ends_in_string_or_comment;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::import_errors::{
@@ -200,6 +201,7 @@ fn build_template_css(
         });
         let forward_reference = forward_styled_reference(expression);
         if has_semicolon
+            && !ends_in_string_or_comment(&evaluated.css)
             && (forward_reference.is_some()
                 || matches!(
                     evaluate_expression(expression, constants, scoping),

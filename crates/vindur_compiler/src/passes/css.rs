@@ -321,6 +321,10 @@ mod tests {
             clean_css("/* don't */ margin: 0;; padding: 0;;"),
             "/* don't */ margin: 0; padding: 0;"
         );
+        assert_eq!(
+            clean_css("background: u\\72l(a;;b.png);;"),
+            "background: u\\72l(a;;b.png);"
+        );
     }
 
     #[test]

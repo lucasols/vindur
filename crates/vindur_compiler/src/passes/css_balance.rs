@@ -17,6 +17,13 @@ pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
                 index + 2,
             ));
         }
+        // A hash or at-keyword like `#url` is one token, not a `url(` function
+        if css[index..].starts_with(['#', '@'])
+            && css[index + 1..].chars().next().is_some_and(is_ident_char)
+        {
+            index = ident_end(css, index + 1);
+            continue;
+        }
         // Identifiers are skipped whole, so the text after an escape like `\66 url(` is not read
         // as a new identifier
         if css[index..].chars().next().is_some_and(is_ident_char) {
@@ -173,6 +180,7 @@ mod tests {
             "background: u\\72l(a[b.png);",
             "--a: u\\ rl(foo bar); --b: \\66 url(foo bar);",
             "content: \"a\\\r\n)\";",
+            "--x: #url(a b); --y: @url(a b);",
         ] {
             assert_eq!(check(css), "ok", "{css}");
         }

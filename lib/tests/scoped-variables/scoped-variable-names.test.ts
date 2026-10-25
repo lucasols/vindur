@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/transform';
 import { transformWithFormat } from '../testUtils';
 
 test('should rename scoped names in selectors', async () => {
@@ -25,7 +26,7 @@ test('should rename scoped names in selectors', async () => {
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-card {
       view-transition-name: --v1560qbr-2-card;
-      &[data-name="--v1560qbr-2-card"],
+      &[data-name="---card"],
       &[data-name="---card"] {
         color: red;
       }
@@ -97,4 +98,62 @@ test('should rename quoted keyframes names like their uses', async () => {
     }
     "
   `);
+});
+
+test('should rename quoted keyframes names in animations', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @keyframes "---spin" {
+          to { rotate: 1turn; }
+        }
+      \`
+
+      const spinner = css\`
+        animation: "---spin" 1s;
+        content: "---spin";
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@keyframes "--v1560qbr-2-spin" {
+      to {
+        rotate: 1turn;
+      }
+    }
+
+    .v1560qbr-3-spinner {
+      animation: "--v1560qbr-2-spin" 1s;
+      content: "---spin";
+    }
+    "
+  `);
+});
+
+test('should treat registered properties as declared', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @property ---angle {
+          syntax: '<angle>';
+          inherits: false;
+          initial-value: 0deg;
+        }
+      \`
+
+      const style = css\`
+        rotate: var(---angle);
+      \`
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(warnings).toEqual([]);
 });

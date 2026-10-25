@@ -5,7 +5,7 @@ use oxc_css_parser::{
 
 use super::css::with_layer_calls;
 use super::css_syntax::{BlockKind, CssError};
-use super::css_tokens::is_ident_char;
+use super::css_tokens::{is_ident_char, skipped_token_end};
 
 /// The CSS dialect also accepts postcss-only syntax like `$var: value;`, `*zoom: 1` or rules
 /// without a selector, reject them
@@ -143,7 +143,12 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
 pub(super) fn validate_block_kind(
     statements: &[Statement<'_>],
     kind: BlockKind,
+    source: &str,
+    (start, end): (usize, usize),
 ) -> Result<(), CssError> {
+    if kind == BlockKind::Global {
+        reject_stray_semicolons(statements, source, start, end)?;
+    }
     for statement in statements {
         let message = match (kind, statement) {
             (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
@@ -151,7 +156,8 @@ pub(super) fn validate_block_kind(
                 if let Some(block) = &rule.block
                     && is_grouping_at_rule(rule.name.name)
                 {
-                    validate_block_kind(&block.statements, kind)?;
+                    let inner = (block.span.start + 1, block.span.end.saturating_sub(1));
+                    validate_block_kind(&block.statements, kind, source, inner)?;
                 }
                 continue;
             }
@@ -184,6 +190,55 @@ pub(super) fn validate_block_kind(
         return Err(CssError::syntax(message.to_owned(), span.start, span.end));
     }
     Ok(())
+}
+
+/// The parser skips a `;` between rules, but browsers read it as the start of the next rule's
+/// selector and drop that rule. Global styles are joined, so it can drop a rule of another file.
+/// Statements without a block, like `@import url(a.css);`, end with their `;`
+fn reject_stray_semicolons(
+    statements: &[Statement<'_>],
+    source: &str,
+    start: usize,
+    end: usize,
+) -> Result<(), CssError> {
+    let mut gap_start = start;
+    let mut allows_semicolon = false;
+    for statement in statements.iter().map(Some).chain([None]) {
+        let gap_end = statement.map_or(end, |statement| statement_span(statement).start);
+        let mut index = gap_start;
+        while index < gap_end.min(source.len()) {
+            if let Some(token_end) = skipped_token_end(source, index) {
+                index = token_end;
+                continue;
+            }
+            if source.as_bytes()[index] == b';' {
+                if !allows_semicolon {
+                    return Err(CssError::syntax(
+                        "unexpected `;` after a rule, remove it".to_owned(),
+                        index,
+                        index + 1,
+                    ));
+                }
+                allows_semicolon = false;
+            }
+            index += source[index..].chars().next().map_or(1, char::len_utf8);
+        }
+        if let Some(statement) = statement {
+            gap_start = statement_span(statement).end;
+            allows_semicolon = !ends_with_block(statement) && !source[..gap_start].ends_with(';');
+        }
+    }
+    Ok(())
+}
+
+fn ends_with_block(statement: &Statement<'_>) -> bool {
+    match statement {
+        Statement::AtRule(rule) => rule.block.is_some(),
+        Statement::QualifiedRule(_)
+        | Statement::UnknownQualifiedRule(_)
+        | Statement::KeyframeBlock(_) => true,
+        _ => false,
+    }
 }
 
 /// Conditional and layer at-rules hold rules at the top level of a stylesheet. `@scope` is not
@@ -415,6 +470,28 @@ mod tests {
                 error("\\2d -config: theme: dark;"),
             ],
             ["ok", "ok", "ok"]
+        );
+    }
+
+    #[test]
+    fn rejects_stray_semicolons_in_global_styles() {
+        assert_eq!(
+            [
+                kind_error("body { margin: 0; };", BlockKind::Global),
+                kind_error(
+                    "@media print { a { b: c; }; b { c: d; } }",
+                    BlockKind::Global
+                ),
+                kind_error(
+                    "@import url(a.css); @layer a, b; /* ; */ body { margin: 0; }",
+                    BlockKind::Global
+                ),
+            ],
+            [
+                "Invalid CSS: unexpected `;` after a rule, remove it at 19..20",
+                "Invalid CSS: unexpected `;` after a rule, remove it at 26..27",
+                "ok",
+            ]
         );
     }
 }

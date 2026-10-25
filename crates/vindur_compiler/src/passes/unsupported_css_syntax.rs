@@ -1,12 +1,25 @@
-use std::ops::Range;
-
 use oxc_span::Span;
 
 use super::css_tokens::{decode_ident, ident_end, is_ident_char, skipped_token_end};
+use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 use crate::CompilerDiagnostic;
 
 const GLOBAL_SELECTOR: &str = ":global";
-const KEYFRAMES_AT_RULE: &str = "keyframes";
+// At-rules browsers only accept at the top level of a stylesheet or in grouping rules, they are
+// dropped inside style rules
+const TOP_LEVEL_AT_RULES: [&str; 11] = [
+    "keyframes",
+    "font-face",
+    "import",
+    "property",
+    "charset",
+    "namespace",
+    "counter-style",
+    "font-palette-values",
+    "font-feature-values",
+    "page",
+    "position-try",
+];
 // At-rules whose blocks can contain other rules like `@keyframes`
 const GROUPING_AT_RULES: [&str; 7] = [
     "media",
@@ -17,17 +30,6 @@ const GROUPING_AT_RULES: [&str; 7] = [
     "scope",
     "starting-style",
 ];
-
-pub(super) enum SegmentOrigin {
-    Quasi(Span),
-    Interpolation(Span),
-}
-
-// Maps a range of the evaluated template CSS back to the code that produced it
-pub(super) struct TemplateSegment {
-    pub range: Range<usize>,
-    pub origin: SegmentOrigin,
-}
 
 struct UnsupportedSyntax {
     offset: usize,
@@ -77,109 +79,6 @@ pub(super) fn unsupported_syntax_error(
     Some(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
-// Maps a non empty range of the evaluated template CSS to the source code that
-// produced it, along with the segment where the range starts
-pub(super) fn template_source_span<'a>(
-    css: &str,
-    source: &str,
-    segments: &'a [TemplateSegment],
-    range: Range<usize>,
-) -> Option<(Span, &'a TemplateSegment)> {
-    let segment_at = |offset: usize| {
-        segments
-            .iter()
-            .find(|segment| segment.range.contains(&offset))
-    };
-    if range.is_empty() {
-        return None;
-    }
-    let (Some(start_segment), Some(end_segment)) =
-        (segment_at(range.start), segment_at(range.end - 1))
-    else {
-        return None;
-    };
-    let first = segment_source_span(
-        css,
-        source,
-        start_segment,
-        range.start..range.end.min(start_segment.range.end),
-    );
-    let span = if std::ptr::eq(start_segment, end_segment) {
-        first
-    } else {
-        let last =
-            segment_source_span(css, source, end_segment, end_segment.range.start..range.end);
-        Span::new(first.start, last.end)
-    };
-    Some((span, start_segment))
-}
-
-// The evaluated quasi text can differ from the source (escapes are cooked and
-// CRLF is normalized), so the matched text is looked up in the original source,
-// falling back to the whole quasi when it can't be found there or escapes make
-// the occurrence ambiguous
-fn segment_source_span(
-    css: &str,
-    source: &str,
-    segment: &TemplateSegment,
-    range: Range<usize>,
-) -> Span {
-    let span = match segment.origin {
-        SegmentOrigin::Quasi(span) => span,
-        SegmentOrigin::Interpolation(span) => return span,
-    };
-    let evaluated = &css[segment.range.clone()];
-    let local = range.start - segment.range.start..range.end - segment.range.start;
-    let raw_quasi = source.get(span.start as usize..span.end as usize);
-    if let Some(raw_quasi) = raw_quasi
-        && evaluated != raw_quasi
-        && let Some(start) = newline_normalized_offset(raw_quasi, evaluated, local.start)
-        && let Some(end) = newline_normalized_offset(raw_quasi, evaluated, local.end)
-        && let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end))
-    {
-        return Span::new(span.start + start, span.start + end);
-    }
-    let raw_start = raw_quasi
-        .and_then(|raw| {
-            if evaluated == raw {
-                return Some(local.start);
-            }
-            let matched = &evaluated[local.clone()];
-            if evaluated.matches(matched).count() != raw.matches(matched).count() {
-                return None;
-            }
-            let occurrence = evaluated[..local.start].matches(matched).count();
-            raw.match_indices(matched)
-                .nth(occurrence)
-                .map(|(index, _)| index)
-        })
-        .and_then(|raw_start| u32::try_from(raw_start).ok());
-    let len = u32::try_from(local.len()).ok();
-    match (raw_start, len) {
-        (Some(raw_start), Some(len)) => {
-            Span::new(span.start + raw_start, span.start + raw_start + len)
-        }
-        _ => span,
-    }
-}
-
-/// The raw offset of an offset in the evaluated quasi when they only differ by line endings, JS
-/// templates evaluate `\r\n` and `\r` to `\n`
-fn newline_normalized_offset(raw: &str, evaluated: &str, offset: usize) -> Option<usize> {
-    if raw.replace("\r\n", "\n").replace('\r', "\n") != evaluated {
-        return None;
-    }
-    let bytes = raw.as_bytes();
-    let mut raw_index = 0;
-    for _ in 0..offset {
-        if bytes.get(raw_index..raw_index + 2) == Some(b"\r\n") {
-            raw_index += 1;
-        }
-        raw_index += 1;
-    }
-    Some(raw_index)
-}
-
 fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSyntax> {
     let bytes = css.as_bytes();
     let mut blocks: Vec<Block<'_>> = Vec::new();
@@ -213,7 +112,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         if byte == b'@'
             && prelude_start.is_none()
             && let Some((at_rule, name)) = at_rule_name(rest)
-            && name == KEYFRAMES_AT_RULE
+            && TOP_LEVEL_AT_RULES.contains(&name.as_str())
         {
             let enclosing_block = blocks
                 .iter()
@@ -223,7 +122,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                 return Some(UnsupportedSyntax {
                     offset: index,
                     len: at_rule.len(),
-                    message: keyframes_message(at_rule, tag_type, enclosing_block),
+                    message: top_level_at_rule_message(at_rule, &name, tag_type, enclosing_block),
                 });
             }
         }
@@ -352,11 +251,9 @@ fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
 // Returns the at-rule and its lowercase name without vendor prefix, e.g.
 // `@-webkit-Keyframes` -> `keyframes`, at-rule names are case-insensitive
 fn at_rule_name(rest: &str) -> Option<(&str, String)> {
-    let name_len = rest[1..]
-        .find(|character: char| !is_ident_char(character))
-        .map_or(rest.len(), |end| end + 1);
-    let at_rule = &rest[..name_len];
-    let name = at_rule[1..].to_ascii_lowercase();
+    let at_rule = &rest[..ident_end(rest, 1)];
+    // The name can be escaped, like `@\6d edia`
+    let name = decode_ident(&at_rule[1..]).to_ascii_lowercase();
     let unprefixed = match name.strip_prefix('-') {
         Some(prefixed) => prefixed.split_once('-')?.1.to_owned(),
         None => name,
@@ -364,7 +261,13 @@ fn at_rule_name(rest: &str) -> Option<(&str, String)> {
     Some((at_rule, unprefixed))
 }
 
-fn keyframes_message(at_rule: &str, tag_type: &str, enclosing_block: Option<&Block<'_>>) -> String {
+fn top_level_at_rule_message(
+    at_rule: &str,
+    name: &str,
+    tag_type: &str,
+    enclosing_block: Option<&Block<'_>>,
+) -> String {
+    let at_rule = at_rule.trim_end();
     match (tag_type, enclosing_block) {
         ("createGlobalStyle", Some(Block::OtherAtRule(enclosing_at_rule))) => format!(
             "`{at_rule}` is not supported inside `{enclosing_at_rule}` rules, move it to the top level of `createGlobalStyle`"
@@ -372,8 +275,11 @@ fn keyframes_message(at_rule: &str, tag_type: &str, enclosing_block: Option<&Blo
         ("createGlobalStyle", _) => format!(
             "`{at_rule}` is not supported inside style rules, move it to the top level of `createGlobalStyle`"
         ),
-        ("keyframes", _) => format!(
+        ("keyframes", _) if name == "keyframes" => format!(
             "`{at_rule}` is not supported inside `keyframes` templates, they already generate the `@keyframes` rule so write only the frames, e.g. `from {{ ... }} to {{ ... }}`"
+        ),
+        _ if name != "keyframes" => format!(
+            "`{at_rule}` is not supported inside `{tag_type}` templates, move it to the top level of `createGlobalStyle`"
         ),
         _ => format!(
             "`{at_rule}` is not supported inside `{tag_type}` templates, use the `keyframes` function instead"
@@ -407,9 +313,7 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use oxc_span::Span;
-
-    use super::{SegmentOrigin, TemplateSegment, find_unsupported_syntax, segment_source_span};
+    use super::find_unsupported_syntax;
 
     #[test]
     fn handles_non_ascii_characters_after_global() {
@@ -462,6 +366,38 @@ mod tests {
     }
 
     #[test]
+    fn rejects_top_level_at_rules_in_style_rules() {
+        let offset = |css: &str, tag_type: &str| {
+            find_unsupported_syntax(css, tag_type).map(|syntax| (syntax.offset, syntax.message))
+        };
+        assert_eq!(
+            offset("@font-face { font-family: x; }", "css"),
+            Some((
+                0,
+                "`@font-face` is not supported inside `css` templates, move it to the top level of `createGlobalStyle`".to_owned()
+            ))
+        );
+        assert_eq!(
+            offset("body { @import \"x.css\"; }", "createGlobalStyle").map(|(offset, _)| offset),
+            Some(7)
+        );
+        assert!(
+            offset(
+                "@font-face { font-family: x; } @media print { @font-face { font-family: y; } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
+        assert!(
+            offset(
+                "@\\6d edia print { @keyframes a { from { opacity: 0; } } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn tracks_parentheses_of_quoted_urls() {
         assert!(
             find_unsupported_syntax(
@@ -481,22 +417,6 @@ mod tests {
         assert_eq!(
             find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
             css.find(":global")
-        );
-    }
-
-    #[test]
-    fn falls_back_to_the_quasi_when_escapes_make_the_location_ambiguous() {
-        let source = r#"content: "\u003aglobal"; :global(.a) & {} content: ":global";"#;
-        let css = r#"content: ":global"; :global(.a) & {} content: ":global";"#;
-        let quasi_span = Span::new(0, u32::try_from(source.len()).unwrap_or(0));
-        let segment = TemplateSegment {
-            range: 0..css.len(),
-            origin: SegmentOrigin::Quasi(quasi_span),
-        };
-        let start = css.find(":global(").unwrap_or(0);
-        assert_eq!(
-            segment_source_span(css, source, &segment, start..start + 7),
-            quasi_span
         );
     }
 }

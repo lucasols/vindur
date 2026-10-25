@@ -7,6 +7,7 @@ use oxc_css_parser::{
 
 use super::css::reject_misplaced_layers;
 use super::css_balance::check_balance;
+use super::css_tokens::is_inside_block;
 use super::css_validation::{validate_block_kind, validate_statements};
 use super::scoped_idents::collect_scoped_idents;
 
@@ -120,7 +121,13 @@ pub(super) fn with_style_block<T>(
     parse_source(&allocator, source)
         // An unclosed bracket or comment makes the parser fail later, at a confusing position
         .map_err(|error| match check_balance(source) {
-            Err(balance_error) if balance_error.start <= error.start => balance_error,
+            // Some errors in a rule are reported at the `{` that opens it
+            Err(balance_error)
+                if balance_error.start <= error.start
+                    || is_inside_block(source, error.start, balance_error.start) =>
+            {
+                balance_error
+            }
             _ if kind == BlockKind::Keyframes => keyframes_error(css, error),
             _ => error,
         })
@@ -128,7 +135,7 @@ pub(super) fn with_style_block<T>(
             check_balance(source)?;
             let statements = block_statements(&stylesheet.statements, kind, source.len())?;
             validate_statements(statements, source)?;
-            validate_block_kind(statements, kind)?;
+            validate_block_kind(statements, kind, source, (0, source.len()))?;
             visit(statements, source, offset)
         })
         .map_err(|error| error.shifted(offset, css.len()))
@@ -146,6 +153,16 @@ fn keyframes_error(css: &str, error: CssError) -> CssError {
     if let Err(balance_error) = check_balance(&format!("{unclosed}}}")) {
         return balance_error;
     }
+    // An error at the wrapper's `}` names a token the CSS doesn't have
+    let fallback = if error.start >= unclosed.len() {
+        CssError::syntax(
+            "unexpected end of the keyframes template".to_owned(),
+            error.start,
+            error.end,
+        )
+    } else {
+        error
+    };
     let allocator = Allocator::default();
     match parse_source(&allocator, &unclosed) {
         Err(unclosed_error) if at_wrapper_start => {
@@ -155,7 +172,7 @@ fn keyframes_error(css: &str, error: CssError) -> CssError {
                 CssError {
                     start: unclosed.len(),
                     end: unclosed.len(),
-                    ..error
+                    ..fallback
                 }
             }
         }
@@ -167,9 +184,9 @@ fn keyframes_error(css: &str, error: CssError) -> CssError {
                 block.span.end.saturating_sub(1),
                 block.span.end,
             ),
-            _ => error,
+            _ => fallback,
         },
-        _ => error,
+        _ => fallback,
     }
 }
 
@@ -313,12 +330,25 @@ mod tests {
                 error("& { width: calc(1px } color: red; }"),
                 error("& { background: url(a.png } color: red; }"),
                 error("/* note } width: 1px;"),
+                kind_error("body { color: red); }", BlockKind::Global),
             ],
             [
                 "Invalid CSS: unclosed `(`, add `)` at 15..16",
                 "Invalid CSS: unclosed `url(`, add `)` at 16..20",
                 "Invalid CSS: unclosed comment, add `*/` at 0..2",
+                "Invalid CSS: unexpected `)` at 17..18",
             ]
+        );
+    }
+
+    #[test]
+    fn reports_errors_at_the_keyframes_wrapper_end() {
+        assert_eq!(
+            kind_error(
+                "from { opacity: 0 } to { opacity: 1 } a",
+                BlockKind::Keyframes
+            ),
+            "Invalid CSS: unexpected end of the keyframes template at 39..39"
         );
     }
 

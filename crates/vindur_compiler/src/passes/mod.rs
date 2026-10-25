@@ -38,6 +38,7 @@ mod styled_attrs;
 mod styled_jsx;
 mod styled_jsx_helpers;
 mod template_css;
+mod template_location;
 mod theme_color;
 mod transform_support;
 mod unsupported_css_syntax;

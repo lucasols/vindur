@@ -1,5 +1,5 @@
 use oxc_span::Span;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::css_syntax::{BlockKind, CssError};
 use super::scoped_idents::{ScopedRole, scoped_idents};
@@ -13,6 +13,9 @@ pub(crate) struct ScopedVariables {
     pub generated: FxHashMap<String, String>,
     pub declared: FxHashMap<String, Span>,
     pub read: FxHashMap<String, Span>,
+    /// Variables registered by an `@property` rule with an `initial-value`, reading them is valid
+    /// without a declaration
+    pub registered: FxHashSet<String>,
     /// The lowest index a new variable can get. The css prop pass moves the file index back to
     /// precomputed class indices, so it alone can't keep variable indices unique
     pub next_index: u32,
@@ -39,6 +42,9 @@ pub(crate) fn process_scoped_variables(
             }
             ScopedRole::Read => {
                 variables.read.entry(name.to_owned()).or_insert(span);
+            }
+            ScopedRole::Registration => {
+                variables.registered.insert(name.to_owned());
             }
             ScopedRole::Name => {}
         }
@@ -292,6 +298,44 @@ font-palette: ---brand;"
                 "view-transition-name: ---f\\6f o; &::view-transition-old(---f\\6f o) { opacity: 0; }"
             ),
             "view-transition-name: --v1-1-f\\6f o; &::view-transition-old(--v1-1-f\\6f o) { opacity: 0; }"
+        );
+    }
+
+    #[test]
+    fn rewrites_quoted_animation_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes \"---spin\" { to { opacity: 0; } } .a { animation-name: \"---spin\"; animation: \"---spin\" 1s; content: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@keyframes \"--v1-1-spin\" { to { opacity: 0; } } .a { animation-name: \"--v1-1-spin\"; animation: \"--v1-1-spin\" 1s; content: \"---spin\"; }"
+        );
+    }
+
+    #[test]
+    fn ignores_text_in_selectors_that_is_not_a_scoped_name() {
+        let css = "view-transition-name: \\61 ---foo; &::view-transition-old(\\61 ---foo) { opacity: 0; } &[data-state=---open] { a: b; } &.hover\\:---x { a: b; }";
+        assert_eq!(process(css), css);
+    }
+
+    #[test]
+    fn counts_property_registrations_with_an_initial_value() {
+        let mut variables = ScopedVariables::default();
+        if let Err(error) = process_scoped_variables(
+            "@property ---angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; } @property ---any { syntax: '*'; inherits: false; } a { rotate: var(---angle); }",
+            BlockKind::Global,
+            Span::default(),
+            "v1",
+            true,
+            &mut 1,
+            &mut variables,
+        ) {
+            panic!("{}", error.message);
+        }
+        assert!(variables.declared.is_empty());
+        assert_eq!(
+            variables.registered.into_iter().collect::<Vec<_>>(),
+            ["angle"]
         );
     }
 }

@@ -560,12 +560,14 @@ fn scoped_variable_warnings(
                 span,
                 format!("Scoped variable '---{name}' is declared but never read"),
             )),
-            (None, Some(&span)) => warnings.push(CompilerDiagnostic::warning(
-                file_path,
-                source,
-                span,
-                format!("Scoped variable '---{name}' is used but never declared"),
-            )),
+            (None, Some(&span)) if !variables.registered.contains(name) => {
+                warnings.push(CompilerDiagnostic::warning(
+                    file_path,
+                    source,
+                    span,
+                    format!("Scoped variable '---{name}' is used but never declared"),
+                ))
+            }
             _ => {}
         }
     }

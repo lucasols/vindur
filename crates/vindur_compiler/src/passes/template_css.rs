@@ -7,9 +7,10 @@ use crate::CompilerDiagnostic;
 
 use super::css::layer_markers_in_text;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
+use super::css_tokens::is_inside_block;
 use super::static_value::TemplateContext;
 use super::styled::{StyleFlag, css_class_name_part, replace_class_selector};
-use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
+use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
 #[derive(Default)]
@@ -73,6 +74,18 @@ impl EvaluatedTemplate {
         self.mapped(error, source).map(|(span, _)| span.start)
     }
 
+    /// Whether the interpolation is inside the block opened by a `{` at `brace`, the parser reports
+    /// some errors in a rule at the `{` that opens it
+    fn is_in_block_opened_at(&self, brace: usize, expression: Span) -> bool {
+        let Some(interpolation_start) = self.segments.iter().find_map(|segment| {
+            matches!(segment.origin, SegmentOrigin::Interpolation(span) if span == expression)
+                .then_some(segment.range.start)
+        }) else {
+            return false;
+        };
+        is_inside_block(&self.css, brace, interpolation_start)
+    }
+
     fn mapped(&self, error: &CssError, source: &str) -> Option<(Span, &TemplateSegment)> {
         let end = error.end.max(error.start + 1).min(self.css.len());
         template_source_span(&self.css, source, &self.segments, error.start..end)
@@ -97,14 +110,26 @@ pub(crate) fn validate_template_css(
         return reject_layers_in_text(evaluated, file_path, source);
     };
     let position = evaluated.error_position(&error, source, template);
+    // Forcing a selector interpolation always moves an error found before it, so moving the error
+    // only counts when the error is about the interpolation
+    let is_related = |index: usize| {
+        template.expressions.get(index).is_some_and(|expression| {
+            let span = expression.span();
+            position.is_some_and(|position| position >= span.start)
+                || evaluated.is_in_block_opened_at(error.start, span)
+        })
+    };
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;
         Ok(match validate(&rebuilt.css) {
             Ok(()) => true,
             // With several missing `;` forcing one only moves the error to the next one
-            Err(rebuilt_error) => position
-                .zip(rebuilt.error_position(&rebuilt_error, source, template))
-                .is_some_and(|(position, rebuilt_position)| rebuilt_position > position),
+            Err(rebuilt_error) => {
+                forced.iter().any(|&index| is_related(index))
+                    && position
+                        .zip(rebuilt.error_position(&rebuilt_error, source, template))
+                        .is_some_and(|(position, rebuilt_position)| rebuilt_position > position)
+            }
         })
     };
     // The parser can report the error before the interpolation, at the `{` of the rule holding it,

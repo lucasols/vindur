@@ -19,7 +19,10 @@ pub(crate) enum ScopedRole {
     Declaration,
     /// A read of the variable value, `var(---name)` or a container style query
     Read,
-    /// Any other dashed identifier, like `@property ---name` or `container-name: ---name`
+    /// An `@property ---name` rule with an `initial-value`, which gives reads a value without a
+    /// declaration
+    Registration,
+    /// Any other dashed identifier, like `container-name: ---name`
     Name,
 }
 
@@ -85,9 +88,16 @@ impl ScopedIdentCollector<'_> {
 
     fn at_rule(&mut self, rule: &AtRule<'_>) -> Result<(), CssError> {
         match &rule.prelude {
+            Some(AtRulePrelude::Property(ident)) => {
+                let role = if has_initial_value(rule) {
+                    ScopedRole::Registration
+                } else {
+                    ScopedRole::Name
+                };
+                self.ident(ident, role);
+            }
             Some(
-                AtRulePrelude::Property(ident)
-                | AtRulePrelude::PositionTry(ident)
+                AtRulePrelude::PositionTry(ident)
                 | AtRulePrelude::FontPaletteValues(ident)
                 | AtRulePrelude::ScrollTimeline(ident)
                 | AtRulePrelude::CounterStyle(ident)
@@ -95,13 +105,7 @@ impl ScopedIdentCollector<'_> {
             ) => self.ident(ident, ScopedRole::Name),
             // A quoted name is the same name, `@keyframes "---spin"` is used as `---spin`
             Some(AtRulePrelude::Keyframes(KeyframesName::Str(InterpolableStr::Literal(name)))) => {
-                let quote_len = 1;
-                let content_start = name.span.start + quote_len;
-                let content_end = name.span.end.saturating_sub(quote_len).max(content_start);
-                let content = &self.source[content_start..content_end];
-                if content.starts_with(SCOPED_PREFIX) && ident_end(content, 0) == content.len() {
-                    self.push(content_start, content_end, content, ScopedRole::Name);
-                }
+                self.quoted_name(name.span);
             }
             Some(AtRulePrelude::Container(prelude)) => {
                 if let Some(name) = &prelude.name {
@@ -248,8 +252,31 @@ impl ScopedIdentCollector<'_> {
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
+            if is_animation_property(name.name) {
+                self.quoted_names(&declaration.value);
+            }
         }
         self.values(&declaration.value);
+    }
+
+    /// Animations can name keyframes with a string, `animation: "---spin" 1s` uses `---spin`
+    fn quoted_names(&mut self, values: &[ComponentValue<'_>]) {
+        for value in values {
+            if let ComponentValue::InterpolableStr(InterpolableStr::Literal(name)) = value {
+                self.quoted_name(name.span);
+            }
+        }
+    }
+
+    /// A string that is a whole scoped name, like `"---spin"`, is that name
+    fn quoted_name(&mut self, span: oxc_css_parser::Span) {
+        let quote_len = 1;
+        let content_start = span.start + quote_len;
+        let content_end = span.end.saturating_sub(quote_len).max(content_start);
+        let content = &self.source[content_start..content_end];
+        if content.starts_with(SCOPED_PREFIX) && ident_end(content, 0) == content.len() {
+            self.push(content_start, content_end, content, ScopedRole::Name);
+        }
     }
 
     fn ident(&mut self, ident: &InterpolableIdent<'_>, role: ScopedRole) {
@@ -322,6 +349,22 @@ impl ScopedIdentCollector<'_> {
     }
 }
 
+fn is_animation_property(name: &str) -> bool {
+    name.eq_ignore_ascii_case("animation") || name.eq_ignore_ascii_case("animation-name")
+}
+
+fn has_initial_value(rule: &AtRule<'_>) -> bool {
+    rule.block.as_ref().is_some_and(|block| {
+        block.statements.iter().any(|statement| {
+            matches!(
+                statement,
+                Statement::Declaration(Declaration { name: InterpolableIdent::Literal(name), .. })
+                    if name.name.eq_ignore_ascii_case("initial-value")
+            )
+        })
+    })
+}
+
 fn is_function_named(name: &FunctionName<'_>, expected: &str) -> bool {
     matches!(
         name,
@@ -343,27 +386,41 @@ fn has_scoped_ident(text: &str) -> bool {
     !scoped_ident_ranges(text).is_empty()
 }
 
-/// Byte ranges of the identifiers starting with `---`, comments, strings and urls are ignored
+/// Byte ranges of the identifiers starting with `---`. Comments, strings, urls and unquoted
+/// attribute selector values, like `[data-state=---open]`, are ignored
 fn scoped_ident_ranges(text: &str) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut index = 0;
+    let mut in_attribute = false;
+    let mut attribute_value = false;
     while let Some(character) = text[index..].chars().next() {
-        if let Some(end) = skipped_token_end(text, index) {
+        // Escapes are part of identifiers, `\61 ---a` is the single identifier `a---a`
+        if character != '\\'
+            && let Some(end) = skipped_token_end(text, index)
+        {
             index = end;
             continue;
         }
-        let rest = &text[index..];
-        if rest.starts_with(SCOPED_PREFIX)
-            && rest[SCOPED_PREFIX.len()..]
-                .chars()
-                .next()
-                .is_some_and(is_ident_char)
-            && !text[..index].chars().next_back().is_some_and(is_ident_char)
-        {
-            let end = ident_end(text, index + SCOPED_PREFIX.len());
-            ranges.push((index, end));
+        if is_ident_char(character) {
+            let end = ident_end(text, index);
+            let ident = &text[index..end];
+            if !attribute_value
+                && ident.len() > SCOPED_PREFIX.len()
+                && ident.starts_with(SCOPED_PREFIX)
+            {
+                ranges.push((index, end));
+            }
             index = end;
             continue;
+        }
+        match character {
+            '[' => in_attribute = true,
+            ']' => {
+                in_attribute = false;
+                attribute_value = false;
+            }
+            '=' if in_attribute => attribute_value = true,
+            _ => {}
         }
         index += character.len_utf8();
     }
