@@ -232,21 +232,25 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     *self.output.id_index = cx.next_index;
                 }
-                // The ids after the class are reserved for the scoped variables of the template
-                let rules = match process_scoped_variables(
-                    &content,
-                    BlockKind::Style,
-                    template.span,
-                    self.output.file_hash,
-                    self.output.dev,
-                    self.output.id_index,
-                    self.output.scoped_variables,
-                )
-                .and_then(|content| match cx_transform {
+                // Modifiers are rewritten before scoped names, so `---name` cx keys keep matching
+                let rewritten = match cx_transform {
                     Some(cx) => rewrite_modifiers(&content, ModifierCss::Block, &cx.mappings),
                     None => Ok(content),
-                })
-                .and_then(|content| generate_class_rules(&name, &content))
+                };
+                // The ids after the class are reserved for the scoped variables of the template
+                let rules = match rewritten
+                    .and_then(|content| {
+                        process_scoped_variables(
+                            &content,
+                            BlockKind::Style,
+                            template.span,
+                            self.output.file_hash,
+                            self.output.dev,
+                            self.output.id_index,
+                            self.output.scoped_variables,
+                        )
+                    })
+                    .and_then(|content| generate_class_rules(&name, &content))
                 {
                     Ok(rules) => rules,
                     Err(error) => {

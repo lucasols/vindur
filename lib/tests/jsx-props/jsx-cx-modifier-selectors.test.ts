@@ -1073,3 +1073,37 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
     "
   `);
 });
+
+test('should rewrite --- prefixed cx modifiers in the css prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const App = ({ on }: { on: boolean }) => (
+        <div css={\`&.---active { color: red; }\`} cx={{ '---active': on }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1560qbr-1-css-prop-1 " +
+          cx({
+            "v1560qbr-2----active": on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-css-prop-1 {
+      &.v1560qbr-2----active {
+        color: red;
+      }
+    }
+    "
+  `);
+});

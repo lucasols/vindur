@@ -644,4 +644,44 @@ describe('Warnings for Missing CSS Classes', () => {
       "
     `);
   });
+
+  test('should not warn about cx modifiers declared in the css prop of a styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box css={\`&.active { color: blue; }\`} cx={{ active: on }} />
+        );
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Box {
+        color: red;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        &.v1560qbr-3-active {
+          color: blue;
+        }
+      }
+      "
+    `);
+  });
 });

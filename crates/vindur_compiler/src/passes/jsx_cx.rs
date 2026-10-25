@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::{
+    css::clean_css,
     css_syntax::CssError,
     cx_modifier_selectors::{ModifierCss, element_class_names},
     jsx_attributes::{
@@ -30,6 +31,7 @@ use super::{
         unsupported_css_reference_modifiers,
     },
     runtime_helpers::RuntimeHelperNames,
+    static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
     styled_jsx_helpers::{
         ClassNameTarget, decode_jsx_entities, emit_class_name, is_class_rule, js_string_literal,
@@ -294,7 +296,7 @@ impl JsxCxVisitor<'_> {
         if self.output.dev
             && let Some(styled) = &styled
         {
-            let missing = match self.missing_styled_classes(styled, &mappings) {
+            let missing = match self.missing_styled_classes(element, styled, &mappings) {
                 Ok(missing) => missing,
                 Err(error) => {
                     self.set_error(attribute.span, error.message);
@@ -434,13 +436,14 @@ impl JsxCxVisitor<'_> {
 
     fn missing_styled_classes(
         &self,
+        element: &JSXElement<'_>,
         styled: &StyledComponent,
         mappings: &[(String, String, bool)],
     ) -> Result<Vec<String>, CssError> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
             return Ok(Vec::new());
         };
-        let mut declared = Vec::new();
+        let mut declared = self.css_prop_class_names(element);
         for rule in self
             .output
             .css_rules
@@ -456,6 +459,35 @@ impl JsxCxVisitor<'_> {
             })
             .map(|(original, _, _)| original.clone())
             .collect())
+    }
+
+    /// The element classes declared in the element css prop template, e.g. `active` in
+    /// `` css={`&.active { ... }`} ``
+    fn css_prop_class_names(&self, element: &JSXElement<'_>) -> Vec<String> {
+        let Some(JSXAttributeValue::ExpressionContainer(container)) =
+            find_attribute(element, "css").and_then(|attribute| attribute.value.as_ref())
+        else {
+            return Vec::new();
+        };
+        let JSXExpression::TemplateLiteral(template) = &container.expression else {
+            return Vec::new();
+        };
+        // Invalid templates are reported with their location by the css prop pass
+        let Ok(content) = evaluate_template(
+            template,
+            self.output.constants,
+            self.output.scoping,
+            self.output.file_path,
+            self.output.source,
+            &TemplateContext {
+                variable_name: None,
+                tag_type: "css",
+                style_flags: &[],
+            },
+        ) else {
+            return Vec::new();
+        };
+        element_class_names(&clean_css(&content), ModifierCss::Block).unwrap_or_default()
     }
 
     fn rewrite_styled_css(
