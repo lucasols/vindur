@@ -252,30 +252,62 @@ impl ScopedIdentCollector<'_> {
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
-            if is_animation_property(name.name) {
-                self.quoted_names(&declaration.value);
+            if let Some(kind) = quoted_names_kind(name.name) {
+                self.quoted_names(&declaration.value, kind);
             }
         }
         self.values(&declaration.value);
     }
 
-    /// Animations can name keyframes with a string, `animation: "---spin" 1s` uses `---spin`
-    fn quoted_names(&mut self, values: &[ComponentValue<'_>]) {
+    /// Some properties name things with strings, `animation: "---spin" 1s` uses `---spin`
+    fn quoted_names(&mut self, values: &[ComponentValue<'_>], kind: QuotedNames) {
         for value in values {
-            if let ComponentValue::InterpolableStr(InterpolableStr::Literal(name)) = value {
-                self.quoted_name(name.span);
+            match value {
+                ComponentValue::InterpolableStr(InterpolableStr::Literal(name)) => match kind {
+                    QuotedNames::Whole => self.quoted_name(name.span),
+                    QuotedNames::GridAreas => self.quoted_area_names(name.span),
+                },
+                // `var(--animation, "---spin" 1s)` names it in the fallback
+                ComponentValue::Function(function) => self.quoted_names(&function.args, kind),
+                _ => {}
             }
         }
     }
 
     /// A string that is a whole scoped name, like `"---spin"`, is that name
     fn quoted_name(&mut self, span: oxc_css_parser::Span) {
-        let quote_len = 1;
-        let content_start = span.start + quote_len;
-        let content_end = span.end.saturating_sub(quote_len).max(content_start);
-        let content = &self.source[content_start..content_end];
+        let (content_start, content) = string_content(self.source, span);
         if content.starts_with(SCOPED_PREFIX) && ident_end(content, 0) == content.len() {
-            self.push(content_start, content_end, content, ScopedRole::Name);
+            self.push(
+                content_start,
+                content_start + content.len(),
+                content,
+                ScopedRole::Name,
+            );
+        }
+    }
+
+    /// Grid area strings hold whitespace separated names, `"---head ---head"`
+    fn quoted_area_names(&mut self, span: oxc_css_parser::Span) {
+        let (content_start, content) = string_content(self.source, span);
+        let mut index = 0;
+        while index < content.len() {
+            let Some(character) = content[index..].chars().next() else {
+                break;
+            };
+            if is_ident_char(character) {
+                let end = ident_end(content, index);
+                let name = &content[index..end];
+                self.push(
+                    content_start + index,
+                    content_start + end,
+                    name,
+                    ScopedRole::Name,
+                );
+                index = end;
+            } else {
+                index += character.len_utf8();
+            }
         }
     }
 
@@ -349,8 +381,38 @@ impl ScopedIdentCollector<'_> {
     }
 }
 
-fn is_animation_property(name: &str) -> bool {
-    name.eq_ignore_ascii_case("animation") || name.eq_ignore_ascii_case("animation-name")
+fn string_content(source: &str, span: oxc_css_parser::Span) -> (usize, &str) {
+    let quote_len = 1;
+    let content_start = span.start + quote_len;
+    let content_end = span.end.saturating_sub(quote_len).max(content_start);
+    (content_start, &source[content_start..content_end])
+}
+
+#[derive(Clone, Copy)]
+enum QuotedNames {
+    /// The whole string is one name
+    Whole,
+    GridAreas,
+}
+
+fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
+    let property = ["-webkit-", "-moz-", "-o-", "-ms-"]
+        .iter()
+        .find_map(|prefix| {
+            property
+                .get(..prefix.len())
+                .filter(|start| start.eq_ignore_ascii_case(prefix))
+                .map(|_| &property[prefix.len()..])
+        })
+        .unwrap_or(property);
+    let is = |name: &str| property.eq_ignore_ascii_case(name);
+    if is("animation") || is("animation-name") || is("font-family") {
+        Some(QuotedNames::Whole)
+    } else if is("grid-template-areas") || is("grid-template") || is("grid") {
+        Some(QuotedNames::GridAreas)
+    } else {
+        None
+    }
 }
 
 fn has_initial_value(rule: &AtRule<'_>) -> bool {

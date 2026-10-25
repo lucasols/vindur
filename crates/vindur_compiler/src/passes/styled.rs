@@ -444,12 +444,9 @@ pub(super) fn strip_css_comments(css: &str) -> String {
     output
 }
 
-/// Whether a class name continues after `index`, `$` is included because flag names can have it
+/// Whether a class name continues after `index`
 fn continues_class_name(css: &str, index: usize) -> bool {
-    css[index..]
-        .chars()
-        .next()
-        .is_some_and(|character| is_ident_char(character) || character == '$')
+    css[index..].chars().next().is_some_and(is_ident_char)
 }
 
 fn contains_class_selector(css: &str, name: &str) -> bool {

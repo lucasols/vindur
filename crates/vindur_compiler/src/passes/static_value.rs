@@ -15,8 +15,8 @@ use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
-    static_value_to_string,
+    collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
+    resolved_constant, static_value_to_string,
 };
 use super::styled::styled_ref_placeholder;
 use super::template_css::{EvaluatedTemplate, validate_template_css};
@@ -230,17 +230,9 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        // Colors and palettes are objects, only their `.value` and methods are CSS values
-        if matches!(
-            value,
-            StaticValue::LayerFunction
-                | StaticValue::DynamicColor { .. }
-                | StaticValue::DynamicColorPath { .. }
-                | StaticValue::ThemeColor { .. }
-                | StaticValue::ThemeColorContrast { .. }
-                | StaticValue::ThemeColors { .. }
-                | StaticValue::UnexportedThemeColors { .. }
-        ) || is_unresolved_import(&value)
+        if matches!(value, StaticValue::LayerFunction)
+            || !has_css_text(&value)
+            || is_unresolved_import(&value)
         {
             return Err(interpolation_error(expression, file_path, source, context));
         }

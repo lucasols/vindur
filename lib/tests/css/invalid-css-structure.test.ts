@@ -92,3 +92,73 @@ test('should throw for an unclosed block in keyframes', async () => {
     loc: 5:5]
   `);
 });
+
+test('should throw for a stray `;` between keyframe blocks', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { keyframes } from 'vindur'
+
+        const fade = keyframes\`
+          from { opacity: 0; };
+          to { opacity: 1; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`;\` after a rule, remove it
+    loc: 4:22]
+  `);
+});
+
+test('should throw for an unterminated at-rule at the end of createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @import url(reset.css)
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: missing \`;\` after \`@import\`, global styles are joined with other styles
+    loc: 4:2]
+  `);
+});
+
+test('should throw for `@import` after a rule in createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          body { margin: 0; }
+          @import url(reset.css);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@import\` must come before every rule in \`createGlobalStyle\`
+    loc: 5:2]
+  `);
+});
+
+test('should throw for `@import` inside a grouping rule in createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @media print { @import url(print.css); }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@import\` must come before every rule, move it to the top level of \`createGlobalStyle\`
+    loc: 4:17]
+  `);
+});

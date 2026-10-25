@@ -8,10 +8,14 @@ pub(super) fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
                 .map_or(css.len(), |end| index + 2 + end + 2),
         );
     }
+    // Before escapes, an escaped name like `\75 rl(` is still a url
+    if let Some(paren) = url_function_paren(css, index) {
+        return Some(url_end(css, paren));
+    }
     match rest.as_bytes().first() {
         Some(b'"' | b'\'') => Some(string_end(css, index)),
         Some(b'\\') => Some(escape_end(css, index)),
-        _ => url_function_paren(css, index).map(|paren| url_end(css, paren)),
+        _ => None,
     }
 }
 
@@ -60,7 +64,7 @@ fn string_end(css: &str, start: usize) -> usize {
 }
 
 /// The end of the string starting at `start` and whether its closing quote was found
-fn scan_string(css: &str, start: usize) -> (usize, bool) {
+pub(super) fn scan_string(css: &str, start: usize) -> (usize, bool) {
     let bytes = css.as_bytes();
     let quote = bytes[start];
     let mut index = start + 1;

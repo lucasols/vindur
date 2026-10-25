@@ -347,3 +347,38 @@ test('should locate unsupported syntax after template escapes', async () => {
     loc: 5:12]
   `);
 });
+
+test('should throw for object and theme color interpolations without css text', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createStaticThemeColors } from 'vindur'
+
+        const colors = createStaticThemeColors({ primary: '#f00' })
+
+        const Component = () => <div css={\`color: \${colors.primary};\`} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`css\` ... \${colors.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 5:44]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const sizes = { small: 4 }
+
+        const style = css\`
+          padding: \${sizes};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${sizes}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 6:13
+    ignoreInLint: true]
+  `);
+});

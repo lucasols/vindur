@@ -254,7 +254,6 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
-            // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content = rewrite_style_flag_selectors(&content, &style_flags);
             let content = process_scoped_variables(
                 &content,

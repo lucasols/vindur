@@ -1,3 +1,4 @@
+mod block_validation;
 mod color_math;
 mod css;
 mod css_balance;

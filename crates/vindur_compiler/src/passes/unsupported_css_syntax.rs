@@ -20,6 +20,7 @@ const TOP_LEVEL_AT_RULES: [&str; 11] = [
     "page",
     "position-try",
 ];
+const STYLESHEET_START_AT_RULES: [&str; 3] = ["import", "charset", "namespace"];
 // At-rules whose blocks can contain other rules like `@keyframes`
 const GROUPING_AT_RULES: [&str; 7] = [
     "media",
@@ -114,10 +115,11 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             && let Some((at_rule, name)) = at_rule_name(rest)
             && TOP_LEVEL_AT_RULES.contains(&name.as_str())
         {
-            let enclosing_block = blocks
-                .iter()
-                .rev()
-                .find(|block| !matches!(block, Block::Grouping));
+            // `@import`, `@charset` and `@namespace` are only valid before every rule
+            let enclosing_block = blocks.iter().rev().find(|block| {
+                !matches!(block, Block::Grouping)
+                    || STYLESHEET_START_AT_RULES.contains(&name.as_str())
+            });
             if tag_type != "createGlobalStyle" || enclosing_block.is_some() {
                 return Some(UnsupportedSyntax {
                     offset: index,
@@ -269,6 +271,9 @@ fn top_level_at_rule_message(
 ) -> String {
     let at_rule = at_rule.trim_end();
     match (tag_type, enclosing_block) {
+        ("createGlobalStyle", Some(Block::Grouping)) => format!(
+            "`{at_rule}` must come before every rule, move it to the top level of `createGlobalStyle`"
+        ),
         ("createGlobalStyle", Some(Block::OtherAtRule(enclosing_at_rule))) => format!(
             "`{at_rule}` is not supported inside `{enclosing_at_rule}` rules, move it to the top level of `createGlobalStyle`"
         ),

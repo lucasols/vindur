@@ -5,10 +5,11 @@ use oxc_css_parser::{
     error::Error,
 };
 
+use super::block_validation::{validate_block_kind, validate_global_top_level};
 use super::css::reject_misplaced_layers;
 use super::css_balance::check_balance;
 use super::css_tokens::is_inside_block;
-use super::css_validation::{validate_block_kind, validate_statements};
+use super::css_validation::validate_statements;
 use super::scoped_idents::collect_scoped_idents;
 
 /// A CSS problem found while parsing a style block, `start` and `end` are byte offsets into the
@@ -136,6 +137,9 @@ pub(super) fn with_style_block<T>(
             let statements = block_statements(&stylesheet.statements, kind, source.len())?;
             validate_statements(statements, source)?;
             validate_block_kind(statements, kind, source, (0, source.len()))?;
+            if kind == BlockKind::Global {
+                validate_global_top_level(statements, source)?;
+            }
             visit(statements, source, offset)
         })
         .map_err(|error| error.shifted(offset, css.len()))

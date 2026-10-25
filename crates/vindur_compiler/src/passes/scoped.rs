@@ -332,6 +332,17 @@ font-palette: ---brand;"
     }
 
     #[test]
+    fn rewrites_quoted_font_grid_and_nested_animation_names() {
+        assert_eq!(
+            process_kind(
+                "@font-face { font-family: \"---brand\"; } .a { font-family: ---brand, \"x ---brand\"; grid-template-areas: \"---head ---head\" \". ---side\"; grid-area: ---head; animation: var(--a, \"---spin\" 1s); -webkit-animation-name: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@font-face { font-family: \"--v1-1-brand\"; } .a { font-family: --v1-1-brand, \"x ---brand\"; grid-template-areas: \"--v1-2-head --v1-2-head\" \". --v1-3-side\"; grid-area: --v1-2-head; animation: var(--a, \"--v1-4-spin\" 1s); -webkit-animation-name: \"--v1-4-spin\"; }"
+        );
+    }
+
+    #[test]
     fn rewrites_quoted_animation_names() {
         assert_eq!(
             process_kind(

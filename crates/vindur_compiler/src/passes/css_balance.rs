@@ -1,6 +1,7 @@
 use super::css_syntax::CssError;
 use super::css_tokens::{
-    decode_ident, escape_end, ident_end, is_css_whitespace, is_ident_char, skipped_token_end,
+    decode_ident, escape_end, ident_end, is_css_whitespace, is_ident_char, scan_string,
+    skipped_token_end,
 };
 
 /// Fails on an unclosed comment, an unclosed `(`, `[` or `url(`, or an unexpected `)` or `]`.
@@ -33,6 +34,20 @@ pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
                     .map_err(|invalid| url_error(css, index, arguments_start, invalid))?,
                 None => name_end,
             };
+            continue;
+        }
+        // A string ended by a line break swallows the rest of the line, like a `}`
+        if css[index..].starts_with(['"', '\'']) {
+            let (end, closed) = scan_string(css, index);
+            if !closed {
+                let quote = &css[index..index + 1];
+                return Err(CssError::syntax(
+                    format!("unclosed string, add `{quote}`"),
+                    index,
+                    index + 1,
+                ));
+            }
+            index = end;
             continue;
         }
         if let Some(end) = skipped_token_end(css, index) {
@@ -184,6 +199,17 @@ mod tests {
         ] {
             assert_eq!(check(css), "ok", "{css}");
         }
+    }
+
+    #[test]
+    fn rejects_unclosed_strings() {
+        assert_eq!(
+            [
+                check("&:hover { content: \"abc; }\n color: red;"),
+                check("content: 'a\\\nb';")
+            ],
+            ["Invalid CSS: unclosed string, add `\"` at 19..20", "ok"]
+        );
     }
 
     #[test]

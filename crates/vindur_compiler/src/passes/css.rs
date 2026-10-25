@@ -325,6 +325,10 @@ mod tests {
             clean_css("background: u\\72l(a;;b.png);;"),
             "background: u\\72l(a;;b.png);"
         );
+        assert_eq!(
+            clean_css("background: \\75 rl(a;;b.png);;"),
+            "background: \\75 rl(a;;b.png);"
+        );
     }
 
     #[test]

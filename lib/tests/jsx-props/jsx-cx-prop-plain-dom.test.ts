@@ -204,3 +204,47 @@ test('should keep transformed code inside cx values', async () => {
     "
   `);
 });
+
+test('should keep JSX string class names when merging generated classes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+
+      function Component({ isActive }) {
+        return (
+          <>
+            <div
+              className="a
+                b"
+              css={\`color: red;\`}
+            />
+            <div className='q"z &amp; y' cx={{ $active: isActive }} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function Component({ isActive }) {
+      return (
+        <>
+          <div
+            className="a
+              b v1560qbr-1-css-prop-1"
+          />
+          <div
+            className={
+              'q"z & y ' +
+              cx({
+                active: isActive,
+              })
+            }
+          />
+        </>
+      );
+    }
+    "
+  `);
+});

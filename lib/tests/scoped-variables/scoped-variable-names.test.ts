@@ -157,3 +157,53 @@ test('should treat registered properties as declared', async () => {
 
   expect(warnings).toEqual([]);
 });
+
+test('should rename quoted grid areas, font families and nested animation names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @font-face { font-family: "---brand"; src: url(brand.woff2); }
+        @keyframes "---spin" { to { rotate: 1turn; } }
+      \`
+
+      const layout = css\`
+        font-family: ---brand, sans-serif;
+        grid-template-areas: "---head ---head" ". ---side";
+        animation: var(--animation, "---spin" 1s);
+        -webkit-animation-name: "---spin";
+
+        & > header { grid-area: ---head; }
+        & > nav { grid-area: ---side; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@font-face {
+      font-family: "--v1560qbr-2-brand";
+      src: url(brand.woff2);
+    }
+    @keyframes "--v1560qbr-3-spin" {
+      to {
+        rotate: 1turn;
+      }
+    }
+
+    .v1560qbr-4-layout {
+      font-family: --v1560qbr-2-brand, sans-serif;
+      grid-template-areas: "--v1560qbr-5-head --v1560qbr-5-head" ". --v1560qbr-6-side";
+      animation: var(--animation, "--v1560qbr-3-spin" 1s);
+      -webkit-animation-name: "--v1560qbr-3-spin";
+
+      & > header {
+        grid-area: --v1560qbr-5-head;
+      }
+      & > nav {
+        grid-area: --v1560qbr-6-side;
+      }
+    }
+    "
+  `);
+});

@@ -248,3 +248,20 @@ test('should warn about missing modifier styles', async () => {
     "
   `);
 });
+
+test('should throw for style flag values that are not valid class names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.div<{ size: 'extra large' | 'small' }>\`
+          &.size-small { padding: 4px; }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "size" value "extra large" must only contain letters, digits, - and _, as it becomes part of a class name
+    loc: 3:34]
+  `);
+});

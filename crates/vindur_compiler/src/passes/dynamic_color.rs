@@ -176,14 +176,14 @@ impl DynamicColorVisitor<'_> {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
         });
-        let Some(call) = call else {
-            return;
-        };
         // `_sp` only sets className and style, already merged from every spread, so it goes last
         self.output.edits.push(Edit {
             span: attribute.span,
             replacement: String::new(),
         });
+        let Some(call) = call else {
+            return;
+        };
         let offset = opening_attribute_insertion_offset(element, self.output.source);
         self.output.edits.push(Edit {
             span: oxc_span::Span::new(offset, offset),
