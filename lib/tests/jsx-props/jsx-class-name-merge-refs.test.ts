@@ -439,3 +439,91 @@ test('should not pass undefined as the vindur class name when merging dynamic co
     "
   `);
 });
+
+test('should hash every cx modifier of a compound selector', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &.active.disabled {
+          color: red;
+        }
+        &::after {
+          content: "&.active";
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <Box cx={{ active: on, disabled: !on }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1560qbr-1-Box " +
+          cx({
+            "v1560qbr-2-active": on,
+            "v1560qbr-3-disabled": !on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      &.v1560qbr-2-active.v1560qbr-3-disabled {
+        color: red;
+      }
+      &::after {
+        content: "&.active";
+      }
+    }
+    "
+  `);
+});
+
+test('should ignore modifier selectors inside css strings of css references', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+
+      const label = css\`
+        &::after {
+          content: "&.active";
+        }
+      \`;
+
+      const Box = styled.div\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <Box className={label} cx={{ active: on }} />
+      );
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-label {
+      &::after {
+        content: "&.active";
+      }
+    }
+
+    .v1560qbr-2-Box {
+      &.v1560qbr-3-active {
+        color: red;
+      }
+    }
+    "
+  `);
+});

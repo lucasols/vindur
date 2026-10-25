@@ -177,52 +177,16 @@ impl DynamicColorVisitor<'_> {
         let Some(call) = call else {
             return;
         };
-        if spreads.is_empty() {
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
-            let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" {{...{call}}}"),
-            });
-        } else {
-            let mut trailing_props = Vec::new();
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                if other.span.start <= attribute.span.start {
-                    continue;
-                }
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                if name.name.as_str().starts_with("on")
-                    || matches!(name.name.as_str(), "className" | "style")
-                {
-                    continue;
-                }
-                trailing_props.push(
-                    self.output.source[other.span.start as usize..other.span.end as usize]
-                        .to_owned(),
-                );
-                self.output.edits.push(Edit {
-                    span: other.span,
-                    replacement: String::new(),
-                });
-            }
-            let prefix = if trailing_props.is_empty() {
-                String::new()
-            } else {
-                format!("{} ", trailing_props.join(" "))
-            };
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: format!("{prefix}{{...{call}}}"),
-            });
-        }
+        // `_sp` only sets className and style, already merged from every spread, so it goes last
+        self.output.edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        let offset = opening_attribute_insertion_offset(element, self.output.source);
+        self.output.edits.push(Edit {
+            span: oxc_span::Span::new(offset, offset),
+            replacement: format!(" {{...{call}}}"),
+        });
     }
 
     fn conditional_error_message(&self, expression: &JSXExpression<'_>) -> Option<String> {

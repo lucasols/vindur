@@ -181,3 +181,55 @@ test('should merge spread props and the css prop into dynamicColor', async () =>
     "
   `);
 });
+
+test('should keep dynamicColor merges after every spread and css or cx prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur';
+
+      const color = createDynamicCssColor();
+
+      export const A = ({ on, p }: { on: boolean; p: object }) => (
+        <>
+          <div {...p} dynamicColor={color.set('#f00')} css={\`padding: 3px;\`} />
+          <div className="x" cx={{ $on: on }} dynamicColor={color.set('#f00')} {...p} title="t" />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import {
+      createDynamicCssColor,
+      cx,
+      mergeClassNames,
+      mergeStyles,
+    } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const A = ({ on, p }: { on: boolean; p: object }) => (
+      <>
+        <div
+          {...p}
+          {...color._sp("#f00", {
+            className: mergeClassNames([p], "v1560qbr-2-css-prop-2"),
+            style: mergeStyles([p]),
+          })}
+        />
+        <div
+          {...p}
+          title="t"
+          {...color._sp("#f00", {
+            className: mergeClassNames(
+              ["x", p],
+              cx({
+                on: on,
+              }),
+            ),
+            style: mergeStyles([p]),
+          })}
+        />
+      </>
+    );
+    "
+  `);
+});

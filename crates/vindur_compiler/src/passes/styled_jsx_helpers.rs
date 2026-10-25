@@ -349,31 +349,63 @@ pub(super) fn is_class_rule(rule: &str, class_name: &str) -> bool {
 /// Replaces `&.original` modifier selectors with `&.hashed`, skipping longer class names
 /// that share the same prefix, e.g. `&.active-extra` when replacing `active`
 pub(super) fn replace_modifier_selector(css: &str, original: &str, hashed: &str) -> String {
-    let pattern = format!("&.{original}");
     let mut result = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.find(&pattern) {
-        let end = start + pattern.len();
-        let is_whole_class = is_class_name_end(&rest[end..]);
-        result.push_str(&rest[..start]);
-        if is_whole_class {
-            result.push_str("&.");
-            result.push_str(hashed);
-        } else {
-            result.push_str(&pattern);
-        }
-        rest = &rest[end..];
+    let mut last = 0;
+    for start in modifier_selector_starts(css, original) {
+        result.push_str(&css[last..=start]);
+        result.push_str(hashed);
+        last = start + 1 + original.len();
     }
-    result.push_str(rest);
+    result.push_str(&css[last..]);
     result
 }
 
 /// Whether `css` has a `&.original` modifier selector, ignoring longer class names that share
 /// the same prefix
 pub(super) fn contains_modifier_selector(css: &str, original: &str) -> bool {
-    let pattern = format!("&.{original}");
-    css.match_indices(&pattern)
-        .any(|(start, _)| is_class_name_end(&css[start + pattern.len()..]))
+    !modifier_selector_starts(css, original).is_empty()
+}
+
+/// Byte offsets of the `.` of each `.original` class in a compound selector starting with `&`,
+/// e.g. both classes of `&.active.disabled`, skipping strings and comments
+fn modifier_selector_starts(css: &str, original: &str) -> Vec<usize> {
+    let bytes = css.as_bytes();
+    let pattern = format!(".{original}");
+    let mut starts = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            quote @ (b'"' | b'\'') => {
+                index += 1;
+                while index < bytes.len() && bytes[index] != quote {
+                    index += if bytes[index] == b'\\' { 2 } else { 1 };
+                }
+                index += 1;
+            }
+            b'/' if bytes.get(index + 1) == Some(&b'*') => {
+                index = css[index + 2..]
+                    .find("*/")
+                    .map_or(bytes.len(), |end| index + 2 + end + 2);
+            }
+            b'.' if css[index..].starts_with(&pattern)
+                && is_class_name_end(&css[index + pattern.len()..])
+                && is_compound_of_parent(&css[..index]) =>
+            {
+                starts.push(index);
+                index += pattern.len();
+            }
+            _ => index += 1,
+        }
+    }
+    starts
+}
+
+/// Whether the selector text before a class continues a compound selector of `&`
+fn is_compound_of_parent(before: &str) -> bool {
+    let parent =
+        before.trim_end_matches(|character| character == '.' || is_class_name_character(character));
+    let chain = &before[parent.len()..];
+    parent.ends_with('&') && (chain.is_empty() || chain.starts_with('.'))
 }
 
 fn is_class_name_end(rest: &str) -> bool {
