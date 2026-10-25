@@ -172,3 +172,56 @@ test('should error when a vindurFn is passed through the css prop of a custom co
     loc: /test.tsx|4:34]
   `);
 });
+
+test('should allow a parenthesized default export of a vindurFn', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { transition } from '#/transition';
+
+      export default (transition);
+    `,
+    overrideDefaultFs: transitionFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { transition } from "#/transition";
+    export default transition;
+    "
+  `);
+});
+
+test('should error when a vindurFn is used as a styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { transition } from '#/transition';
+
+        export const Box = styled(transition)\`
+          color: red;
+        \`;
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    loc: /test.tsx|4:26]
+  `);
+});
+
+test('should report the vindurFn validation error for vindurFn compositions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+        import { transition } from '#/transition';
+
+        export const fade = vindurFn((property: string) => \`\${transition(property)} opacity: 0;\`);
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "fade" contains function calls which are not supported - functions must be self-contained
+    loc: /test.tsx|4:54]
+  `);
+});

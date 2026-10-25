@@ -597,3 +597,18 @@ test('should error on vindurFn declared with a function expression', async () =>
     loc: /test.tsx|3:13]
   `);
 });
+
+test('should error at the unsupported syntax of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const columns = vindurFn((count: number) => \`--odd: \${count % 2};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "columns" contains unsupported syntax "count % 2", it can't be evaluated at compile time
+    loc: /test.tsx|3:61]
+  `);
+});

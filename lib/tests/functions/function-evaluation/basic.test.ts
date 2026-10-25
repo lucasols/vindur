@@ -712,3 +712,43 @@ test('function with invalid array value', async () => {
     loc: 5:4]
   `);
 });
+
+test('should evaluate comparison operators and type assertions in vindurFn', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { size } from '#/functions';
+
+      const style = css\`
+        \${size(12)};
+        \${size(10)};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'functions.ts': dedent`
+        import { vindurFn } from 'vindur';
+
+        export const size = vindurFn((value: number) => \`--gt: \${value > 10 ? 1 : 0}; --gte: \${value >= 10 ? 1 : 0}; --lt: \${value < 12 ? 1 : 0}; --lte: \${(value as number) <= 10 ? 1 : 0}\`);
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      --gt: 1;
+      --gte: 1;
+      --lt: 0;
+      --lte: 0;
+      --gt: 0;
+      --gte: 1;
+      --lt: 1;
+      --lte: 1;
+    }
+    "
+  `);
+});

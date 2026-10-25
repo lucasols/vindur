@@ -1,5 +1,5 @@
 use oxc_ast::ast::{
-    BindingIdentifier, BindingPattern, Expression, Program, VariableDeclaration,
+    Argument, BindingIdentifier, BindingPattern, Expression, Program, VariableDeclaration,
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
@@ -16,7 +16,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
-    function_value::compile_vindur_function,
+    function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
@@ -471,14 +471,27 @@ fn validate_vindur_function_declaration(
         );
     }
     // Only const arrow function declarations are compiled, other forms can't be used
-    if declaration.kind != VariableDeclarationKind::Const
-        || compile_vindur_function(initializer, transform.imports).is_none()
-    {
+    let is_arrow_function = matches!(
+        initializer,
+        Expression::CallExpression(call)
+            if matches!(call.arguments.as_slice(), [Argument::ArrowFunctionExpression(_)])
+    );
+    if declaration.kind != VariableDeclarationKind::Const || !is_arrow_function {
         return error(
             identifier.span,
             format!(
                 "vindurFn \"{}\" is not supported, vindur functions must be declared with \"export const {} = vindurFn((...) => ...)\"",
                 identifier.name, identifier.name
+            ),
+        );
+    }
+    if let Some(Err(span)) = try_compile_vindur_function(initializer, transform.imports) {
+        return error(
+            span,
+            format!(
+                "vindurFn \"{}\" contains unsupported syntax \"{}\", it can't be evaluated at compile time",
+                identifier.name,
+                &transform.source[span.start as usize..span.end as usize]
             ),
         );
     }

@@ -1,5 +1,5 @@
 use oxc_ast::ast::{
-    ExportDefaultDeclaration, ExportDefaultDeclarationKind, ExportNamedDeclaration, Expression,
+    CallExpression, ExportDefaultDeclaration, ExportNamedDeclaration, Expression,
     IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression, Program,
     TSTypeQuery, TaggedTemplateExpression,
 };
@@ -97,11 +97,23 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     }
 
     fn visit_export_default_declaration(&mut self, export: &ExportDefaultDeclaration<'a>) {
-        if !matches!(
-            export.declaration,
-            ExportDefaultDeclarationKind::Identifier(_)
-        ) {
+        let is_identifier = export
+            .declaration
+            .as_expression()
+            .is_some_and(|expression| {
+                matches!(expression.get_inner_expression(), Expression::Identifier(_))
+            });
+        if !is_identifier {
             walk::walk_export_default_declaration(self, export);
+        }
+    }
+
+    // vindurFn bodies are checked by the vindurFn validation, which reports a more precise error
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        let is_vindur_fn = matches!(&call.callee, Expression::Identifier(callee)
+            if self.imports.matches_import_or_global(callee, "vindurFn"));
+        if !is_vindur_fn {
+            walk::walk_call_expression(self, call);
         }
     }
 
@@ -110,16 +122,13 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
 }
 
 impl RuntimeReferenceVisitor<'_, '_, '_> {
-    /// `.attrs({})` values are kept in the runtime component, unlike the rest of the tag
+    /// Tag call arguments, e.g. the component in `styled(A)` or the `.attrs({})` values, are
+    /// kept in the runtime component, unlike the rest of the tag
     fn visit_runtime_tag_arguments(&mut self, tag: &Expression<'_>) {
         match tag {
             Expression::CallExpression(call) => {
-                if let Expression::StaticMemberExpression(member) = &call.callee
-                    && member.property.name.as_str() == "attrs"
-                {
-                    for argument in &call.arguments {
-                        self.visit_argument(argument);
-                    }
+                for argument in &call.arguments {
+                    self.visit_argument(argument);
                 }
                 self.visit_runtime_tag_arguments(&call.callee);
             }

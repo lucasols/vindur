@@ -46,8 +46,10 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
-                if let oxc_ast::ast::ExportDefaultDeclarationKind::Identifier(identifier) =
-                    &export.declaration
+                if let Some(Expression::Identifier(identifier)) = export
+                    .declaration
+                    .as_expression()
+                    .map(Expression::get_inner_expression)
                 {
                     names.insert(identifier.name.to_string());
                 }

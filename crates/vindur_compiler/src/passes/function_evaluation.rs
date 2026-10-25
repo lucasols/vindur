@@ -117,6 +117,10 @@ fn binary_expression_error(
             | FunctionOperator::Subtraction
             | FunctionOperator::Multiplication
             | FunctionOperator::Division
+            | FunctionOperator::LessThan
+            | FunctionOperator::LessEqualThan
+            | FunctionOperator::GreaterThan
+            | FunctionOperator::GreaterEqualThan
     );
     if requires_defined_operands && matches!(left_value, StaticValue::Undefined) {
         return Some(format!(
@@ -136,7 +140,7 @@ fn binary_expression_error(
     {
         return Some("division by zero".to_owned());
     }
-    if evaluate_binary(left_value, runtime_operator(operator), right_value).is_none() {
+    if apply_operator(left_value, operator, right_value).is_none() {
         return Some("operands must be numbers".to_owned());
     }
     None
@@ -230,9 +234,9 @@ fn evaluate_function_expression(
             left,
             operator,
             right,
-        } => evaluate_binary(
+        } => apply_operator(
             evaluate_function_expression(left, bindings)?,
-            runtime_operator(*operator),
+            *operator,
             evaluate_function_expression(right, bindings)?,
         ),
         FunctionExpression::Conditional {
@@ -300,8 +304,12 @@ fn evaluate_function_expression(
     }
 }
 
-fn runtime_operator(operator: FunctionOperator) -> BinaryOperator {
-    match operator {
+fn apply_operator(
+    left: StaticValue,
+    operator: FunctionOperator,
+    right: StaticValue,
+) -> Option<StaticValue> {
+    let operator = match operator {
         FunctionOperator::Addition => BinaryOperator::Addition,
         FunctionOperator::Subtraction => BinaryOperator::Subtraction,
         FunctionOperator::Multiplication => BinaryOperator::Multiplication,
@@ -310,7 +318,25 @@ fn runtime_operator(operator: FunctionOperator) -> BinaryOperator {
         FunctionOperator::Inequality => BinaryOperator::Inequality,
         FunctionOperator::StrictEquality => BinaryOperator::StrictEquality,
         FunctionOperator::StrictInequality => BinaryOperator::StrictInequality,
-    }
+        FunctionOperator::LessThan => return compare_numbers(left, right, |l, r| l < r),
+        FunctionOperator::LessEqualThan => return compare_numbers(left, right, |l, r| l <= r),
+        FunctionOperator::GreaterThan => return compare_numbers(left, right, |l, r| l > r),
+        FunctionOperator::GreaterEqualThan => {
+            return compare_numbers(left, right, |l, r| l >= r);
+        }
+    };
+    evaluate_binary(left, operator, right)
+}
+
+fn compare_numbers(
+    left: StaticValue,
+    right: StaticValue,
+    compare: fn(f64, f64) -> bool,
+) -> Option<StaticValue> {
+    let (StaticValue::Number(left), StaticValue::Number(right)) = (left, right) else {
+        return None;
+    };
+    Some(StaticValue::Boolean(compare(left, right)))
 }
 
 pub(super) fn evaluate_argument(

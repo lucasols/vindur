@@ -359,4 +359,35 @@ describe('import resolution', () => {
     // Should not have any style dependencies since './local-file' is not an alias
     expect(result.styleDependencies).toEqual([]);
   });
+
+  test('should keep default imports when removing compile time imports', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import easing, { transition } from '#/transition';
+
+        export const style = css\`
+          \${transition('opacity')};
+        \`;
+
+        export const value = easing;
+      `,
+      overrideDefaultFs: createFsMock({
+        'transition.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const transition = vindurFn((property: string) => \`transition: \${property} 0.2s;\`);
+
+          export default 'ease-in';
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import easing from "#/transition";
+      export const style = "v1560qbr-1-style";
+      export const value = easing;
+      "
+    `);
+  });
 });
