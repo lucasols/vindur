@@ -6,6 +6,7 @@ use oxc_css_parser::{
 };
 
 use super::css::reject_misplaced_layers;
+use super::css_balance::check_balance;
 use super::css_validation::{validate_block_kind, validate_statements};
 use super::scoped_idents::collect_scoped_idents;
 
@@ -125,6 +126,7 @@ pub(super) fn with_style_block<T>(
             }
         })
         .and_then(|stylesheet| {
+            check_balance(source)?;
             let statements = block_statements(&stylesheet.statements, kind, source.len())?;
             validate_statements(statements, source)?;
             validate_block_kind(statements, kind)?;
@@ -133,13 +135,17 @@ pub(super) fn with_style_block<T>(
         .map_err(|error| error.shifted(offset, css.len()))
 }
 
-/// Errors at the keyframes wrapper are caused by the CSS, parsing without the wrapper's `}` finds
-/// the block the CSS left unclosed, or the `}` that closed the wrapper early
+/// Errors at the keyframes wrapper are caused by the CSS, an unclosed comment can swallow the
+/// wrapper's `}`, otherwise parsing without the wrapper's `}` finds the block the CSS left
+/// unclosed, or the `}` that closed the wrapper early
 fn keyframes_error(css: &str, error: CssError) -> CssError {
     let unclosed = format!("{KEYFRAMES_WRAPPER_START}{css}");
     let at_wrapper_start = error.start < KEYFRAMES_WRAPPER_START.len();
     if !at_wrapper_start && error.start < unclosed.len() {
         return error;
+    }
+    if let Err(balance_error) = check_balance(&format!("{unclosed}}}")) {
+        return balance_error;
     }
     let allocator = Allocator::default();
     match parse_source(&allocator, &unclosed) {
@@ -273,6 +279,30 @@ mod tests {
             [
                 "Invalid CSS: unclosed block before end of file at 26..27",
                 "Invalid CSS: unexpected `}` at 20..21",
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_unclosed_brackets_in_every_block_kind() {
+        assert_eq!(
+            [
+                error("@media (min-width: 1px) { width: calc(1px; }"),
+                kind_error(
+                    "body { width: calc(1px + 2px; } a { color: red; }",
+                    BlockKind::Global
+                ),
+                kind_error(
+                    "from { transform: translate(0 } to { opacity: 1 }",
+                    BlockKind::Keyframes
+                ),
+                kind_error("from { opacity: 0 } /* to", BlockKind::Keyframes),
+            ],
+            [
+                "Invalid CSS: unclosed `(`, add `)` at 37..38",
+                "Invalid CSS: unclosed `(`, add `)` at 18..19",
+                "Invalid CSS: unclosed `(`, add `)` at 27..28",
+                "Invalid CSS: unclosed comment, add `*/` at 20..22",
             ]
         );
     }

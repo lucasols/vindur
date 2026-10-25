@@ -352,7 +352,7 @@ fn string_end(css: &str, start: usize) -> usize {
     bytes.len()
 }
 
-fn is_url_function(css: &str, index: usize) -> bool {
+pub(super) fn is_url_function(css: &str, index: usize) -> bool {
     css.get(index..index + 4)
         .is_some_and(|name| name.eq_ignore_ascii_case("url("))
         && !css[..index].chars().next_back().is_some_and(is_ident_char)
