@@ -352,7 +352,13 @@ pub(super) fn evaluate_argument(
             Some(StaticValue::Undefined)
         }
         Argument::Identifier(identifier) => {
-            resolved_constant(identifier, constants, scoping).cloned()
+            match resolved_constant(identifier, constants, scoping)? {
+                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
+                StaticValue::ImportedObject { properties, .. } => {
+                    Some(StaticValue::Object(properties.clone()))
+                }
+                value => Some(value.clone()),
+            }
         }
         Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),
         Argument::ObjectExpression(object) => evaluate_object(object, constants, scoping),

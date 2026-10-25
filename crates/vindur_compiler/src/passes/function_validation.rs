@@ -200,9 +200,12 @@ fn validate_expression(
             validate_expression(name, &binary.left, parameters, source, position)
                 .or_else(|| validate_expression(name, &binary.right, parameters, source, position))
         }
-        Expression::ParenthesizedExpression(parenthesized) => validate_expression(
+        Expression::ParenthesizedExpression(_)
+        | Expression::TSAsExpression(_)
+        | Expression::TSSatisfiesExpression(_)
+        | Expression::TSNonNullExpression(_) => validate_expression(
             name,
-            &parenthesized.expression,
+            expression.get_inner_expression(),
             parameters,
             source,
             position,
@@ -239,6 +242,12 @@ fn validate_condition(
     source: &str,
 ) -> Option<FunctionValidationError> {
     match expression {
+        Expression::ParenthesizedExpression(_)
+        | Expression::TSAsExpression(_)
+        | Expression::TSSatisfiesExpression(_)
+        | Expression::TSNonNullExpression(_) => {
+            validate_condition(name, expression.get_inner_expression(), parameters, source)
+        }
         Expression::Identifier(_) | Expression::BooleanLiteral(_) => validate_expression(
             name,
             expression,

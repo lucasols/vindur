@@ -123,7 +123,7 @@ describe('function evaluation errors', () => {
     }).toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.ts: /functions.ts: vindurFn must be called with a function expression, got object in function "invalidWrapper"
-      loc: 3:13]
+      loc: /functions.ts|3:13]
     `,
     );
   });

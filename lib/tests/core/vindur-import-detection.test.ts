@@ -107,7 +107,7 @@ test('should error on aliased vindur imports in imported modules', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: /transition.ts: aliased vindur imports are not supported, import "vindurFn" without the "fn" alias
-    loc: 1:9]
+    loc: /transition.ts|1:9]
   `);
 });
 

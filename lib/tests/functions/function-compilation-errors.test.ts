@@ -612,3 +612,48 @@ test('should error at the unsupported syntax of a vindurFn', async () => {
     loc: /test.tsx|3:61]
   `);
 });
+
+test('should error on wrapped vindurFn declarations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const transition = (vindurFn((property: string) => \`transition: \${property};\`));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:13]
+  `);
+});
+
+test('should validate vindurFn bodies wrapped in type assertions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const match = vindurFn((n: number) => \`--match: \${n == 10 ? 1 : 0};\` as const);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "match" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported
+    loc: /test.tsx|3:57]
+  `);
+});
+
+test('should error on map callbacks with default parameters', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const sizes = vindurFn((values: number[]) => values.map((n = 10) => \`\${n}px\`).join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "sizes" contains unsupported syntax "n = 10", it can't be evaluated at compile time
+    loc: /test.tsx|3:64]
+  `);
+});

@@ -245,12 +245,18 @@ fn compile_function_call(call: &CallExpression<'_>) -> Result<FunctionExpression
             let [Argument::ArrowFunctionExpression(function)] = call.arguments.as_slice() else {
                 return Err(call.span);
             };
+            if function.r#async {
+                return Err(function.span);
+            }
             let [parameter] = function.params.items.as_slice() else {
                 return Err(function.params.span);
             };
             let BindingPattern::BindingIdentifier(identifier) = &parameter.pattern else {
                 return Err(parameter.span);
             };
+            if parameter.initializer.is_some() {
+                return Err(parameter.span);
+            }
             let [oxc_ast::ast::Statement::ExpressionStatement(body)] =
                 function.body.statements.as_slice()
             else {

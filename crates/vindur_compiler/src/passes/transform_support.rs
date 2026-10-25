@@ -56,8 +56,9 @@ pub(super) fn process_variable_declaration(
         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
             continue;
         };
+        // Wrapped declarations are detected too, so they are rejected instead of ignored
         if let Some(initializer) = &declarator.init
-            && let Expression::CallExpression(call) = initializer
+            && let Expression::CallExpression(call) = initializer.get_inner_expression()
             && let Expression::Identifier(callee) = &call.callee
             && transform
                 .imports

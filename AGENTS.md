@@ -105,7 +105,7 @@ All Vindur CSS-in-JS features that use template literals are **statically analyz
 
 - **Static values are allowed**: String literals, numbers, constants defined at module level
 - **Dynamic runtime values are NOT allowed**: State variables, props, function calls, or any values that change at runtime
-- **Use vindurFn for dynamic CSS**: When you need CSS that depends on runtime values, wrap your function with `vindurFn`
+- **Use vindurFn for reusable CSS functions**: `vindurFn` functions are evaluated at compile-time, so they must be exported and can only be called inside vindur styles with static arguments. For values that change at runtime, use dynamic colors, scoped CSS variables set through the `style` prop, or style flags
 
 **Valid examples:**
 
@@ -129,15 +129,20 @@ function Component({ color, isActive }) {
 }
 ```
 
-**For dynamic CSS, use vindurFn:**
+**For reusable CSS functions, use vindurFn:**
 
 ```tsx
-const dynamicStyles = vindurFn(
-  (color: string, isActive: boolean) => `
-  color: ${color};              // ✅ OK inside vindurFn
-  padding: ${isActive ? 16 : 8}px;  // ✅ OK inside vindurFn
+// mixins.ts
+export const spacing = vindurFn(
+  (size: number, isCompact: boolean) => `
+  padding: ${isCompact ? size / 2 : size}px;
 `,
 );
+
+// Button.tsx
+const Button = styled.button`
+  ${spacing(16, false)}; // ✅ static arguments inside a vindur style
+`;
 ```
 
 This applies to: `css`, `styled.*`, `css` prop, `keyframes`, and `createGlobalStyle`.
