@@ -887,7 +887,7 @@ createGlobalStyle`
 `;
 ```
 
-`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
+`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except classes of the element itself, like `&.name`, for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
 ### Mixins and Functions
 
@@ -1002,6 +1002,8 @@ Other `css` values on custom components (strings or non-vindur values) are left 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
 Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`), and each `$` key must be a single class.
+
+In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed.
 
 ```tsx
 const Container = styled.div`

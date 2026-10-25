@@ -734,6 +734,116 @@ test('should rewrite cx modifiers in every selector of the element', async () =>
   `);
 });
 
+test('should rewrite cx modifiers nested in selector arguments and scope roots', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        :where(&.active) {
+          color: red;
+        }
+        &:nth-child(1 of .active) {
+          color: blue;
+        }
+        @scope (&.active) {
+          &.disabled {
+            color: green;
+          }
+        }
+        @scope (.child) {
+          &.active {
+            color: orange;
+          }
+        }
+      \`;
+
+      export const App = ({ on }: { on: boolean }) => (
+        <Box cx={{ active: on, disabled: !on }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1560qbr-1-Box " +
+          cx({
+            "v1560qbr-2-active": on,
+            "v1560qbr-3-disabled": !on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      :where(&.v1560qbr-2-active) {
+        color: red;
+      }
+      &:nth-child(1 of .v1560qbr-2-active) {
+        color: blue;
+      }
+      @scope (&.v1560qbr-2-active) {
+        &.v1560qbr-3-disabled {
+          color: green;
+        }
+      }
+      @scope (.child) {
+        &.active {
+          color: orange;
+        }
+      }
+    }
+    "
+  `);
+});
+
+test('should escape cx modifier names in selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &.is\\:on, &:focus {
+          color: red;
+        }
+      \`;
+
+      export const App = ({ on }: { on: boolean }) => <Box cx={{ 'is:on': on }} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ on }: { on: boolean }) => (
+      <div
+        className={
+          "v1560qbr-1-Box " +
+          cx({
+            "v1560qbr-2-is:on": on,
+          })
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      &.v1560qbr-2-is\\:on,
+      &:focus {
+        color: red;
+      }
+    }
+    "
+  `);
+});
+
 test('should keep classes of other elements when rewriting cx modifiers', async () => {
   const result = await transformWithFormat({
     source: dedent`
