@@ -275,6 +275,21 @@ describe('mergeClassNames', () => {
     );
     expect(result).toBe('valid-class vindur-class');
   });
+
+  test('should ignore className properties a JSX spread does not copy', () => {
+    const inherited: unknown = Object.create({ className: undefined });
+    const hidden = Object.defineProperty({}, 'className', {
+      value: undefined,
+      enumerable: false,
+    });
+
+    const result = mergeClassNames(
+      [{ className: 'visible' }, inherited, hidden],
+      'vindur-class',
+    );
+
+    expect(result).toBe('visible vindur-class');
+  });
 });
 
 describe('mergeStyles', () => {

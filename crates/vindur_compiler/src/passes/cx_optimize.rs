@@ -95,11 +95,13 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
             walk::walk_call_expression(self, call);
             return;
         }
-        if self.edits.iter().any(|edit| {
-            edit.span.start <= call.span.start
-                && edit.span.end >= call.span.end
-                && edit.span.start < edit.span.end
-        }) {
+        // Skip calls another pass edits: around them, or inside them, since the replacement
+        // copies the call's source
+        if self
+            .edits
+            .iter()
+            .any(|edit| edit.span.start < call.span.end && edit.span.end > call.span.start)
+        {
             walk::walk_call_expression(self, call);
             return;
         }

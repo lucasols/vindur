@@ -12,7 +12,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    cx_selectors::rewrite_cx_selectors,
+    cx_selectors::rewrite_cx_selectors_in_body,
     jsx_attributes::{find_attribute, opening_attribute_insertion_offset},
     jsx_class_name::{
         ClassNameMerge, class_name_merge, extend_jsx_string, js_string_literal, jsx_string_value,
@@ -214,7 +214,7 @@ impl JsxCssVisitor<'_> {
                     }
                 };
                 if let Some(cx) = cx_transform {
-                    content = rewrite_cx_selectors(&content, &cx.mappings);
+                    content = rewrite_cx_selectors_in_body(&content, &cx.mappings);
                 }
                 let index = cx_transform.map_or_else(
                     || {

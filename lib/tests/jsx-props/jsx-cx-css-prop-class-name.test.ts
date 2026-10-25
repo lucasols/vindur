@@ -475,3 +475,75 @@ test('should not let a type-only cx import stand in for the cx helper', async ()
     "
   `);
 });
+
+test('should insert className before the end of the opening tag after comments', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const App = ({ p, c }) => (
+        <>
+          <div {...p} cx={{ $a: c }} /* note */></div>
+          <div {...p} css={\`color: red;\`} / >
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    export const App = ({ p, c }) => (
+      <>
+        <div
+          {...p}
+          /* note */ className={mergeClassNames(
+            [p],
+            cx({
+              a: c,
+            }),
+          )}
+        ></div>
+        <div {...p} className={mergeClassNames([p], "v1560qbr-1-css-prop-1")} />
+      </>
+    );
+    "
+  `);
+});
+
+test('should throw for dynamicColor before a transformed prop with spread props', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+        const Box = styled.div\`&.on { color: blue; }\`;
+
+        export const App = ({ p, v, x }) => (
+          <Box {...p} dynamicColor={color.set(v)} cx={{ on: x }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: dynamicColor can't be combined with this cx prop on the same element, vindur also transforms it. Place dynamicColor after it
+    loc: 7:42]
+  `);
+});
+
+test('should throw for dynamicColor with a transformed style prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+        const Box = styled.div\`---offset: 1px; left: var(---offset);\`;
+
+        export const App = ({ x, v }) => (
+          <Box style={{ '---offset': x }} dynamicColor={color.set(v)} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: dynamicColor can't be combined with this style prop on the same element, vindur also transforms it
+    loc: 7:7]
+  `);
+});

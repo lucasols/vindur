@@ -309,6 +309,13 @@ export function cx(
 }
 
 /**
+ * JSX spreads only copy own enumerable properties
+ */
+function isSpreadProperty(prop: object, key: string): boolean {
+  return Object.prototype.propertyIsEnumerable.call(prop, key);
+}
+
+/**
  * Merge classNames from spread props with vindur-generated classNames
  *
  * Inputs are spread props and explicit `className` values in source order. Like
@@ -328,6 +335,7 @@ export function mergeClassNames(
       typeof prop === 'object'
       && prop !== null
       && 'className' in prop
+      && isSpreadProperty(prop, 'className')
     ) {
       const className = prop.className;
       finalClassName = typeof className === 'string' ? className : '';
@@ -348,7 +356,12 @@ export function mergeStyles(spreadProps: unknown[]): Record<string, unknown> {
   const mergedStyle: Record<string, unknown> = {};
 
   for (const prop of spreadProps) {
-    if (typeof prop === 'object' && prop !== null && 'style' in prop) {
+    if (
+      typeof prop === 'object'
+      && prop !== null
+      && 'style' in prop
+      && isSpreadProperty(prop, 'style')
+    ) {
       const style = prop.style;
       if (style && typeof style === 'object') {
         Object.assign(mergedStyle, style);

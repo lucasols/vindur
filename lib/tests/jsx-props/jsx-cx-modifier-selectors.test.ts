@@ -323,3 +323,116 @@ test('should rewrite nested & compounds and the of selector list of nth-child', 
     "
   `);
 });
+
+test('should only rewrite cx classes of selectors that match the styled element', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        &:has(.child:not(.active)) { color: red; }
+        & .tab { &.active { color: blue; } }
+        .dark & { &.active { color: green; } }
+        &:hover { &.active { top: 0; } }
+        @media (min-width: 1px) { &.active { left: 0; } }
+        .active& { right: 0; }
+        &:IS(.active), &:Not(.active) { bottom: 0; }
+      \`;
+
+      export const App = ({ a }) => <Box cx={{ active: a }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      &:has(.child:not(.active)) {
+        color: red;
+      }
+      & .tab {
+        &.active {
+          color: blue;
+        }
+      }
+      .dark & {
+        &.v1560qbr-2-active {
+          color: green;
+        }
+      }
+      &:hover {
+        &.v1560qbr-2-active {
+          top: 0;
+        }
+      }
+      @media (min-width: 1px) {
+        &.v1560qbr-2-active {
+          left: 0;
+        }
+      }
+      .v1560qbr-2-active& {
+        right: 0;
+      }
+      &:is(.v1560qbr-2-active),
+      &:not(.v1560qbr-2-active) {
+        bottom: 0;
+      }
+    }
+    "
+  `);
+});
+
+test('should only rewrite css prop cx classes that match the element', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const App = ({ a }) => (
+        <div
+          css={\`
+            & .tab { &.on { color: red; } }
+            &.on { color: blue; }
+          \`}
+          cx={{ on: a }}
+        />
+      );
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-css-prop-1 {
+      & .tab {
+        &.on {
+          color: red;
+        }
+      }
+      &.v1560qbr-2-on {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('should warn about cx modifiers only declared for another element', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        & .tab { &.selected { color: blue; } }
+      \`;
+
+      export const App = ({ a }) => <Box cx={{ selected: a }} />;
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Warning: Missing CSS classes for cx modifiers in Box: selected'
+        loc: 'current_file:7:30'
+    "
+  `);
+});

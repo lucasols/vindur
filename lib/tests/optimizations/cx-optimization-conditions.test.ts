@@ -134,3 +134,27 @@ test('should escape line breaks in optimized cx strings', async () => {
     "
   `);
 });
+
+test('should not optimize cx calls holding code other passes transform', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, cx } from 'vindur';
+
+      export const App = ({ a }) => (
+        <div className={cx({ [css\`color: red;\`]: a })} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ a }) => (
+      <div
+        className={cx({
+          ["v1560qbr-1"]: a,
+        })}
+      />
+    );
+    "
+  `);
+});

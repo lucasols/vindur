@@ -73,6 +73,22 @@ impl<'a> Visit<'a> for DynamicColorVisitor<'_> {
 }
 
 impl DynamicColorVisitor<'_> {
+    // Whether another pass already edits `attribute`, which this pass would remove or move
+    fn is_edited(&self, attribute: &JSXAttribute<'_>) -> bool {
+        self.output.edits.iter().any(|edit| {
+            edit.span.start < attribute.span.end && edit.span.end > attribute.span.start
+        })
+    }
+
+    fn edited_attribute_error(&mut self, attribute: &JSXAttribute<'_>, name: &str, hint: &str) {
+        self.error(
+            attribute.span,
+            format!(
+                "dynamicColor can't be combined with this {name} prop on the same element, vindur also transforms it{hint}"
+            ),
+        );
+    }
+
     fn transform_attribute(&mut self, element: &JSXElement<'_>, attribute: &JSXAttribute<'_>) {
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
             self.error(
@@ -140,6 +156,10 @@ impl DynamicColorVisitor<'_> {
                     continue;
                 };
                 if matches!(name.name.as_str(), "className" | "style") {
+                    if self.is_edited(other) {
+                        self.edited_attribute_error(other, name.name.as_str(), "");
+                        return;
+                    }
                     self.output.edits.push(Edit {
                         span: other.span,
                         replacement: String::new(),
@@ -195,6 +215,14 @@ impl DynamicColorVisitor<'_> {
                     || matches!(name.name.as_str(), "className" | "style")
                 {
                     continue;
+                }
+                if self.is_edited(other) {
+                    self.edited_attribute_error(
+                        other,
+                        name.name.as_str(),
+                        ". Place dynamicColor after it",
+                    );
+                    return;
                 }
                 trailing_props.push(
                     self.output.source[other.span.start as usize..other.span.end as usize]

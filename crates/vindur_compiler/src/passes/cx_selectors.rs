@@ -1,55 +1,159 @@
-// Rewrites the classes of compound selectors attached to `&`, like
-// `&.active.selected`, `&:hover.active`, `&[data-open].active` or `&:not(div.active)`, to their
-// hashed classes. Whole class names are matched, so `&.active` doesn't touch `&.activeIcon`
+// Rewrites the classes of the compound selectors that match the styled element, like
+// `&.active.selected`, `&:hover.active`, `&[data-open].active`, `.active&` or
+// `&:not(div.active)`, to their hashed classes. Whole class names are matched, so `&.active`
+// doesn't touch `&.activeIcon`. Rules nested under a rule for another element, like the
+// `&.selected` of `& .tab { &.selected {} }`, are left alone
+//
+// `css` holds whole rules like `.v1-Box { ... }`
 pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)]) -> String {
-    rewrite_compound_classes(css, &|class_name| {
-        mappings
-            .iter()
-            .find(|(original, _, should_rewrite)| *should_rewrite && original == class_name)
-            .map(|(_, hashed, _)| hashed.clone())
-    })
+    rewrite_rules(css, &mapping_class(mappings), RuleContext::TopLevel)
+}
+
+// Like `rewrite_cx_selectors`, for the declarations and nested rules of a single rule
+pub(super) fn rewrite_cx_selectors_in_body(
+    css: &str,
+    mappings: &[(String, String, bool)],
+) -> String {
+    rewrite_rules(css, &mapping_class(mappings), RuleContext::StyledElement)
 }
 
 // Whether `class_name` is one of the classes `rewrite_cx_selectors` would rewrite
 pub(super) fn contains_class_selector(css: &str, class_name: &str) -> bool {
     // A marker that can't appear in CSS, so only rewritten occurrences are found
     const MARKER: &str = "\u{0}";
-    rewrite_compound_classes(css, &|token| {
-        (token == class_name).then(|| MARKER.to_owned())
-    })
+    rewrite_rules(
+        css,
+        &|token| (token == class_name).then(|| MARKER.to_owned()),
+        RuleContext::TopLevel,
+    )
     .contains(MARKER)
 }
 
 type ClassMapper<'m> = dyn Fn(&str) -> Option<String> + 'm;
 
-fn rewrite_compound_classes(css: &str, map: &ClassMapper<'_>) -> String {
+fn mapping_class(mappings: &[(String, String, bool)]) -> impl Fn(&str) -> Option<String> + '_ {
+    |class_name| {
+        mappings
+            .iter()
+            .find(|(original, _, should_rewrite)| *should_rewrite && original == class_name)
+            .map(|(_, hashed, _)| hashed.clone())
+    }
+}
+
+// What `&` refers to inside a block
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuleContext {
+    // Outside the styled element's rule, where selectors like `.v1-Box` start it
+    TopLevel,
+    // Inside the styled element's rule, or a rule nested in it that still matches it
+    StyledElement,
+    // Inside a rule for another element, like `& .tab { ... }`
+    OtherElement,
+}
+
+// Rewrites the selectors of the rules in `css`, copying declarations and at-rule preludes
+fn rewrite_rules(css: &str, map: &ClassMapper<'_>, initial: RuleContext) -> String {
     let mut output = String::with_capacity(css.len());
+    let mut contexts = vec![initial];
     let mut index = 0;
-    while let Some(character) = css[index..].chars().next() {
-        if matches!(character, '"' | '\'') || css[index..].starts_with("/*") {
-            let end = skipped_end(css, index, css.len());
-            output.push_str(&css[index..end]);
-            index = end;
-        } else if character == '&' {
-            index = rewrite_compound(css, index, css.len(), &mut output, map, false);
-        } else {
-            output.push(character);
-            index += character.len_utf8();
+    while index < css.len() {
+        let end = segment_end(css, index);
+        let context = contexts.last().copied().unwrap_or(initial);
+        match css[end..].chars().next() {
+            Some('{') => {
+                let is_at_rule = css[index..end].trim_start().starts_with('@');
+                if !is_at_rule && context == RuleContext::StyledElement {
+                    rewrite_selector_list(css, index, end, &mut output, map, false);
+                } else {
+                    output.push_str(&css[index..end]);
+                }
+                contexts.push(match context {
+                    _ if is_at_rule => context,
+                    RuleContext::TopLevel => RuleContext::StyledElement,
+                    RuleContext::StyledElement if subjects_match_parent(css, index, end) => {
+                        RuleContext::StyledElement
+                    }
+                    RuleContext::StyledElement | RuleContext::OtherElement => {
+                        RuleContext::OtherElement
+                    }
+                });
+            }
+            Some('}') => {
+                if contexts.len() > 1 {
+                    contexts.pop();
+                }
+                output.push_str(&css[index..end]);
+            }
+            _ => output.push_str(&css[index..end]),
         }
+        index = (end + 1).min(css.len());
+        output.push_str(&css[end..index]);
     }
     output
 }
 
+// The position of the next `{`, `}` or `;` outside strings, comments, escapes and balanced
+// `(...)` / `[...]` sections, or the end of `css`
+fn segment_end(css: &str, mut index: usize) -> usize {
+    while let Some(character) = css[index..].chars().next() {
+        index = match character {
+            '{' | '}' | ';' => return index,
+            '"' | '\'' | '(' | '[' => skipped_end(css, index, css.len()),
+            '/' if css[index..].starts_with("/*") => skipped_end(css, index, css.len()),
+            '\\' => index + 1 + css[index + 1..].chars().next().map_or(0, char::len_utf8),
+            _ => index + character.len_utf8(),
+        };
+    }
+    css.len()
+}
+
+// Whether every selector of a nested rule's prelude still matches the parent's element, like
+// `&:hover` or `.dark &`, unlike `& .tab` or `.tab`
+fn subjects_match_parent(css: &str, start: usize, end: usize) -> bool {
+    let mut index = start;
+    while index < end {
+        let argument_end = next_argument(css, index, end);
+        let content_end = if css[index..argument_end].ends_with(',') {
+            argument_end - 1
+        } else {
+            argument_end
+        };
+        let subject_has_ampersand = compound_ranges(css, index, content_end).last().is_some_and(
+            |&(compound_start, compound_end)| contains_ampersand(css, compound_start, compound_end),
+        );
+        if !subject_has_ampersand {
+            return false;
+        }
+        index = argument_end;
+    }
+    true
+}
+
+// Whether the compound between `start` and `end` has a `&` outside its pseudo-class arguments
+fn contains_ampersand(css: &str, start: usize, end: usize) -> bool {
+    let mut index = start;
+    while let Some(character) = css[index..end].chars().next() {
+        index = match character {
+            '&' => return true,
+            '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
+            '/' if css[index..end].starts_with("/*") => skipped_end(css, index, end),
+            '\\' => index + 1 + css[index + 1..end].chars().next().map_or(0, char::len_utf8),
+            _ => index + character.len_utf8(),
+        };
+    }
+    false
+}
+
 // Rewrites the compound selector starting at `index`, returning where it ends. Its `.class`
-// tokens are rewritten when it's the current element: `rewrite_classes`, or once it reaches a
-// `&`. Scanning never goes past `limit`, the end of the enclosing argument list
+// tokens are rewritten when it matches the styled element (`rewrite_classes`). Scanning never
+// goes past `limit`, the end of the enclosing argument list
 fn rewrite_compound(
     css: &str,
     mut index: usize,
     limit: usize,
     output: &mut String,
     map: &ClassMapper<'_>,
-    mut rewrite_classes: bool,
+    rewrite_classes: bool,
 ) -> usize {
     let type_name = type_selector(&css[index..limit]);
     output.push_str(type_name);
@@ -59,7 +163,6 @@ fn rewrite_compound(
             Some('&') => {
                 output.push('&');
                 index += 1;
-                rewrite_classes = true;
             }
             Some('.') => {
                 let token = identifier(&css[index + 1..limit]);
@@ -76,7 +179,8 @@ fn rewrite_compound(
                 output.push_str(name);
                 index += 1 + name.len();
                 if css[index..limit].starts_with('(') {
-                    index = rewrite_arguments(css, index, limit, output, map, name);
+                    index =
+                        rewrite_arguments(css, index, limit, output, map, name, rewrite_classes);
                 }
             }
             Some('#') => {
@@ -96,8 +200,9 @@ fn rewrite_compound(
 }
 
 // Rewrites the arguments of the functional pseudo-class `name`, starting at its `(`. The
-// subject of `:not`, `:is`, `:where` and of the `of S` list of `:nth-child` is the current
-// element, other arguments like `:has(.x)` only have their `&` compounds rewritten
+// subject of `:not`, `:is`, `:where` and of the `of S` list of `:nth-child` is the element of
+// the compound they're in, so their classes are rewritten when that compound matches the
+// styled element. Other arguments like `:has(.x)` only have their `&` compounds rewritten
 fn rewrite_arguments(
     css: &str,
     open: usize,
@@ -105,6 +210,7 @@ fn rewrite_arguments(
     output: &mut String,
     map: &ClassMapper<'_>,
     name: &str,
+    compound_matches: bool,
 ) -> usize {
     let end = skipped_end(css, open, limit);
     let close = if css[open..end].ends_with(')') {
@@ -114,14 +220,14 @@ fn rewrite_arguments(
     };
     output.push('(');
     let start = open + 1;
-    match name {
+    match name.to_ascii_lowercase().as_str() {
         "not" | "is" | "where" | "matches" => {
-            rewrite_selector_list(css, start, close, output, map, true);
+            rewrite_selector_list(css, start, close, output, map, compound_matches);
         }
         "nth-child" | "nth-last-child" => match nth_selector_start(css, start, close) {
             Some(selectors) => {
                 rewrite_selector_list(css, start, selectors, output, map, false);
-                rewrite_selector_list(css, selectors, close, output, map, true);
+                rewrite_selector_list(css, selectors, close, output, map, compound_matches);
             }
             None => rewrite_selector_list(css, start, close, output, map, false),
         },
@@ -154,7 +260,8 @@ fn rewrite_selector_list(
     }
 }
 
-// In `.parent .active` only the last compound is the subject, the others are other elements
+// Compounds with a `&` match the styled element. So does the subject, the last compound, when
+// `same_element`: in `:not(.parent .active)` only `.active` is the current element
 fn rewrite_complex_selector(
     css: &str,
     start: usize,
@@ -167,8 +274,9 @@ fn rewrite_complex_selector(
     let mut index = start;
     for (position, &(compound_start, compound_end)) in compounds.iter().enumerate() {
         output.push_str(&css[index..compound_start]);
-        let is_subject = same_element && position + 1 == compounds.len();
-        rewrite_compound_range(css, compound_start, compound_end, output, map, is_subject);
+        let matches = (same_element && position + 1 == compounds.len())
+            || contains_ampersand(css, compound_start, compound_end);
+        rewrite_compound_range(css, compound_start, compound_end, output, map, matches);
         index = compound_end;
     }
     output.push_str(&css[index..end]);
