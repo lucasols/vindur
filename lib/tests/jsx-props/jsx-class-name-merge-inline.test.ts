@@ -61,7 +61,6 @@ test('should not guard string and template literal className values', async () =
 });
 
 test('should rewrite cx modifiers after a quote inside a comment', () => {
-  // Not formatted, prettier can't parse the `//` comment
   const result = transform({
     fileAbsPath: '/test.tsx',
     fs: createFsMock({}),
@@ -72,7 +71,7 @@ test('should rewrite cx modifiers after a quote inside a comment', () => {
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        // don't remove
+        /* don't remove */
         &.active {
           color: red;
         }
@@ -85,7 +84,7 @@ test('should rewrite cx modifiers after a quote inside a comment', () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
-      // don't remove
+      /* don't remove */
       &.v1560qbr-2-active {
         color: red;
       }

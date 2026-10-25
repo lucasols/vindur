@@ -72,8 +72,8 @@ test('should rename style prop variables merged by dynamicColor', async () => {
     const color = createDynamicCssColor("v1560qbr-1", true);
     const App = ({ width }: { width: string }) => (
       <div
-        className="v1560qbr-2-css-prop-2"
         {...color._sp("#fff", {
+          className: "v1560qbr-2-css-prop-2",
           style: {
             "--v1560qbr-3-width": width,
           },
