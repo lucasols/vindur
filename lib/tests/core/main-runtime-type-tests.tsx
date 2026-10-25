@@ -456,6 +456,12 @@ describe('dynamic color setProps', () => {
     );
   });
 
+  test('setProps accepts a forwarded React style prop', () => {
+    function Card({ style }: { style?: CSSProperties }) {
+      return <div {...dynamicColor.setProps('#fff', { style })} />;
+    }
+  });
+
   test('dynamicColor prop accepts multiple colors', () => {
     const otherColor = createDynamicCssColor();
 

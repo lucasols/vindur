@@ -319,4 +319,21 @@ describe('Dynamic Colors - Edge Cases', () => {
       loc: 5:43]
     `);
   });
+
+  test('should throw when set receives a spread argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ args }) => <div dynamicColor={color.set(...args)} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: dynamicColor prop must reference a dynamic color or color.set(...)
+      loc: 5:52]
+    `);
+  });
 });

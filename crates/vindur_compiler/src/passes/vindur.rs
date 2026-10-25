@@ -421,7 +421,7 @@ pub(crate) fn transform_program(
         });
     }
 
-    optimize_cx_calls(program, source, &mut edits);
+    optimize_cx_calls(program, source, &mut edits, needs_cx_helper);
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);

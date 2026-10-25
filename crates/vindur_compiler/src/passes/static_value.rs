@@ -73,10 +73,8 @@ pub(crate) fn evaluate_template(
         if context.tag_type != "createGlobalStyle"
             && let Some(diagnostic) = container_selector_error(
                 expression,
-                (
-                    quasi_text(quasi),
-                    template.quasis.get(index + 1).map(quasi_text),
-                ),
+                // The evaluated CSS so far, so earlier interpolations count as part of the selector
+                (&output, template.quasis.get(index + 1).map(quasi_text)),
                 constants,
                 scoping,
                 file_path,

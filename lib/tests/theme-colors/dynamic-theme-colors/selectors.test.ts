@@ -384,6 +384,10 @@ describe('Dynamic Colors - Conditional Selectors', () => {
           }
         \`
 
+        const Title = styled.h1\`
+          font-size: 12px;
+        \`
+
         const Card = styled.div\`
           \${color.container.isDark} & {
             color: white;
@@ -392,9 +396,13 @@ describe('Dynamic Colors - Conditional Selectors', () => {
           & \${color.container.isLight} {
             color: black;
           }
+
+          & \${Title} \${color.container.isDefined} {
+            color: blue;
+          }
         \`
 
-        export const App = () => <Card />
+        export const App = () => <Card><Title /></Card>
       `,
     });
 
@@ -403,7 +411,11 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         color: white;
       }
 
-      .v1560qbr-3-Card {
+      .v1560qbr-3-Title {
+        font-size: 12px;
+      }
+
+      .v1560qbr-4-Card {
         .v1560qbr-1-color-container-isDark & {
           color: white;
         }
@@ -411,9 +423,35 @@ describe('Dynamic Colors - Conditional Selectors', () => {
         & .v1560qbr-1-color-container-isLight {
           color: black;
         }
+
+        & .v1560qbr-3-Title .v1560qbr-1-color-container-isDefined {
+          color: blue;
+        }
       }
       "
     `);
+  });
+
+  test('should not warn about self selectors as undeclared classes', async () => {
+    const warnings: string[] = [];
+    await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, styled } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Box = styled.div\`
+          \${color.self.isDark} {
+            color: red;
+          }
+        \`
+
+        export const App = ({ c }) => <Box dynamicColor={color.set(c)} />
+      `,
+      onWarning: (warning) => warnings.push(warning.message),
+    });
+
+    expect(warnings).toMatchInlineSnapshot(`[]`);
   });
 });
 

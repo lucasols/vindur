@@ -245,9 +245,18 @@ pub(super) fn process_variable_declaration(
                         && (transform.source.contains("cx=")
                             || transform.source.contains("className={`")));
                 if !suppress_undeclared {
+                    let undeclared = undeclared_style_classes(&content, &style_flags);
+                    let dynamic_color_ids = if undeclared.is_empty() {
+                        Vec::new()
+                    } else {
+                        dynamic_color_ids(transform.constants)
+                    };
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared
                             .into_iter()
+                            .filter(|class_name| {
+                                !is_dynamic_color_class(class_name, &dynamic_color_ids)
+                            })
                             .map(|class_name| {
                                 CompilerDiagnostic::warning(
                                     "",
@@ -482,4 +491,24 @@ pub(super) fn imported_tag_name<'a>(
     imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     imports.get_expression(tag)
+}
+
+fn dynamic_color_ids(constants: &FxHashMap<String, StaticValue>) -> Vec<String> {
+    constants
+        .values()
+        .filter_map(|value| match value {
+            StaticValue::DynamicColor { id, .. } => Some(id.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `${color.self.isDark}` interpolates the color's own condition classes, which are set
+/// by `dynamicColor`, not declared by the component
+fn is_dynamic_color_class(class_name: &str, dynamic_color_ids: &[String]) -> bool {
+    dynamic_color_ids.iter().any(|id| {
+        class_name
+            .strip_prefix(id.as_str())
+            .is_some_and(|rest| rest.starts_with('-'))
+    })
 }

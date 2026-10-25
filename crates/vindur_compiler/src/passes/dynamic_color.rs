@@ -151,7 +151,10 @@ impl DynamicColorVisitor<'_> {
         );
         let merge = color_merge_object(
             &ColorMerge {
-                base_class: component.map(|component| component.class_name.as_str()),
+                // Runtime components add their own class
+                base_class: component
+                    .filter(|component| !component.runtime)
+                    .map(|component| component.class_name.as_str()),
                 generated_classes: &generated_classes,
                 class_attribute,
                 style_attribute,
@@ -279,9 +282,13 @@ impl DynamicColorVisitor<'_> {
             return None;
         }
         let [Argument::StringLiteral(value)] = call.arguments.as_slice() else {
+            // A spread would also fill the `_sp` merge argument
             let [argument] = call.arguments.as_slice() else {
                 return None;
             };
+            if matches!(argument, Argument::SpreadElement(_)) {
+                return None;
+            }
             let span = argument.span();
             return Some(vec![ColorExpression {
                 name: color.name.to_string(),

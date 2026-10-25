@@ -163,7 +163,7 @@ impl VindurClass {
     fn items(&self) -> Vec<String> {
         let mut items = Vec::new();
         if !self.literal.is_empty() {
-            items.push(format!("\"{}\"", self.literal));
+            items.push(js_string_literal(&self.literal));
         }
         items.extend(self.expressions.iter().cloned());
         items

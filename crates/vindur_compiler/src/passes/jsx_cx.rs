@@ -185,7 +185,7 @@ impl JsxCxVisitor<'_> {
                 };
             let value_span = property.value.span();
             let value = &self.output.source[value_span.start as usize..value_span.end as usize];
-            properties.push(format!("\"{output_name}\": {value}"));
+            properties.push(format!("{}: {value}", js_string_literal(&output_name)));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
 

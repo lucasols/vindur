@@ -47,10 +47,13 @@ type ColorConditions = {
 /** React style props plus the dynamic color css variables */
 export type DynamicColorStyle = CSSProperties & Record<`--${string}`, string>;
 
+/** A forwarded React style prop, or one that also sets css variables */
+type DynamicColorStyleInput = CSSProperties | DynamicColorStyle;
+
 export type DynamicColorProps = { className: string; style: DynamicColorStyle };
 
 export type DynamicColorSetPropsOptions = {
-  style?: DynamicColorStyle;
+  style?: DynamicColorStyleInput;
   className?: string;
   /** Sets `color-scheme` to match the color, `fallback` is used when no color is set */
   setColorScheme?: { fallback: 'light' | 'dark' };
@@ -69,7 +72,7 @@ export type DynamicCssColor = ColorOps & {
   // The compiler omits `mergeWith` when there is nothing to merge
   _sp: (
     color: DynamicColorValue,
-    mergeWith?: { className?: string; style?: DynamicColorStyle },
+    mergeWith?: { className?: string; style?: DynamicColorStyleInput },
   ) => DynamicColorProps;
   self: ColorConditions;
   container: ColorConditions;

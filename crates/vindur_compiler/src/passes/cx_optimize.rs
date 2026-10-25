@@ -9,7 +9,13 @@ use crate::edit::{Edit, expand_removal_to_line};
 
 use super::{import_analysis::is_compile_time_import, transform_support::js_string_literal};
 
-pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) {
+/// `keep_import` is set when generated code calls the user's own `cx` import
+pub(crate) fn optimize_cx_calls(
+    program: &Program<'_>,
+    source: &str,
+    edits: &mut Vec<Edit>,
+    keep_import: bool,
+) {
     let mut visitor = CxCallVisitor {
         source,
         edits,
@@ -17,7 +23,7 @@ pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut
         optimized_calls: 0,
     };
     visitor.visit_program(program);
-    if visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls {
+    if !keep_import && visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls {
         remove_cx_import(program, source, visitor.edits);
     }
 }

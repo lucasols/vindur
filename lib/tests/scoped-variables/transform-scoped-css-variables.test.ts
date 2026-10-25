@@ -615,4 +615,55 @@ describe('scoped CSS variables', () => {
       "
     `);
   });
+
+  test('should reserve ids for scoped variables of css props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        export const App = ({ size }) => (
+          <div style={{ '---size': size }} css={\`width: var(---size);\`} />
+        )
+
+        const color = createDynamicCssColor()
+
+        export const Badge = ({ c }) => (
+          <div dynamicColor={color.set(c)} css={\`color: \${color.var};\`} />
+        )
+      `,
+      production: true,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      export const App = ({ size }) => (
+        <div
+          style={{
+            "--v1560qbr-2": size,
+          }}
+          className="v1560qbr-1"
+        />
+      );
+      const color = createDynamicCssColor("v1560qbr-3", false);
+      export const Badge = ({ c }) => (
+        <div
+          {...color._sp(c, {
+            className: "v1560qbr-4",
+          })}
+        />
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        width: var(--v1560qbr-2);
+      }
+
+      .v1560qbr-4 {
+        color: var(--v1560qbr-3);
+      }
+      "
+    `);
+  });
 });

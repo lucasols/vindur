@@ -168,3 +168,27 @@ test('should keep the import of a dynamic color used in a custom component css p
     "
   `);
 });
+
+test('should not repeat the class of an exported styled component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      export const Box = styled.div\`
+        color: red;
+      \`
+
+      export const App = ({ c }) => <Box dynamicColor={color.set(c)} />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, _vSC } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
+    export const Box = _vSC("div", "v1560qbr-2-Box");
+    export const App = ({ c }) => <Box {...color._sp(c)} />;
+    "
+  `);
+});
