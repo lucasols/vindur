@@ -85,6 +85,12 @@ pub(super) fn escape_end(css: &str, index: usize, limit: usize) -> usize {
     index + 1 + hex_digits + whitespace
 }
 
+// CSS whitespace is only space, tab, line feed, carriage return and form feed, so a non-breaking
+// space is part of an identifier like any other non-ASCII character
+pub(super) fn is_css_whitespace(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\n' | '\r' | '\u{c}')
+}
+
 fn is_class_name_character(character: char) -> bool {
     character.is_ascii_alphanumeric()
         || character == '_'

@@ -16,7 +16,7 @@ pub(crate) fn optimize_cx_calls(
     scoping: &Scoping,
     source: &str,
     edits: &mut Vec<Edit>,
-    needs_cx_helper: bool,
+    calls_user_cx: bool,
 ) {
     let cx_symbols = vindur_cx_symbols(program);
     let mut visitor = CxCallVisitor {
@@ -35,7 +35,7 @@ pub(crate) fn optimize_cx_calls(
         .iter()
         .map(|symbol| scoping.get_resolved_reference_ids(*symbol).len())
         .sum::<usize>();
-    if !needs_cx_helper && references > 0 && references == visitor.optimized_calls {
+    if !calls_user_cx && references > 0 && references == visitor.optimized_calls {
         remove_cx_import(program, source, visitor.edits);
     }
 }

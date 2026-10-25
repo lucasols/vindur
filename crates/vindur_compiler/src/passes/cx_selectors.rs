@@ -1,4 +1,6 @@
-use super::css_tokens::{css_escape, escape_end, identifier, skipped_end, type_selector, unescape};
+use super::css_tokens::{
+    css_escape, escape_end, identifier, is_css_whitespace, skipped_end, type_selector, unescape,
+};
 
 // Rewrites the classes of the compound selectors that match the styled element, like
 // `&.active.selected`, `&:hover.active`, `&[data-open].active`, `.active&` or
@@ -194,7 +196,7 @@ fn skip_trivia(css: &str, mut index: usize, end: usize) -> usize {
     while let Some(character) = css[index..end].chars().next() {
         index = if css[index..end].starts_with("/*") {
             skipped_end(css, index, end)
-        } else if character.is_whitespace() {
+        } else if is_css_whitespace(character) {
             index + character.len_utf8()
         } else {
             return index;
@@ -398,7 +400,7 @@ fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
             index = skipped_end(css, index, end);
             continue;
         }
-        if character.is_whitespace() || matches!(character, '>' | '+' | '~') {
+        if is_css_whitespace(character) || matches!(character, '>' | '+' | '~') {
             if let Some(range_start) = compound_start.take() {
                 ranges.push((range_start, index));
             }
@@ -427,11 +429,11 @@ fn nth_selector_start(css: &str, start: usize, end: usize) -> Option<usize> {
             && css
                 .get(index..index + 2)
                 .is_some_and(|word| word.eq_ignore_ascii_case("of"))
-            && css[index + 2..end].starts_with(char::is_whitespace)
+            && css[index + 2..end].starts_with(is_css_whitespace)
         {
             return Some(index + 2);
         }
-        after_whitespace = character.is_whitespace();
+        after_whitespace = is_css_whitespace(character);
         index = match character {
             '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
             _ => index + character.len_utf8(),
@@ -478,6 +480,16 @@ mod tests {
         assert_eq!(
             rewrite_cx_selectors(".v1-Box { &:is(.active", &mappings),
             ".v1-Box { &:is(.active",
+        );
+    }
+
+    // A non-breaking space is part of the class name, not a descendant combinator
+    #[test]
+    fn keeps_non_breaking_spaces_in_class_names() {
+        let mappings = [("a\u{a0}b".to_owned(), "v1-ab".to_owned(), true)];
+        assert_eq!(
+            rewrite_cx_selectors(".v1-Box { &.a\u{a0}b { color: red; } }", &mappings),
+            ".v1-Box { &.v1-ab { color: red; } }",
         );
     }
 }
