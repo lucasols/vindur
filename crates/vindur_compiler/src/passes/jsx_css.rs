@@ -13,7 +13,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     jsx_cx::CxElementTransform,
-    scoped::process_scoped_variables,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
@@ -33,7 +33,7 @@ pub(crate) struct JsxCssTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub needs_merge_helper: &'a mut bool,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
+    pub scoped_variables: &'a mut ScopedVariables,
 }
 
 pub(crate) fn transform_jsx_css_props(
@@ -95,7 +95,7 @@ impl JsxCssVisitor<'_> {
             let Some(scoped_name) = name.strip_prefix("---") else {
                 continue;
             };
-            let Some(generated) = self.output.scoped_variables.get(scoped_name) else {
+            let Some(generated) = self.output.scoped_variables.generated.get(scoped_name) else {
                 continue;
             };
             self.output.edits.push(Edit {

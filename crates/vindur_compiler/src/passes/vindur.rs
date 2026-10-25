@@ -26,7 +26,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
-    scoped::{declared_scoped_variable_names, process_scoped_variables},
+    scoped::{ScopedVariables, declared_scoped_variable_names, process_scoped_variables},
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
@@ -82,7 +82,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
-    let mut scoped_variables = FxHashMap::default();
+    let mut scoped_variables = ScopedVariables::default();
     let mut scoped_declaration_spans = FxHashMap::default();
     let mut warnings = Vec::new();
     let exported_names = collect_exported_names(program);
@@ -446,7 +446,6 @@ pub(crate) fn transform_program(
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variable_warnings(
-        &css,
         &scoped_variables,
         &scoped_declaration_spans,
         file_path,
@@ -505,16 +504,15 @@ fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
 }
 
 fn scoped_variable_warnings(
-    css: &str,
-    variables: &FxHashMap<String, String>,
+    variables: &ScopedVariables,
     declaration_spans: &FxHashMap<String, oxc_span::Span>,
     file_path: &str,
     source: &str,
 ) -> Vec<CompilerDiagnostic> {
     let mut warnings = Vec::new();
-    for (name, generated) in variables {
-        let declared = css.contains(&format!("--{generated}:"));
-        let used = css.contains(&format!("var(--{generated}"));
+    for name in variables.generated.keys() {
+        let declared = variables.declared.contains(name);
+        let used = variables.read.contains(name);
         if declared && !used {
             warnings.push(CompilerDiagnostic::warning(
                 file_path,

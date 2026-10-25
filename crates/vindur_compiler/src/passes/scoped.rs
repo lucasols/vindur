@@ -1,6 +1,7 @@
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::css_syntax::{BlockKind, CssError, scoped_idents};
+use super::css_syntax::{BlockKind, CssError};
+use super::scoped_idents::scoped_idents;
 
 const SCOPED_PREFIX_LEN: usize = "---".len();
 
@@ -15,28 +16,44 @@ pub(crate) fn declared_scoped_variable_names(
         .collect())
 }
 
+/// The scoped variables of a file and how its CSS uses them, keyed by name without `---`
+#[derive(Default)]
+pub(crate) struct ScopedVariables {
+    pub generated: FxHashMap<String, String>,
+    pub declared: FxHashSet<String>,
+    pub read: FxHashSet<String>,
+}
+
 pub(crate) fn process_scoped_variables(
     css: &str,
     kind: BlockKind,
     file_hash: &str,
     dev: bool,
     id_index: &mut u32,
-    variables: &mut FxHashMap<String, String>,
+    variables: &mut ScopedVariables,
 ) -> Result<String, CssError> {
     let mut output = String::with_capacity(css.len());
     let mut cursor = 0usize;
     for ident in scoped_idents(css, kind)? {
         output.push_str(&css[cursor..ident.start]);
         let name = &css[ident.start + SCOPED_PREFIX_LEN..ident.end];
-        let generated = variables.entry(name.to_owned()).or_insert_with(|| {
-            let index = *id_index;
-            *id_index += 1;
-            if dev {
-                format!("{file_hash}-{index}-{name}")
-            } else {
-                format!("{file_hash}-{index}")
-            }
-        });
+        if ident.is_declaration {
+            variables.declared.insert(name.to_owned());
+        } else {
+            variables.read.insert(name.to_owned());
+        }
+        let generated = variables
+            .generated
+            .entry(name.to_owned())
+            .or_insert_with(|| {
+                let index = *id_index;
+                *id_index += 1;
+                if dev {
+                    format!("{file_hash}-{index}-{name}")
+                } else {
+                    format!("{file_hash}-{index}")
+                }
+            });
         output.push_str("--");
         output.push_str(generated);
         cursor = ident.end;
@@ -47,9 +64,7 @@ pub(crate) fn process_scoped_variables(
 
 #[cfg(test)]
 mod tests {
-    use rustc_hash::FxHashMap;
-
-    use super::{declared_scoped_variable_names, process_scoped_variables};
+    use super::{ScopedVariables, declared_scoped_variable_names, process_scoped_variables};
     use crate::passes::css_syntax::BlockKind;
 
     fn process(css: &str) -> String {
@@ -58,7 +73,7 @@ mod tests {
 
     fn process_kind(css: &str, kind: BlockKind) -> String {
         let mut id_index = 1;
-        let mut variables = FxHashMap::default();
+        let mut variables = ScopedVariables::default();
         match process_scoped_variables(css, kind, "v1", true, &mut id_index, &mut variables) {
             Ok(output) => output,
             Err(error) => panic!("{}", error.message),
@@ -123,7 +138,7 @@ mod tests {
 
     #[test]
     fn rejects_scoped_variables_in_unsupported_preludes() {
-        let mut variables = FxHashMap::default();
+        let mut variables = ScopedVariables::default();
         match process_scoped_variables(
             "@media (width > 1px) and (---x) { color: red; }",
             BlockKind::Style,
@@ -149,5 +164,26 @@ mod tests {
             ),
             "entry 0% { --v1-1-o: 0; opacity: var(--v1-1-o); } to { opacity: 1; }"
         );
+    }
+
+    #[test]
+    fn tracks_declarations_and_reads() {
+        let mut variables = ScopedVariables::default();
+        if let Err(error) = process_scoped_variables(
+            "---a : red; color: var( ---b ); @container style(---c: dark) { ---d: 1; }",
+            BlockKind::Style,
+            "v1",
+            true,
+            &mut 1,
+            &mut variables,
+        ) {
+            panic!("{}", error.message);
+        }
+        let mut declared = variables.declared.into_iter().collect::<Vec<_>>();
+        let mut read = variables.read.into_iter().collect::<Vec<_>>();
+        declared.sort();
+        read.sort();
+        assert_eq!(declared, ["a", "d"]);
+        assert_eq!(read, ["b", "c"]);
     }
 }

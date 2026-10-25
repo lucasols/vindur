@@ -4,6 +4,7 @@ use oxc_css_parser::{
 };
 
 use super::css_syntax::{BlockKind, CssError, parse_style_block};
+use super::unsupported_css_syntax::skipped_token_end;
 
 pub(crate) fn clean_css(css: &str) -> String {
     let trimmed = css.trim();
@@ -151,31 +152,26 @@ pub(crate) fn reject_misplaced_layers(
     ))
 }
 
-/// Collapses repeated `;` separators, text inside strings is kept as is
+/// Collapses repeated `;` separators, comments, strings and urls are kept as is
 fn collapse_double_semicolons(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut previous_was_semicolon = false;
-    let mut quote = None;
-    let mut escaped = false;
-    for character in css.chars() {
-        if let Some(open_quote) = quote {
-            if escaped {
-                escaped = false;
-            } else if character == '\\' {
-                escaped = true;
-            } else if character == open_quote {
-                quote = None;
-            }
-        } else if character == ';' {
+    let mut index = 0;
+    while let Some(character) = css[index..].chars().next() {
+        if let Some(end) = skipped_token_end(css, index) {
+            output.push_str(&css[index..end]);
+            previous_was_semicolon = false;
+            index = end;
+            continue;
+        }
+        index += character.len_utf8();
+        if character == ';' {
             if previous_was_semicolon {
                 continue;
             }
             previous_was_semicolon = true;
         } else if !character.is_whitespace() {
             previous_was_semicolon = false;
-            if matches!(character, '"' | '\'') {
-                quote = Some(character);
-            }
         }
         output.push(character);
     }
@@ -255,6 +251,10 @@ mod tests {
         assert_eq!(
             clean_css("; color: red;; content: \";;\";; quotes: '\\';;';;"),
             "color: red; content: \";;\"; quotes: '\\';;';"
+        );
+        assert_eq!(
+            clean_css("/* don't */ margin: 0;; padding: 0;;"),
+            "/* don't */ margin: 0; padding: 0;"
         );
     }
 

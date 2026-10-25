@@ -52,7 +52,7 @@ pub(crate) fn evaluate_template(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Result<String, CompilerDiagnostic> {
-    let build = |forced_extension| {
+    let build = |forced_extensions: &[usize]| {
         build_template_css(
             template,
             constants,
@@ -60,10 +60,10 @@ pub(crate) fn evaluate_template(
             file_path,
             source,
             context,
-            forced_extension,
+            forced_extensions,
         )
     };
-    let evaluated = build(None)?;
+    let evaluated = build(&[])?;
     if let Some(diagnostic) = unsupported_syntax_error(
         &evaluated.css,
         &evaluated.segments,
@@ -74,14 +74,12 @@ pub(crate) fn evaluate_template(
     ) {
         return Err(diagnostic);
     }
-    validate_template_css(&evaluated, template, file_path, source, context, |index| {
-        build(Some(index))
-    })?;
+    validate_template_css(&evaluated, template, file_path, source, context, build)?;
     Ok(evaluated.css)
 }
 
-/// `forced_extension` evaluates the CSS class interpolation at that index as a style extension,
-/// as if it was followed by `;`
+/// `forced_extensions` evaluates the CSS class interpolations at those indices as style
+/// extensions, as if they were followed by `;`
 fn build_template_css(
     template: &TemplateLiteral<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -89,7 +87,7 @@ fn build_template_css(
     file_path: &str,
     source: &str,
     context: &TemplateContext<'_>,
-    forced_extension: Option<usize>,
+    forced_extensions: &[usize],
 ) -> Result<EvaluatedTemplate, CompilerDiagnostic> {
     let mut evaluated = EvaluatedTemplate::default();
     let mut previous_was_css_extension = false;
@@ -212,7 +210,7 @@ fn build_template_css(
                 .trim_start()
                 .starts_with(';')
         });
-        let forced_semicolon = !has_semicolon && forced_extension == Some(index);
+        let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
         let followed_by_semicolon = has_semicolon || forced_semicolon;
         if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
             evaluated.selector_classes.push(index);

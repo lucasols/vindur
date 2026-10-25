@@ -502,6 +502,35 @@ describe('scoped CSS variables', () => {
     `);
   });
 
+  test('should not warn about declarations and reads the CSS parser understands', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---gap : 4px;
+          ---theme: dark;
+          padding: var( ---gap );
+
+          @container style(---theme: dark) {
+            color: white;
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
+      "
+    `);
+  });
+
   test('should handle complex variable names', async () => {
     const warnings: TransformWarning[] = [];
     const result = await transformWithFormat({

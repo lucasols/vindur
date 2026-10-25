@@ -720,6 +720,31 @@ describe('corner cases', () => {
     `);
   });
 
+  test('should throw for a selector missing its block', () => {
+    const source = dedent`
+      import { css } from 'vindur'
+
+      const style = css\`
+        &:hover
+        color: red;
+      \`
+    `;
+
+    expect(() =>
+      transform({
+        source,
+        fileAbsPath: '/src/invalid.ts',
+        fs: emptyFs,
+        transformFunctionCache: {},
+        transformDynamicColorCache: {},
+        importAliases,
+      }),
+    ).toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /src/invalid.ts: Invalid CSS at \`... style = css\`: \`&\` is not a valid property name, selectors need a \`{ ... }\` block
+      loc: 4:2]
+    `);
+  });
+
   test('should handle very long css content', () => {
     const longStyles = Array(100).fill('margin: 1px;').join('\n  ');
     const source = dedent`

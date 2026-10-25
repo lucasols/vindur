@@ -9,7 +9,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::Vindur
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    scoped::process_scoped_variables,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
     styled::styled_tag_element,
 };
@@ -26,7 +26,7 @@ pub(crate) struct DirectTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub id_index: &'a mut u32,
     pub dev: bool,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
+    pub scoped_variables: &'a mut ScopedVariables,
 }
 
 pub(crate) fn transform_direct_tags(

@@ -13,6 +13,7 @@ mod interpolation_validation;
 mod jsx_css;
 mod jsx_cx;
 mod scoped;
+mod scoped_idents;
 mod source_map;
 mod stable;
 mod static_evaluation;

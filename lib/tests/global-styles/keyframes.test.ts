@@ -410,8 +410,8 @@ describe('keyframes corner cases', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: expect token \`<eof>\`, but found \`}\`
-      loc: 3:22]
+      [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`}\`
+      loc: 4:23]
     `);
   });
 });

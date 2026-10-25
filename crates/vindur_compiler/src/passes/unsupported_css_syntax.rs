@@ -227,7 +227,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
 }
 
 // Comments, strings, escapes and unquoted urls can't contain unsupported syntax
-fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
+pub(super) fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
     let rest = &css[index..];
     if let Some(comment) = rest.strip_prefix("/*") {
         return Some(
@@ -392,7 +392,7 @@ fn at_rule_name(rest: &str) -> Option<(&str, String)> {
     Some((at_rule, unprefixed))
 }
 
-fn is_ident_char(character: char) -> bool {
+pub(super) fn is_ident_char(character: char) -> bool {
     character.is_ascii_alphanumeric()
         || character == '-'
         || character == '_'

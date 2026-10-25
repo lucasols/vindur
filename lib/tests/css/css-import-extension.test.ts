@@ -749,3 +749,54 @@ test('should point to the first missing semicolon when several CSS extensions mi
     loc: 11:4]
   `);
 });
+
+test('should point to the first of consecutive CSS extensions missing a semicolon', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const ellipsis = css\`
+          overflow: hidden;
+        \`
+
+        const flex = css\`
+          display: flex;
+        \`
+
+        const Card = styled.div\`
+          \${ellipsis}
+          \${flex}
+          width: 1px;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.
+    loc: 12:4]
+  `);
+});
+
+test('should not report a missing semicolon for CSS selectors when the error is at the end of the template', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const ellipsis = css\`
+          overflow: hidden;
+        \`
+
+        const Card = styled.div\`
+          .x \${ellipsis} {
+            color: red;
+          }
+          foo
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... Card = styled\`: expect token \`:\`, but found \`<eof>\`
+    loc: 12:0]
+  `);
+});

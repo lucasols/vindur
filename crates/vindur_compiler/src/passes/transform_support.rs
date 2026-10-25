@@ -13,7 +13,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
-    scoped::process_scoped_variables,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
     styled::{
@@ -42,7 +42,7 @@ pub(super) struct VariableTransform<'a> {
     pub is_exported: bool,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
+    pub scoped_variables: &'a mut ScopedVariables,
     pub scoped_declaration_spans: &'a mut FxHashMap<String, oxc_span::Span>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
