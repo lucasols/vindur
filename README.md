@@ -1459,10 +1459,6 @@ Compiles to:
 }
 ```
 
-## Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
-
 ## License
 
 MIT

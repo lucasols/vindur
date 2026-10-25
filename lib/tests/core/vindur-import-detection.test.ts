@@ -110,3 +110,50 @@ test('should error on aliased vindur imports in imported modules', async () => {
     loc: 1:9]
   `);
 });
+
+test('should only treat vindurFn from vindur as a vindur function', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { helper } from '#/helpers';
+
+      export const label = helper('a');
+    `,
+    overrideDefaultFs: createFsMock({
+      'helpers.ts': dedent`
+        import { vindurFn } from '#/legacy';
+
+        export const helper = vindurFn((value: string) => value);
+      `,
+      'legacy.ts': dedent`
+        export const vindurFn = <T,>(fn: T) => fn;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { helper } from "#/helpers";
+    export const label = helper("a");
+    "
+  `);
+});
+
+test('should allow aliased vindur type imports', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, type StyledComponent as Styled } from 'vindur';
+
+      export const box = css\`
+        color: red;
+      \`;
+
+      export type Box = Styled;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { type StyledComponent as Styled } from "vindur";
+    export const box = "v1560qbr-1-box";
+    export type Box = Styled;
+    "
+  `);
+});

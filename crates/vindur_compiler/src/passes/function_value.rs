@@ -5,15 +5,19 @@ use crate::facts::{
     CompiledFunction, FunctionExpression, FunctionObjectExpressionProperty, FunctionObjectProperty,
     FunctionOperator, FunctionParameter, StaticValue,
 };
+use crate::semantic::VindurImports;
 
-pub(super) fn compile_vindur_function(expression: &Expression<'_>) -> Option<StaticValue> {
+pub(super) fn compile_vindur_function(
+    expression: &Expression<'_>,
+    imports: &VindurImports<'_>,
+) -> Option<StaticValue> {
     let Expression::CallExpression(call) = expression else {
         return None;
     };
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    if callee.name.as_str() != "vindurFn" {
+    if !imports.matches_import_or_global(callee, "vindurFn") {
         return None;
     }
     let [Argument::ArrowFunctionExpression(function)] = call.arguments.as_slice() else {

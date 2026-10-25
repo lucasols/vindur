@@ -155,3 +155,20 @@ test('should error when a vindurFn is called at runtime in the module that decla
     loc: /test.tsx|5:30]
   `);
 });
+
+test('should error when a vindurFn is passed through the css prop of a custom component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { transition } from '#/transition';
+        import { Card } from '#/card';
+
+        export const A = () => <Card css={transition('opacity')} />;
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    loc: /test.tsx|4:34]
+  `);
+});

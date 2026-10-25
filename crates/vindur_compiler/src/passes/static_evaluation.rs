@@ -14,7 +14,7 @@ use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use oxc_syntax::reference::ReferenceId;
 use rustc_hash::FxHashMap;
 
-use crate::facts::StaticValue;
+use crate::{facts::StaticValue, semantic::VindurImports};
 
 use super::css::layer_marker;
 use super::css_syntax::is_layer_name;
@@ -27,6 +27,7 @@ pub(super) fn collect_declaration_constants(
     declaration: &VariableDeclaration<'_>,
     constants: &mut FxHashMap<String, StaticValue>,
     scoping: &Scoping,
+    imports: &VindurImports<'_>,
 ) {
     if declaration.kind != VariableDeclarationKind::Const {
         return;
@@ -39,7 +40,7 @@ pub(super) fn collect_declaration_constants(
         let Some(initializer) = &declarator.init else {
             continue;
         };
-        if let Some(value) = compile_vindur_function(initializer)
+        if let Some(value) = compile_vindur_function(initializer, imports)
             .or_else(|| evaluate_expression(initializer, constants, scoping))
         {
             constants.insert(identifier.name.to_string(), value);

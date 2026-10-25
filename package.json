@@ -29,7 +29,6 @@
     "publish:vite-plugin": "pkg-manager publish @vindur-css/vite-plugin",
     "publish:eslint-plugin": "pkg-manager publish @vindur-css/eslint-plugin",
     "generate-spec": "node scripts/generate-spec-index.ts",
-    "sync-ai": "node scripts/sync-ai.ts",
     "run-app-test": "pnpm build-all && pnpm --filter vindur-test-app dev",
     "app-test:build": "pnpm --filter vindur-test-app run build",
     "clean-empty-folders": "node scripts/remove-empty-folders.ts"

@@ -148,6 +148,26 @@ describe('Exported styled components', () => {
     `);
   });
 
+  test('should pass custom components by reference to _vSC', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Link } from 'react-router'
+
+        export const NavLink = styled(Link)\`
+          color: blue;
+        \`
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import { Link } from "react-router";
+      export const NavLink = _vSC(Link, "v1560qbr-1-NavLink");
+      "
+    `);
+  });
+
   test('should handle named exports', async () => {
     const result = await transformWithFormat({
       source: dedent`

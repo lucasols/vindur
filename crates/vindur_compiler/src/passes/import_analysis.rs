@@ -135,7 +135,9 @@ pub(super) fn collect_vindur_imports(
                 specifier_count += 1;
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
-                    if imported.as_str() != named.local.name.as_str() {
+                    let is_type_import =
+                        declaration.import_kind.is_type() || named.import_kind.is_type();
+                    if !is_type_import && imported.as_str() != named.local.name.as_str() {
                         return Err(CompilerDiagnostic::error(
                             file_path,
                             source,

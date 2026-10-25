@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
     ExportDefaultDeclaration, ExportDefaultDeclarationKind, ExportNamedDeclaration, Expression,
-    IdentifierReference, JSXAttribute, JSXAttributeName, Program, TSTypeQuery,
-    TaggedTemplateExpression,
+    IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression, Program,
+    TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -75,9 +75,16 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
         }
     }
 
-    // The css prop template is compiled away like vindur templates
+    // css prop templates are compiled away like vindur templates, other css prop values are
+    // passed through to custom components at runtime
     fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
-        if !matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css") {
+        let is_css_prop_template = matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
+            && matches!(
+                &attribute.value,
+                Some(JSXAttributeValue::ExpressionContainer(container))
+                    if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+            );
+        if !is_css_prop_template {
             walk::walk_jsx_attribute(self, attribute);
         }
     }

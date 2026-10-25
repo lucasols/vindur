@@ -3,7 +3,7 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, facts::StaticValue};
+use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
@@ -26,18 +26,19 @@ pub(crate) struct TemplateContext<'a> {
 pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
+    imports: &VindurImports<'_>,
 ) -> FxHashMap<String, StaticValue> {
     let mut constants = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
-                collect_declaration_constants(declaration, &mut constants, scoping);
+                collect_declaration_constants(declaration, &mut constants, scoping, imports);
             }
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    collect_declaration_constants(declaration, &mut constants, scoping);
+                    collect_declaration_constants(declaration, &mut constants, scoping, imports);
                 }
             }
             _ => {}

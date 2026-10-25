@@ -1,7 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
 import { transform } from '../../src/transform';
-import { createFsMock } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 const importAliases = { '#/': '/' };
 
@@ -564,4 +564,36 @@ describe('function compilation errors', () => {
       );
     });
   });
+});
+
+test('should error on vindurFn declared with let', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export let transition = vindurFn((property: string) => \`transition: \${property};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:11]
+  `);
+});
+
+test('should error on vindurFn declared with a function expression', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const transition = vindurFn(function (property: string) {
+          return \`transition: \${property};\`;
+        });
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:13]
+  `);
 });

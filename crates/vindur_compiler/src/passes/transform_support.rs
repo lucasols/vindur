@@ -1,4 +1,7 @@
-use oxc_ast::ast::{BindingPattern, Expression, Program, VariableDeclaration};
+use oxc_ast::ast::{
+    BindingIdentifier, BindingPattern, Expression, Program, VariableDeclaration,
+    VariableDeclarationKind,
+};
 use oxc_semantic::Scoping;
 use rustc_hash::FxHashMap;
 
@@ -13,6 +16,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
+    function_value::compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
@@ -21,7 +25,7 @@ use super::{
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::{parse_theme_colors, static_color_fallbacks},
-    with_component::{process_with_component, style_flags_runtime_call},
+    with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
 
 pub(super) struct VariableTransform<'a> {
@@ -58,37 +62,8 @@ pub(super) fn process_variable_declaration(
             && transform
                 .imports
                 .matches_import_or_global(callee, "vindurFn")
-            && let Some(error) =
-                validate_vindur_function(identifier.name.as_str(), initializer, transform.source)
         {
-            let span = if error.message.starts_with("vindurFn must be called") {
-                identifier.span
-            } else {
-                error.span
-            };
-            return Err(CompilerDiagnostic::error(
-                transform.file_path,
-                transform.source,
-                span,
-                error.message,
-            ));
-        }
-        if !transform.is_exported
-            && let Some(Expression::CallExpression(call)) = &declarator.init
-            && let Expression::Identifier(callee) = &call.callee
-            && transform
-                .imports
-                .matches_import_or_global(callee, "vindurFn")
-        {
-            return Err(CompilerDiagnostic::error(
-                transform.file_path,
-                transform.source,
-                identifier.span,
-                format!(
-                    "vindurFn \"{}\" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.",
-                    identifier.name
-                ),
-            ));
+            validate_vindur_function_declaration(declaration, identifier, initializer, transform)?;
         }
         if let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
@@ -301,8 +276,11 @@ pub(super) fn process_variable_declaration(
                 let replacement = if style_flags.is_empty() {
                     *transform.needs_styled_helper = true;
                     format!(
-                        "_vSC(\"{}\", \"{complete_class_name}\"{attrs_argument})",
-                        base_component.element,
+                        "_vSC({}, \"{complete_class_name}\"{attrs_argument})",
+                        runtime_element_source(
+                            &base_component.element,
+                            base_component.element_is_identifier
+                        ),
                     )
                 } else {
                     *transform.needs_style_flags_helper = true;
@@ -455,6 +433,54 @@ pub(super) fn process_variable_declaration(
             span: tagged.span,
             replacement: format!("\"{generated_name}\""),
         });
+    }
+    Ok(())
+}
+
+fn validate_vindur_function_declaration(
+    declaration: &VariableDeclaration<'_>,
+    identifier: &BindingIdentifier<'_>,
+    initializer: &Expression<'_>,
+    transform: &VariableTransform<'_>,
+) -> Result<(), CompilerDiagnostic> {
+    let error = |span, message| {
+        Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            span,
+            message,
+        ))
+    };
+    if let Some(validation) =
+        validate_vindur_function(identifier.name.as_str(), initializer, transform.source)
+    {
+        let span = if validation.message.starts_with("vindurFn must be called") {
+            identifier.span
+        } else {
+            validation.span
+        };
+        return error(span, validation.message);
+    }
+    if !transform.is_exported {
+        return error(
+            identifier.span,
+            format!(
+                "vindurFn \"{}\" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.",
+                identifier.name
+            ),
+        );
+    }
+    // Only const arrow function declarations are compiled, other forms can't be used
+    if declaration.kind != VariableDeclarationKind::Const
+        || compile_vindur_function(initializer, transform.imports).is_none()
+    {
+        return error(
+            identifier.span,
+            format!(
+                "vindurFn \"{}\" is not supported, vindur functions must be declared with \"export const {} = vindurFn((...) => ...)\"",
+                identifier.name, identifier.name
+            ),
+        );
     }
     Ok(())
 }
