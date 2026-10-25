@@ -102,6 +102,12 @@ impl JsxCssVisitor<'_> {
                 span: property.key.span(),
                 replacement: format!("\"--{generated}\""),
             });
+            // Setting the variable in the style prop declares it
+            self.output
+                .scoped_variables
+                .declared
+                .entry(scoped_name.to_owned())
+                .or_insert(property.key.span());
             transformed = true;
         }
         if transformed {
@@ -203,6 +209,7 @@ impl JsxCssVisitor<'_> {
                 let rules = match process_scoped_variables(
                     &content,
                     BlockKind::Style,
+                    template.span,
                     self.output.file_hash,
                     self.output.dev,
                     self.output.id_index,

@@ -497,7 +497,7 @@ describe('scoped CSS variables', () => {
       "
       - TransformWarning#:
           message: "Scoped variable '---theme-color' is used but never declared"
-          loc: '/test.tsx:1:0'
+          loc: '/test.tsx:3:6'
       "
     `);
   });
@@ -518,6 +518,70 @@ describe('scoped CSS variables', () => {
             color: white;
           }
         \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
+      "
+    `);
+  });
+
+  test('should not count scoped names as declarations or reads', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, styled } from 'vindur';
+
+        createGlobalStyle\`
+          @property ---angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+          }
+        \`;
+
+        const Card = styled.div\`
+          container-name: ---card;
+          ---unread: 1px;
+          transition-property: ---unread;
+
+          @container ---card (min-width: 1px) {
+            color: red;
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "Scoped variable '---unread' is declared but never read"
+          loc: '/test.tsx:11:6'
+      "
+    `);
+  });
+
+  test('should not warn about variables declared through the style prop', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          width: var(---width);
+        \`;
+
+        const App = () => <Card style={{ '---width': '1px' }} />;
       `,
       onWarning: (warning) => {
         warnings.push(warning);

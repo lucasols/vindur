@@ -622,7 +622,7 @@ describe('warning system - onWarning callback functionality', () => {
         "
         - messageId: 'transformWarning'
           msg: "Scoped variable '---theme-color' is used but never declared"
-          loc: '1:1'
+          loc: '3:7'
         "
       `);
     });

@@ -21,9 +21,7 @@ use super::{
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::{parse_theme_colors, static_color_fallbacks},
-    with_component::{
-        process_with_component, record_scoped_declarations, style_flags_runtime_call,
-    },
+    with_component::{process_with_component, style_flags_runtime_call},
 };
 
 pub(super) struct VariableTransform<'a> {
@@ -43,7 +41,6 @@ pub(super) struct VariableTransform<'a> {
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
-    pub scoped_declaration_spans: &'a mut FxHashMap<String, oxc_span::Span>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
 
@@ -199,18 +196,10 @@ pub(super) fn process_variable_declaration(
             } else {
                 static_color_fallbacks(&content)
             };
-            record_scoped_declarations(
-                &content,
-                BlockKind::Style,
-                identifier.span,
-                transform.scoped_declaration_spans,
-            )
-            .map_err(|error| {
-                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
-            })?;
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
+                identifier.span,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
@@ -370,18 +359,10 @@ pub(super) fn process_variable_declaration(
                 },
             )?;
             let content = clean_css(&content);
-            record_scoped_declarations(
-                &content,
-                BlockKind::Global,
-                identifier.span,
-                transform.scoped_declaration_spans,
-            )
-            .map_err(|error| {
-                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
-            })?;
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Global,
+                identifier.span,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
@@ -429,18 +410,10 @@ pub(super) fn process_variable_declaration(
         } else {
             static_color_fallbacks(&content)
         };
-        record_scoped_declarations(
-            &content,
-            BlockKind::from_tag_type(tag_name),
-            identifier.span,
-            transform.scoped_declaration_spans,
-        )
-        .map_err(|error| {
-            css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
-        })?;
         let content = process_scoped_variables(
             &content,
             BlockKind::from_tag_type(tag_name),
+            identifier.span,
             transform.file_hash,
             transform.dev,
             transform.id_index,

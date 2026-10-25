@@ -132,9 +132,7 @@ pub(crate) fn reject_misplaced_layers(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let Some((start, _)) = css
-        .match_indices(LAYER_MARKER_PREFIX)
-        .find(|(start, _)| !top_level_layers.contains(start))
+    let Some(start) = layer_marker_starts(css).find(|start| !top_level_layers.contains(start))
     else {
         return Ok(());
     };
@@ -150,6 +148,26 @@ pub(crate) fn reject_misplaced_layers(
         start,
         start + LAYER_MARKER_PREFIX.len(),
     ))
+}
+
+/// The positions of the layer markers, text inside comments, strings and urls is ignored
+fn layer_marker_starts(css: &str) -> impl Iterator<Item = usize> + '_ {
+    let mut index = 0;
+    std::iter::from_fn(move || {
+        while let Some(character) = css[index..].chars().next() {
+            let start = index;
+            if let Some(end) = skipped_token_end(css, index) {
+                index = end;
+                continue;
+            }
+            if css[index..].starts_with(LAYER_MARKER_PREFIX) {
+                index += LAYER_MARKER_PREFIX.len();
+                return Some(start);
+            }
+            index += character.len_utf8();
+        }
+        None
+    })
 }
 
 /// Collapses repeated `;` separators, comments, strings and urls are kept as is
@@ -262,6 +280,17 @@ mod tests {
     fn rejects_unbalanced_layer_blocks() {
         let css = format!("{} {{ color: red; }} }}", layer_marker("theme"));
         assert!(generate_class_rules("button", &css).is_err());
+    }
+
+    #[test]
+    fn ignores_layer_markers_in_strings_and_comments() {
+        assert_eq!(
+            rules("content: \"__VINDUR_LAYER_START__\"; /* __VINDUR_LAYER_START__ */"),
+            vec![
+                ".button {\n  content: \"__VINDUR_LAYER_START__\"; /* __VINDUR_LAYER_START__ */\n}"
+                    .to_owned()
+            ]
+        );
     }
 
     #[test]

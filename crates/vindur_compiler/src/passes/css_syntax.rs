@@ -1,8 +1,9 @@
 use crate::CompilerDiagnostic;
 use oxc_css_parser::{
     Allocator, ParserBuilder, ParserOptions, Syntax,
-    ast::{AtRule, InterpolableIdent, Statement, Stylesheet},
+    ast::{AtRule, ComponentValue, Declaration, InterpolableIdent, Statement, Stylesheet},
     error::Error,
+    token::TokenData,
 };
 
 use super::css::reject_misplaced_layers;
@@ -80,7 +81,7 @@ pub(crate) fn parse_style_block<'a>(
     css: &'a str,
 ) -> Result<Stylesheet<'a>, CssError> {
     let stylesheet = parse_source(allocator, css)?;
-    validate_statements(&stylesheet.statements)?;
+    validate_statements(&stylesheet.statements, css)?;
     Ok(stylesheet)
 }
 
@@ -119,38 +120,51 @@ pub(super) fn with_style_block<T>(
     parse_source(&allocator, source)
         .map_err(|error| {
             if kind == BlockKind::Keyframes {
-                keyframes_closed_early_error(css, error)
+                keyframes_error(css, error)
             } else {
                 error
             }
         })
         .and_then(|stylesheet| {
             let statements = block_statements(&stylesheet.statements, kind, source.len())?;
-            validate_statements(statements)?;
+            validate_statements(statements, source)?;
+            validate_block_kind(statements, kind)?;
             visit(statements, source, offset)
         })
         .map_err(|error| error.shifted(offset, css.len()))
 }
 
-/// A `}` closing the keyframes wrapper early makes the parser fail at the wrapper's own `}`,
-/// parsing without it finds the `}` that closed the wrapper
-fn keyframes_closed_early_error(css: &str, error: CssError) -> CssError {
+/// Errors at the keyframes wrapper are caused by the CSS, parsing without the wrapper's `}` finds
+/// the block the CSS left unclosed, or the `}` that closed the wrapper early
+fn keyframes_error(css: &str, error: CssError) -> CssError {
     let unclosed = format!("{KEYFRAMES_WRAPPER_START}{css}");
-    if error.start < unclosed.len() {
+    let at_wrapper_start = error.start < KEYFRAMES_WRAPPER_START.len();
+    if !at_wrapper_start && error.start < unclosed.len() {
         return error;
     }
     let allocator = Allocator::default();
-    let Ok(stylesheet) = parse_source(&allocator, &unclosed) else {
-        return error;
-    };
-    match stylesheet.statements.first() {
-        Some(Statement::AtRule(AtRule {
-            block: Some(block), ..
-        })) => CssError::syntax(
-            "unexpected `}`".to_owned(),
-            block.span.end.saturating_sub(1),
-            block.span.end,
-        ),
+    match parse_source(&allocator, &unclosed) {
+        Err(unclosed_error) if at_wrapper_start => {
+            if unclosed_error.start >= KEYFRAMES_WRAPPER_START.len() {
+                unclosed_error
+            } else {
+                CssError {
+                    start: unclosed.len(),
+                    end: unclosed.len(),
+                    ..error
+                }
+            }
+        }
+        Ok(stylesheet) if !at_wrapper_start => match stylesheet.statements.first() {
+            Some(Statement::AtRule(AtRule {
+                block: Some(block), ..
+            })) => CssError::syntax(
+                "unexpected `}`".to_owned(),
+                block.span.end.saturating_sub(1),
+                block.span.end,
+            ),
+            _ => error,
+        },
         _ => error,
     }
 }
@@ -195,23 +209,10 @@ pub(crate) fn validate_style_block(css: &str, kind: BlockKind) -> Result<(), Css
 
 /// The CSS dialect also accepts postcss-only syntax like `$var: value;`, `*zoom: 1` or rules
 /// without a selector, reject them
-fn validate_statements(statements: &[Statement<'_>]) -> Result<(), CssError> {
+fn validate_statements(statements: &[Statement<'_>], source: &str) -> Result<(), CssError> {
     for statement in statements {
         match statement {
-            Statement::Declaration(declaration) => {
-                if let InterpolableIdent::Literal(name) = &declaration.name
-                    && !is_property_name(name.raw)
-                {
-                    return Err(CssError::syntax(
-                        format!(
-                            "`{}` is not a valid property name, selectors need a `{{ ... }}` block",
-                            name.raw
-                        ),
-                        name.span.start,
-                        name.span.end,
-                    ));
-                }
-            }
+            Statement::Declaration(declaration) => validate_declaration(declaration, source)?,
             Statement::QualifiedRule(rule) => {
                 if rule.selector.selectors.is_empty() {
                     return Err(CssError::syntax(
@@ -220,15 +221,17 @@ fn validate_statements(statements: &[Statement<'_>]) -> Result<(), CssError> {
                         rule.block.span.start + 1,
                     ));
                 }
-                validate_statements(&rule.block.statements)?;
+                validate_statements(&rule.block.statements, source)?;
             }
             Statement::UnknownQualifiedRule(rule) => {
-                validate_statements(&rule.block.statements)?;
+                validate_statements(&rule.block.statements, source)?;
             }
-            Statement::KeyframeBlock(block) => validate_statements(&block.block.statements)?,
+            Statement::KeyframeBlock(block) => {
+                validate_statements(&block.block.statements, source)?;
+            }
             Statement::AtRule(rule) => {
                 if let Some(block) = &rule.block {
-                    validate_statements(&block.statements)?;
+                    validate_statements(&block.statements, source)?;
                 }
             }
             Statement::PostcssSimpleVarDeclaration(declaration) => {
@@ -248,6 +251,88 @@ fn validate_statements(statements: &[Statement<'_>]) -> Result<(), CssError> {
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(), CssError> {
+    let InterpolableIdent::Literal(name) = &declaration.name else {
+        return Ok(());
+    };
+    if !is_property_name(name.raw) {
+        return Err(CssError::syntax(
+            format!(
+                "`{}` is not a valid property name, selectors need a `{{ ... }}` block",
+                name.raw
+            ),
+            name.span.start,
+            name.span.end,
+        ));
+    }
+    if name.raw.starts_with("--") {
+        return Ok(());
+    }
+    // `color: red\n width: 1px;` is parsed as a single `color` declaration
+    let next_property = declaration.value.windows(2).find_map(|pair| match pair {
+        [
+            ComponentValue::TokenWithSpan(ident),
+            ComponentValue::TokenWithSpan(colon),
+        ] if matches!(ident.token, TokenData::Ident(_))
+            && matches!(colon.token, TokenData::Colon(_)) =>
+        {
+            Some(ident)
+        }
+        _ => None,
+    });
+    match next_property {
+        Some(ident) => Err(CssError::syntax(
+            format!("missing `;` before `{}`", ident.raw(source)),
+            ident.span.start,
+            ident.span.end,
+        )),
+        None => Ok(()),
+    }
+}
+
+/// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
+/// blocks of declarations
+fn validate_block_kind(statements: &[Statement<'_>], kind: BlockKind) -> Result<(), CssError> {
+    for statement in statements {
+        let message = match (kind, statement) {
+            (BlockKind::Style, _)
+            | (
+                BlockKind::Global,
+                Statement::AtRule(_)
+                | Statement::QualifiedRule(_)
+                | Statement::UnknownQualifiedRule(_),
+            ) => continue,
+            (BlockKind::Global, _) => {
+                "declarations in createGlobalStyle need a rule, e.g. `body { ... }`"
+            }
+            (BlockKind::Keyframes, Statement::KeyframeBlock(block)) => {
+                match block
+                    .block
+                    .statements
+                    .iter()
+                    .find(|statement| !matches!(statement, Statement::Declaration(_)))
+                {
+                    Some(nested) => {
+                        let span = statement_span(nested);
+                        return Err(CssError::syntax(
+                            "keyframes can only contain declarations".to_owned(),
+                            span.start,
+                            span.end,
+                        ));
+                    }
+                    None => continue,
+                }
+            }
+            (BlockKind::Keyframes, _) => {
+                "keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
+            }
+        };
+        let span = statement_span(statement);
+        return Err(CssError::syntax(message.to_owned(), span.start, span.end));
     }
     Ok(())
 }
@@ -351,6 +436,77 @@ mod tests {
                 "Invalid CSS: `&` is not a valid property name, selectors need a `{ ... }` block at 12..13",
                 "Invalid CSS: expected a selector before `{` at 0..1",
                 "Invalid CSS: `*zoom` is not a valid property name, selectors need a `{ ... }` block at 0..5",
+            ]
+        );
+    }
+
+    fn kind_error(css: &str, kind: BlockKind) -> String {
+        match validate_style_block(css, kind) {
+            Ok(()) => "ok".to_owned(),
+            Err(error) => format!("{} at {}..{}", error.message, error.start, error.end),
+        }
+    }
+
+    #[test]
+    fn rejects_missing_semicolons_between_declarations() {
+        assert_eq!(
+            [
+                error("color: red\n  width: 1px;"),
+                error("filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);"),
+                error("--x: a: b;"),
+                error("grid-template-areas: \"a:b\";"),
+            ],
+            [
+                "Invalid CSS: missing `;` before `width` at 13..18",
+                "ok",
+                "ok",
+                "ok",
+            ]
+        );
+    }
+
+    #[test]
+    fn validates_global_and_keyframes_structure() {
+        assert_eq!(
+            [
+                kind_error("color: red;", BlockKind::Global),
+                kind_error(
+                    "& { color: red; } @media (width > 1px) { body { color: red; } }",
+                    BlockKind::Global
+                ),
+                kind_error("opacity: 0;", BlockKind::Keyframes),
+                kind_error("from { &:hover { color: red; } }", BlockKind::Keyframes),
+                kind_error(
+                    "entry 0% { opacity: 0; } to { opacity: 1; }",
+                    BlockKind::Keyframes
+                ),
+            ],
+            [
+                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 0..10",
+                "ok",
+                "Invalid CSS: keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
+                "Invalid CSS: keyframes can only contain declarations at 7..30",
+                "ok",
+            ]
+        );
+    }
+
+    #[test]
+    fn locates_unclosed_keyframe_blocks() {
+        assert_eq!(
+            [
+                kind_error(
+                    "\n from { opacity: 0 }\n to { opacity: 1\n",
+                    BlockKind::Keyframes
+                ),
+                kind_error(
+                    "from { opacity: 0 } } to { opacity: 1 }",
+                    BlockKind::Keyframes
+                ),
+            ],
+            [
+                "Invalid CSS: unclosed block before end of file at 26..27",
+                "Invalid CSS: unexpected `}` at 20..21",
             ]
         );
     }

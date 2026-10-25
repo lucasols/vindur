@@ -97,6 +97,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
         let rules = process_scoped_variables(
             &content,
             BlockKind::from_tag_type(tag_name),
+            tagged.span,
             self.output.file_hash,
             self.output.dev,
             self.output.id_index,

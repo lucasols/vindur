@@ -1,32 +1,25 @@
-use rustc_hash::{FxHashMap, FxHashSet};
+use oxc_span::Span;
+use rustc_hash::FxHashMap;
 
 use super::css_syntax::{BlockKind, CssError};
-use super::scoped_idents::scoped_idents;
+use super::scoped_idents::{ScopedRole, scoped_idents};
 
 const SCOPED_PREFIX_LEN: usize = "---".len();
 
-pub(crate) fn declared_scoped_variable_names(
-    css: &str,
-    kind: BlockKind,
-) -> Result<Vec<String>, CssError> {
-    Ok(scoped_idents(css, kind)?
-        .into_iter()
-        .filter(|ident| ident.is_declaration)
-        .map(|ident| css[ident.start + SCOPED_PREFIX_LEN..ident.end].to_owned())
-        .collect())
-}
-
-/// The scoped variables of a file and how its CSS uses them, keyed by name without `---`
+/// The scoped variables of a file and how its CSS uses them, keyed by name without `---`. The
+/// declared and read maps hold the location of the first style that declares or reads the variable
 #[derive(Default)]
 pub(crate) struct ScopedVariables {
     pub generated: FxHashMap<String, String>,
-    pub declared: FxHashSet<String>,
-    pub read: FxHashSet<String>,
+    pub declared: FxHashMap<String, Span>,
+    pub read: FxHashMap<String, Span>,
 }
 
+/// Rewrites the scoped variables of a style block, `span` is the source location of the style
 pub(crate) fn process_scoped_variables(
     css: &str,
     kind: BlockKind,
+    span: Span,
     file_hash: &str,
     dev: bool,
     id_index: &mut u32,
@@ -37,10 +30,14 @@ pub(crate) fn process_scoped_variables(
     for ident in scoped_idents(css, kind)? {
         output.push_str(&css[cursor..ident.start]);
         let name = &css[ident.start + SCOPED_PREFIX_LEN..ident.end];
-        if ident.is_declaration {
-            variables.declared.insert(name.to_owned());
-        } else {
-            variables.read.insert(name.to_owned());
+        match ident.role {
+            ScopedRole::Declaration => {
+                variables.declared.entry(name.to_owned()).or_insert(span);
+            }
+            ScopedRole::Read => {
+                variables.read.entry(name.to_owned()).or_insert(span);
+            }
+            ScopedRole::Name => {}
         }
         let generated = variables
             .generated
@@ -64,7 +61,9 @@ pub(crate) fn process_scoped_variables(
 
 #[cfg(test)]
 mod tests {
-    use super::{ScopedVariables, declared_scoped_variable_names, process_scoped_variables};
+    use oxc_span::Span;
+
+    use super::{ScopedVariables, process_scoped_variables};
     use crate::passes::css_syntax::BlockKind;
 
     fn process(css: &str) -> String {
@@ -74,7 +73,15 @@ mod tests {
     fn process_kind(css: &str, kind: BlockKind) -> String {
         let mut id_index = 1;
         let mut variables = ScopedVariables::default();
-        match process_scoped_variables(css, kind, "v1", true, &mut id_index, &mut variables) {
+        match process_scoped_variables(
+            css,
+            kind,
+            Span::default(),
+            "v1",
+            true,
+            &mut id_index,
+            &mut variables,
+        ) {
             Ok(output) => output,
             Err(error) => panic!("{}", error.message),
         }
@@ -107,18 +114,6 @@ mod tests {
     }
 
     #[test]
-    fn only_counts_declarations_as_declared() {
-        let names = match declared_scoped_variable_names(
-            "/* ---commented: red; */\ncontent: \"---text: x\";\n---color: red;\ncolor: var(---other);\n@container style(---queried: 1) { color: red; }",
-            BlockKind::Style,
-        ) {
-            Ok(names) => names,
-            Err(error) => panic!("{}", error.message),
-        };
-        assert_eq!(names, vec!["color".to_owned()]);
-    }
-
-    #[test]
     fn rewrites_container_and_supports_conditions() {
         assert_eq!(
             process(
@@ -142,6 +137,7 @@ mod tests {
         match process_scoped_variables(
             "@media (width > 1px) and (---x) { color: red; }",
             BlockKind::Style,
+            Span::default(),
             "v1",
             true,
             &mut 1,
@@ -166,12 +162,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn tracks_declarations_and_reads() {
+    fn declared_and_read(css: &str) -> (Vec<String>, Vec<String>) {
         let mut variables = ScopedVariables::default();
         if let Err(error) = process_scoped_variables(
-            "---a : red; color: var( ---b ); @container style(---c: dark) { ---d: 1; }",
+            css,
             BlockKind::Style,
+            Span::default(),
             "v1",
             true,
             &mut 1,
@@ -179,8 +175,52 @@ mod tests {
         ) {
             panic!("{}", error.message);
         }
-        let mut declared = variables.declared.into_iter().collect::<Vec<_>>();
-        let mut read = variables.read.into_iter().collect::<Vec<_>>();
+        let mut declared = variables.declared.into_keys().collect::<Vec<_>>();
+        let mut read = variables.read.into_keys().collect::<Vec<_>>();
+        declared.sort();
+        read.sort();
+        (declared, read)
+    }
+
+    #[test]
+    fn only_counts_declarations_and_var_reads() {
+        assert_eq!(
+            declared_and_read(
+                "/* ---commented: red; */\ncontent: \"---text: x\";\n---color: red;\ncolor: var(---other, ---fallback);\n@container style(---queried: 1) { color: red; }"
+            ),
+            (
+                vec!["color".to_owned()],
+                vec!["other".to_owned(), "queried".to_owned()]
+            )
+        );
+    }
+
+    #[test]
+    fn ignores_dashed_ident_names() {
+        assert_eq!(
+            declared_and_read(
+                "container-name: ---card; anchor-name: ---trigger; top: anchor(---trigger bottom); transition-property: ---x; @container ---card (min-width: 1px) { color: red; } @property ---a { syntax: '<color>'; inherits: false; initial-value: red; } @supports (---s: 1px) { color: red; }"
+            ),
+            (Vec::new(), Vec::new())
+        );
+    }
+
+    #[test]
+    fn tracks_declarations_and_reads() {
+        let mut variables = ScopedVariables::default();
+        if let Err(error) = process_scoped_variables(
+            "---a : red; color: var( ---b ); @container style(---c: dark) { ---d: 1; }",
+            BlockKind::Style,
+            Span::default(),
+            "v1",
+            true,
+            &mut 1,
+            &mut variables,
+        ) {
+            panic!("{}", error.message);
+        }
+        let mut declared = variables.declared.into_keys().collect::<Vec<_>>();
+        let mut read = variables.read.into_keys().collect::<Vec<_>>();
         declared.sort();
         read.sort();
         assert_eq!(declared, ["a", "d"]);

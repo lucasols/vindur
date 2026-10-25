@@ -1,7 +1,7 @@
 use oxc_css_parser::{
     ast::{
         AtRule, AtRulePrelude, ComponentValue, ContainerCondition, ContainerConditionKind,
-        Declaration, ImportPrelude, ImportPreludeSupportsKind, InterpolableIdent,
+        Declaration, FunctionName, ImportPrelude, ImportPreludeSupportsKind, InterpolableIdent,
         QueryInParensKind, SimpleBlock, Statement, StyleCondition, StyleConditionKind,
         StyleInParensKind, StyleQuery, SupportsCondition, SupportsConditionKind,
         SupportsInParensKind,
@@ -12,11 +12,22 @@ use oxc_css_parser::{
 use super::css_syntax::{BlockKind, CssError, with_style_block};
 use super::unsupported_css_syntax::{is_ident_char, skipped_token_end};
 
+/// How a scoped variable identifier is used
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ScopedRole {
+    /// The name of a declaration, `---name: value`
+    Declaration,
+    /// A read of the variable value, `var(---name)` or a container style query
+    Read,
+    /// Any other dashed identifier, like `@property ---name` or `container-name: ---name`
+    Name,
+}
+
 /// An identifier starting with `---` (a Vindur scoped CSS variable)
 pub(crate) struct ScopedIdent {
     pub start: usize,
     pub end: usize,
-    pub is_declaration: bool,
+    pub role: ScopedRole,
 }
 
 const SCOPED_PREFIX: &str = "---";
@@ -52,7 +63,9 @@ impl ScopedIdentCollector<'_> {
     fn statements(&mut self, statements: &[Statement<'_>]) -> Result<(), CssError> {
         for statement in statements {
             match statement {
-                Statement::Declaration(declaration) => self.declaration(declaration, true),
+                Statement::Declaration(declaration) => {
+                    self.declaration(declaration, ScopedRole::Declaration);
+                }
                 Statement::QualifiedRule(rule) => self.block(&rule.block)?,
                 Statement::UnknownQualifiedRule(rule) => self.block(&rule.block)?,
                 Statement::KeyframeBlock(block) => self.block(&block.block)?,
@@ -69,10 +82,10 @@ impl ScopedIdentCollector<'_> {
 
     fn at_rule(&mut self, rule: &AtRule<'_>) -> Result<(), CssError> {
         match &rule.prelude {
-            Some(AtRulePrelude::Property(ident)) => self.ident(ident),
+            Some(AtRulePrelude::Property(ident)) => self.ident(ident, ScopedRole::Name),
             Some(AtRulePrelude::Container(prelude)) => {
                 if let Some(name) = &prelude.name {
-                    self.ident(name);
+                    self.ident(name, ScopedRole::Name);
                 }
                 if let Some(condition) = &prelude.condition {
                     self.container_condition(rule, condition)?;
@@ -109,9 +122,11 @@ impl ScopedIdentCollector<'_> {
                     self.style_condition(condition);
                 }
                 QueryInParensKind::StyleQuery(StyleQuery::Feature(declaration)) => {
-                    self.declaration(declaration, false);
+                    self.declaration(declaration, ScopedRole::Read);
                 }
-                QueryInParensKind::StyleQuery(StyleQuery::FeatureName(ident)) => self.ident(ident),
+                QueryInParensKind::StyleQuery(StyleQuery::FeatureName(ident)) => {
+                    self.ident(ident, ScopedRole::Read);
+                }
                 _ => self.reject_scoped(rule, query.span)?,
             }
         }
@@ -128,7 +143,9 @@ impl ScopedIdentCollector<'_> {
             };
             match &style.kind {
                 StyleInParensKind::Condition(condition) => self.style_condition(condition),
-                StyleInParensKind::Feature(declaration) => self.declaration(declaration, false),
+                StyleInParensKind::Feature(declaration) => {
+                    self.declaration(declaration, ScopedRole::Read);
+                }
             }
         }
     }
@@ -149,7 +166,9 @@ impl ScopedIdentCollector<'_> {
                 SupportsInParensKind::SupportsCondition(condition) => {
                     self.supports_condition(rule, condition)?;
                 }
-                SupportsInParensKind::Feature(feature) => self.declaration(&feature.decl, false),
+                SupportsInParensKind::Feature(feature) => {
+                    self.declaration(&feature.decl, ScopedRole::Name);
+                }
                 _ => self.reject_scoped(rule, supports.span)?,
             }
         }
@@ -165,7 +184,7 @@ impl ScopedIdentCollector<'_> {
                 self.supports_condition(rule, condition)?;
             }
             Some(ImportPreludeSupportsKind::Declaration(declaration)) => {
-                self.declaration(declaration, false);
+                self.declaration(declaration, ScopedRole::Name);
             }
             None => {}
         }
@@ -193,42 +212,49 @@ impl ScopedIdentCollector<'_> {
         Ok(())
     }
 
-    fn declaration(&mut self, declaration: &Declaration<'_>, is_declaration: bool) {
+    fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         if let InterpolableIdent::Literal(name) = &declaration.name {
-            self.push(name.span.start, name.span.end, name.raw, is_declaration);
+            self.push(name.span.start, name.span.end, name.raw, role);
         }
         self.values(&declaration.value);
     }
 
-    fn ident(&mut self, ident: &InterpolableIdent<'_>) {
+    fn ident(&mut self, ident: &InterpolableIdent<'_>, role: ScopedRole) {
         if let InterpolableIdent::Literal(ident) = ident {
-            self.push(ident.span.start, ident.span.end, ident.raw, false);
+            self.push(ident.span.start, ident.span.end, ident.raw, role);
         }
     }
 
     fn values(&mut self, values: &[ComponentValue<'_>]) {
         for value in values {
-            self.value(value);
+            self.value(value, ScopedRole::Name);
         }
     }
 
-    fn value(&mut self, value: &ComponentValue<'_>) {
+    /// Identifiers in values are names, except the variable a `var()` reads
+    fn value(&mut self, value: &ComponentValue<'_>, role: ScopedRole) {
         match value {
-            ComponentValue::InterpolableIdent(ident) => self.ident(ident),
-            ComponentValue::Function(function) => self.values(&function.args),
+            ComponentValue::InterpolableIdent(ident) => self.ident(ident, role),
+            ComponentValue::Function(function) => match function.args.split_first() {
+                Some((variable, fallback)) if is_var_function(&function.name) => {
+                    self.value(variable, ScopedRole::Read);
+                    self.values(fallback);
+                }
+                _ => self.values(&function.args),
+            },
             ComponentValue::BracketBlock(block) => self.values(&block.value),
             ComponentValue::Calc(calc) => {
-                self.value(&calc.left);
-                self.value(&calc.right);
+                self.value(&calc.left, ScopedRole::Name);
+                self.value(&calc.right, ScopedRole::Name);
             }
-            ComponentValue::CalcParenthesized(calc) => self.value(&calc.expr),
+            ComponentValue::CalcParenthesized(calc) => self.value(&calc.expr, ScopedRole::Name),
             ComponentValue::TokenWithSpan(token) => {
                 if matches!(token.token, TokenData::Ident(_)) {
                     self.push(
                         token.span.start,
                         token.span.end,
                         token.raw(self.source),
-                        false,
+                        role,
                     );
                 }
             }
@@ -236,15 +262,22 @@ impl ScopedIdentCollector<'_> {
         }
     }
 
-    fn push(&mut self, start: usize, end: usize, raw: &str, is_declaration: bool) {
+    fn push(&mut self, start: usize, end: usize, raw: &str, role: ScopedRole) {
         if raw.len() > SCOPED_PREFIX.len() && raw.starts_with(SCOPED_PREFIX) {
             self.idents.push(ScopedIdent {
                 start: start - self.offset,
                 end: end - self.offset,
-                is_declaration,
+                role,
             });
         }
     }
+}
+
+fn is_var_function(name: &FunctionName<'_>) -> bool {
+    matches!(
+        name,
+        FunctionName::Ident(InterpolableIdent::Literal(ident)) if ident.name.eq_ignore_ascii_case("var")
+    )
 }
 
 /// Whether the text has an identifier starting with `---`, comments, strings and urls are ignored
