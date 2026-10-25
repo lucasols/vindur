@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use oxc_span::Span;
 
-use super::css_tokens::{is_ident_char, skipped_token_end};
+use super::css_tokens::{decode_ident, ident_end, is_ident_char, skipped_token_end};
 use crate::CompilerDiagnostic;
 
 const GLOBAL_SELECTOR: &str = ":global";
@@ -187,6 +187,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
     let mut paren_depth = 0_usize;
     let mut index = 0;
     while index < bytes.len() {
+        // A statement can start with an escape, like the custom property `\2d -x: value`
+        if bytes[index] == b'\\' && prelude_start.is_none() {
+            prelude_start = Some(index);
+        }
         if let Some(end) = skipped_token_end(css, index) {
             index = end;
             continue;
@@ -287,9 +291,13 @@ fn starts_rule_block(css: &str, start: usize) -> bool {
 }
 
 // Custom property values can contain any tokens, including braces, e.g.
-// `--tokens: :global { a: b };`
+// `--tokens: :global { a: b };`. The name can be escaped, like `\2d -tokens`
 fn is_custom_property_value(css: &str, prelude_start: Option<usize>) -> bool {
-    prelude_start.is_some_and(|start| css[start..].starts_with("--"))
+    prelude_start.is_some_and(|start| {
+        css[start..].starts_with("--")
+            || (css[start..].starts_with('\\')
+                && decode_ident(&css[start..ident_end(css, start)]).starts_with("--"))
+    })
 }
 
 // Braces in custom property values are part of the value, so the whole
@@ -418,6 +426,7 @@ mod tests {
         assert!(find_unsupported_syntax("--tokens: :global { color:red };", "css").is_none());
         assert!(find_unsupported_syntax("--tokens: { :global { color:red; } };", "css").is_none());
         assert!(find_unsupported_syntax("--x: { @keyframes y {} };", "css").is_none());
+        assert!(find_unsupported_syntax("\\2d -tokens: :global { a: b };", "css").is_none());
         let css = "--x: { a: b }; :global(.a) & {}";
         assert_eq!(
             find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),

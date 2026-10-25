@@ -59,7 +59,7 @@ test('should explain that `//` comments are not supported', async () => {
   `);
 });
 
-test('should point to the interpolation when its value has invalid CSS', async () => {
+test('should point to the value missing `;` before an interpolated extension', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -76,8 +76,8 @@ test('should point to the interpolation when its value has invalid CSS', async (
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` before \`color\` (found in the interpolated value)
-    loc: 9:4]
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` after \`1px\`
+    loc: 8:9]
   `);
 });
 
@@ -115,8 +115,8 @@ test('should locate invalid CSS in a named createGlobalStyle rule', async () => 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... GlobalStyle = createGlobalStyle\`: missing \`;\` before \`width\`
-    loc: 6:4]
+    [TransformError: /test.tsx: Invalid CSS at \`... GlobalStyle = createGlobalStyle\`: missing \`;\` after \`red\`
+    loc: 5:11]
   `);
 });
 
@@ -135,8 +135,8 @@ test('should locate invalid CSS in a css prop', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`css\`: missing \`;\` before \`width\`
-    loc: 5:6]
+    [TransformError: /test.tsx: Invalid CSS at \`css\`: missing \`;\` after \`red\`
+    loc: 4:13]
   `);
 });
 
@@ -179,8 +179,8 @@ test('should locate invalid CSS in a css tag that is not assigned', async () => 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`css\`: missing \`;\` before \`width\`
-    loc: 5:2]
+    [TransformError: /test.tsx: Invalid CSS at \`css\`: missing \`;\` after \`red\`
+    loc: 4:9]
   `);
 });
 
@@ -197,8 +197,8 @@ test('should locate invalid CSS in a default exported styled component', async (
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`styled\`: missing \`;\` before \`width\`
-    loc: 5:2]
+    [TransformError: /test.tsx: Invalid CSS at \`styled\`: missing \`;\` after \`red\`
+    loc: 4:9]
   `);
 });
 
@@ -216,7 +216,7 @@ test('should locate invalid CSS from an interpolated static value', async () => 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` before \`width\` (found in the interpolated value)
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` after \`red\` (found in the interpolated value)
     loc: 6:11]
   `);
 });

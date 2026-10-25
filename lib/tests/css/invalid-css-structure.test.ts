@@ -15,8 +15,8 @@ test('should throw for a missing `;` between declarations', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` before \`width\`
-    loc: 5:2]
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` after \`red\`
+    loc: 4:9]
   `);
 });
 

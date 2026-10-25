@@ -178,11 +178,18 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
-            };
+            // An extension keeps the flags of its base, its own flags win on the same prop
+            let style_flags = base_component
+                .style_flags
+                .iter()
+                .filter(|base| {
+                    !own_style_flags
+                        .iter()
+                        .any(|own| own.prop_name == base.prop_name)
+                })
+                .cloned()
+                .chain(own_style_flags.iter().cloned())
+                .collect::<Vec<_>>();
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -198,7 +205,8 @@ pub(super) fn process_variable_declaration(
             let content = clean_css(&content);
             if transform.dev {
                 transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &style_flags)
+                    // The base styles its own flags, an extension only needs the flags it declares
+                    missing_style_flag_selectors(&content, &own_style_flags)
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(

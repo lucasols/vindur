@@ -393,3 +393,88 @@ test('should throw for string union style flag values that are not class name pa
     loc: 3:31]
   `);
 });
+
+test('should keep base style flags when an extension declares its own', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Base = styled.div<{ active: boolean }>\`
+        &.active {
+          color: blue;
+        }
+      \`
+
+      const Ext = styled(Base)<{ big: boolean }>\`
+        &.active {
+          width: 1px;
+        }
+        &.big {
+          height: 1px;
+        }
+      \`
+
+      const App = () => <Ext active big />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const App = () => (
+      <div
+        className={"v1560qbr-1-Base v1560qbr-2-Ext voctcyj-active v1x4k6wd-big"}
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Base {
+      &.voctcyj-active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2-Ext {
+      &.voctcyj-active {
+        width: 1px;
+      }
+      &.v1x4k6wd-big {
+        height: 1px;
+      }
+    }
+    "
+  `);
+});
+
+test('should only rewrite style flag classes in selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Button = styled.div<{ active: boolean }>\`
+        background: url('/icons/button.active.svg');
+        &::before {
+          content: '.active';
+        }
+        &.active {
+          color: blue;
+        }
+      \`
+
+      const App = () => <Button active />
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      background: url("/icons/button.active.svg");
+      &::before {
+        content: ".active";
+      }
+      &.voctcyj-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});

@@ -62,6 +62,8 @@ fn string_end(css: &str, start: usize) -> usize {
     let mut index = start + 1;
     while index < bytes.len() {
         match bytes[index] {
+            // An escaped newline continues the string, `\r\n` is a single newline
+            b'\\' if css[index + 1..].starts_with("\r\n") => index += 3,
             b'\\' => index += 2,
             b'\n' => return index,
             byte if byte == quote => return index + 1,
@@ -71,7 +73,7 @@ fn string_end(css: &str, start: usize) -> usize {
     bytes.len()
 }
 
-pub(super) fn is_url_function(css: &str, index: usize) -> bool {
+fn is_url_function(css: &str, index: usize) -> bool {
     css.get(index..index + 4)
         .is_some_and(|name| name.eq_ignore_ascii_case("url("))
         && !css[..index].chars().next_back().is_some_and(is_ident_char)
@@ -94,6 +96,33 @@ fn url_end(css: &str, start: usize) -> usize {
         }
     }
     css.len()
+}
+
+/// The identifier with its escapes decoded, `\66 oo` and `f\o o` are `foo` and `fo o`
+pub(super) fn decode_ident(raw: &str) -> String {
+    let mut decoded = String::with_capacity(raw.len());
+    let mut index = 0;
+    while let Some(character) = raw[index..].chars().next() {
+        if character != '\\' {
+            decoded.push(character);
+            index += character.len_utf8();
+            continue;
+        }
+        let end = escape_end(raw, index);
+        let escaped = &raw[index + 1..end];
+        let hex = escaped.trim_end_matches(is_css_whitespace);
+        if !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            let character = u32::from_str_radix(hex, 16)
+                .ok()
+                .and_then(char::from_u32)
+                .filter(|character| *character != '\0');
+            decoded.push(character.unwrap_or(char::REPLACEMENT_CHARACTER));
+        } else {
+            decoded.push_str(escaped);
+        }
+        index = end;
+    }
+    decoded
 }
 
 pub(super) fn is_ident_char(character: char) -> bool {

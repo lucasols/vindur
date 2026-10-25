@@ -3,6 +3,8 @@ import { expect, test } from 'vitest';
 import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
+const styleKeyRegex = /"--[^"]*": w/;
+
 // Not formatted, Prettier can't parse escaped custom property names
 test('should accept escapes in unquoted urls and custom property names', () => {
   const result = transform({
@@ -144,5 +146,74 @@ test('should locate errors spanning lines in CRLF files', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` before a nested rule, \`color: red &:hover\` is not a valid selector
     loc: 4:2]
+  `);
+});
+
+// Not formatted, Prettier can't parse escaped custom property names
+test('should set escaped scoped names in the style prop by their decoded name', () => {
+  const result = transform({
+    fileAbsPath: '/test.tsx',
+    fs: createFsMock({}),
+    transformFunctionCache: {},
+    transformDynamicColorCache: {},
+    importAliases: { '#/': '/' },
+    dev: true,
+    source: dedent`
+      const App = ({ w }) => (
+        <div css={\`---f\\6f o: 1px; width: var(---f\\6f o);\`} style={{ '---f\\6f o': w }} />
+      )
+    `,
+  });
+
+  // The style key is a valid JS string with the decoded name the CSS declares
+  expect(result.code.match(styleKeyRegex)?.[0]).toMatchInlineSnapshot(
+    `""--v1560qbr-2-foo": w"`,
+  );
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-css-prop-1 {
+      --v1560qbr-2-f\\6f o: 1px; width: var(--v1560qbr-2-f\\6f o);
+    }"
+  `);
+});
+
+test('should explain unquoted urls with invalid characters', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const icon = 'https://x.com/a(1).png'
+
+        const style = css\`
+          background: url(\${icon});
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: unquoted \`url()\` can't contain spaces, quotes or \`(\`, quote the url (found in the interpolated value)
+    loc: 6:20]
+  `);
+});
+
+test('should reject styled components used as style extensions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Base = styled.div\`
+          color: red;
+        \`
+
+        const Button = styled.button\`
+          \${Base};
+          width: 1px;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`\${Base}\` is a class selector and can't be followed by \`;\`, use \`styled(Component)\` to extend a styled component's styles
+    loc: 8:4]
   `);
 });

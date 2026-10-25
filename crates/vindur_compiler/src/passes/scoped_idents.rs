@@ -2,7 +2,7 @@ use oxc_css_parser::{
     ast::{
         AtRule, AtRulePrelude, ComponentValue, ContainerCondition, ContainerConditionKind,
         Declaration, FunctionName, ImportPrelude, ImportPreludeSupportsKind, InterpolableIdent,
-        KeyframesName, QueryInParensKind, SimpleBlock, Statement, StyleCondition,
+        InterpolableStr, KeyframesName, QueryInParensKind, SimpleBlock, Statement, StyleCondition,
         StyleConditionKind, StyleInParensKind, StyleQuery, SupportsCondition,
         SupportsConditionKind, SupportsInParensKind,
     },
@@ -93,6 +93,16 @@ impl ScopedIdentCollector<'_> {
                 | AtRulePrelude::CounterStyle(ident)
                 | AtRulePrelude::Keyframes(KeyframesName::Ident(ident)),
             ) => self.ident(ident, ScopedRole::Name),
+            // A quoted name is the same name, `@keyframes "---spin"` is used as `---spin`
+            Some(AtRulePrelude::Keyframes(KeyframesName::Str(InterpolableStr::Literal(name)))) => {
+                let quote_len = 1;
+                let content_start = name.span.start + quote_len;
+                let content_end = name.span.end.saturating_sub(quote_len).max(content_start);
+                let content = &self.source[content_start..content_end];
+                if content.starts_with(SCOPED_PREFIX) && ident_end(content, 0) == content.len() {
+                    self.push(content_start, content_end, content, ScopedRole::Name);
+                }
+            }
             Some(AtRulePrelude::Container(prelude)) => {
                 if let Some(name) = &prelude.name {
                     self.ident(name, ScopedRole::Name);
@@ -271,9 +281,13 @@ impl ScopedIdentCollector<'_> {
         match value {
             ComponentValue::InterpolableIdent(ident) => self.ident(ident, role),
             ComponentValue::Function(function) => match function.args.split_first() {
-                Some((variable, fallback)) if is_var_function(&function.name) => {
+                // `style(---name: value)` in `if()` reads the variable, like a container style query
+                Some((variable, rest))
+                    if is_function_named(&function.name, "var")
+                        || is_function_named(&function.name, "style") =>
+                {
                     self.value(variable, ScopedRole::Read);
-                    self.values(fallback);
+                    self.values(rest);
                 }
                 _ => self.values(&function.args),
             },
@@ -308,10 +322,10 @@ impl ScopedIdentCollector<'_> {
     }
 }
 
-fn is_var_function(name: &FunctionName<'_>) -> bool {
+fn is_function_named(name: &FunctionName<'_>, expected: &str) -> bool {
     matches!(
         name,
-        FunctionName::Ident(InterpolableIdent::Literal(ident)) if ident.name.eq_ignore_ascii_case("var")
+        FunctionName::Ident(InterpolableIdent::Literal(ident)) if ident.name.eq_ignore_ascii_case(expected)
     )
 }
 

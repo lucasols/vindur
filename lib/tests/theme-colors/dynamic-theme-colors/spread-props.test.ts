@@ -306,6 +306,69 @@ describe('Dynamic Colors - Spread Props', () => {
       "
     `);
   });
+
+  test('should keep edits inside props after dynamicColor', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, stableId, styled } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Button = styled.button\`
+          color: red;
+        \`
+
+        const App = (props) => (
+          <Button {...props} dynamicColor={color.set('#fff')} id={stableId()} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1", true);
+      const App = (props) => (
+        <button
+          {...props}
+          id={"v1560qbr-3"}
+          {...color._sp("#fff", {
+            className: mergeClassNames([props], "v1560qbr-2-Button"),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
+
+  test('should accept a null className before spreads', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const App = (props) => (
+          <div className={null} {...props} dynamicColor={color.set('#fff')} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1", true);
+      const App = (props) => (
+        <div
+          {...props}
+          {...color._sp("#fff", {
+            className: mergeClassNames([null, props], undefined),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
 });
 
 test('should merge className before spread props with dynamic colors', async () => {

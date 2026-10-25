@@ -195,7 +195,29 @@ fn build_template_css(
             ));
         }
         let expression_start = evaluated.css.len();
-        if let Some(reference) = forward_styled_reference(expression) {
+        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
+            starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
+        });
+        let forward_reference = forward_styled_reference(expression);
+        if has_semicolon
+            && (forward_reference.is_some()
+                || matches!(
+                    evaluate_expression(expression, constants, scoping),
+                    Some(StaticValue::ClassName(_))
+                ))
+        {
+            let expression_source =
+                &source[expression.span().start as usize..expression.span().end as usize];
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                expression.span(),
+                format!(
+                    "`${{{expression_source}}}` is a class selector and can't be followed by `;`, use `styled(Component)` to extend a styled component's styles"
+                ),
+            ));
+        }
+        if let Some(reference) = forward_reference {
             evaluated.css.push_str(&styled_ref_placeholder(reference));
             evaluated.map_expression(expression_start, expression.span());
             continue;
@@ -222,9 +244,6 @@ fn build_template_css(
         {
             return Err(interpolation_error(expression, file_path, source, context));
         }
-        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
-            starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
-        });
         let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
         let followed_by_semicolon = has_semicolon || forced_semicolon;
         if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {

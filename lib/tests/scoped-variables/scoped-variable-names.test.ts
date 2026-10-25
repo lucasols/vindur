@@ -65,3 +65,36 @@ test('should not reuse scoped variable indices across nested css props', async (
     "
   `);
 });
+
+test('should rename quoted keyframes names like their uses', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @keyframes "---spin" {
+          to {
+            rotate: 1turn;
+          }
+        }
+
+        .spinner {
+          animation: ---spin 1s;
+        }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@keyframes "--v1560qbr-2-spin" {
+      to {
+        rotate: 1turn;
+      }
+    }
+
+    .spinner {
+      animation: --v1560qbr-2-spin 1s;
+    }
+    "
+  `);
+});

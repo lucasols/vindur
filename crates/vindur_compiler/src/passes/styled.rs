@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
-use super::css_tokens::is_ident_char;
+use super::css_tokens::{is_ident_char, skipped_token_end};
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -453,27 +453,20 @@ fn continues_class_name(css: &str, index: usize) -> bool {
 }
 
 fn contains_class_selector(css: &str, name: &str) -> bool {
-    let needle = format!(".{name}");
-    css.match_indices(&needle)
-        .any(|(index, _)| !continues_class_name(css, index + needle.len()))
+    !class_selector_starts(css, name).is_empty()
 }
 
 pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
-    let needle = format!(".{original}");
+    let needle_len = original.len() + 1;
     let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(index) = rest.find(&needle) {
-        let end = index + needle.len();
-        if continues_class_name(rest, end) {
-            output.push_str(&rest[..end]);
-        } else {
-            output.push_str(&rest[..index]);
-            output.push('.');
-            output.push_str(replacement);
-        }
-        rest = &rest[end..];
+    let mut copied = 0;
+    for start in class_selector_starts(css, original) {
+        output.push_str(&css[copied..start]);
+        output.push('.');
+        output.push_str(replacement);
+        copied = start + needle_len;
     }
-    output.push_str(rest);
+    output.push_str(&css[copied..]);
     output
 }
 
@@ -525,4 +518,25 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
             walk::walk_call_expression(self, call);
         }
     }
+}
+
+/// Where `.name` selects the class, strings, urls and comments are skipped, so
+/// `url("a.name.svg")` is left alone
+fn class_selector_starts(css: &str, name: &str) -> Vec<usize> {
+    let needle = format!(".{name}");
+    let mut starts = Vec::new();
+    let mut index = 0;
+    while index < css.len() {
+        if let Some(end) = skipped_token_end(css, index) {
+            index = end;
+            continue;
+        }
+        if css[index..].starts_with(&needle) && !continues_class_name(css, index + needle.len()) {
+            starts.push(index);
+            index += needle.len();
+            continue;
+        }
+        index += css[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    starts
 }

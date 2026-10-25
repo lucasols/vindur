@@ -267,6 +267,25 @@ font-palette: ---brand;"
     }
 
     #[test]
+    fn rewrites_quoted_keyframes_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes \"---spin\" { to { opacity: 0; } } .a { animation: ---spin 1s; content: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@keyframes \"--v1-1-spin\" { to { opacity: 0; } } .a { animation: --v1-1-spin 1s; content: \"---spin\"; }"
+        );
+    }
+
+    #[test]
+    fn counts_style_queries_in_if_as_reads() {
+        assert_eq!(
+            declared_and_read("---a: 1; color: if(style(---a: 1): red; else: blue);"),
+            (vec!["a".to_owned()], vec!["a".to_owned()])
+        );
+    }
+
+    #[test]
     fn uses_one_name_for_the_same_escaped_spelling() {
         assert_eq!(
             process(

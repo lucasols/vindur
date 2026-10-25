@@ -99,24 +99,42 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
     if name.name.starts_with("--") {
         return Ok(());
     }
-    let next_property = declaration.value.windows(2).find_map(|pair| match pair {
+    let next_property = declaration.value.windows(2).position(|pair| match pair {
         [
             ComponentValue::TokenWithSpan(ident),
             ComponentValue::TokenWithSpan(colon),
-        ] if matches!(ident.token, TokenData::Ident(_))
-            && matches!(colon.token, TokenData::Colon(_)) =>
-        {
-            Some(ident)
+        ] => {
+            matches!(ident.token, TokenData::Ident(_)) && matches!(colon.token, TokenData::Colon(_))
         }
-        _ => None,
+        _ => false,
     });
-    match next_property {
-        Some(ident) => Err(CssError::syntax(
-            format!("missing `;` before `{}`", ident.raw(source)),
-            ident.span.start,
-            ident.span.end,
-        )),
-        None => Ok(()),
+    let Some(index) = next_property else {
+        return Ok(());
+    };
+    // The `;` is missing after the value before the next property name, the error points at that
+    // value so it is located where the `;` goes, even when the property comes from an interpolation
+    match index
+        .checked_sub(1)
+        .and_then(|previous| declaration.value.get(previous))
+    {
+        Some(previous) => {
+            let span = previous.span();
+            let text = &source[span.start..span.end];
+            let message = if text.len() <= 30 && !text.contains('\n') {
+                format!("missing `;` after `{text}`")
+            } else {
+                "missing `;` after this value".to_owned()
+            };
+            Err(CssError::syntax(message, span.start, span.end))
+        }
+        None => {
+            let span = declaration.value[index].span();
+            Err(CssError::syntax(
+                format!("missing `;` before `{}`", &source[span.start..span.end]),
+                span.start,
+                span.end,
+            ))
+        }
     }
 }
 
@@ -131,7 +149,7 @@ pub(super) fn validate_block_kind(
             (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
             (BlockKind::Global, Statement::AtRule(rule)) => {
                 if let Some(block) = &rule.block
-                    && is_grouping_at_rule(rule.name.raw)
+                    && is_grouping_at_rule(rule.name.name)
                 {
                     validate_block_kind(&block.statements, kind)?;
                 }
@@ -290,12 +308,14 @@ mod tests {
                 error("filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);"),
                 error("--x: a: b;"),
                 error("grid-template-areas: \"a:b\";"),
+                error("width: calc(1px + 2px + 3px + 4px + 5px)\n  color: red;"),
             ],
             [
-                "Invalid CSS: missing `;` before `width` at 13..18",
+                "Invalid CSS: missing `;` after `red` at 7..10",
                 "ok",
                 "ok",
                 "ok",
+                "Invalid CSS: missing `;` after `)` at 39..40",
             ]
         );
     }
@@ -315,6 +335,7 @@ mod tests {
                     "entry 0% { opacity: 0; } to { opacity: 1; }",
                     BlockKind::Keyframes
                 ),
+                kind_error("@\\6d edia print { color: red; }", BlockKind::Global),
             ],
             [
                 "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 0..10",
@@ -322,6 +343,7 @@ mod tests {
                 "Invalid CSS: keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
                 "Invalid CSS: keyframes can only contain declarations at 7..30",
                 "ok",
+                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 18..28",
             ]
         );
     }
