@@ -3,6 +3,7 @@ use oxc_span::GetSpan;
 use rustc_hash::FxHashSet;
 
 use crate::{
+    diagnostic::CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
     semantic::VindurImports,
 };
@@ -113,10 +114,11 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
 
 pub(super) fn collect_vindur_imports(
     program: &Program<'_>,
+    file_path: &str,
     source: &str,
     imports: &mut VindurImports<'_>,
     edits: &mut Vec<Edit>,
-) {
+) -> Result<(), CompilerDiagnostic> {
     for statement in &program.body {
         let Statement::ImportDeclaration(declaration) = statement else {
             continue;
@@ -133,6 +135,17 @@ pub(super) fn collect_vindur_imports(
                 specifier_count += 1;
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
+                    if imported.as_str() != named.local.name.as_str() {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            named.span,
+                            format!(
+                                "aliased vindur imports are not supported, import \"{imported}\" without the \"{}\" alias",
+                                named.local.name
+                            ),
+                        ));
+                    }
                     // Runtime imports are tracked too, so vindur utilities are detected by
                     // their import instead of their name
                     imports.insert(&named.local, imported.as_str());
@@ -164,4 +177,5 @@ pub(super) fn collect_vindur_imports(
             });
         }
     }
+    Ok(())
 }

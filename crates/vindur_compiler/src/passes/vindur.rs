@@ -57,7 +57,7 @@ pub(crate) fn transform_program(
 ) -> Result<PassOutput, CompilerDiagnostic> {
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
-    collect_vindur_imports(program, source, &mut imports, &mut edits);
+    collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
     let exported_names = collect_exported_names(program);
 
     let mut constants = collect_constants(program, scoping);

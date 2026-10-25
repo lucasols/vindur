@@ -66,3 +66,47 @@ test('should only treat createDynamicCssColor and createStaticThemeColors from v
     "
   `);
 });
+
+test('should error on aliased vindur imports', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createDynamicCssColor as dynamicColor } from 'vindur';
+
+        const bg = dynamicColor();
+
+        export const box = css\`
+          background: \${bg.var};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: aliased vindur imports are not supported, import "createDynamicCssColor" without the "dynamicColor" alias
+    loc: 1:14]
+  `);
+});
+
+test('should error on aliased vindur imports in imported modules', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { transition } from '#/transition';
+
+        export const box = css\`
+          \${transition('opacity')};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'transition.ts': dedent`
+          import { vindurFn as fn } from 'vindur';
+
+          export const transition = fn((property: string) => \`transition: \${property} 0.2s;\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: /transition.ts: aliased vindur imports are not supported, import "vindurFn" without the "fn" alias
+    loc: 1:9]
+  `);
+});
