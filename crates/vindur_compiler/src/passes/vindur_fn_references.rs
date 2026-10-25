@@ -1,0 +1,135 @@
+use oxc_ast::ast::{
+    ExportDefaultDeclaration, ExportDefaultDeclarationKind, ExportNamedDeclaration, Expression,
+    IdentifierReference, JSXAttribute, JSXAttributeName, Program, TSTypeQuery,
+    TaggedTemplateExpression,
+};
+use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
+use oxc_span::Span;
+use rustc_hash::FxHashSet;
+
+use crate::{CompilerDiagnostic, semantic::VindurImports};
+
+/// vindurFn functions are evaluated at compile time and throw when called at runtime, so
+/// they can only be referenced in vindur templates and css props, or re-exported.
+pub(super) fn runtime_vindur_fn_reference_error(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    imports: &VindurImports<'_>,
+    function_names: &FxHashSet<&str>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    if function_names.is_empty() {
+        return None;
+    }
+    let mut visitor = RuntimeReferenceVisitor {
+        scoping,
+        imports,
+        function_names,
+        first_reference: None,
+    };
+    visitor.visit_program(program);
+    let (name, span) = visitor.first_reference?;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        span,
+        format!(
+            "vindurFn \"{name}\" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime"
+        ),
+    ))
+}
+
+struct RuntimeReferenceVisitor<'s, 'i, 'n> {
+    scoping: &'s Scoping,
+    imports: &'i VindurImports<'i>,
+    function_names: &'n FxHashSet<&'n str>,
+    first_reference: Option<(String, Span)>,
+}
+
+impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self.first_reference.is_some() || !self.function_names.contains(identifier.name.as_str())
+        {
+            return;
+        }
+        let Some(reference_id) = identifier.reference_id.get() else {
+            return;
+        };
+        let Some(symbol_id) = self.scoping.get_reference(reference_id).symbol_id() else {
+            return;
+        };
+        if self.scoping.symbol_scope_id(symbol_id) == self.scoping.root_scope_id() {
+            self.first_reference = Some((identifier.name.to_string(), identifier.span));
+        }
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        let is_vindur_template = tag_root(&tagged.tag)
+            .is_some_and(|identifier| self.imports.get_identifier(identifier).is_some());
+        if is_vindur_template {
+            self.visit_runtime_tag_arguments(&tagged.tag);
+        } else {
+            walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    // The css prop template is compiled away like vindur templates
+    fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
+        if !matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css") {
+            walk::walk_jsx_attribute(self, attribute);
+        }
+    }
+
+    // Re-exports keep the function available to other vindur styles
+    fn visit_export_named_declaration(&mut self, export: &ExportNamedDeclaration<'a>) {
+        if let Some(declaration) = &export.declaration {
+            self.visit_declaration(declaration);
+        }
+    }
+
+    fn visit_export_default_declaration(&mut self, export: &ExportDefaultDeclaration<'a>) {
+        if !matches!(
+            export.declaration,
+            ExportDefaultDeclarationKind::Identifier(_)
+        ) {
+            walk::walk_export_default_declaration(self, export);
+        }
+    }
+
+    // `typeof fn` in types has no runtime reference
+    fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
+}
+
+impl RuntimeReferenceVisitor<'_, '_, '_> {
+    /// `.attrs({})` values are kept in the runtime component, unlike the rest of the tag
+    fn visit_runtime_tag_arguments(&mut self, tag: &Expression<'_>) {
+        match tag {
+            Expression::CallExpression(call) => {
+                if let Expression::StaticMemberExpression(member) = &call.callee
+                    && member.property.name.as_str() == "attrs"
+                {
+                    for argument in &call.arguments {
+                        self.visit_argument(argument);
+                    }
+                }
+                self.visit_runtime_tag_arguments(&call.callee);
+            }
+            Expression::StaticMemberExpression(member) => {
+                self.visit_runtime_tag_arguments(&member.object);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
+fn tag_root<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e IdentifierReference<'a>> {
+    match expression {
+        Expression::Identifier(identifier) => Some(identifier),
+        Expression::StaticMemberExpression(member) => tag_root(&member.object),
+        Expression::CallExpression(call) => tag_root(&call.callee),
+        _ => None,
+    }
+}

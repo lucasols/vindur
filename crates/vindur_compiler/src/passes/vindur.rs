@@ -36,6 +36,7 @@ use super::{
     styled::{resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
+    vindur_fn_references::runtime_vindur_fn_reference_error,
 };
 
 pub(crate) struct PassOutput {
@@ -57,6 +58,7 @@ pub(crate) fn transform_program(
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, source, &mut imports, &mut edits);
+    let exported_names = collect_exported_names(program);
 
     let mut constants = collect_constants(program, scoping);
     constants.extend(imported_values.iter().map(|(name, value)| {
@@ -71,6 +73,26 @@ pub(crate) fn transform_program(
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
         }
     }
+    let function_names = constants
+        .iter()
+        .filter(|(_, value)| {
+            matches!(
+                value,
+                StaticValue::Function(_) | StaticValue::ImportedFunction(_)
+            )
+        })
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if let Some(diagnostic) = runtime_vindur_fn_reference_error(
+        program,
+        scoping,
+        &imports,
+        &function_names,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
+    }
     let file_hash = format!("v{}", murmur2(file_path));
     let mut css_rules = Vec::new();
     let mut styled_components = FxHashMap::default();
@@ -84,7 +106,6 @@ pub(crate) fn transform_program(
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
-    let exported_names = collect_exported_names(program);
     let exported_object_names = collect_exported_object_names(program);
     let jsx_id_events = collect_jsx_id_events(program);
     let mut jsx_event_index = 0_usize;
