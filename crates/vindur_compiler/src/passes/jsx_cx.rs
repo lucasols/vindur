@@ -145,6 +145,13 @@ impl JsxCxVisitor<'_> {
             );
             return;
         };
+        if object.properties.is_empty() {
+            self.set_error(
+                object.span,
+                "cx prop object must not be empty, remove the cx prop instead".to_owned(),
+            );
+            return;
+        }
 
         // A foreign `css` is left as is by the css pass, so cx takes the className path
         let has_vindur_css = find_attribute(element, "css").is_some_and(|css| {
@@ -305,12 +312,11 @@ impl JsxCxVisitor<'_> {
         } else {
             rewrite_css_references(self.output.css_rules, &css_references, &mappings);
         }
-        let object_source = if properties.is_empty() {
-            "{}".to_owned()
-        } else {
-            format!("{{\n{},\n}}", properties.join(",\n"))
-        };
-        let cx_call = format!("{}({object_source})", self.output.helper_names.cx);
+        let cx_call = format!(
+            "{}({{\n{},\n}})",
+            self.output.helper_names.cx,
+            properties.join(",\n")
+        );
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
