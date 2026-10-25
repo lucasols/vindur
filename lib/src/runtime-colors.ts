@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import {
   OPTIMAL_CONTRAST_SATURATED_DARKER,
   formatFactor,
@@ -43,8 +44,13 @@ type ColorConditions = {
   isNotVeryLight: string;
 };
 
+/** React style props plus the dynamic color css variables */
+export type DynamicColorStyle = CSSProperties & Record<`--${string}`, string>;
+
+export type DynamicColorProps = { className: string; style: DynamicColorStyle };
+
 export type DynamicColorSetPropsOptions = {
-  style?: Record<string, unknown>;
+  style?: DynamicColorStyle;
   className?: string;
   /** Sets `color-scheme` to match the color, `fallback` is used when no color is set */
   setColorScheme?: { fallback: 'light' | 'dark' };
@@ -58,13 +64,13 @@ export type DynamicCssColor = ColorOps & {
   setProps: (
     hexColor: DynamicColorValue,
     options?: DynamicColorSetPropsOptions,
-  ) => { className: string; style: Record<string, unknown> };
+  ) => DynamicColorProps;
   set: (color: DynamicColorValue) => DynamicColorSet;
   // The compiler omits `mergeWith` when there is nothing to merge
   _sp: (
     color: DynamicColorValue,
-    mergeWith?: { className?: string; style?: Record<string, unknown> },
-  ) => { className?: string; style?: Record<string, unknown> };
+    mergeWith?: { className?: string; style?: DynamicColorStyle },
+  ) => DynamicColorProps;
   self: ColorConditions;
   container: ColorConditions;
 };
@@ -172,7 +178,7 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
   function setProps(
     hexColor: DynamicColorValue,
     options: DynamicColorSetPropsOptions = {},
-  ): { className: string; style: Record<string, unknown> } {
+  ): DynamicColorProps {
     if (!hexColor) {
       return {
         className: joinClassNames(

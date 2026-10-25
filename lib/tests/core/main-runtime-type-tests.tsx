@@ -423,3 +423,36 @@ describe('style flags', () => {
     const invalid = <Styled />;
   });
 });
+
+describe('dynamic color setProps', () => {
+  test('setProps result can be spread on native elements and styled components', () => {
+    const otherColor = createDynamicCssColor();
+
+    const Box = styled.div`
+      color: red;
+    `;
+
+    const native = <div {...dynamicColor.setProps('#fff', { className: 'a' })} />;
+    const styledBox = <Box {...dynamicColor.setProps('#fff')} />;
+    const nested = (
+      <div
+        {...dynamicColor.setProps(
+          '#fff',
+          otherColor.setProps('#000', { className: 'a' }),
+        )}
+      />
+    );
+    const withStyle = (
+      <div
+        {...dynamicColor.setProps(null, {
+          style: { padding: 4, '--custom': '1px' },
+        })}
+      />
+    );
+
+    const style = dynamicColor.setProps('#fff').style;
+    expectTypesAre<typeof style.colorScheme, CSSProperties['colorScheme']>(
+      'equal',
+    );
+  });
+});
