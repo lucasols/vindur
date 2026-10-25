@@ -611,4 +611,41 @@ describe('scoped CSS variables', () => {
       "
     `);
   });
+
+  test('should transform scoped variables in container style queries and supports conditions', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          ---theme: dark;
+          color: var(---theme);
+
+          @container style(---theme: dark) {
+            color: white;
+          }
+
+          @supports (---theme: dark) {
+            color: black;
+          }
+        \`;
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        --v1560qbr-2-theme: dark;
+        color: var(--v1560qbr-2-theme);
+
+        @container style(--v1560qbr-2-theme: dark) {
+          color: white;
+        }
+
+        @supports (--v1560qbr-2-theme: dark) {
+          color: black;
+        }
+      }
+      "
+    `);
+  });
 });

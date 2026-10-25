@@ -8,17 +8,18 @@ use crate::{
     facts::StaticValue,
 };
 
-use super::css_syntax::CssError;
+use super::css_syntax::{BlockKind, CssError};
 use super::scoped::declared_scoped_variable_names;
 use super::styled::{StyleFlag, StyledComponent};
 use super::transform_support::VariableTransform;
 
 pub(super) fn record_scoped_declarations(
     css: &str,
+    kind: BlockKind,
     span: oxc_span::Span,
     declarations: &mut FxHashMap<String, oxc_span::Span>,
 ) -> Result<(), CssError> {
-    for name in declared_scoped_variable_names(css)? {
+    for name in declared_scoped_variable_names(css, kind)? {
         declarations.entry(name).or_insert(span);
     }
     Ok(())

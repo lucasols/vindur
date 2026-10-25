@@ -10,8 +10,8 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    css::clean_css,
-    css_syntax::css_error_diagnostic,
+    css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, css_error_diagnostic},
     jsx_cx::CxElementTransform,
     scoped::process_scoped_variables,
     static_evaluation::resolved_constant,
@@ -155,7 +155,7 @@ impl JsxCssVisitor<'_> {
             return;
         }
         let cx_transform = self.output.cx_elements.get(&element.span.start);
-        let (class_name, css_content) = match &container.expression {
+        let (class_name, css_rules) = match &container.expression {
             JSXExpression::TemplateLiteral(template) => {
                 if cx_transform.is_none()
                     && let Some(index) = self.output.id_starts.get(&element.span.start)
@@ -200,14 +200,17 @@ impl JsxCssVisitor<'_> {
                 } else {
                     format!("{}-{index}", self.output.file_hash)
                 };
-                let content = match process_scoped_variables(
+                let rules = match process_scoped_variables(
                     &content,
+                    BlockKind::Style,
                     self.output.file_hash,
                     self.output.dev,
                     self.output.id_index,
                     self.output.scoped_variables,
-                ) {
-                    Ok(content) => content,
+                )
+                .and_then(|content| generate_class_rules(&name, &content))
+                {
+                    Ok(rules) => rules,
                     Err(error) => {
                         self.diagnostic = Some(css_error_diagnostic(
                             self.output.file_path,
@@ -218,7 +221,7 @@ impl JsxCssVisitor<'_> {
                         return;
                     }
                 };
-                (name, Some(content))
+                (name, rules)
             }
             expression => {
                 if is_custom_component(&element.opening_element.name) {
@@ -229,13 +232,7 @@ impl JsxCssVisitor<'_> {
             }
         };
 
-        if let Some(content) = css_content
-            && !content.is_empty()
-        {
-            self.output
-                .css_rules
-                .push(format!(".{class_name} {{\n  {content}\n}}"));
-        }
+        self.output.css_rules.extend(css_rules);
 
         let component = styled_component(element, self.output.styled_components);
         if is_custom_component(&element.opening_element.name) && component.is_none() {

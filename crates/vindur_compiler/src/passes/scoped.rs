@@ -1,11 +1,14 @@
 use rustc_hash::FxHashMap;
 
-use super::css_syntax::{CssError, scoped_idents};
+use super::css_syntax::{BlockKind, CssError, scoped_idents};
 
 const SCOPED_PREFIX_LEN: usize = "---".len();
 
-pub(crate) fn declared_scoped_variable_names(css: &str) -> Result<Vec<String>, CssError> {
-    Ok(scoped_idents(css)?
+pub(crate) fn declared_scoped_variable_names(
+    css: &str,
+    kind: BlockKind,
+) -> Result<Vec<String>, CssError> {
+    Ok(scoped_idents(css, kind)?
         .into_iter()
         .filter(|ident| ident.is_declaration)
         .map(|ident| css[ident.start + SCOPED_PREFIX_LEN..ident.end].to_owned())
@@ -14,6 +17,7 @@ pub(crate) fn declared_scoped_variable_names(css: &str) -> Result<Vec<String>, C
 
 pub(crate) fn process_scoped_variables(
     css: &str,
+    kind: BlockKind,
     file_hash: &str,
     dev: bool,
     id_index: &mut u32,
@@ -21,7 +25,7 @@ pub(crate) fn process_scoped_variables(
 ) -> Result<String, CssError> {
     let mut output = String::with_capacity(css.len());
     let mut cursor = 0usize;
-    for ident in scoped_idents(css)? {
+    for ident in scoped_idents(css, kind)? {
         output.push_str(&css[cursor..ident.start]);
         let name = &css[ident.start + SCOPED_PREFIX_LEN..ident.end];
         let generated = variables.entry(name.to_owned()).or_insert_with(|| {
@@ -46,11 +50,16 @@ mod tests {
     use rustc_hash::FxHashMap;
 
     use super::{declared_scoped_variable_names, process_scoped_variables};
+    use crate::passes::css_syntax::BlockKind;
 
     fn process(css: &str) -> String {
+        process_kind(css, BlockKind::Style)
+    }
+
+    fn process_kind(css: &str, kind: BlockKind) -> String {
         let mut id_index = 1;
         let mut variables = FxHashMap::default();
-        match process_scoped_variables(css, "v1", true, &mut id_index, &mut variables) {
+        match process_scoped_variables(css, kind, "v1", true, &mut id_index, &mut variables) {
             Ok(output) => output,
             Err(error) => panic!("{}", error.message),
         }
@@ -85,11 +94,60 @@ mod tests {
     #[test]
     fn only_counts_declarations_as_declared() {
         let names = match declared_scoped_variable_names(
-            "/* ---commented: red; */\ncontent: \"---text: x\";\n---color: red;\ncolor: var(---other);",
+            "/* ---commented: red; */\ncontent: \"---text: x\";\n---color: red;\ncolor: var(---other);\n@container style(---queried: 1) { color: red; }",
+            BlockKind::Style,
         ) {
             Ok(names) => names,
             Err(error) => panic!("{}", error.message),
         };
         assert_eq!(names, vec!["color".to_owned()]);
+    }
+
+    #[test]
+    fn rewrites_container_and_supports_conditions() {
+        assert_eq!(
+            process(
+                "---gap: 1px;\n@container card style(---gap: 1px) and (not style(---theme)) { color: red; }\n@supports (---gap: 1px) or (not (content: \"---\")) { color: blue; }"
+            ),
+            "--v1-1-gap: 1px;\n@container card style(--v1-1-gap: 1px) and (not style(--v1-2-theme)) { color: red; }\n@supports (--v1-1-gap: 1px) or (not (content: \"---\")) { color: blue; }"
+        );
+    }
+
+    #[test]
+    fn ignores_strings_in_import_urls() {
+        assert_eq!(
+            process("@import url('a---b.css') supports(---gap: 1px);"),
+            "@import url('a---b.css') supports(--v1-1-gap: 1px);"
+        );
+    }
+
+    #[test]
+    fn rejects_scoped_variables_in_unsupported_preludes() {
+        let mut variables = FxHashMap::default();
+        match process_scoped_variables(
+            "@media (width > 1px) and (---x) { color: red; }",
+            BlockKind::Style,
+            "v1",
+            true,
+            &mut 1,
+            &mut variables,
+        ) {
+            Ok(output) => panic!("expected an error, got {output}"),
+            Err(error) => assert_eq!(
+                error.message,
+                "Scoped CSS variables are not supported in `@media` rule conditions"
+            ),
+        }
+    }
+
+    #[test]
+    fn rewrites_keyframes_with_timeline_ranges() {
+        assert_eq!(
+            process_kind(
+                "entry 0% { ---o: 0; opacity: var(---o); } to { opacity: 1; }",
+                BlockKind::Keyframes
+            ),
+            "entry 0% { --v1-1-o: 0; opacity: var(--v1-1-o); } to { opacity: 1; }"
+        );
     }
 }

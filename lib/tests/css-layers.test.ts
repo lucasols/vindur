@@ -327,7 +327,102 @@ describe('CSS layers with layer() function', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: layer() can only be used at the top level of a style block
-      loc: 3:13]
+      loc: 5:6]
+    `);
+  });
+
+  test('should keep the position of empty layers in the layer order', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        const Card = styled.div\`
+          \${layer('base')} {}
+          \${layer('theme')} {
+            color: blue;
+          }
+          \${layer('base')} {
+            color: red;
+          }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base;
+
+      @layer theme {
+        .v1560qbr-1-Card {
+          color: blue;
+        }
+      }
+
+      @layer base {
+        .v1560qbr-1-Card {
+          color: red;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should support layers in css prop and default exported styled components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        export default styled.div\`
+          \${layer('base')} {
+            color: red;
+          }
+        \`
+
+        export const App = () => (
+          <div
+            css={\`
+              \${layer('base')} {
+                color: blue;
+              }
+            \`}
+          />
+        )
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base {
+        .v1560qbr-1 {
+          color: red;
+        }
+      }
+
+      @layer base {
+        .v1560qbr-2-css-prop-2 {
+          color: blue;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should throw when layer() is used in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle, layer } from 'vindur'
+
+          createGlobalStyle\`
+            \${layer('base')} {
+              body {
+                margin: 0;
+              }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: layer() is not supported in createGlobalStyle, use \`@layer name { ... }\` instead
+      loc: 4:4]
     `);
   });
 });

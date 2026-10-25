@@ -8,7 +8,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::Vindur
 
 use super::{
     css::{clean_css, generate_class_rules},
-    css_syntax::css_error_diagnostic,
+    css_syntax::{BlockKind, css_error_diagnostic},
     scoped::process_scoped_variables,
     static_value::{TemplateContext, evaluate_template},
     styled::styled_tag_element,
@@ -96,6 +96,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
         *self.output.id_index += 1;
         let rules = process_scoped_variables(
             &content,
+            BlockKind::from_tag_type(tag_name),
             self.output.file_hash,
             self.output.dev,
             self.output.id_index,

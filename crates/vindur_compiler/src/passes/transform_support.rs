@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     css::{clean_css, generate_class_rules},
-    css_syntax::css_error_diagnostic,
+    css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
     scoped::process_scoped_variables,
     static_value::{TemplateContext, evaluate_template},
@@ -201,6 +201,7 @@ pub(super) fn process_variable_declaration(
             };
             record_scoped_declarations(
                 &content,
+                BlockKind::Style,
                 identifier.span,
                 transform.scoped_declaration_spans,
             )
@@ -209,6 +210,7 @@ pub(super) fn process_variable_declaration(
             })?;
             let content = process_scoped_variables(
                 &content,
+                BlockKind::Style,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
@@ -370,6 +372,7 @@ pub(super) fn process_variable_declaration(
             let content = clean_css(&content);
             record_scoped_declarations(
                 &content,
+                BlockKind::Global,
                 identifier.span,
                 transform.scoped_declaration_spans,
             )
@@ -378,6 +381,7 @@ pub(super) fn process_variable_declaration(
             })?;
             let content = process_scoped_variables(
                 &content,
+                BlockKind::Global,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
@@ -427,6 +431,7 @@ pub(super) fn process_variable_declaration(
         };
         record_scoped_declarations(
             &content,
+            BlockKind::from_tag_type(tag_name),
             identifier.span,
             transform.scoped_declaration_spans,
         )
@@ -435,6 +440,7 @@ pub(super) fn process_variable_declaration(
         })?;
         let content = process_scoped_variables(
             &content,
+            BlockKind::from_tag_type(tag_name),
             transform.file_hash,
             transform.dev,
             transform.id_index,

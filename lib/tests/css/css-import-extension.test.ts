@@ -722,3 +722,30 @@ test('should allow importing css and functions from another file with arguments'
     "
   `);
 });
+
+test('should point to the first missing semicolon when several CSS extensions miss it', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const ellipsis = css\`
+          overflow: hidden;
+        \`
+
+        const CardTitle = styled.div\`
+          \${ellipsis} {
+            color: blue;
+          }
+          \${ellipsis}
+          color: red;
+          \${ellipsis}
+          margin: 0;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Missing \`;\` after \`\${ellipsis}\`. CSS interpolations are treated as selectors unless they are followed by \`;\`, so use \`\${ellipsis};\` when extending styles.
+    loc: 11:4]
+  `);
+});

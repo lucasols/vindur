@@ -3,7 +3,7 @@ use oxc_span::{GetSpan, Span};
 
 use crate::CompilerDiagnostic;
 
-use super::css_syntax::{CssError, validate_style_block};
+use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
@@ -41,7 +41,8 @@ impl EvaluatedTemplate {
 }
 
 /// Fails with a source located error when the evaluated CSS is invalid. When treating a CSS class
-/// interpolation as a style extension fixes the CSS, the error points to the missing `;`
+/// interpolation as a style extension fixes the CSS, or moves the error past it, the error points
+/// to the missing `;`
 pub(crate) fn validate_template_css(
     evaluated: &EvaluatedTemplate,
     template: &TemplateLiteral<'_>,
@@ -50,14 +51,27 @@ pub(crate) fn validate_template_css(
     context: &TemplateContext<'_>,
     rebuild_with_extension: impl Fn(usize) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
-    let Err(error) = validate_style_block(&evaluated.css) else {
+    let kind = BlockKind::from_tag_type(context.tag_type);
+    let Err(error) = validate_style_block(&evaluated.css, kind) else {
         return Ok(());
     };
+    let span = evaluated.source_span(&error, source, template.span);
     for &index in &evaluated.selector_classes {
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
-        if validate_style_block(&rebuild_with_extension(index)?.css).is_ok() {
+        let rebuilt = rebuild_with_extension(index)?;
+        let fixes_error = validate_style_block(&rebuilt.css, kind).map_or_else(
+            |rebuilt_error| {
+                // With several missing `;` forcing one only moves the error to the next one
+                rebuilt
+                    .source_span(&rebuilt_error, source, template.span)
+                    .start
+                    > span.start
+            },
+            |()| true,
+        );
+        if fixes_error {
             let span = expression.span();
             let expression_source = &source[span.start as usize..span.end as usize];
             return Err(CompilerDiagnostic::error(
@@ -70,7 +84,6 @@ pub(crate) fn validate_template_css(
             ));
         }
     }
-    let span = evaluated.source_span(&error, source, template.span);
     let message = error.syntax_error.map_or(error.message, |description| {
         let variable_context = context.variable_name.map_or_else(
             || context.tag_type.to_owned(),

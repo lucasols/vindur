@@ -1,6 +1,9 @@
-use oxc_css_parser::{Allocator, ast::Statement};
+use oxc_css_parser::{
+    Allocator,
+    ast::{QualifiedRule, Statement},
+};
 
-use super::css_syntax::{CssError, parse_style_block};
+use super::css_syntax::{BlockKind, CssError, parse_style_block};
 
 pub(crate) fn clean_css(css: &str) -> String {
     let trimmed = css.trim();
@@ -39,18 +42,19 @@ pub(crate) fn generate_class_rules(class_name: &str, css: &str) -> Result<Vec<St
     if css.is_empty() {
         return Ok(Vec::new());
     }
-    let sections = split_layer_sections(css)?;
-    if sections.is_empty() {
+    let Some(sections) = split_layer_sections(css)? else {
         return Ok(vec![format!(".{class_name} {{\n  {css}\n}}")]);
-    }
+    };
     Ok(sections
         .into_iter()
         .map(|section| {
             let rule = format!(".{class_name} {{\n  {}\n}}", section.css);
-            section.layer.map_or_else(
-                || rule.clone(),
-                |layer| format!("@layer {layer} {{\n  {rule}\n}}"),
-            )
+            match section.layer {
+                // An empty layer still declares its position in the layer order
+                Some(layer) if section.css.is_empty() => format!("@layer {layer};"),
+                Some(layer) => format!("@layer {layer} {{\n  {rule}\n}}"),
+                None => rule,
+            }
         })
         .collect())
 }
@@ -60,11 +64,12 @@ struct LayerSection<'a> {
     css: &'a str,
 }
 
-/// Splits the top level `layer()` blocks from the plain declarations around them, returns no
-/// sections when the CSS has no layers
-fn split_layer_sections(css: &str) -> Result<Vec<LayerSection<'_>>, CssError> {
+/// Splits the top level `layer()` blocks from the plain declarations around them, returns `None`
+/// when the CSS has no layers
+fn split_layer_sections(css: &str) -> Result<Option<Vec<LayerSection<'_>>>, CssError> {
     let allocator = Allocator::default();
     let stylesheet = parse_style_block(&allocator, css)?;
+    reject_misplaced_layers(css, &stylesheet.statements, BlockKind::Style)?;
     let mut sections = Vec::new();
     let mut has_layers = false;
     let mut cursor = 0;
@@ -72,12 +77,11 @@ fn split_layer_sections(css: &str) -> Result<Vec<LayerSection<'_>>, CssError> {
         let Statement::QualifiedRule(rule) = statement else {
             continue;
         };
-        let selector = &css[rule.selector.span.start..rule.selector.span.end];
-        let Some(layer) = decode_layer_marker(selector) else {
+        let Some(layer) = top_level_layer(css, rule) else {
             continue;
         };
         has_layers = true;
-        push_section(&mut sections, None, css, cursor, rule.span.start)?;
+        push_plain_section(&mut sections, &css[cursor..rule.span.start]);
         let (block_start, block_end) = (rule.block.span.start, rule.block.span.end);
         if !css[block_start..block_end].starts_with('{')
             || !css[block_start..block_end].ends_with('}')
@@ -88,63 +92,90 @@ fn split_layer_sections(css: &str) -> Result<Vec<LayerSection<'_>>, CssError> {
                 block_end,
             ));
         }
-        push_section(
-            &mut sections,
-            Some(layer),
-            css,
-            block_start + 1,
-            block_end - 1,
-        )?;
+        sections.push(LayerSection {
+            layer: Some(layer),
+            css: css[block_start + 1..block_end - 1].trim(),
+        });
         cursor = rule.span.end;
     }
     if !has_layers {
-        reject_nested_layers(css, 0, css.len())?;
-        return Ok(Vec::new());
+        return Ok(None);
     }
-    push_section(&mut sections, None, css, cursor, css.len())?;
-    Ok(sections)
+    push_plain_section(&mut sections, &css[cursor..]);
+    Ok(Some(sections))
 }
 
-fn push_section<'a>(
-    sections: &mut Vec<LayerSection<'a>>,
-    layer: Option<String>,
-    css: &'a str,
-    start: usize,
-    end: usize,
+fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<String> {
+    decode_layer_marker(&css[rule.selector.span.start..rule.selector.span.end])
+}
+
+fn push_plain_section<'a>(sections: &mut Vec<LayerSection<'a>>, css: &'a str) {
+    let css = css.trim();
+    if !css.is_empty() {
+        sections.push(LayerSection { layer: None, css });
+    }
+}
+
+/// `layer()` can only be the selector of a top level rule in a class style block
+pub(crate) fn reject_misplaced_layers(
+    css: &str,
+    statements: &[Statement<'_>],
+    kind: BlockKind,
 ) -> Result<(), CssError> {
-    reject_nested_layers(css, start, end)?;
-    let section = css[start..end].trim();
-    if !section.is_empty() {
-        sections.push(LayerSection {
-            layer,
-            css: section,
-        });
-    }
-    Ok(())
+    let top_level_layers = statements
+        .iter()
+        .filter_map(|statement| match statement {
+            Statement::QualifiedRule(rule) if kind == BlockKind::Style => {
+                top_level_layer(css, rule).map(|_| rule.selector.span.start)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let Some((start, _)) = css
+        .match_indices(LAYER_MARKER_PREFIX)
+        .find(|(start, _)| !top_level_layers.contains(start))
+    else {
+        return Ok(());
+    };
+    let message = match kind {
+        BlockKind::Style => "layer() can only be used at the top level of a style block",
+        BlockKind::Global => {
+            "layer() is not supported in createGlobalStyle, use `@layer name { ... }` instead"
+        }
+        BlockKind::Keyframes => "layer() is not supported in keyframes",
+    };
+    Err(CssError::new(
+        message.to_owned(),
+        start,
+        start + LAYER_MARKER_PREFIX.len(),
+    ))
 }
 
-fn reject_nested_layers(css: &str, start: usize, end: usize) -> Result<(), CssError> {
-    if css[start..end].contains(LAYER_MARKER_PREFIX) {
-        return Err(CssError::new(
-            "layer() can only be used at the top level of a style block".to_owned(),
-            start,
-            end,
-        ));
-    }
-    Ok(())
-}
-
+/// Collapses repeated `;` separators, text inside strings is kept as is
 fn collapse_double_semicolons(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut previous_was_semicolon = false;
+    let mut quote = None;
+    let mut escaped = false;
     for character in css.chars() {
-        if character == ';' {
+        if let Some(open_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == open_quote {
+                quote = None;
+            }
+        } else if character == ';' {
             if previous_was_semicolon {
                 continue;
             }
             previous_was_semicolon = true;
         } else if !character.is_whitespace() {
             previous_was_semicolon = false;
+            if matches!(character, '"' | '\'') {
+                quote = Some(character);
+            }
         }
         output.push(character);
     }
@@ -153,7 +184,7 @@ fn collapse_double_semicolons(css: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_class_rules, layer_marker};
+    use super::{clean_css, generate_class_rules, layer_marker};
 
     fn rules(css: &str) -> Vec<String> {
         match generate_class_rules("button", css) {
@@ -195,11 +226,35 @@ mod tests {
     }
 
     #[test]
-    fn keeps_any_layer_name() {
-        let css = format!("{} {{ color: red; }}", layer_marker("invalid layer name"));
+    fn keeps_dotted_layer_names() {
+        let css = format!("{} {{ color: red; }}", layer_marker("theme.base"));
         assert_eq!(
             rules(&css),
-            vec!["@layer invalid layer name {\n  .button {\n  color: red;\n}\n}".to_owned()]
+            vec!["@layer theme.base {\n  .button {\n  color: red;\n}\n}".to_owned()]
+        );
+    }
+
+    #[test]
+    fn keeps_empty_layers_in_the_layer_order() {
+        let css = format!(
+            "{} {{}}\n{} {{ color: blue; }}",
+            layer_marker("first"),
+            layer_marker("second")
+        );
+        assert_eq!(
+            rules(&css),
+            vec![
+                "@layer first;".to_owned(),
+                "@layer second {\n  .button {\n  color: blue;\n}\n}".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn collapses_semicolons_outside_strings() {
+        assert_eq!(
+            clean_css("; color: red;; content: \";;\";; quotes: '\\';;';;"),
+            "color: red; content: \";;\"; quotes: '\\';;';"
         );
     }
 

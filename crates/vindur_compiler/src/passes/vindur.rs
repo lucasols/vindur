@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    css::clean_css,
-    css_syntax::css_error_diagnostic,
+    css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, css_error_diagnostic},
     cx_optimize::optimize_cx_calls,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -203,19 +203,23 @@ pub(crate) fn transform_program(
                             tag_type: "createGlobalStyle",
                         },
                     )?;
+                    let content = clean_css(&content);
+                    for name in declared_scoped_variable_names(&content, BlockKind::Global)
+                        .map_err(|error| {
+                            css_error_diagnostic(file_path, source, tagged.span, error)
+                        })?
+                    {
+                        scoped_declaration_spans.entry(name).or_insert(tagged.span);
+                    }
                     let content = process_scoped_variables(
-                        &clean_css(&content),
+                        &content,
+                        BlockKind::Global,
                         &file_hash,
                         false,
                         &mut id_index,
                         &mut scoped_variables,
                     )
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
-                    for name in declared_scoped_variable_names(&content).map_err(|error| {
-                        css_error_diagnostic(file_path, source, tagged.span, error)
-                    })? {
-                        scoped_declaration_spans.entry(name).or_insert(tagged.span);
-                    }
                     if !content.is_empty() {
                         css_rules.push(content);
                     }
@@ -245,15 +249,16 @@ pub(crate) fn transform_program(
                     )?;
                     let content = process_scoped_variables(
                         &clean_css(&content),
+                        BlockKind::Style,
                         &file_hash,
                         options.dev,
                         &mut id_index,
                         &mut scoped_variables,
                     )
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
-                    if !content.is_empty() {
-                        css_rules.push(format!(".{generated_name} {{\n  {content}\n}}"));
-                    }
+                    css_rules.extend(generate_class_rules(&generated_name, &content).map_err(
+                        |error| css_error_diagnostic(file_path, source, tagged.span, error),
+                    )?);
                     edits.push(Edit {
                         span: tagged.span,
                         replacement: format!(
