@@ -1,6 +1,5 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -10,15 +9,18 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
+    jsx_attributes::{
+        find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
+    },
     jsx_cx_css_references::{
-        class_name_is_css_reference, css_references, rewrite_class_rules, rewrite_css_references,
+        css_references, rewrite_class_rules, rewrite_css_references,
         unsupported_css_reference_modifiers,
     },
     styled::StyledComponent,
     styled_jsx_helpers::{
-        ClassNameTarget, class_name_concat_source, decode_jsx_entities, emit_class_name,
-        has_spread_attribute, is_class_rule, js_string_literal, merge_class_name_inputs,
-        styled_spread_sources, unsupported_spread_message,
+        ClassNameTarget, class_name_concat_source, contains_modifier_selector, decode_jsx_entities,
+        emit_class_name, has_spread_attribute, is_class_rule, js_string_literal,
+        merge_class_name_inputs, styled_spread_sources, unsupported_spread_message,
     },
 };
 
@@ -120,10 +122,10 @@ impl JsxCxVisitor<'_> {
             return;
         };
 
+        let css_references = css_references(element, self.output.constants, self.output.scoping);
         let has_css_context = styled.is_some()
             || find_attribute(element, "css").is_some()
-            || class_name_is_css_reference(element, self.output.constants, self.output.scoping);
-        let css_references = css_references(element, self.output.constants, self.output.scoping);
+            || !css_references.is_empty();
         // Css reference rules are rewritten in place and can be combined in any way across
         // elements, so all of them share a single file-wide index per modifier name
         let context_key = match (&styled, css_references.is_empty()) {
@@ -395,8 +397,11 @@ impl JsxCxVisitor<'_> {
         mappings
             .iter()
             .filter_map(|(original, hashed, should_rewrite)| {
+                // Only `&.modifier` selectors are rewritten, so other forms (e.g. `&:not(.active)`)
+                // don't count as declared and get reported instead of silently not matching
                 let declared = searched_css.iter().any(|css| {
-                    css.contains(&format!(".{original}")) || css.contains(&format!(".{hashed}"))
+                    contains_modifier_selector(css, original)
+                        || contains_modifier_selector(css, hashed)
                 });
                 (*should_rewrite && !declared).then_some(original.clone())
             })
@@ -421,55 +426,5 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
-    }
-}
-
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element.opening_element.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        (attribute_name(attribute) == Some(name)).then_some(&**attribute)
-    })
-}
-
-pub(super) fn find_last_attribute<'a>(
-    element: &'a JSXElement<'a>,
-    name: &str,
-) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .rev()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            (attribute_name(attribute) == Some(name)).then_some(&**attribute)
-        })
-}
-
-fn attribute_name<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a str> {
-    let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-        return None;
-    };
-    Some(identifier.name.as_str())
-}
-
-fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
-    match name {
-        JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
-        JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
     }
 }

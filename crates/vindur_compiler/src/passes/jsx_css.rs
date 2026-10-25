@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind,
+    Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -12,6 +12,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
     jsx_cx::CxElementTransform,
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
@@ -403,49 +404,6 @@ impl JsxCssVisitor<'_> {
     }
 }
 
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            attribute_name(attribute)
-                .is_some_and(|attribute_name| attribute_name == name)
-                .then_some(attribute)
-        })
-        .map(|attribute| &**attribute)
-}
-
-fn find_last_attribute<'a>(
-    element: &'a JSXElement<'a>,
-    name: &str,
-) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .rev()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            attribute_name(attribute)
-                .is_some_and(|attribute_name| attribute_name == name)
-                .then_some(attribute)
-        })
-        .map(|attribute| &**attribute)
-}
-
-fn attribute_name<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a str> {
-    let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-        return None;
-    };
-    Some(identifier.name.as_str())
-}
-
 fn styled_component<'a>(
     element: &JSXElement<'_>,
     components: &'a FxHashMap<String, StyledComponent>,
@@ -464,13 +422,4 @@ fn is_custom_component(name: &JSXElementName<'_>) -> bool {
         _ => return true,
     };
     identifier.chars().next().is_some_and(char::is_uppercase)
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
-    }
 }

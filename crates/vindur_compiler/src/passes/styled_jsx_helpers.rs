@@ -1,6 +1,5 @@
 use oxc_ast::ast::{
     Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName,
 };
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
@@ -270,14 +269,6 @@ pub(super) fn format_spread_expression(source: &str) -> String {
     source.replace("{ ", "{\n  ").replace(" }", "\n}")
 }
 
-pub(super) fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
-    match name {
-        JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
-        JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
 pub(super) fn class_name_value_source(
     attribute: &oxc_ast::ast::JSXAttribute<'_>,
     source: &str,
@@ -523,13 +514,4 @@ fn decode_jsx_entity(entity: &str) -> Option<char> {
         _ => return None,
     };
     char::from_u32(code)
-}
-
-pub(super) fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
-    }
 }

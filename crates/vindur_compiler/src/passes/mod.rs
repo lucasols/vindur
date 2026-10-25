@@ -12,6 +12,7 @@ mod function_value;
 mod id_order;
 mod import_analysis;
 mod interpolation_validation;
+mod jsx_attributes;
 mod jsx_css;
 mod jsx_cx;
 mod jsx_cx_css_references;

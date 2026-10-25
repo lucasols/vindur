@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use crate::facts::StaticValue;
 
 use super::{
-    jsx_cx::find_last_attribute,
+    jsx_attributes::find_last_attribute,
     static_evaluation::resolved_constant,
     styled_jsx_helpers::{contains_modifier_selector, is_class_rule, replace_modifier_selector},
 };
@@ -16,26 +16,6 @@ pub(super) struct CssReference {
     identifier: String,
     span: oxc_span::Span,
     imported: bool,
-}
-
-pub(super) fn class_name_is_css_reference(
-    element: &JSXElement<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-) -> bool {
-    let Some(attribute) = find_last_attribute(element, "className") else {
-        return false;
-    };
-    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-        return false;
-    };
-    let JSXExpression::Identifier(identifier) = &container.expression else {
-        return false;
-    };
-    matches!(
-        resolved_constant(identifier, constants, scoping),
-        Some(StaticValue::CssClass { .. })
-    )
 }
 
 /// The `css` function references used in `className` or `css`

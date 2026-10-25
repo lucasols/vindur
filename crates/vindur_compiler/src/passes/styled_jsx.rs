@@ -363,4 +363,7 @@ impl StyledJsxVisitor<'_, '_, '_> {
     }
 }
 
-use super::styled_jsx_helpers::*;
+use super::{
+    jsx_attributes::{jsx_name, opening_attribute_insertion_offset},
+    styled_jsx_helpers::*,
+};
