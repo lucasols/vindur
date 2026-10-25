@@ -41,11 +41,7 @@ test('should allow vindurFn references in vindur styles, re-exports and types', 
     const fade = "v1560qbr-2-fade";
     export { transition };
     export const A = () => (
-      <div
-        className={[fade, "v1560qbr-1-Box v1560qbr-3-css-prop-3"]
-          .filter(Boolean)
-          .join(" ")}
-      />
+      <div className={fade + " v1560qbr-1-Box v1560qbr-3-css-prop-3"} />
     );
     "
   `);
