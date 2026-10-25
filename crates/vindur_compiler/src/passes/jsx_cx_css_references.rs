@@ -5,7 +5,8 @@ use rustc_hash::FxHashMap;
 use crate::facts::StaticValue;
 
 use super::{
-    cx_selectors::{contains_class_selector_in_body, rewrite_cx_selectors},
+    css_syntax::CssError,
+    cx_modifier_selectors::{ModifierCss, element_class_names, rewrite_modifiers},
     jsx_attributes::find_last_attribute,
     static_evaluation::resolved_constant,
     styled_jsx_helpers::is_class_rule,
@@ -64,16 +65,18 @@ pub(super) fn unsupported_css_reference_modifiers(
     css_references: &[CssReference],
     mappings: &[(String, String, bool)],
 ) -> Option<(oxc_span::Span, String)> {
-    let declares_rewritten_modifier = |reference: &&CssReference| {
-        mappings.iter().any(|(original, _, should_rewrite)| {
-            *should_rewrite && contains_class_selector_in_body(&reference.css, original)
-        })
-    };
-    if let Some(reference) = css_references
-        .iter()
-        .filter(|reference| reference.imported)
-        .find(declares_rewritten_modifier)
-    {
+    let mut declaring = Vec::new();
+    for reference in css_references {
+        match declares_rewritten_modifier(reference, mappings) {
+            Ok(true) => declaring.push(reference),
+            Ok(false) => {}
+            Err(error) => return Some((reference.span, error.message)),
+        }
+    }
+    let (imported, local): (Vec<_>, Vec<_>) = declaring
+        .into_iter()
+        .partition(|reference| reference.imported);
+    if let Some(reference) = imported.first() {
         return Some((
             reference.span,
             format!(
@@ -82,10 +85,7 @@ pub(super) fn unsupported_css_reference_modifiers(
             ),
         ));
     }
-    let reference = css_references
-        .iter()
-        .filter(|_| is_styled)
-        .find(declares_rewritten_modifier)?;
+    let reference = local.first().filter(|_| is_styled)?;
     Some((
         reference.span,
         format!(
@@ -95,28 +95,39 @@ pub(super) fn unsupported_css_reference_modifiers(
     ))
 }
 
+fn declares_rewritten_modifier(
+    reference: &CssReference,
+    mappings: &[(String, String, bool)],
+) -> Result<bool, CssError> {
+    let declared = element_class_names(&reference.css, ModifierCss::Block)?;
+    Ok(mappings
+        .iter()
+        .any(|(original, _, should_rewrite)| *should_rewrite && declared.contains(original)))
+}
+
 pub(super) fn rewrite_css_references(
     css_rules: &mut [String],
     references: &[CssReference],
     mappings: &[(String, String, bool)],
-) {
+) -> Result<(), CssError> {
     let names = references
         .iter()
         .map(|reference| reference.name.clone())
         .collect::<Vec<_>>();
-    rewrite_class_rules(css_rules, &names, mappings);
+    rewrite_class_rules(css_rules, &names, mappings)
 }
 
 pub(super) fn rewrite_class_rules(
     css_rules: &mut [String],
     class_names: &[String],
     mappings: &[(String, String, bool)],
-) {
+) -> Result<(), CssError> {
     for rule in css_rules.iter_mut().filter(|rule| {
         class_names
             .iter()
             .any(|class_name| is_class_rule(rule, class_name))
     }) {
-        *rule = rewrite_cx_selectors(rule, mappings);
+        *rule = rewrite_modifiers(rule, ModifierCss::ClassRule, mappings)?;
     }
+    Ok(())
 }

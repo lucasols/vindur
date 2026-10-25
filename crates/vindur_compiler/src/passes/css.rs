@@ -12,7 +12,7 @@ pub(crate) fn clean_css(css: &str) -> String {
     collapse_double_semicolons(without_leading_semicolon)
 }
 
-pub(crate) const LAYER_MARKER_PREFIX: &str = "__VINDUR_LAYER_START__";
+const LAYER_MARKER_PREFIX: &str = "__VINDUR_LAYER_START__";
 const LAYER_MARKER_SUFFIX: &str = "__";
 
 /// `layer('name')` interpolations are replaced by a selector marker, the layer name is hex
@@ -115,7 +115,7 @@ fn split_layer_sections(css: &str) -> Result<Option<Vec<LayerSection<'_>>>, CssE
     Ok(Some(sections))
 }
 
-fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<String> {
+pub(super) fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<String> {
     decode_layer_marker(&css[rule.selector.span.start..rule.selector.span.end])
 }
 

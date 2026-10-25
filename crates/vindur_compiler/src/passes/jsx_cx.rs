@@ -14,7 +14,8 @@ use crate::{
 };
 
 use super::{
-    cx_selectors::contains_class_selector,
+    css_syntax::CssError,
+    cx_modifier_selectors::{ModifierCss, element_class_names},
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
@@ -293,7 +294,13 @@ impl JsxCxVisitor<'_> {
         if self.output.dev
             && let Some(styled) = &styled
         {
-            let missing = self.missing_styled_classes(styled, &mappings);
+            let missing = match self.missing_styled_classes(styled, &mappings) {
+                Ok(missing) => missing,
+                Err(error) => {
+                    self.set_error(attribute.span, error.message);
+                    return;
+                }
+            };
             if !missing.is_empty() {
                 self.output.warnings.push(CompilerDiagnostic::warning(
                     "",
@@ -307,10 +314,13 @@ impl JsxCxVisitor<'_> {
             }
         }
 
-        if let Some(styled) = &styled {
-            self.rewrite_styled_css(styled, &mappings);
-        } else {
-            rewrite_css_references(self.output.css_rules, &css_references, &mappings);
+        let rewritten = match &styled {
+            Some(styled) => self.rewrite_styled_css(styled, &mappings),
+            None => rewrite_css_references(self.output.css_rules, &css_references, &mappings),
+        };
+        if let Err(error) = rewritten {
+            self.set_error(attribute.span, error.message);
+            return;
         }
         let cx_call = format!(
             "{}({{\n{},\n}})",
@@ -426,9 +436,9 @@ impl JsxCxVisitor<'_> {
         &self,
         styled: &StyledComponent,
         mappings: &[(String, String, bool)],
-    ) -> Vec<String> {
+    ) -> Result<Vec<String>, CssError> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let relevant_css = self
             .output
@@ -441,27 +451,28 @@ impl JsxCxVisitor<'_> {
         } else {
             relevant_css
         };
-        mappings
+        let mut declared = Vec::new();
+        for rule in searched_css {
+            declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
+        }
+        Ok(mappings
             .iter()
-            .filter_map(|(original, hashed, should_rewrite)| {
-                // Only selectors the cx rewriting matches count, others would silently not match
-                let declared = searched_css.iter().any(|css| {
-                    contains_class_selector(css, original) || contains_class_selector(css, hashed)
-                });
-                (*should_rewrite && !declared).then_some(original.clone())
+            .filter(|(original, hashed, should_rewrite)| {
+                *should_rewrite && !declared.contains(original) && !declared.contains(hashed)
             })
-            .collect()
+            .map(|(original, _, _)| original.clone())
+            .collect())
     }
 
     fn rewrite_styled_css(
         &mut self,
         styled: &StyledComponent,
         mappings: &[(String, String, bool)],
-    ) {
+    ) -> Result<(), CssError> {
         let Some(base_class) = styled.class_name.split_whitespace().last() else {
-            return;
+            return Ok(());
         };
-        rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings);
+        rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings)
     }
 
     fn set_error(&mut self, span: oxc_span::Span, message: String) {

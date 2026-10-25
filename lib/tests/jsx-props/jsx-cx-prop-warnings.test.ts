@@ -566,7 +566,7 @@ describe('Warnings for Missing CSS Classes', () => {
     `);
   });
 
-  test('should warn about cx modifiers only used in selectors of other elements', async () => {
+  test('should only warn about cx modifiers that are not classes of the element', async () => {
     const warnings: TransformWarning[] = [];
 
     const result = await transformWithFormat({
@@ -577,9 +577,15 @@ describe('Warnings for Missing CSS Classes', () => {
           & .active {
             opacity: 0.5;
           }
+
+          & .loading {
+            opacity: 0;
+          }
         \`;
 
-        export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
+        export const App = ({ on }: { on: boolean }) => (
+          <Box cx={{ active: on, loading: !on }} />
+        );
       `,
       onWarning: (warning) => {
         warnings.push(warning);
@@ -589,15 +595,19 @@ describe('Warnings for Missing CSS Classes', () => {
     expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
       "
       - TransformWarning#:
-          message: 'Warning: Missing CSS classes for cx modifiers in Box: active'
-          loc: 'current_file:9:48'
+          message: 'Warning: Missing CSS classes for cx modifiers in Box: loading'
+          loc: 'current_file:14:2'
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Box {
-        & .active {
+        &:not(.v1560qbr-2-active) {
           opacity: 0.5;
+        }
+
+        & .loading {
+          opacity: 0;
         }
       }
       "
