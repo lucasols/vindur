@@ -206,7 +206,7 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
       &:is(.v1560qbr-2-active, .v1560qbr-3-hidden) {
         top: 0;
       }
-      &:not(.active .hidden) {
+      &:not(.active .v1560qbr-3-hidden) {
         left: 0;
       }
       &:has(.active) {
@@ -279,6 +279,45 @@ test('should rewrite cx classes after type and id selectors', async () => {
       }
       &#main.v1560qbr-2-active {
         color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('should rewrite nested & compounds and the of selector list of nth-child', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div\`
+        &:not(&.active) { opacity: 0.5; }
+        &:is(.list &.active) { color: red; }
+        &:has(&.active > .icon) { color: blue; }
+        &:nth-child(2n+1 of .active, .hidden) { top: 0; }
+        &:nth-child(2n+1) .active { left: 0; }
+      \`;
+
+      export const App = ({ a, h }) => <Item cx={{ active: a, hidden: h }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Item {
+      &:not(&.v1560qbr-2-active) {
+        opacity: 0.5;
+      }
+      &:is(.list &.v1560qbr-2-active) {
+        color: red;
+      }
+      &:has(&.v1560qbr-2-active > .icon) {
+        color: blue;
+      }
+      &:nth-child(2n + 1 of .v1560qbr-2-active, .v1560qbr-3-hidden) {
+        top: 0;
+      }
+      &:nth-child(2n + 1) .active {
+        left: 0;
       }
     }
     "

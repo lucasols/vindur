@@ -25,6 +25,7 @@ pub(crate) fn optimize_cx_calls(
         source,
         edits,
         optimized_calls: 0,
+        inside_spread: false,
     };
     visitor.visit_program(program);
     // Generated code may still call the user's `cx` import, which suppressed
@@ -65,9 +66,19 @@ struct CxCallVisitor<'a> {
     source: &'a str,
     edits: &'a mut Vec<Edit>,
     optimized_calls: usize,
+    // Other passes copy JSX spread source into `mergeClassNames([...])`, and the copy still
+    // calls `cx`, so calls inside spreads don't count towards removing the import
+    inside_spread: bool,
 }
 
 impl<'a> Visit<'a> for CxCallVisitor<'_> {
+    fn visit_jsx_spread_attribute(&mut self, attribute: &oxc_ast::ast::JSXSpreadAttribute<'a>) {
+        let inside_spread = self.inside_spread;
+        self.inside_spread = true;
+        walk::walk_jsx_spread_attribute(self, attribute);
+        self.inside_spread = inside_spread;
+    }
+
     fn visit_call_expression(&mut self, call: &oxc_ast::ast::CallExpression<'a>) {
         // Only calls of vindur's `cx` under its own name, a `cx` from another library may differ
         let Expression::Identifier(callee) = &call.callee else {
@@ -93,7 +104,9 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
             return;
         }
         if let Some(value) = optimized_cx_value(&call.arguments, self.source) {
-            self.optimized_calls += 1;
+            if !self.inside_spread {
+                self.optimized_calls += 1;
+            }
             self.edits.push(Edit {
                 span: call.span,
                 replacement: value.into_replacement(),

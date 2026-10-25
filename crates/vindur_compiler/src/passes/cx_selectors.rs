@@ -31,8 +31,7 @@ fn rewrite_compound_classes(css: &str, map: &ClassMapper<'_>) -> String {
             output.push_str(&css[index..end]);
             index = end;
         } else if character == '&' {
-            output.push('&');
-            index = rewrite_compound(css, index + 1, css.len(), &mut output, map);
+            index = rewrite_compound(css, index, css.len(), &mut output, map, false);
         } else {
             output.push(character);
             index += character.len_utf8();
@@ -41,21 +40,31 @@ fn rewrite_compound_classes(css: &str, map: &ClassMapper<'_>) -> String {
     output
 }
 
-// Rewrites the `.class` tokens of the compound selector starting at `index`, returning where it
-// ends. Scanning never goes past `limit`, the end of the enclosing argument list
+// Rewrites the compound selector starting at `index`, returning where it ends. Its `.class`
+// tokens are rewritten when it's the current element: `rewrite_classes`, or once it reaches a
+// `&`. Scanning never goes past `limit`, the end of the enclosing argument list
 fn rewrite_compound(
     css: &str,
     mut index: usize,
     limit: usize,
     output: &mut String,
     map: &ClassMapper<'_>,
+    mut rewrite_classes: bool,
 ) -> usize {
+    let type_name = type_selector(&css[index..limit]);
+    output.push_str(type_name);
+    index += type_name.len();
     loop {
         match css[index..limit].chars().next() {
+            Some('&') => {
+                output.push('&');
+                index += 1;
+                rewrite_classes = true;
+            }
             Some('.') => {
                 let token = identifier(&css[index + 1..limit]);
                 output.push('.');
-                match map(token) {
+                match rewrite_classes.then(|| map(token)).flatten() {
                     Some(hashed) => output.push_str(&hashed),
                     None => output.push_str(token),
                 }
@@ -67,9 +76,7 @@ fn rewrite_compound(
                 output.push_str(name);
                 index += 1 + name.len();
                 if css[index..limit].starts_with('(') {
-                    // These match the same element, `:has(.x)` or `:nth-child(2 of .x)` don't
-                    let same_element = matches!(name, "not" | "is" | "where" | "matches");
-                    index = rewrite_arguments(css, index, limit, output, map, same_element);
+                    index = rewrite_arguments(css, index, limit, output, map, name);
                 }
             }
             Some('#') => {
@@ -88,48 +95,163 @@ fn rewrite_compound(
     }
 }
 
-// Rewrites the selector list of a functional pseudo-class. An argument is only rewritten when
-// it's a single compound selector, in `:not(.a .b)` the `.a` is another element
+// Rewrites the arguments of the functional pseudo-class `name`, starting at its `(`. The
+// subject of `:not`, `:is`, `:where` and of the `of S` list of `:nth-child` is the current
+// element, other arguments like `:has(.x)` only have their `&` compounds rewritten
 fn rewrite_arguments(
     css: &str,
     open: usize,
     limit: usize,
     output: &mut String,
     map: &ClassMapper<'_>,
-    rewrite: bool,
+    name: &str,
 ) -> usize {
     let end = skipped_end(css, open, limit);
-    if !rewrite {
-        output.push_str(&css[open..end]);
-        return end;
-    }
-    output.push('(');
-    let close = if css[..end].ends_with(')') {
+    let close = if css[open..end].ends_with(')') {
         end - 1
     } else {
         end
     };
-    let mut index = open + 1;
-    while index < close {
-        let whitespace = css[index..close].len() - css[index..close].trim_start().len();
-        output.push_str(&css[index..index + whitespace]);
-        index += whitespace;
-        // Rewritten once into a buffer, rescanning nested arguments would take exponential time
-        // An argument may start with a type selector, like `:not(div.active)`
-        let type_end = index + type_selector(&css[index..close]).len();
-        let mut rewritten = css[index..type_end].to_owned();
-        let compound_end = rewrite_compound(css, type_end, close, &mut rewritten, map);
-        let after = css[compound_end..close].trim_start();
-        if compound_end > index && (after.is_empty() || after.starts_with(',')) {
-            output.push_str(&rewritten);
-            index = compound_end;
+    output.push('(');
+    let start = open + 1;
+    match name {
+        "not" | "is" | "where" | "matches" => {
+            rewrite_selector_list(css, start, close, output, map, true);
         }
-        let argument_end = next_argument(css, index, close);
-        output.push_str(&css[index..argument_end]);
-        index = argument_end;
+        "nth-child" | "nth-last-child" => match nth_selector_start(css, start, close) {
+            Some(selectors) => {
+                rewrite_selector_list(css, start, selectors, output, map, false);
+                rewrite_selector_list(css, selectors, close, output, map, true);
+            }
+            None => rewrite_selector_list(css, start, close, output, map, false),
+        },
+        _ => rewrite_selector_list(css, start, close, output, map, false),
     }
     output.push_str(&css[close..end]);
     end
+}
+
+// Rewrites each `,`-separated selector between `start` and `end`
+fn rewrite_selector_list(
+    css: &str,
+    start: usize,
+    end: usize,
+    output: &mut String,
+    map: &ClassMapper<'_>,
+    same_element: bool,
+) {
+    let mut index = start;
+    while index < end {
+        let argument_end = next_argument(css, index, end);
+        let content_end = if css[index..argument_end].ends_with(',') {
+            argument_end - 1
+        } else {
+            argument_end
+        };
+        rewrite_complex_selector(css, index, content_end, output, map, same_element);
+        output.push_str(&css[content_end..argument_end]);
+        index = argument_end;
+    }
+}
+
+// In `.parent .active` only the last compound is the subject, the others are other elements
+fn rewrite_complex_selector(
+    css: &str,
+    start: usize,
+    end: usize,
+    output: &mut String,
+    map: &ClassMapper<'_>,
+    same_element: bool,
+) {
+    let compounds = compound_ranges(css, start, end);
+    let mut index = start;
+    for (position, &(compound_start, compound_end)) in compounds.iter().enumerate() {
+        output.push_str(&css[index..compound_start]);
+        let is_subject = same_element && position + 1 == compounds.len();
+        rewrite_compound_range(css, compound_start, compound_end, output, map, is_subject);
+        index = compound_end;
+    }
+    output.push_str(&css[index..end]);
+}
+
+// Rewrites a compound, copying the parts that aren't selector syntax, like the `2n` of
+// `:nth-child(2n+1)`, and strings, comments and escapes as they are
+fn rewrite_compound_range(
+    css: &str,
+    start: usize,
+    end: usize,
+    output: &mut String,
+    map: &ClassMapper<'_>,
+    rewrite_classes: bool,
+) {
+    let mut index = start;
+    while let Some(character) = css[index..end].chars().next() {
+        let next = if matches!(character, '"' | '\'') || css[index..end].starts_with("/*") {
+            skipped_end(css, index, end)
+        } else if character == '\\' {
+            index + 1 + css[index + 1..end].chars().next().map_or(0, char::len_utf8)
+        } else {
+            let next = rewrite_compound(css, index, end, output, map, rewrite_classes);
+            if next > index {
+                index = next;
+                continue;
+            }
+            index + character.len_utf8()
+        };
+        output.push_str(&css[index..next]);
+        index = next;
+    }
+}
+
+// The ranges of the compound selectors between `start` and `end`, separated by whitespace and
+// the `>`, `+` and `~` combinators
+fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut compound_start = None;
+    let mut index = start;
+    while let Some(character) = css[index..end].chars().next() {
+        if character.is_whitespace() || matches!(character, '>' | '+' | '~') {
+            if let Some(range_start) = compound_start.take() {
+                ranges.push((range_start, index));
+            }
+            index += character.len_utf8();
+            continue;
+        }
+        compound_start.get_or_insert(index);
+        index = match character {
+            '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
+            '/' if css[index..end].starts_with("/*") => skipped_end(css, index, end),
+            '\\' => {
+                let escaped = css[index + 1..end].chars().next().map_or(0, char::len_utf8);
+                index + 1 + escaped
+            }
+            _ => index + character.len_utf8(),
+        };
+    }
+    if let Some(range_start) = compound_start {
+        ranges.push((range_start, end));
+    }
+    ranges
+}
+
+// Where the selector list of `:nth-child(An+B of S)` starts, right after `of`
+fn nth_selector_start(css: &str, start: usize, end: usize) -> Option<usize> {
+    let mut index = start;
+    let mut after_whitespace = false;
+    while let Some(character) = css[index..end].chars().next() {
+        if after_whitespace
+            && css[index..end].starts_with("of")
+            && css[index + 2..end].starts_with(char::is_whitespace)
+        {
+            return Some(index + 2);
+        }
+        after_whitespace = character.is_whitespace();
+        index = match character {
+            '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
+            _ => index + character.len_utf8(),
+        };
+    }
+    None
 }
 
 // The end of the next `,`-separated argument, including the `,`

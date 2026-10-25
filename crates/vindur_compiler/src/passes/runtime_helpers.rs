@@ -22,9 +22,10 @@ impl RuntimeHelperNames {
     pub(super) fn new(program: &Program<'_>, scoping: &Scoping) -> Self {
         let [cx, merge_class_names, merge_styles] = HELPERS.map(|(helper, alias)| {
             let own_imports = vindur_value_imports(program, helper, helper);
+            // A global reference, like a `cx` from a script tag, would be captured by the import
             let shadowed = scoping.symbol_ids().any(|symbol| {
                 scoping.symbol_name(symbol) == helper && !own_imports.contains(&symbol)
-            });
+            }) || scoping.root_unresolved_references().contains_key(helper);
             if shadowed {
                 unused_name(scoping, alias)
             } else {

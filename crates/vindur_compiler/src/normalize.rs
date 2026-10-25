@@ -84,8 +84,16 @@ fn merge_vindur_imports(program: &Program<'_>, source: &str, edits: &mut Vec<cra
             let Statement::ImportDeclaration(import) = statement else {
                 return None;
             };
-            // Type-only imports are left alone, merging would turn them into value imports
-            (import.source.value.as_str() == "vindur" && import.import_kind.is_value())
+            // Type-only, namespace and default imports are left alone, they can't be merged
+            // into a named value import
+            let only_named = import.specifiers.as_ref().is_some_and(|specifiers| {
+                specifiers.iter().all(|specifier| {
+                    matches!(specifier, ImportDeclarationSpecifier::ImportSpecifier(_))
+                })
+            });
+            (import.source.value.as_str() == "vindur"
+                && import.import_kind.is_value()
+                && only_named)
                 .then_some(&**import)
         })
         .collect::<Vec<_>>();
