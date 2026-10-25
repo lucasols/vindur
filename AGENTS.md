@@ -77,7 +77,10 @@ Warnings are used to flag potential issues or suggest optimizations without fail
 
 # Testing
 
-Package-specific testing guidance lives in `lib/CLAUDE.md` (Vitest, transform tests) and `e2e-tests/CLAUDE.md` (Playwright).
+- Do not update snapshots via `vitest run --u`, update them manually
+- If there are too many snapshots to update manually, ask for the user to update them
+
+Before writing or changing tests, load the matching skill: `vindur-lib-tests` (Vitest tests in `lib/tests/`) or `vindur-e2e-tests` (Playwright tests in `e2e-tests/`).
 
 # Documentation
 
