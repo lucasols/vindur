@@ -79,9 +79,9 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
         StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
             Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex, .. } if property == "var" => {
-            Some(StaticValue::String(format!("var(--stc-{name}-var, {hex})")))
-        }
+        StaticValue::ThemeColor { name, hex, .. } if property == "var" => Some(
+            StaticValue::String(format!("var(--stc-{}-var, {hex})", css_name(name))),
+        ),
         StaticValue::ThemeColor { name, hex, .. } if property == "contrast" => {
             Some(StaticValue::ThemeColorContrast {
                 name: name.clone(),
@@ -90,7 +90,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
             })
         }
         StaticValue::ThemeColorContrast { name, hex, .. } if property == "var" => Some(
-            StaticValue::String(format!("var(--stc-{name}-contrast-var, {hex})")),
+            StaticValue::String(format!("var(--stc-{}-contrast-var, {hex})", css_name(name))),
         ),
         _ => None,
     }
@@ -138,8 +138,22 @@ pub(super) fn theme_method(
         },
     );
     Some(StaticValue::String(format!(
-        "var(--stc-{name}-{operation}, {result})"
+        "var(--stc-{}-{operation}, {result})",
+        css_name(name)
     )))
+}
+
+/// Theme color keys can have characters like `$` that are invalid in a custom property name
+fn css_name(name: &str) -> String {
+    name.chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 fn contrast_hex(hex: &str) -> String {

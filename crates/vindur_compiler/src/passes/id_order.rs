@@ -108,7 +108,7 @@ fn css_attribute_allocates_class(attribute: &JSXAttribute<'_>) -> bool {
 
 // Scoped variables of a css prop take ids too, an upper bound since names declared
 // earlier in the file reuse theirs
-fn css_attribute_scoped_variable_count(attribute: &JSXAttribute<'_>) -> u32 {
+pub(crate) fn css_attribute_scoped_variable_count(attribute: &JSXAttribute<'_>) -> u32 {
     let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
         return 0;
     };
@@ -123,7 +123,7 @@ fn css_attribute_scoped_variable_count(attribute: &JSXAttribute<'_>) -> u32 {
     u32::try_from(names.len()).unwrap_or(u32::MAX)
 }
 
-fn scoped_variable_names(css: &str) -> Vec<&str> {
+pub(crate) fn scoped_variable_names(css: &str) -> Vec<&str> {
     css.match_indices("---")
         .filter_map(|(start, _)| {
             let name_start = start + 3;

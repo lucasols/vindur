@@ -452,11 +452,13 @@ fn color_method_amount(
     match evaluate_expression(argument.as_expression()?, constants, scoping)? {
         StaticValue::Number(value) => Some(Some(value)),
         StaticValue::Undefined => Some(None),
-        StaticValue::Object(properties) => match properties.get("alpha") {
-            Some(StaticValue::Number(value)) => Some(Some(*value)),
-            Some(StaticValue::Undefined) | None => Some(None),
-            Some(_) => None,
-        },
+        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
+            match properties.get("alpha") {
+                Some(StaticValue::Number(value)) => Some(Some(*value)),
+                Some(StaticValue::Undefined) | None => Some(None),
+                Some(_) => None,
+            }
+        }
         _ => None,
     }
 }

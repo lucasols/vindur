@@ -10,7 +10,9 @@ use crate::{
     facts::{FunctionParameter, StaticValue},
 };
 
-use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
+use super::dynamic_color_value::{
+    color_interpolation_error, container_selector_error, invalid_color_method_error,
+};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
@@ -165,6 +167,9 @@ pub(crate) fn evaluate_template(
         };
         if matches!(value, StaticValue::LayerFunction) {
             return Err(interpolation_error(expression, file_path, source, context));
+        }
+        if let Some(diagnostic) = color_interpolation_error(&value, expression, file_path, source) {
+            return Err(diagnostic);
         }
         let followed_by_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value

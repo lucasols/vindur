@@ -5,13 +5,14 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     css::clean_css,
     dynamic_color_merge::{ClassPart, DynamicColorClasses},
+    id_order::{css_attribute_scoped_variable_count, scoped_variable_names},
     jsx_cx::CxElementTransform,
     scoped::process_scoped_variables,
     static_evaluation::resolved_constant,
@@ -45,10 +46,15 @@ pub(crate) fn transform_jsx_css_props(
     let minimum_final_index = *output.id_index;
     let mut visitor = JsxCssVisitor {
         output,
+        tail_index: minimum_final_index,
+        style_objects: Vec::new(),
         diagnostic: None,
     };
     visitor.visit_program(program);
-    *visitor.output.id_index = (*visitor.output.id_index).max(minimum_final_index);
+    visitor.process_style_objects();
+    *visitor.output.id_index = (*visitor.output.id_index)
+        .max(minimum_final_index)
+        .max(visitor.tail_index);
     match visitor.diagnostic {
         Some(diagnostic) => Err(diagnostic),
         None => Ok(()),
@@ -57,6 +63,10 @@ pub(crate) fn transform_jsx_css_props(
 
 struct JsxCssVisitor<'a> {
     output: JsxCssTransform<'a>,
+    /// The next id after every reserved one
+    tail_index: u32,
+    /// Style objects with `---name` keys, mapped once every css prop is processed
+    style_objects: Vec<(oxc_span::Span, Vec<(oxc_span::Span, String)>)>,
     diagnostic: Option<CompilerDiagnostic>,
 }
 
@@ -65,13 +75,10 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         if self.diagnostic.is_some() {
             return;
         }
-        // The css prop registers its scoped variables before the style prop maps them
         if let Some(css_attribute) = find_attribute(element, "css") {
             self.process_css_attribute(element, css_attribute);
         }
-        if self.diagnostic.is_none() {
-            self.process_style_attribute(element);
-        }
+        self.collect_style_attribute(element);
         if self.diagnostic.is_none() {
             walk::walk_jsx_element(self, element);
         }
@@ -79,7 +86,7 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
 }
 
 impl JsxCssVisitor<'_> {
-    fn process_style_attribute(&mut self, element: &JSXElement<'_>) {
+    fn collect_style_attribute(&mut self, element: &JSXElement<'_>) {
         let Some(attribute) = find_attribute(element, "style") else {
             return;
         };
@@ -89,35 +96,48 @@ impl JsxCssVisitor<'_> {
         let JSXExpression::ObjectExpression(object) = &container.expression else {
             return;
         };
-        let mut transformed = false;
-        for property in &object.properties {
-            let ObjectPropertyKind::ObjectProperty(property) = property else {
-                continue;
-            };
-            let Some(name) = property.key.static_name() else {
-                continue;
-            };
-            let Some(scoped_name) = name.strip_prefix("---") else {
-                continue;
-            };
-            let Some(generated) = self.output.scoped_variables.get(scoped_name) else {
-                continue;
-            };
-            self.output.edits.push(Edit {
-                span: property.key.span(),
-                replacement: format!("\"--{generated}\""),
-            });
-            transformed = true;
+        let keys = object
+            .properties
+            .iter()
+            .filter_map(|property| {
+                let ObjectPropertyKind::ObjectProperty(property) = property else {
+                    return None;
+                };
+                let name = property.key.static_name()?;
+                let scoped_name = name.strip_prefix("---")?;
+                Some((property.key.span(), scoped_name.to_owned()))
+            })
+            .collect::<Vec<_>>();
+        if !keys.is_empty() {
+            self.style_objects.push((object.span, keys));
         }
-        if transformed {
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(object.span.start + 1, object.span.start + 1),
-                replacement: "\n".to_owned(),
-            });
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(object.span.end - 1, object.span.end - 1),
-                replacement: "\n".to_owned(),
-            });
+    }
+
+    /// Runs after every css prop registered its scoped variables, so a parent's style
+    /// prop can set a variable that a child's css prop declares
+    fn process_style_objects(&mut self) {
+        for (object_span, keys) in std::mem::take(&mut self.style_objects) {
+            let mut transformed = false;
+            for (key_span, scoped_name) in keys {
+                let Some(generated) = self.output.scoped_variables.get(&scoped_name) else {
+                    continue;
+                };
+                self.output.edits.push(Edit {
+                    span: key_span,
+                    replacement: format!("\"--{generated}\""),
+                });
+                transformed = true;
+            }
+            if transformed {
+                self.output.edits.push(Edit {
+                    span: oxc_span::Span::new(object_span.start + 1, object_span.start + 1),
+                    replacement: "\n".to_owned(),
+                });
+                self.output.edits.push(Edit {
+                    span: oxc_span::Span::new(object_span.end - 1, object_span.end - 1),
+                    replacement: "\n".to_owned(),
+                });
+            }
         }
     }
 
@@ -226,13 +246,10 @@ impl JsxCssVisitor<'_> {
                 } else {
                     format!("{}-{index}", self.output.file_hash)
                 };
-                let content = process_scoped_variables(
-                    &content,
-                    self.output.file_hash,
-                    self.output.dev,
-                    self.output.id_index,
-                    self.output.scoped_variables,
-                );
+                if let Some(cx) = cx_transform {
+                    *self.output.id_index = cx.next_index;
+                }
+                let content = self.process_css_prop_scoped_variables(&content, attribute);
                 (name, Some(content))
             }
             expression => {
@@ -310,6 +327,34 @@ impl JsxCssVisitor<'_> {
                 ),
             });
         }
+    }
+
+    /// The scoped variables of a css prop take the ids reserved after its class, unless
+    /// interpolations add more names than its template has. Those take ids after every
+    /// reserved one, so they can't reuse the ids of a later declaration
+    fn process_css_prop_scoped_variables(
+        &mut self,
+        content: &str,
+        attribute: &JSXAttribute<'_>,
+    ) -> String {
+        let new_names = scoped_variable_names(content)
+            .into_iter()
+            .filter(|name| !self.output.scoped_variables.contains_key(*name))
+            .collect::<FxHashSet<_>>()
+            .len();
+        let reserved = css_attribute_scoped_variable_count(attribute);
+        let index = if u32::try_from(new_names).unwrap_or(u32::MAX) <= reserved {
+            &mut *self.output.id_index
+        } else {
+            &mut self.tail_index
+        };
+        process_scoped_variables(
+            content,
+            self.output.file_hash,
+            self.output.dev,
+            index,
+            self.output.scoped_variables,
+        )
     }
 
     /// The dynamic color pass merges the classes into its `_sp` call, whose spread would

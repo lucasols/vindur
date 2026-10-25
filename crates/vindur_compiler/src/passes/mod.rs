@@ -13,6 +13,7 @@ mod id_order;
 mod import_analysis;
 mod jsx_css;
 mod jsx_cx;
+mod runtime_helpers;
 mod runtime_references;
 mod scoped;
 mod source_map;

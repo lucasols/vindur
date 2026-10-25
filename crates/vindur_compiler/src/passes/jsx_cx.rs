@@ -21,6 +21,8 @@ pub(crate) struct CxElementTransform {
     pub call: String,
     pub mappings: Vec<(String, String, bool)>,
     pub css_index: u32,
+    /// The id after the hashed cx classes, where the css prop's scoped variables start
+    pub next_index: u32,
 }
 
 pub(crate) struct JsxCxTransform<'a> {
@@ -253,6 +255,7 @@ impl JsxCxVisitor<'_> {
                     call: cx_call,
                     mappings,
                     css_index,
+                    next_index: *self.output.id_index,
                 },
             );
             self.output.edits.push(Edit {
@@ -377,20 +380,8 @@ impl JsxCxVisitor<'_> {
         styled: &StyledComponent,
         mappings: &[(String, String, bool)],
     ) {
-        let Some(base_class) = styled.class_name.split_whitespace().last() else {
-            return;
-        };
-        for rule in self
-            .output
-            .css_rules
-            .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{base_class} {{")))
-        {
-            for (original, hashed, should_rewrite) in mappings {
-                if *should_rewrite {
-                    *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-                }
-            }
+        if let Some(base_class) = styled.class_name.split_whitespace().last() {
+            rewrite_class_rule(self.output.css_rules, base_class, mappings);
         }
     }
 
@@ -399,20 +390,8 @@ impl JsxCxVisitor<'_> {
         element: &JSXElement<'_>,
         mappings: &[(String, String, bool)],
     ) {
-        let Some(name) = self.css_reference_name(element) else {
-            return;
-        };
-        for rule in self
-            .output
-            .css_rules
-            .iter_mut()
-            .filter(|rule| rule.starts_with(&format!(".{name} {{")))
-        {
-            for (original, hashed, should_rewrite) in mappings {
-                if *should_rewrite {
-                    *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-                }
-            }
+        if let Some(name) = self.css_reference_name(element) {
+            rewrite_class_rule(self.output.css_rules, &name, mappings);
         }
     }
 
@@ -447,6 +426,24 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
+    }
+}
+
+fn rewrite_class_rule(
+    css_rules: &mut [String],
+    class_name: &str,
+    mappings: &[(String, String, bool)],
+) {
+    let rule_start = format!(".{class_name} {{");
+    for rule in css_rules
+        .iter_mut()
+        .filter(|rule| rule.starts_with(&rule_start))
+    {
+        for (original, hashed, should_rewrite) in mappings {
+            if *should_rewrite {
+                *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
+            }
+        }
     }
 }
 

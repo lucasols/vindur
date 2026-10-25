@@ -332,7 +332,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: dynamicColor prop must reference a dynamic color or color.set(...)
+      [TransformError: /test.tsx: dynamicColor prop must be \`color.set(value)\`, or an array of them, where \`color\` is a dynamic color and \`set\` takes exactly one argument
       loc: 5:52]
     `);
   });

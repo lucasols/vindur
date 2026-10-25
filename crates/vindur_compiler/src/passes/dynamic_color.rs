@@ -88,7 +88,7 @@ impl DynamicColorVisitor<'_> {
             }
             self.error(
                 container.expression.span(),
-                "dynamicColor prop must reference a dynamic color or color.set(...)".to_owned(),
+                "dynamicColor prop must be `color.set(value)`, or an array of them, where `color` is a dynamic color and `set` takes exactly one argument".to_owned(),
             );
             return;
         };

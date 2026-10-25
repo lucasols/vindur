@@ -129,14 +129,24 @@ pub(super) fn container_selector_error(
     source: &str,
 ) -> Option<CompilerDiagnostic> {
     let (previous, next) = surrounding_quasis;
+    let previous = without_css_comments(previous);
     let starts_selector = previous
         .rsplit(['{', '}', ';', ','])
         .next()
         .is_none_or(|selector_start| selector_start.trim().is_empty());
-    if !starts_selector || !next.is_some_and(|quasi| quasi.trim_start().starts_with('{')) {
+    // The rest of the compound selector, e.g. `:hover` in `${c.container.isDark}:hover {`
+    let rest = without_css_comments(next?.split_once('{')?.0);
+    // A leading space is a descendant combinator, so only a trailing one is trimmed
+    let compound = rest.split(',').next().unwrap_or_default().trim_end();
+    if !starts_selector
+        || compound.contains('&')
+        || compound.contains(|character: char| {
+            character.is_whitespace() || matches!(character, '>' | '+' | '~')
+        })
+    {
         return None;
     }
-    let Expression::StaticMemberExpression(member) = expression else {
+    let Expression::StaticMemberExpression(member) = expression.without_parentheses() else {
         return None;
     };
     let Some(StaticValue::DynamicColorPath { path, .. }) =
@@ -157,6 +167,46 @@ pub(super) fn container_selector_error(
             "`${{{selector}}}` matches an ancestor that sets the color. Use `${{{selector}}} & {{ ... }}` to style this element, or `& ${{{selector}}} {{ ... }}` to style descendants that set the color"
         ),
     ))
+}
+
+/// A color object interpolated as is would print a placeholder instead of a CSS value
+pub(super) fn color_interpolation_error(
+    value: &StaticValue,
+    expression: &Expression<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let span = expression.span();
+    let interpolation = &source[span.start as usize..span.end as usize];
+    let message = match value {
+        StaticValue::ThemeColors(_) | StaticValue::UnexportedThemeColors(_) => format!(
+            "`${{{interpolation}}}` is a color palette, not a CSS value. Use one of its colors, e.g. `${{{interpolation}.name.var}}`"
+        ),
+        StaticValue::DynamicColorPath { path, .. } if path != "contrast" => format!(
+            "`${{{interpolation}}}` is a group of selectors, not a CSS value. Use one of them, e.g. `${{{interpolation}.isDark}}`"
+        ),
+        StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. } => format!(
+            "`${{{interpolation}}}` is a color, not a CSS value. Use its `.var` or a color method, e.g. `${{{interpolation}.var}}`"
+        ),
+        _ => return None,
+    };
+    Some(CompilerDiagnostic::error(file_path, source, span, message))
+}
+
+fn without_css_comments(css: &str) -> String {
+    let mut output = String::with_capacity(css.len());
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        output.push_str(&rest[..start]);
+        rest = rest[start + 2..]
+            .find("*/")
+            .map_or("", |end| &rest[start + 2 + end + 2..]);
+    }
+    output.push_str(rest);
+    output
 }
 
 /// Color methods that take an amount need it to evaluate to a number

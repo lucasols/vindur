@@ -2,8 +2,10 @@ use oxc_ast::ast::{
     Argument, Expression, ImportDeclarationSpecifier, ObjectPropertyKind, Program, Statement,
 };
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use oxc_syntax::operator::LogicalOperator;
+use oxc_syntax::{operator::LogicalOperator, symbol::SymbolId};
+use rustc_hash::FxHashSet;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
@@ -12,11 +14,14 @@ use super::{import_analysis::is_compile_time_import, transform_support::js_strin
 /// `keep_import` is set when generated code calls the user's own `cx` import
 pub(crate) fn optimize_cx_calls(
     program: &Program<'_>,
+    scoping: &Scoping,
     source: &str,
     edits: &mut Vec<Edit>,
     keep_import: bool,
 ) {
     let mut visitor = CxCallVisitor {
+        scoping,
+        vindur_cx: vindur_cx_symbols(program),
         source,
         edits,
         found_calls: 0,
@@ -29,6 +34,10 @@ pub(crate) fn optimize_cx_calls(
 }
 
 struct CxCallVisitor<'a> {
+    scoping: &'a Scoping,
+    /// Only calls of the `cx` imported from vindur are optimized, not a local or another
+    /// library's `cx`
+    vindur_cx: FxHashSet<SymbolId>,
     source: &'a str,
     edits: &'a mut Vec<Edit>,
     found_calls: usize,
@@ -41,7 +50,12 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
             walk::walk_call_expression(self, call);
             return;
         };
-        if callee.name.as_str() != "cx" {
+        let is_vindur_cx = callee
+            .reference_id
+            .get()
+            .and_then(|reference_id| self.scoping.get_reference(reference_id).symbol_id())
+            .is_some_and(|symbol_id| self.vindur_cx.contains(&symbol_id));
+        if !is_vindur_cx {
             walk::walk_call_expression(self, call);
             return;
         }
@@ -138,7 +152,7 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                let value_expression = dynamic_class_expression(&value)?;
+                let value_expression = dynamic_class_expression(&value);
                 parts.push(format!("({condition} ? {value_expression} : \"\")"));
                 has_prior = true;
             }
@@ -146,7 +160,14 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
     }
     match parts.as_slice() {
         [] => Some(js_string_literal("")),
-        [single] => Some(single.trim_matches(['(', ')']).to_owned()),
+        // Only the wrapping parentheses, the condition can start with its own
+        [single] => Some(
+            single
+                .strip_prefix('(')
+                .and_then(|inner| inner.strip_suffix(')'))
+                .unwrap_or(single)
+                .to_owned(),
+        ),
         _ => Some(parts.join(" + ")),
     }
 }
@@ -251,31 +272,13 @@ fn add_leading_space(value: String) -> String {
         .map_or_else(|| format!(" {value}"), |template| format!("` {template}"))
 }
 
-fn dynamic_class_expression(value: &str) -> Option<String> {
-    let Some(template_source) = value.strip_prefix('`') else {
-        return Some(js_string_literal(value));
-    };
-    let template_source = template_source.strip_suffix('`')?;
-    let mut parts = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(relative_start) = template_source[cursor..].find("${") {
-        let start = cursor + relative_start;
-        if start > cursor {
-            parts.push(js_string_literal(&template_source[cursor..start]));
-        }
-        let expression_start = start + 2;
-        let relative_end = template_source[expression_start..].find('}')?;
-        let end = expression_start + relative_end;
-        parts.push(template_source[expression_start..end].to_owned());
-        cursor = end + 1;
+/// A template literal is kept as written, its expressions can't be split out of it safely
+fn dynamic_class_expression(value: &str) -> String {
+    if value.starts_with('`') {
+        value.to_owned()
+    } else {
+        js_string_literal(value)
     }
-    if cursor < template_source.len() {
-        parts.push(js_string_literal(&template_source[cursor..]));
-    }
-    if parts.is_empty() {
-        return Some(js_string_literal(template_source));
-    }
-    Some(parts.join(" + "))
 }
 
 fn static_cx_value(arguments: &[Argument<'_>]) -> Option<String> {
@@ -310,6 +313,27 @@ fn static_cx_value(arguments: &[Argument<'_>]) -> Option<String> {
         }
     }
     Some(classes.join(" "))
+}
+
+fn vindur_cx_symbols(program: &Program<'_>) -> FxHashSet<SymbolId> {
+    program
+        .body
+        .iter()
+        .filter_map(|statement| {
+            let Statement::ImportDeclaration(declaration) = statement else {
+                return None;
+            };
+            (declaration.source.value.as_str() == "vindur")
+                .then_some(declaration.specifiers.as_ref()?)
+        })
+        .flatten()
+        .filter_map(|specifier| {
+            let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
+                return None;
+            };
+            (specifier.imported.name().as_str() == "cx").then(|| specifier.local.symbol_id.get())?
+        })
+        .collect()
 }
 
 fn remove_cx_import(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) {
