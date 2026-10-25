@@ -251,7 +251,6 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "createGlobalStyle",
-                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -289,7 +288,6 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "styled",
-                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -515,11 +513,7 @@ pub(crate) fn transform_program(
         )?);
     }
     let css = css_rules.join("\n\n");
-    warnings.extend(scoped_variable_warnings(
-        &scoped_variables,
-        file_path,
-        source,
-    ));
+    warnings.extend(scoped_variables.warnings(file_path, source));
 
     Ok(PassOutput {
         edits,
@@ -544,35 +538,6 @@ fn is_style_value(value: &StaticValue) -> bool {
             | StaticValue::ThemeColors { .. }
             | StaticValue::UnexportedThemeColors { .. }
     )
-}
-
-fn scoped_variable_warnings(
-    variables: &ScopedVariables,
-    file_path: &str,
-    source: &str,
-) -> Vec<CompilerDiagnostic> {
-    let mut warnings = Vec::new();
-    for name in variables.generated.keys() {
-        match (variables.declared.get(name), variables.read.get(name)) {
-            (Some(&span), None) => warnings.push(CompilerDiagnostic::warning(
-                file_path,
-                source,
-                span,
-                format!("Scoped variable '---{name}' is declared but never read"),
-            )),
-            (None, Some(&span)) if !variables.registered.contains(name) => {
-                warnings.push(CompilerDiagnostic::warning(
-                    file_path,
-                    source,
-                    span,
-                    format!("Scoped variable '---{name}' is used but never declared"),
-                ))
-            }
-            _ => {}
-        }
-    }
-    warnings.sort_by(|left, right| left.message.cmp(&right.message));
-    warnings
 }
 
 #[cfg(test)]

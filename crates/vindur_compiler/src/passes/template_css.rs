@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use oxc_ast::ast::{TemplateElement, TemplateLiteral};
 use oxc_span::{GetSpan, Span};
 
@@ -9,7 +7,6 @@ use super::css::layer_markers_in_text;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::css_tokens::is_inside_block;
 use super::static_value::TemplateContext;
-use super::styled::{StyleFlag, css_class_name_part, replace_class_selector};
 use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -104,8 +101,7 @@ pub(crate) fn validate_template_css(
     rebuild_with_extensions: impl Fn(&[usize]) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
     let kind = BlockKind::from_tag_type(context.tag_type);
-    let validate =
-        |css: &str| validate_style_block(&validation_css(css, context.style_flags), kind);
+    let validate = |css: &str| validate_style_block(css, kind);
     let Err(error) = validate(&evaluated.css) else {
         return reject_layers_in_text(evaluated, file_path, source);
     };
@@ -228,20 +224,4 @@ fn missing_extension(
         }
     }
     Ok(forced.first().copied())
-}
-
-/// Style flag selectors like `&.$active` are rewritten to hashed classes after validation. A `$` is
-/// not valid in a class name, so they are validated with `_`, which keeps the CSS offsets
-fn validation_css<'a>(css: &'a str, style_flags: &[StyleFlag]) -> Cow<'a, str> {
-    style_flags
-        .iter()
-        .filter(|flag| flag.prop_name.contains('$'))
-        .flat_map(StyleFlag::class_names)
-        .fold(Cow::Borrowed(css), |css, class_name| {
-            Cow::Owned(replace_class_selector(
-                &css,
-                &class_name,
-                &css_class_name_part(&class_name),
-            ))
-        })
 }

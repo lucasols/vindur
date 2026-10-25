@@ -84,7 +84,6 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             &TemplateContext {
                 variable_name: None,
                 tag_type: tag_name,
-                style_flags: &[],
             },
         ) {
             Ok(content) => clean_css(&content),

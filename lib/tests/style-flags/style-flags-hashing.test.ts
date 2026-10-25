@@ -202,61 +202,23 @@ test('referencing styled component with flags preserves style flag hash', async 
   `);
 });
 
-test('should support style flags with $ prefixed names', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur';
+test('should reject style flags with $ prefixed names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
 
-      const Widget = styled.div<{
-        $active: boolean;
-        $size: 'small' | 'large';
-      }>\`
-        background: white;
-
-        &.$active {
-          background: blue;
-        }
-
-        &.$size-small {
-          padding: 4px;
-        }
-
-        &.$size-large {
-          padding: 16px;
-        }
-      \`;
-
-      function Component() {
-        return <Widget $active $size="small" />;
-      }
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "function Component() {
-      return (
-        <div className={"v1560qbr-1-Widget v1ytfoaf-_active vh12jjb-_size-small"} />
-      );
-    }
-    "
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Widget {
-      background: white;
-
-      &.v1ytfoaf-_active {
-        background: blue;
-      }
-
-      &.vh12jjb-_size-small {
-        padding: 4px;
-      }
-
-      &.vh12jjb-_size-large {
-        padding: 16px;
-      }
-    }
-    "
+        const Widget = styled.div<{
+          $active: boolean;
+        }>\`
+          &.$active {
+            background: blue;
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`$active\` can't start with \`$\`, style flags are never passed to the DOM, so use \`active\`
+    loc: 4:2]
   `);
 });

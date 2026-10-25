@@ -199,7 +199,6 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(variable_name),
                     tag_type: "styled",
-                    style_flags: &style_flags,
                 },
             )?;
             let content = clean_css(&content);
@@ -386,7 +385,6 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
-                    style_flags: &[],
                 },
             )?;
             let content = clean_css(&content);
@@ -433,7 +431,6 @@ pub(super) fn process_variable_declaration(
             &TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
-                style_flags: &[],
             },
         )?;
         let content = clean_css(&content);

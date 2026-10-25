@@ -3,7 +3,7 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part, replace_class_selector};
+use super::styled::{StyleFlag, StyleFlagKind, replace_class_selector};
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -108,6 +108,18 @@ fn style_flag_from_property(
             "Style flag properties must use identifier names".to_owned(),
         ));
     };
+    if key.name.starts_with('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't start with `$`, style flags are never passed to the DOM, so use `{}`",
+                key.name,
+                key.name.trim_start_matches('$')
+            ),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -198,7 +210,7 @@ fn style_flag_from_property(
     };
     let hash = murmur2(&format!("{file_hash}-{prop_name}"));
     let hashed_class_name = if dev {
-        format!("v{hash}-{}", css_class_name_part(&prop_name))
+        format!("v{hash}-{prop_name}")
     } else {
         format!("v{hash}")
     };

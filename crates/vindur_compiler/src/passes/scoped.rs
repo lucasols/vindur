@@ -1,4 +1,6 @@
 use oxc_span::Span;
+
+use crate::CompilerDiagnostic;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::css_syntax::{BlockKind, CssError};
@@ -19,6 +21,34 @@ pub(crate) struct ScopedVariables {
     /// The lowest index a new variable can get. The css prop pass moves the file index back to
     /// precomputed class indices, so it alone can't keep variable indices unique
     pub next_index: u32,
+}
+
+impl ScopedVariables {
+    /// Warns about variables that are declared but never read, or read but never declared
+    pub(crate) fn warnings(&self, file_path: &str, source: &str) -> Vec<CompilerDiagnostic> {
+        let mut warnings = Vec::new();
+        for name in self.generated.keys() {
+            match (self.declared.get(name), self.read.get(name)) {
+                (Some(&span), None) => warnings.push(CompilerDiagnostic::warning(
+                    file_path,
+                    source,
+                    span,
+                    format!("Scoped variable '---{name}' is declared but never read"),
+                )),
+                (None, Some(&span)) if !self.registered.contains(name) => {
+                    warnings.push(CompilerDiagnostic::warning(
+                        file_path,
+                        source,
+                        span,
+                        format!("Scoped variable '---{name}' is used but never declared"),
+                    ))
+                }
+                _ => {}
+            }
+        }
+        warnings.sort_by(|left, right| left.message.cmp(&right.message));
+        warnings
+    }
 }
 
 /// Rewrites the scoped variables of a style block, `span` is the source location of the style
