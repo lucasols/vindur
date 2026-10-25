@@ -192,7 +192,7 @@ describe('CSS layers with layer() function', () => {
     `);
   });
 
-  test('should work with any layer name', async () => {
+  test('should reject layer names that are not CSS identifiers', async () => {
     const source = dedent`
       import { styled, layer } from 'vindur'
 
@@ -203,16 +203,14 @@ describe('CSS layers with layer() function', () => {
       \`
     `;
 
-    const result = await transformWithFormat({ source });
-
-    expect(result.css).toMatchInlineSnapshot(`
-      "@layer invalid layer name {
-        .v1560qbr-1-Card {
-          background: white;
-        }
-      }
-      "
-    `);
+    await expect(async () => {
+      await transformWithFormat({ source });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Invalid layer name "invalid layer name", layer names must be CSS identifiers separated by \`.\`
+      loc: 4:10]
+    `,
+    );
   });
 
   test('should require string literal for layer name', async () => {

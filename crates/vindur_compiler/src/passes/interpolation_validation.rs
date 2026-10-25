@@ -29,8 +29,19 @@ pub(super) fn invalid_layer_error(
     ) {
         return None;
     }
-    if matches!(call.arguments.as_slice(), [Argument::StringLiteral(_)]) {
-        return None;
+    if let [Argument::StringLiteral(name)] = call.arguments.as_slice() {
+        if name.value.split('.').all(is_css_identifier) {
+            return None;
+        }
+        return Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            name.span,
+            format!(
+                "Invalid layer name \"{}\", layer names must be CSS identifiers separated by `.`",
+                name.value
+            ),
+        ));
     }
     let span = call.arguments.first().map_or(call.span, GetSpan::span);
     Some(CompilerDiagnostic::error(
@@ -39,6 +50,33 @@ pub(super) fn invalid_layer_error(
         span,
         "layer() must be called with a string literal layer name".to_owned(),
     ))
+}
+
+/// Checks that `name` is a CSS `<ident-token>`: a name start (letter, `_`, non ASCII or an escape),
+/// optionally preceded by `-` or `--`, followed by name characters
+fn is_css_identifier(name: &str) -> bool {
+    let mut chars = name.chars().peekable();
+    let mut has_start = false;
+    if chars.peek() == Some(&'-') {
+        chars.next();
+        if chars.peek() == Some(&'-') {
+            chars.next();
+            has_start = true;
+        }
+    }
+    while let Some(char) = chars.next() {
+        let is_name_start = char.is_ascii_alphabetic() || char == '_' || !char.is_ascii();
+        let valid = match char {
+            '\\' => chars.next().is_some_and(|escaped| escaped != '\n'),
+            _ if has_start => is_name_start || char.is_ascii_digit() || char == '-',
+            _ => is_name_start,
+        };
+        if !valid {
+            return false;
+        }
+        has_start = true;
+    }
+    has_start
 }
 
 pub(super) fn invalid_dynamic_color_method_error(
@@ -117,4 +155,23 @@ pub(super) fn invalid_array_argument_error(
         ));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_css_identifier;
+
+    #[test]
+    fn accepts_css_identifiers() {
+        for name in ["base", "-moz-x", "--x", "_a1", "théme", "a\\ b", "layer-2"] {
+            assert!(is_css_identifier(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_identifiers() {
+        for name in ["", "-", "1a", "-1a", "a b", "a}", "a;b", "a{", "a\\"] {
+            assert!(!is_css_identifier(name), "{name}");
+        }
+    }
 }
