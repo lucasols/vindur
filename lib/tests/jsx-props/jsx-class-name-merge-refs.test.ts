@@ -367,17 +367,16 @@ test('should allow cx modifiers declared outside the css references', async () =
   `);
 });
 
-test('should handle an empty cx prop', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      export const A = () => <div cx={{}} />;
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = () => <div className={cx({})} />;
-    "
+test('should reject an empty cx prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const A = () => <div cx={{}} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop object must not be empty, remove the cx prop instead
+    loc: 1:32]
   `);
 });
 

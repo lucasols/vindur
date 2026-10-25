@@ -121,6 +121,13 @@ impl JsxCxVisitor<'_> {
             );
             return;
         };
+        if object.properties.is_empty() {
+            self.set_error(
+                object.span,
+                "cx prop object must not be empty, remove the cx prop instead".to_owned(),
+            );
+            return;
+        }
 
         let css_references = css_references(element, self.output.constants, self.output.scoping);
         let has_css_context = styled.is_some()
@@ -259,12 +266,7 @@ impl JsxCxVisitor<'_> {
         } else {
             rewrite_css_references(self.output.css_rules, &css_references, &mappings);
         }
-        let object_source = if properties.is_empty() {
-            "{}".to_owned()
-        } else {
-            format!("{{\n{},\n}}", properties.join(",\n"))
-        };
-        let cx_call = format!("cx({object_source})");
+        let cx_call = format!("cx({{\n{},\n}})", properties.join(",\n"));
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
