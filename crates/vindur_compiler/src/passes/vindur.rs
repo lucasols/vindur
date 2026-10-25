@@ -358,7 +358,6 @@ pub(crate) fn transform_program(
         DynamicColorTransform {
             constants: &constants,
             scoping,
-            imported_values,
             edits: &mut edits,
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,

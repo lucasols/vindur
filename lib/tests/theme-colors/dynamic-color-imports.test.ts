@@ -28,7 +28,13 @@ describe('dynamic color imports', () => {
     // For imported colors, they should get a proper index from the file where they're used
     expect(result.code).toMatchInlineSnapshot(`
       "const styles = "v1560qbr-1-styles";
-      const App = () => <div className={styles} {...themeColor._sp("#ff0000", {})} />;
+      const App = () => (
+        <div
+          {...themeColor._sp("#ff0000", {
+            className: styles,
+          })}
+        />
+      );
       "
     `);
 
@@ -106,7 +112,13 @@ describe('dynamic color imports', () => {
     // Should not contain hardcoded hash
     expect(result.code).toMatchInlineSnapshot(`
       "const styles = "v1560qbr-1";
-      const App = () => <div className={styles} {...brandColor._sp("#3b82f6", {})} />;
+      const App = () => (
+        <div
+          {...brandColor._sp("#3b82f6", {
+            className: styles,
+          })}
+        />
+      );
       "
     `);
 

@@ -51,8 +51,9 @@ describe('imported file hash generation', () => {
       const containerStyles = "v1560qbr-1-containerStyles";
       const App = () => (
         <StyledButton
-          className={containerStyles}
-          {...primaryColor._sp("#blue", {})}
+          {...primaryColor._sp("#blue", {
+            className: containerStyles,
+          })}
         />
       );
       "

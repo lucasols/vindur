@@ -314,21 +314,26 @@ export function mergeClassNames(
 }
 
 /**
- * Merge styles from spread props
+ * Resolve the style from spread props placed after an explicit `style`, a later style key
+ * overrides earlier ones like in JSX
  */
 export function mergeStyles(
   spreadProps: (Record<string, unknown> | null | undefined)[],
-): Record<string, unknown> {
-  const mergedStyle: Record<string, unknown> = {};
+  baseStyle: object | undefined = undefined,
+): object | undefined {
+  let finalStyle = baseStyle;
 
   for (const prop of spreadProps) {
-    if (prop && typeof prop === 'object' && 'style' in prop) {
+    if (
+      prop &&
+      typeof prop === 'object' &&
+      // JSX spreads only copy own enumerable properties
+      Object.prototype.propertyIsEnumerable.call(prop, 'style')
+    ) {
       const style = prop.style;
-      if (style && typeof style === 'object') {
-        Object.assign(mergedStyle, style);
-      }
+      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 
-  return mergedStyle;
+  return finalStyle;
 }

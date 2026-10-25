@@ -56,7 +56,7 @@ describe('JSX css prop', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "const styles = "v1560qbr-1-styles";
-      const App = () => <div className={styles}>Hello World</div>;
+      const App = () => <div className="v1560qbr-1-styles">Hello World</div>;
       "
     `);
 

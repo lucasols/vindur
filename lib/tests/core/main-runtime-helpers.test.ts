@@ -297,23 +297,38 @@ describe('mergeClassNames', () => {
 });
 
 describe('mergeStyles', () => {
-  test('should merge style objects from spread props', () => {
+  test('should use the style of the last spread prop with a style, like JSX', () => {
     const result = mergeStyles([
       { style: { color: 'red', margin: '10px' } },
       { style: { backgroundColor: 'blue', margin: '20px' } },
       { otherProp: 'value' },
     ]);
 
-    expect(result).toEqual({
+    expect(result).toEqual({ backgroundColor: 'blue', margin: '20px' });
+  });
+
+  test('should keep the base style when no later spread has a style', () => {
+    expect(mergeStyles([{ id: 'x' }], { display: 'none' })).toEqual({
+      display: 'none',
+    });
+    expect(mergeStyles([{ style: { color: 'red' } }], { display: 'none' })).toEqual({
       color: 'red',
-      margin: '20px', // Later value overwrites
-      backgroundColor: 'blue',
     });
   });
 
+  test('should clear the style when a later spread has an undefined style', () => {
+    expect(mergeStyles([{ style: undefined }], { display: 'none' })).toBeUndefined();
+  });
+
+  test('should ignore inherited style properties', () => {
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { style: { display: 'none' } });
+
+    expect(mergeStyles([inherited], { color: 'red' })).toEqual({ color: 'red' });
+  });
+
   test('should handle empty props', () => {
-    const result = mergeStyles([]);
-    expect(result).toEqual({});
+    expect(mergeStyles([])).toBeUndefined();
   });
 
   test('should ignore null and undefined spread props', () => {
@@ -334,7 +349,7 @@ describe('mergeStyles', () => {
   test('should handle props without style property', () => {
     const result = mergeStyles([{ className: 'test' }, { id: 'test-id' }]);
 
-    expect(result).toEqual({});
+    expect(result).toBeUndefined();
   });
 });
 

@@ -327,6 +327,8 @@ pub(super) fn class_name_concat_source(
         {
             value_source
         }
+        oxc_ast::ast::JSXExpression::StringLiteral(_)
+        | oxc_ast::ast::JSXExpression::TemplateLiteral(_) => value_source,
         // Operands that bind tighter than `||` don't need to be parenthesized
         oxc_ast::ast::JSXExpression::Identifier(_)
         | oxc_ast::ast::JSXExpression::StaticMemberExpression(_)
@@ -375,9 +377,11 @@ fn modifier_selector_starts(css: &str, original: &str) -> Vec<usize> {
     let mut index = 0;
     while index < bytes.len() {
         match bytes[index] {
+            // An unescaped line break ends a string, like in the CSS tokenizer, so a stray
+            // quote (e.g. in a `//` comment) doesn't swallow the rest of the css
             quote @ (b'"' | b'\'') => {
                 index += 1;
-                while index < bytes.len() && bytes[index] != quote {
+                while index < bytes.len() && bytes[index] != quote && bytes[index] != b'\n' {
                     index += if bytes[index] == b'\\' { 2 } else { 1 };
                 }
                 index += 1;

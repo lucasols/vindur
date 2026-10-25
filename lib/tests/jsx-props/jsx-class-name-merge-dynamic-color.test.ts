@@ -233,3 +233,34 @@ test('should keep dynamicColor merges after every spread and css or cx prop', as
     "
   `);
 });
+
+test('should keep an explicit style placed before spreads with dynamicColor', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur';
+
+      const color = createDynamicCssColor();
+
+      export const A = (props: { id: string }) => (
+        <div style={{ display: 'none' }} {...props} dynamicColor={color.set('#f00')} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const A = (props: { id: string }) => (
+      <div
+        {...props}
+        {...color._sp("#f00", {
+          className: mergeClassNames([props], ""),
+          style: mergeStyles([props], {
+            display: "none",
+          }),
+        })}
+      />
+    );
+    "
+  `);
+});

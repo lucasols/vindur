@@ -172,12 +172,10 @@ impl JsxCssVisitor<'_> {
                     && !has_spread_attribute(element)
                     && !has_dynamic_color_attribute(element)
                 {
-                    let JSXAttributeName::Identifier(attribute_name) = &attribute.name else {
-                        return;
-                    };
+                    // Inlined, so imported references don't need a runtime binding
                     self.output.edits.push(Edit {
-                        span: attribute_name.span,
-                        replacement: "className".to_owned(),
+                        span: attribute.span,
+                        replacement: format!("className=\"{name}\""),
                     });
                     return;
                 }

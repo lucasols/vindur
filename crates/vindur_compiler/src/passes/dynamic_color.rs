@@ -24,7 +24,6 @@ use super::{
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
-    pub imported_values: &'a FxHashMap<String, StaticValue>,
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -107,69 +106,53 @@ impl DynamicColorVisitor<'_> {
         let class_attribute = find_last_attribute(element, "className");
         let style_attribute = find_last_attribute(element, "style");
         let spreads = spread_sources(element, self.output.source);
-        let preserve_native_attributes = component.is_none()
-            && class_expression.is_none()
-            && spreads.is_empty()
-            && colors.iter().all(|color| {
-                matches!(
-                    self.output.imported_values.get(&color.name),
-                    Some(StaticValue::DynamicColor { .. })
-                )
-            });
-        if !preserve_native_attributes {
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                // The css and cx prop passes already removed the className attributes
-                if name.name.as_str() == "style"
-                    || (name.name.as_str() == "className" && class_expression.is_none())
-                {
-                    self.output.edits.push(Edit {
-                        span: other.span,
-                        replacement: String::new(),
-                    });
-                }
+        // `_sp` returns the final className and style, so they are always merged into it
+        for item in &element.opening_element.attributes {
+            let JSXAttributeItem::Attribute(other) = item else {
+                continue;
+            };
+            let JSXAttributeName::Identifier(name) = &other.name else {
+                continue;
+            };
+            // The css and cx prop passes already removed the className attributes
+            if name.name.as_str() == "style"
+                || (name.name.as_str() == "className" && class_expression.is_none())
+            {
+                self.output.edits.push(Edit {
+                    span: other.span,
+                    replacement: String::new(),
+                });
             }
         }
 
         let base_class = component.map(|component| component.class_name.as_str());
-        let merge = if preserve_native_attributes
-            && (class_attribute.is_some() || style_attribute.is_some())
-        {
-            Some("{}".to_owned())
-        } else {
-            let class_inputs = merge_class_name_inputs(
-                element,
-                self.output.source,
-                self.output.constants,
-                self.output.scoping,
-            )
-            .0;
-            color_merge_object(
-                class_expression.map_or(
-                    ClassNameSource::Attributes {
-                        base_class,
-                        class_inputs: &class_inputs,
-                    },
-                    |expression| ClassNameSource::Merged(expression),
-                ),
-                class_attribute,
-                style_attribute,
-                &spreads,
-                &mut AttributeSources {
-                    source: self.output.source,
-                    constants: self.output.constants,
-                    scoping: self.output.scoping,
-                    edits: self.output.edits,
+        let class_inputs = merge_class_name_inputs(
+            element,
+            self.output.source,
+            self.output.constants,
+            self.output.scoping,
+        )
+        .0;
+        let merge = color_merge_object(
+            class_expression.map_or(
+                ClassNameSource::Attributes {
+                    base_class,
+                    class_inputs: &class_inputs,
                 },
-                self.output.needs_merge_class_names,
-                self.output.needs_merge_styles,
-            )
-        };
+                |expression| ClassNameSource::Merged(expression),
+            ),
+            class_attribute,
+            style_attribute,
+            &spreads,
+            &mut AttributeSources {
+                source: self.output.source,
+                constants: self.output.constants,
+                scoping: self.output.scoping,
+                edits: self.output.edits,
+            },
+            self.output.needs_merge_class_names,
+            self.output.needs_merge_styles,
+        );
         let call = colors.iter().rev().fold(merge, |inner, color| {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
@@ -327,11 +310,6 @@ fn color_merge_object(
     needs_merge_styles: &mut bool,
 ) -> Option<String> {
     let last_spread_start = spreads.last().map_or(0, |spread| spread.start);
-    let spread_names = spreads
-        .iter()
-        .map(|spread| spread.source.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
     let class_after_spreads = class_attribute
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
     let style_after_spreads = style_attribute
@@ -367,7 +345,23 @@ fn color_merge_object(
     };
     let style = if !spreads.is_empty() && !style_after_spreads {
         *needs_merge_styles = true;
-        Some(format!("mergeStyles([{spread_names}])"))
+        // Only spreads after the explicit style can override it
+        let style_start = style_attribute.map_or(0, |attribute| attribute.span.start);
+        let overriding_spreads = spreads
+            .iter()
+            .filter(|spread| spread.start > style_start)
+            .map(|spread| spread.source.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(style_attribute.map_or_else(
+            || format!("mergeStyles([{overriding_spreads}])"),
+            |attribute| {
+                format!(
+                    "mergeStyles([{overriding_spreads}], {})",
+                    sources.value(attribute)
+                )
+            },
+        ))
     } else {
         style_attribute.map(|attribute| sources.value(attribute))
     };
