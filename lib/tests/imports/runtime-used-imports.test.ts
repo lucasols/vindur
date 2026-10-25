@@ -116,3 +116,65 @@ test('should keep default and type imports when removing compile-time specifiers
     "
   `);
 });
+
+const helpersFs = createFsMock({
+  'helpers.ts': dedent`
+    import { css, vindurFn } from 'vindur';
+
+    export const centerContent = css\`
+      display: flex;
+    \`;
+
+    export const center = vindurFn(() => \`
+      align-items: center;
+    \`);
+  `,
+});
+
+test('should keep imports of compile time values used in non-vindur templates', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { centerContent } from '#/helpers';
+      import { styled } from '@linaria/react';
+
+      const Box = styled.div\`
+        \${centerContent};
+      \`;
+
+      export const A = () => <Box />;
+    `,
+    overrideDefaultFs: helpersFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { centerContent } from "#/helpers";
+    import { styled } from "@linaria/react";
+    const Box = styled.div\`
+      \${centerContent};
+    \`;
+    export const A = () => <Box />;
+    "
+  `);
+});
+
+test('should remove imports of compile time values only used in vindur templates', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { centerContent, center } from '#/helpers';
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        \${centerContent};
+        \${center()};
+      \`;
+
+      export const A = () => <Box />;
+    `,
+    overrideDefaultFs: helpersFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const A = () => <div className="v1560qbr-1-Box" />;
+    "
+  `);
+});
