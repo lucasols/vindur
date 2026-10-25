@@ -1,4 +1,11 @@
-use crate::facts::StaticValue;
+use oxc_ast::ast::Expression;
+use oxc_semantic::Scoping;
+use oxc_span::GetSpan;
+use rustc_hash::FxHashMap;
+
+use crate::{CompilerDiagnostic, facts::StaticValue};
+
+use super::static_evaluation::evaluate_expression;
 
 pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
@@ -108,4 +115,88 @@ fn format_factor(value: f64) -> String {
 
 fn format_percentage(value: f64) -> String {
     format_factor(value * 100.0)
+}
+
+/// `container.*` selectors match an ancestor that sets the color, so a rule selected by
+/// one alone styles that ancestor's descendants with the container class instead of this
+/// element, e.g. `${color.container.isDark} {` instead of `${color.container.isDark} & {`
+pub(super) fn container_selector_error(
+    expression: &Expression<'_>,
+    surrounding_quasis: (&str, Option<&str>),
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let (previous, next) = surrounding_quasis;
+    let starts_selector = previous
+        .rsplit(['{', '}', ';', ','])
+        .next()
+        .is_none_or(|selector_start| selector_start.trim().is_empty());
+    if !starts_selector || !next.is_some_and(|quasi| quasi.trim_start().starts_with('{')) {
+        return None;
+    }
+    let Expression::StaticMemberExpression(member) = expression else {
+        return None;
+    };
+    let Some(StaticValue::DynamicColorPath { path, .. }) =
+        evaluate_expression(&member.object, constants, scoping)
+    else {
+        return None;
+    };
+    if path != "container" {
+        return None;
+    }
+    let span = expression.span();
+    let selector = &source[span.start as usize..span.end as usize];
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        span,
+        format!(
+            "`${{{selector}}}` matches an ancestor that sets the color. Use `${{{selector}}} & {{ ... }}` to style this element, or `& ${{{selector}}} {{ ... }}` to style descendants that set the color"
+        ),
+    ))
+}
+
+/// Color methods that take an amount need it to evaluate to a number
+pub(super) fn invalid_color_method_error(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let Expression::CallExpression(call) = expression else {
+        return None;
+    };
+    let Expression::StaticMemberExpression(callee) = &call.callee else {
+        return None;
+    };
+    let method = callee.property.name.as_str();
+    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
+        return None;
+    }
+    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
+    if !matches!(
+        receiver,
+        StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
+    ) || matches!(
+        call.arguments.as_slice(),
+        [argument] if argument
+            .as_expression()
+            .and_then(|expression| evaluate_expression(expression, constants, scoping))
+            .is_some_and(|value| matches!(value, StaticValue::Number(_)))
+    ) {
+        return None;
+    }
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        call.span,
+        format!("Method {method} requires a numeric argument"),
+    ))
 }

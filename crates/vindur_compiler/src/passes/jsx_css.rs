@@ -65,9 +65,12 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         if self.diagnostic.is_some() {
             return;
         }
-        self.process_style_attribute(element);
+        // The css prop registers its scoped variables before the style prop maps them
         if let Some(css_attribute) = find_attribute(element, "css") {
             self.process_css_attribute(element, css_attribute);
+        }
+        if self.diagnostic.is_none() {
+            self.process_style_attribute(element);
         }
         if self.diagnostic.is_none() {
             walk::walk_jsx_element(self, element);

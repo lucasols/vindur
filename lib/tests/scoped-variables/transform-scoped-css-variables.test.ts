@@ -446,6 +446,46 @@ describe('scoped CSS variables', () => {
     `);
   });
 
+  test('should map style prop scoped variables declared in the css prop of the same element', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        const Component = ({ width }) => {
+          return (
+            <div
+              css={\`
+                ---width: 10px;
+                width: var(---width);
+              \`}
+              style={{ '---width': width }}
+            />
+          );
+        };
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const Component = ({ width }) => {
+        return (
+          <div
+            className="v1560qbr-1-css-prop-1"
+            style={{
+              "--v1560qbr-2-width": width,
+            }}
+          />
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-css-prop-1 {
+        --v1560qbr-2-width: 10px;
+        width: var(--v1560qbr-2-width);
+      }
+      "
+    `);
+  });
+
   test('should warn about declared but not used scoped variables', async () => {
     const warnings: TransformWarning[] = [];
 

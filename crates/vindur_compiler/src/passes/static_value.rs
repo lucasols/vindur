@@ -1,5 +1,5 @@
 use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, Program, Statement, TemplateLiteral,
+    Argument, Expression, IdentifierReference, Program, Statement, TemplateElement, TemplateLiteral,
 };
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
@@ -10,6 +10,7 @@ use crate::{
     facts::{FunctionParameter, StaticValue},
 };
 
+use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
@@ -54,14 +55,7 @@ pub(crate) fn evaluate_template(
     let mut output = String::new();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
-        output.push_str(
-            quasi
-                .value
-                .cooked
-                .as_ref()
-                .unwrap_or(&quasi.value.raw)
-                .as_str(),
-        );
+        output.push_str(quasi_text(quasi));
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
@@ -72,6 +66,22 @@ pub(crate) fn evaluate_template(
         }
         if let Some(diagnostic) =
             invalid_layer_error(expression, constants, scoping, file_path, source)
+        {
+            return Err(diagnostic);
+        }
+        // Global styles have no `&`, a container selector there styles the elements under it
+        if context.tag_type != "createGlobalStyle"
+            && let Some(diagnostic) = container_selector_error(
+                expression,
+                (
+                    quasi_text(quasi),
+                    template.quasis.get(index + 1).map(quasi_text),
+                ),
+                constants,
+                scoping,
+                file_path,
+                source,
+            )
         {
             return Err(diagnostic);
         }
@@ -361,47 +371,6 @@ fn invalid_layer_error(
     ))
 }
 
-fn invalid_color_method_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::StaticMemberExpression(callee) = &call.callee else {
-        return None;
-    };
-    let method = callee.property.name.as_str();
-    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
-        return None;
-    }
-    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-    if !matches!(
-        receiver,
-        StaticValue::DynamicColor { .. }
-            | StaticValue::DynamicColorPath { .. }
-            | StaticValue::ThemeColor { .. }
-            | StaticValue::ThemeColorContrast { .. }
-    ) || matches!(
-        call.arguments.as_slice(),
-        [argument] if argument
-            .as_expression()
-            .and_then(|expression| evaluate_expression(expression, constants, scoping))
-            .is_some_and(|value| matches!(value, StaticValue::Number(_)))
-    ) {
-        return None;
-    }
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        format!("Method {method} requires a numeric argument"),
-    ))
-}
-
 fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
     let Expression::ArrowFunctionExpression(arrow) = expression else {
         return None;
@@ -508,4 +477,13 @@ fn interpolation_error(
     } else {
         diagnostic
     }
+}
+
+fn quasi_text<'q>(quasi: &'q TemplateElement<'_>) -> &'q str {
+    quasi
+        .value
+        .cooked
+        .as_ref()
+        .unwrap_or(&quasi.value.raw)
+        .as_str()
 }

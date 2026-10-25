@@ -349,6 +349,72 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       "
     `);
   });
+
+  test('should throw when a container selector alone selects a rule', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Card = styled.div\`
+            \${color.container.isDark} {
+              color: white;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`\${color.container.isDark}\` matches an ancestor that sets the color. Use \`\${color.container.isDark} & { ... }\` to style this element, or \`& \${color.container.isDark} { ... }\` to style descendants that set the color
+      loc: 6:4]
+    `);
+  });
+
+  test('should allow container selectors combined with & or in global styles', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, createGlobalStyle, styled } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        createGlobalStyle\`
+          \${color.container.isDark} {
+            color: white;
+          }
+        \`
+
+        const Card = styled.div\`
+          \${color.container.isDark} & {
+            color: white;
+          }
+
+          & \${color.container.isLight} {
+            color: black;
+          }
+        \`
+
+        export const App = () => <Card />
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-color-container-isDark {
+        color: white;
+      }
+
+      .v1560qbr-3-Card {
+        .v1560qbr-1-color-container-isDark & {
+          color: white;
+        }
+
+        & .v1560qbr-1-color-container-isLight {
+          color: black;
+        }
+      }
+      "
+    `);
+  });
 });
 
 const conditions = [

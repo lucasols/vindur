@@ -92,6 +92,13 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
+        if colors.is_empty() {
+            self.error(
+                container.expression.span(),
+                "dynamicColor array must contain at least one color.set(...)".to_owned(),
+            );
+            return;
+        }
         let component = jsx_name(&element.opening_element.name)
             .and_then(|name| self.output.styled_components.get(name));
         if let Some(component) = component

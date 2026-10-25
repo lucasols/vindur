@@ -47,8 +47,7 @@ pub(super) fn parse_theme_colors(
                     span: property.span,
                 });
             };
-            let raw = value.value.to_ascii_lowercase();
-            let Some((red, green, blue)) = parse_hex(&raw) else {
+            if normalized_hex(&value.value).is_none() {
                 return Err(ThemeColorParseError {
                     message: format!(
                         "Invalid color \"{}\" for \"{name}\". Theme colors must be valid hex colors without alpha (e.g., \"#ff0000\" or \"#f00\")",
@@ -56,27 +55,34 @@ pub(super) fn parse_theme_colors(
                     ),
                     span: value.span,
                 });
-            };
-            Ok((name, compress_hex((red, green, blue), None)))
+            }
+            Ok((name, value.value.to_string()))
         })
         .collect()
+}
+
+fn normalized_hex(raw: &str) -> Option<String> {
+    parse_hex(&raw.to_ascii_lowercase()).map(|rgb| compress_hex(rgb, None))
 }
 
 pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
         StaticValue::ThemeColors(colors) | StaticValue::UnexportedThemeColors(colors) => {
-            colors.get(property).map(|hex| StaticValue::ThemeColor {
+            let default_hex = colors.get(property)?;
+            Some(StaticValue::ThemeColor {
                 name: property.to_owned(),
-                hex: hex.clone(),
+                hex: normalized_hex(default_hex)?,
+                default_hex: default_hex.clone(),
             })
         }
-        StaticValue::ThemeColor { hex, .. } if property == "defaultHex" => {
-            Some(StaticValue::String(hex.clone()))
+        // The runtime `defaultHex` is the hex as written
+        StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
+            Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex } if property == "var" => {
+        StaticValue::ThemeColor { name, hex, .. } if property == "var" => {
             Some(StaticValue::String(format!("var(--stc-{name}-var, {hex})")))
         }
-        StaticValue::ThemeColor { name, hex } if property == "contrast" => {
+        StaticValue::ThemeColor { name, hex, .. } if property == "contrast" => {
             Some(StaticValue::ThemeColorContrast {
                 name: name.clone(),
                 hex: contrast_hex(hex),
@@ -96,7 +102,7 @@ pub(super) fn theme_method(
     amount: Option<f64>,
 ) -> Option<StaticValue> {
     let (name, hex, prefix) = match receiver {
-        StaticValue::ThemeColor { name, hex } => (name, hex, ""),
+        StaticValue::ThemeColor { name, hex, .. } => (name, hex, ""),
         StaticValue::ThemeColorContrast { name, hex, .. } => (name, hex, "contrast-"),
         _ => return None,
     };

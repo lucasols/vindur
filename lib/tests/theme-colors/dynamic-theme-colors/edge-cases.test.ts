@@ -302,4 +302,21 @@ describe('Dynamic Colors - Edge Cases', () => {
       loc: 11:32]
     `);
   });
+
+  test('should throw error for an empty dynamicColor array', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Component = () => <div dynamicColor={[]} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: dynamicColor array must contain at least one color.set(...)
+      loc: 5:43]
+    `);
+  });
 });
