@@ -166,6 +166,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
           <div
             {...cardProps}
             {...styleProps}
+            onClick={() => console.log("clicked")}
             {...primaryColor._sp(
               "#ff6b6b",
               secondaryColor._sp("#ff6b6b", {
@@ -176,7 +177,6 @@ describe('Dynamic Colors - Multiple Colors', () => {
                 style: mergeStyles([cardProps, styleProps]),
               }),
             )}
-            onClick={() => console.log("clicked")}
           >
             Multi-color card
           </div>

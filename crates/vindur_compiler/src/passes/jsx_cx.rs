@@ -13,6 +13,7 @@ use super::{
     dynamic_color_merge::{ClassPart, DynamicColorClasses},
     static_evaluation::resolved_constant,
     styled::StyledComponent,
+    transform_support::js_string_literal,
 };
 
 #[derive(Clone, Debug)]
@@ -114,9 +115,16 @@ impl JsxCxVisitor<'_> {
 
         let has_css_context = styled.is_some()
             || find_attribute(element, "css").is_some()
-            || self.class_name_is_css_reference(element);
+            || self.css_reference_name(element).is_some();
+        // Elements with the same styled component or css reference share the hashed
+        // classes, the css rule is rewritten once
         let context_key = styled.as_ref().map_or_else(
-            || format!("css:{}", element.span.start),
+            || {
+                self.css_reference_name(element).map_or_else(
+                    || format!("css:{}", element.span.start),
+                    |name| format!("css-reference:{name}"),
+                )
+            },
             |_| format!("styled:{element_name}"),
         );
         let css_index = if find_attribute(element, "css").is_some() {
@@ -364,22 +372,6 @@ impl JsxCxVisitor<'_> {
             .collect()
     }
 
-    fn class_name_is_css_reference(&self, element: &JSXElement<'_>) -> bool {
-        let Some(attribute) = find_last_attribute(element, "className") else {
-            return false;
-        };
-        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            return false;
-        };
-        let JSXExpression::Identifier(identifier) = &container.expression else {
-            return false;
-        };
-        matches!(
-            resolved_constant(identifier, self.output.constants, self.output.scoping),
-            Some(StaticValue::CssClass { .. })
-        )
-    }
-
     fn rewrite_styled_css(
         &mut self,
         styled: &StyledComponent,
@@ -407,18 +399,7 @@ impl JsxCxVisitor<'_> {
         element: &JSXElement<'_>,
         mappings: &[(String, String, bool)],
     ) {
-        let Some(attribute) = find_last_attribute(element, "className") else {
-            return;
-        };
-        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-            return;
-        };
-        let JSXExpression::Identifier(identifier) = &container.expression else {
-            return;
-        };
-        let Some(StaticValue::CssClass { name, .. }) =
-            resolved_constant(identifier, self.output.constants, self.output.scoping)
-        else {
+        let Some(name) = self.css_reference_name(element) else {
             return;
         };
         for rule in self
@@ -433,6 +414,30 @@ impl JsxCxVisitor<'_> {
                 }
             }
         }
+    }
+
+    /// The css class referenced by the css prop or, without one, by className
+    fn css_reference_name(&self, element: &JSXElement<'_>) -> Option<String> {
+        [
+            find_attribute(element, "css"),
+            find_last_attribute(element, "className"),
+        ]
+        .into_iter()
+        .flatten()
+        .find_map(|attribute| {
+            let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+                return None;
+            };
+            let JSXExpression::Identifier(identifier) = &container.expression else {
+                return None;
+            };
+            let Some(StaticValue::CssClass { name, .. }) =
+                resolved_constant(identifier, self.output.constants, self.output.scoping)
+            else {
+                return None;
+            };
+            Some(name.clone())
+        })
     }
 
     fn set_error(&mut self, span: oxc_span::Span, message: String) {
@@ -488,7 +493,7 @@ fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
 
 fn class_name_value_source(attribute: &JSXAttribute<'_>, source: &str) -> String {
     match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
+        Some(JSXAttributeValue::StringLiteral(value)) => js_string_literal(&value.value),
         Some(JSXAttributeValue::ExpressionContainer(container)) => {
             let span = container.expression.span();
             source[span.start as usize..span.end as usize].to_owned()

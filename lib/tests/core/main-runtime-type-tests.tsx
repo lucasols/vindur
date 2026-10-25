@@ -455,4 +455,16 @@ describe('dynamic color setProps', () => {
       'equal',
     );
   });
+
+  test('dynamicColor prop accepts multiple colors', () => {
+    const otherColor = createDynamicCssColor();
+
+    const Box = styled.div`
+      color: red;
+    `;
+
+    const multiple = (
+      <Box dynamicColor={[dynamicColor.set('#fff'), otherColor.set('#000')]} />
+    );
+  });
 });

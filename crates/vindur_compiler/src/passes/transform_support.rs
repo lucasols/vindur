@@ -106,14 +106,12 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             // Dev ids include the variable name, like other dev class names
-            let id = if transform.dev {
-                format!(
-                    "{}-{}-{}",
-                    transform.file_hash, *transform.id_index, identifier.name
-                )
-            } else {
-                format!("{}-{}", transform.file_hash, *transform.id_index)
-            };
+            let id = generated_name(
+                transform.file_hash,
+                *transform.id_index,
+                &identifier.name,
+                transform.dev,
+            );
             *transform.id_index += 1;
             transform.constants.insert(
                 identifier.name.to_string(),
@@ -441,9 +439,41 @@ pub(super) fn process_variable_declaration(
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {
     if dev {
-        format!("{file_hash}-{id_index}-{variable_name}")
+        // `$` is valid in JS identifiers but not in CSS class and variable names
+        let name = variable_name.replace('$', "_");
+        format!("{file_hash}-{id_index}-{name}")
     } else {
         format!("{file_hash}-{id_index}")
+    }
+}
+
+/// A double quoted JS string literal, e.g. for a JSX attribute string moved into an
+/// expression: `className='a"b'` has a raw `"`
+pub(super) fn js_string_literal(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\u{2028}' => output.push_str("\\u2028"),
+            '\u{2029}' => output.push_str("\\u2029"),
+            _ => output.push(character),
+        }
+    }
+    output.push('"');
+    output
+}
+
+/// A JSX attribute string value, JSX strings have no escapes so a value with a `"` is
+/// written as an expression
+pub(super) fn jsx_attribute_string(value: &str) -> String {
+    if value.contains('"') {
+        format!("{{{}}}", js_string_literal(value))
+    } else {
+        format!("\"{value}\"")
     }
 }
 

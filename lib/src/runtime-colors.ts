@@ -196,8 +196,8 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
 
     const rgb = parseHex(hexColor);
 
-    // Only hex colors can be analyzed, other css colors still work with `var`
-    // and the color-mix based methods
+    // Only hex colors can be analyzed, other css colors still work with `var`,
+    // `alpha`, `darker` and `lighter`
     if (!rgb) {
       if (devMode) {
         console.error(

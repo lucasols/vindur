@@ -7,7 +7,7 @@ use oxc_syntax::operator::LogicalOperator;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
-use super::import_analysis::is_compile_time_import;
+use super::{import_analysis::is_compile_time_import, transform_support::js_string_literal};
 
 pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) {
     let mut visitor = CxCallVisitor {
@@ -82,11 +82,11 @@ fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String
             let suffix = static_cx_value(&arguments[index..])?;
             return Some(format!(
                 "{} + {}",
-                quoted(&prefix),
-                quoted(&format!(" {suffix}"))
+                js_string_literal(&prefix),
+                js_string_literal(&format!(" {suffix}"))
             ));
         }
-        return Some(quoted(&value));
+        return Some(js_string_literal(&value));
     }
 
     if let [
@@ -98,7 +98,7 @@ fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String
         collect_object_tokens(object, source, &mut object_tokens)?;
         return Some(format!(
             "{} + ({})",
-            quoted(prefix.value.as_str()),
+            js_string_literal(prefix.value.as_str()),
             render_tokens(object_tokens, true)?
         ));
     }
@@ -123,7 +123,7 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                parts.push(quoted(&spaced));
+                parts.push(js_string_literal(&spaced));
                 has_prior = true;
             }
             CxToken::Conditional { condition, value } => {
@@ -139,7 +139,7 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
         }
     }
     match parts.as_slice() {
-        [] => Some(quoted("")),
+        [] => Some(js_string_literal("")),
         [single] => Some(single.trim_matches(['(', ')']).to_owned()),
         _ => Some(parts.join(" + ")),
     }
@@ -247,7 +247,7 @@ fn add_leading_space(value: String) -> String {
 
 fn dynamic_class_expression(value: &str) -> Option<String> {
     let Some(template_source) = value.strip_prefix('`') else {
-        return Some(quoted(value));
+        return Some(js_string_literal(value));
     };
     let template_source = template_source.strip_suffix('`')?;
     let mut parts = Vec::new();
@@ -255,7 +255,7 @@ fn dynamic_class_expression(value: &str) -> Option<String> {
     while let Some(relative_start) = template_source[cursor..].find("${") {
         let start = cursor + relative_start;
         if start > cursor {
-            parts.push(quoted(&template_source[cursor..start]));
+            parts.push(js_string_literal(&template_source[cursor..start]));
         }
         let expression_start = start + 2;
         let relative_end = template_source[expression_start..].find('}')?;
@@ -264,10 +264,10 @@ fn dynamic_class_expression(value: &str) -> Option<String> {
         cursor = end + 1;
     }
     if cursor < template_source.len() {
-        parts.push(quoted(&template_source[cursor..]));
+        parts.push(js_string_literal(&template_source[cursor..]));
     }
     if parts.is_empty() {
-        return Some(quoted(template_source));
+        return Some(js_string_literal(template_source));
     }
     Some(parts.join(" + "))
 }
@@ -358,8 +358,4 @@ fn remove_cx_import(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) 
             edits.push(Edit { span, replacement });
         }
     }
-}
-
-fn quoted(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }

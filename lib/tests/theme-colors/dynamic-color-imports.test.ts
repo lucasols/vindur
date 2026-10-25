@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
+import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('dynamic color imports', () => {
@@ -190,5 +191,37 @@ test('should merge className and style of native elements with an imported dynam
       />
     );
     "
+  `);
+});
+
+test('should not reuse dev ids of imported dynamic colors in production with a shared cache', () => {
+  const transformFunctionCache = {};
+  const transformApp = (dev: boolean) =>
+    transform({
+      fileAbsPath: '/test.tsx',
+      source: dedent`
+        import { css } from 'vindur';
+        import { themeColor } from '#/colors';
+
+        const styles = css\`
+          color: \${themeColor.var};
+        \`;
+      `,
+      dev,
+      fs: colorsFs,
+      transformFunctionCache,
+      transformDynamicColorCache: {},
+      importAliases: { '#/': '/' },
+    });
+
+  expect(transformApp(true).css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      color: var(--vip4ilp-1-themeColor);
+    }"
+  `);
+  expect(transformApp(false).css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: var(--vip4ilp-1);
+    }"
   `);
 });

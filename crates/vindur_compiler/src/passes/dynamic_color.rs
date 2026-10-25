@@ -7,18 +7,16 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{
-    CompilerDiagnostic,
-    edit::{Edit, take_edited_source},
-    facts::StaticValue,
-};
+use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     dynamic_color_merge::{
-        ColorMerge, DynamicColorClasses, MergeOutput, SpreadSource, color_merge_object,
+        ClassPart, ColorMerge, DynamicColorClasses, MergeOutput, SpreadSource, color_merge_object,
     },
     static_evaluation::resolved_constant,
     styled::StyledComponent,
+    styled_jsx_helpers::collect_flag_class,
+    transform_support::js_string_literal,
 };
 
 pub(super) struct DynamicColorTransform<'a> {
@@ -131,15 +129,23 @@ impl DynamicColorVisitor<'_> {
             }
         }
 
-        let generated_classes = self
-            .output
-            .generated_classes
-            .get(&element.span.start)
-            .map_or(&[][..], Vec::as_slice);
+        let mut generated_classes = component
+            .filter(|component| !component.runtime)
+            .map_or_else(Vec::new, |component| {
+                style_flag_classes(element, component, self.output.source, self.output.edits)
+            });
+        generated_classes.extend(
+            self.output
+                .generated_classes
+                .get(&element.span.start)
+                .into_iter()
+                .flatten()
+                .map(ClassPart::clone),
+        );
         let merge = color_merge_object(
             &ColorMerge {
                 base_class: component.map(|component| component.class_name.as_str()),
-                generated_classes,
+                generated_classes: &generated_classes,
                 class_attribute,
                 style_attribute,
                 spreads: &spreads,
@@ -158,53 +164,17 @@ impl DynamicColorVisitor<'_> {
         let Some(call) = call else {
             return;
         };
-        if spreads.is_empty() {
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
-            let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" {{...{call}}}"),
-            });
-        } else {
-            let mut trailing_props = Vec::new();
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                if other.span.start <= attribute.span.start {
-                    continue;
-                }
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                if name.name.as_str().starts_with("on")
-                    || matches!(name.name.as_str(), "className" | "style")
-                {
-                    continue;
-                }
-                trailing_props.push(take_edited_source(
-                    self.output.source,
-                    other.span,
-                    self.output.edits,
-                ));
-                self.output.edits.push(Edit {
-                    span: other.span,
-                    replacement: String::new(),
-                });
-            }
-            let prefix = if trailing_props.is_empty() {
-                String::new()
-            } else {
-                format!("{} ", trailing_props.join(" "))
-            };
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: format!("{prefix}{{...{call}}}"),
-            });
-        }
+        // Placed after every attribute and spread, `_sp` already merges their className
+        // and style
+        self.output.edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        let offset = opening_attribute_insertion_offset(element, self.output.source);
+        self.output.edits.push(Edit {
+            span: oxc_span::Span::new(offset, offset),
+            replacement: format!(" {{...{call}}}"),
+        });
     }
 
     fn conditional_error_message(&self, expression: &JSXExpression<'_>) -> Option<String> {
@@ -313,7 +283,7 @@ impl DynamicColorVisitor<'_> {
         };
         Some(vec![ColorExpression {
             name: color.name.to_string(),
-            value: format!("\"{}\"", value.value),
+            value: js_string_literal(&value.value),
         }])
     }
 
@@ -402,4 +372,50 @@ fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) ->
     } else {
         end
     }
+}
+
+/// Removes the style flag props of a styled component and returns their classes
+fn style_flag_classes(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+    edits: &mut Vec<Edit>,
+) -> Vec<ClassPart> {
+    let mut static_classes = Vec::new();
+    let mut dynamic_classes = Vec::new();
+    for item in &element.opening_element.attributes {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            continue;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            continue;
+        };
+        let Some(flag) = component
+            .style_flags
+            .iter()
+            .find(|flag| flag.prop_name == name.name.as_str())
+        else {
+            continue;
+        };
+        edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        collect_flag_class(
+            attribute,
+            flag,
+            source,
+            &mut static_classes,
+            &mut dynamic_classes,
+        );
+    }
+    static_classes
+        .into_iter()
+        .map(ClassPart::Literal)
+        .chain(
+            dynamic_classes
+                .into_iter()
+                .map(|class| ClassPart::Expression(class.cx)),
+        )
+        .collect()
 }

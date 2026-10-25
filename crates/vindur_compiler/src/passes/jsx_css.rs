@@ -17,6 +17,7 @@ use super::{
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
+    transform_support::jsx_attribute_string,
 };
 
 pub(crate) struct JsxCssTransform<'a> {
@@ -136,20 +137,34 @@ impl JsxCssVisitor<'_> {
             if is_custom_component(&element.opening_element.name) && styled.is_none() {
                 return;
             }
-            if self.merge_into_dynamic_color(
-                element,
-                attribute,
-                vec![ClassPart::Expression(identifier.name.to_string())],
-            ) {
+            // The cx prop of an element with a css prop is emitted here
+            let cx_call = self
+                .output
+                .cx_elements
+                .get(&element.span.start)
+                .map(|cx| cx.call.clone());
+            let mut parts = vec![ClassPart::Expression(identifier.name.to_string())];
+            parts.extend(cx_call.clone().map(ClassPart::Expression));
+            if self.merge_into_dynamic_color(element, attribute, parts) {
                 return;
             }
+            let cx_argument = cx_call
+                .as_ref()
+                .map_or(String::new(), |cx| format!(", {cx}"));
             if let Some(styled) = styled {
                 self.output.edits.push(Edit {
                     span: attribute.span,
                     replacement: format!(
-                        "className={{[\"{}\", {}].filter(Boolean).join(\" \")}}",
+                        "className={{[\"{}\", {}{cx_argument}].filter(Boolean).join(\" \")}}",
                         styled.class_name, identifier.name
                     ),
+                });
+                return;
+            }
+            if let Some(cx) = cx_call {
+                self.output.edits.push(Edit {
+                    span: attribute.span,
+                    replacement: format!("className={{{} + \" \" + {cx}}}", identifier.name),
                 });
                 return;
             }
@@ -321,7 +336,7 @@ impl JsxCssVisitor<'_> {
         if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
             self.output.edits.push(Edit {
                 span: value.span,
-                replacement: format!("\"{} {class_name}\"", value.value),
+                replacement: jsx_attribute_string(&format!("{} {class_name}", value.value)),
             });
             return;
         }

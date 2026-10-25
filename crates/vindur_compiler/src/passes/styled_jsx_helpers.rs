@@ -9,6 +9,7 @@ use rustc_hash::FxHashMap;
 use super::{
     static_evaluation::resolved_constant,
     styled::{StyleFlag, StyleFlagKind},
+    transform_support::js_string_literal,
 };
 
 pub(super) fn css_attribute_is_compile_time(
@@ -112,9 +113,10 @@ pub(super) fn class_name_expression(
         .map(|class| format!(" {class}"))
         .collect::<String>();
     match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => {
-            format!("\"{styled_class_name} {}{static_suffix}\"", value.value)
-        }
+        Some(JSXAttributeValue::StringLiteral(value)) => js_string_literal(&format!(
+            "{styled_class_name} {}{static_suffix}",
+            value.value
+        )),
         Some(JSXAttributeValue::ExpressionContainer(container)) => {
             let span = container.expression.span();
             let expression = &source[span.start as usize..span.end as usize];
@@ -229,7 +231,7 @@ pub(super) fn class_name_value_source(
                 source[span.start as usize..span.end as usize].to_owned()
             }
         },
-        JSXAttributeValue::StringLiteral(value) => format!("\"{}\"", value.value),
+        JSXAttributeValue::StringLiteral(value) => js_string_literal(&value.value),
         _ => "undefined".to_owned(),
     }
 }

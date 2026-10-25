@@ -56,7 +56,7 @@ interface VindurClassNameBasedAttributes {
 }
 
 export interface VindurAttributes extends VindurClassNameBasedAttributes {
-  dynamicColor?: DynamicColorSet;
+  dynamicColor?: DynamicColorSet | DynamicColorSet[];
 }
 
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
@@ -298,10 +298,9 @@ export function mergeClassNames(
     if (typeof prop === 'string') {
       finalClassName = prop;
     } else if (prop && typeof prop === 'object' && 'className' in prop) {
+      // An explicitly unset className clears the earlier ones, like in JSX
       const className = prop.className;
-      if (typeof className === 'string') {
-        finalClassName = className;
-      }
+      finalClassName = typeof className === 'string' ? className : '';
     }
   }
 

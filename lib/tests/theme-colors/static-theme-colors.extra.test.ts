@@ -320,3 +320,26 @@ test('should throw error when a theme color method is called without amount', as
     loc: 6:11]
   `);
 });
+
+test('should interpolate defaultHex of static theme colors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createStaticThemeColors, css } from 'vindur'
+
+      const colors = createStaticThemeColors({
+        primary: '#FF0000',
+      })
+
+      const styles = css\`
+        color: \${colors.primary.defaultHex};
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      color: #f00;
+    }
+    "
+  `);
+});

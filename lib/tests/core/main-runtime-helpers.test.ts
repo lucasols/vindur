@@ -278,6 +278,15 @@ describe('mergeClassNames', () => {
       'spread v',
     );
   });
+
+  test('should clear earlier classNames when a spread explicitly unsets it', () => {
+    expect(mergeClassNames(['fallback', { className: undefined }], 'v')).toBe(
+      'v',
+    );
+    expect(mergeClassNames([{ className: 'a' }, { className: null }], '')).toBe(
+      '',
+    );
+  });
 });
 
 describe('mergeStyles', () => {

@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit};
 
-use super::styled::StyledComponent;
+use super::{styled::StyledComponent, transform_support::jsx_attribute_string};
 
 pub(crate) struct StyledJsxTransform<'a> {
     pub components: &'a FxHashMap<String, StyledComponent>,
@@ -179,7 +179,10 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
                 self.edits.push(Edit {
                     span: value.span,
-                    replacement: format!("\"{} {}\"", component.class_name, value.value),
+                    replacement: jsx_attribute_string(&format!(
+                        "{} {}",
+                        component.class_name, value.value
+                    )),
                 });
             } else if matches!(
                 &attribute.value,

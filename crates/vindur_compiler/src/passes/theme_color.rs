@@ -70,6 +70,9 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
                 hex: hex.clone(),
             })
         }
+        StaticValue::ThemeColor { hex, .. } if property == "defaultHex" => {
+            Some(StaticValue::String(hex.clone()))
+        }
         StaticValue::ThemeColor { name, hex } if property == "var" => {
             Some(StaticValue::String(format!("var(--stc-{name}-var, {hex})")))
         }
