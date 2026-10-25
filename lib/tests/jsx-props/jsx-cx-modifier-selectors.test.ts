@@ -223,13 +223,12 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
   `);
 });
 
-test('should leave malformed and commented selectors intact', async () => {
+test('should leave commented selector parts intact', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        &:not(.active[x) { color: blue; }
         &:is([data-x=foo/*)*/].active) { color: green; }
         &.active { color: red; }
       \`;
@@ -240,9 +239,6 @@ test('should leave malformed and commented selectors intact', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
-      &:not(.v1560qbr-2-active[x) {
-        color: blue;
-      }
       &:is([data-x=foo/*)*/].v1560qbr-2-active) {
         color: green;
       }

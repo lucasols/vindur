@@ -4,7 +4,7 @@ use oxc_ast::ast::{
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -73,10 +73,14 @@ impl<'a> Visit<'a> for DynamicColorVisitor<'_> {
 }
 
 impl DynamicColorVisitor<'_> {
-    // Whether another pass already edits `attribute`, which this pass would remove or move
-    fn is_edited(&self, attribute: &JSXAttribute<'_>) -> bool {
+    // Whether another pass already edits `attribute`, which this pass would remove or move.
+    // Edits inside `carried`, a value the merge copies with its edits, are kept
+    fn is_edited(&self, attribute: &JSXAttribute<'_>, carried: Option<Span>) -> bool {
         self.output.edits.iter().any(|edit| {
-            edit.span.start < attribute.span.end && edit.span.end > attribute.span.start
+            edit.span.start < attribute.span.end
+                && edit.span.end > attribute.span.start
+                && !carried
+                    .is_some_and(|span| edit.span.start >= span.start && edit.span.end <= span.end)
         })
     }
 
@@ -148,6 +152,11 @@ impl DynamicColorVisitor<'_> {
             return;
         }
         if !preserve_native_attributes {
+            let carried_values = [class_attribute, style_attribute]
+                .into_iter()
+                .flatten()
+                .filter_map(|attribute| carried_value(attribute, &spreads))
+                .collect::<Vec<_>>();
             for item in &element.opening_element.attributes {
                 let JSXAttributeItem::Attribute(other) = item else {
                     continue;
@@ -156,7 +165,11 @@ impl DynamicColorVisitor<'_> {
                     continue;
                 };
                 if matches!(name.name.as_str(), "className" | "style") {
-                    if self.is_edited(other) {
+                    let carried = carried_values
+                        .iter()
+                        .find(|(attribute_span, _)| *attribute_span == other.span)
+                        .map(|(_, value_span)| *value_span);
+                    if self.is_edited(other, carried) {
                         self.edited_attribute_error(other, name.name.as_str(), "");
                         return;
                     }
@@ -216,7 +229,7 @@ impl DynamicColorVisitor<'_> {
                 {
                     continue;
                 }
-                if self.is_edited(other) {
+                if self.is_edited(other, None) {
                     self.edited_attribute_error(
                         other,
                         name.name.as_str(),
@@ -467,6 +480,18 @@ impl AttributeSources<'_> {
 fn expression_source(value: &impl GetSpan, source: &str) -> String {
     let span = value.span();
     source[span.start as usize..span.end as usize].to_owned()
+}
+
+/// The attribute and value spans of a className or style whose value `color_merge_object` copies
+/// with `AttributeSources`, which keeps the edits other passes made inside it
+fn carried_value(attribute: &JSXAttribute<'_>, spreads: &[SpreadSource]) -> Option<(Span, Span)> {
+    let after_spreads = spreads
+        .last()
+        .is_none_or(|spread| attribute.span.start > spread.start);
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return None;
+    };
+    after_spreads.then(|| (attribute.span, container.expression.span()))
 }
 
 struct SpreadSource {

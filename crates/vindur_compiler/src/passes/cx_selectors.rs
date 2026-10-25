@@ -456,3 +456,28 @@ fn next_argument(css: &str, mut index: usize, close: usize) -> usize {
     }
     close
 }
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::rewrite_cx_selectors;
+
+    // Malformed CSS is rejected before cx selectors are rewritten, but the scanner must still
+    // finish on it without panicking
+    #[test]
+    fn leaves_malformed_selectors_intact() {
+        let mappings = [("active".to_owned(), "v1-active".to_owned(), true)];
+        assert_eq!(
+            rewrite_cx_selectors(
+                ".v1-Box { &:not(.active[x) { color: blue; } &.active { color: red; } }",
+                &mappings,
+            ),
+            ".v1-Box { &:not(.v1-active[x) { color: blue; } &.v1-active { color: red; } }",
+        );
+        assert_eq!(
+            rewrite_cx_selectors(".v1-Box { &:is(.active", &mappings),
+            ".v1-Box { &:is(.active",
+        );
+    }
+}

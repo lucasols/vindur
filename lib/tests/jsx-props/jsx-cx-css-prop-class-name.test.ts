@@ -551,7 +551,7 @@ test('should throw for dynamicColor before a transformed prop with spread props'
   `);
 });
 
-test('should throw for dynamicColor with a transformed style prop', async () => {
+test('should throw for dynamicColor with a transformed style prop before spread props', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -560,8 +560,8 @@ test('should throw for dynamicColor with a transformed style prop', async () => 
         const color = createDynamicCssColor();
         const Box = styled.div\`---offset: 1px; left: var(---offset);\`;
 
-        export const App = ({ x, v }) => (
-          <Box style={{ '---offset': x }} dynamicColor={color.set(v)} />
+        export const App = ({ x, v, p }) => (
+          <Box style={{ '---offset': x }} {...p} dynamicColor={color.set(v)} />
         );
       `,
     }),
