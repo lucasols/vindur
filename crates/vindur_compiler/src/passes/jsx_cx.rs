@@ -220,7 +220,9 @@ impl JsxCxVisitor<'_> {
                         index
                     });
                     let hashed = if self.output.dev {
-                        format!("{}-{index}-{class_name}", self.output.file_hash)
+                        // Whitespace would split the dev class name into several classes
+                        let readable_name = class_name.replace(char::is_whitespace, "_");
+                        format!("{}-{index}-{readable_name}", self.output.file_hash)
                     } else {
                         format!("{}-{index}", self.output.file_hash)
                     };

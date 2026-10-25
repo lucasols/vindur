@@ -1,6 +1,7 @@
 mod css;
 mod css_balance;
 mod css_syntax;
+mod css_tokens;
 mod css_validation;
 mod cx_optimize;
 mod cx_selectors;

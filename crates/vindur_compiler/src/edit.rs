@@ -28,9 +28,9 @@ pub(crate) fn expand_removal_to_line(source: &str, span: Span) -> Span {
     span
 }
 
-// The source of `span` with the edits inside it applied, taking them out of `edits`, for a
-// replacement that copies source another pass already edits. Overlapping edits are left in
-// `edits` so `apply_edits` reports them
+/// The source of `span` with the edits inside it applied, taking them out of `edits`, for a
+/// replacement that copies source another pass already edits. Overlapping edits are left in
+/// `edits` so `apply_edits` reports them
 pub(crate) fn take_edited_source(source: &str, span: Span, edits: &mut Vec<Edit>) -> String {
     let (mut nested, rest): (Vec<Edit>, Vec<Edit>) = edits
         .drain(..)
@@ -98,25 +98,6 @@ pub(crate) fn apply_edits(
 
     output.push_str(&source[cursor..]);
     Ok(output)
-}
-
-/// The source of `span` with the edits inside it applied. The edits are removed, so the span can be
-/// copied into a replacement of a larger span
-pub(crate) fn take_edited_source(source: &str, span: Span, edits: &mut Vec<Edit>) -> String {
-    let (mut inner, outer): (Vec<Edit>, Vec<Edit>) = std::mem::take(edits)
-        .into_iter()
-        .partition(|edit| edit.span.start >= span.start && edit.span.end <= span.end);
-    *edits = outer;
-    inner.sort_unstable_by_key(|edit| (edit.span.start, edit.span.end));
-    let mut output = String::new();
-    let mut cursor = span.start as usize;
-    for edit in inner {
-        output.push_str(&source[cursor..edit.span.start as usize]);
-        output.push_str(&edit.replacement);
-        cursor = edit.span.end as usize;
-    }
-    output.push_str(&source[cursor..span.end as usize]);
-    output
 }
 
 #[cfg(test)]
