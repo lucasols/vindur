@@ -169,20 +169,93 @@ test('should error when a vindurFn is passed through the css prop of a custom co
   `);
 });
 
-test('should allow a parenthesized default export of a vindurFn', async () => {
+test('should error on default exports of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { transition } from '#/transition';
+
+        export default (transition);
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be default exported, vindurFn functions can only be imported by name, use a named export
+    loc: /test.tsx|3:16]
+  `);
+});
+
+test('should error on aliased re-exports of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { transition } from '#/transition';
+
+        export { transition as fade };
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be exported as "fade", vindurFn functions can only be exported with their own name
+    loc: /test.tsx|3:9]
+  `);
+});
+
+test('should ignore type references with the name of a vindurFn', async () => {
   const result = await transformWithFormat({
     source: dedent`
+      import { css } from 'vindur';
       import { transition } from '#/transition';
+      import type * as transitionModule from '#/transition';
 
-      export default (transition);
+      type transition = string;
+
+      export type Transition = transition;
+
+      export type TransitionFn = typeof transitionModule.transition;
+
+      export const box = css\`
+        \${transition('opacity')};
+      \`;
     `,
     overrideDefaultFs: transitionFs,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { transition } from "#/transition";
-    export default transition;
+    import type * as transitionModule from "#/transition";
+    type transition = string;
+    export type Transition = transition;
+    export type TransitionFn = typeof transitionModule.transition;
+    export const box = "v1560qbr-1-box";
     "
+  `);
+});
+
+test('should error on namespace imports of modules that re-export vindurFns', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import * as mixins from '#/barrel';
+
+        export const value = mixins.transition('opacity');
+      `,
+      overrideDefaultFs: createFsMock({
+        'transition.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const transition = vindurFn((property: string) => \`transition: \${property} 0.2s;\`);
+        `,
+        'barrel.ts': dedent`
+          import { transition } from '#/transition';
+
+          export { transition };
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn exports of "#/barrel" can't be imported with a namespace import, import them by name, e.g. import { transition } from "#/barrel"
+    loc: 1:7]
   `);
 });
 

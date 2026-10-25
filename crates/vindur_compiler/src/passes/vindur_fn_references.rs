@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
     CallExpression, ExportDefaultDeclaration, ExportNamedDeclaration, Expression,
-    IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression, Program,
-    TSTypeQuery, TaggedTemplateExpression,
+    IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression,
+    ModuleExportName, Program, TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -11,7 +11,7 @@ use rustc_hash::FxHashSet;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
-/// they can only be referenced in vindur templates and css props, or re-exported.
+/// they can only be referenced in vindur templates and css props, or re-exported by name.
 pub(super) fn runtime_vindur_fn_reference_error(
     program: &Program<'_>,
     scoping: &Scoping,
@@ -27,41 +27,30 @@ pub(super) fn runtime_vindur_fn_reference_error(
         scoping,
         imports,
         function_names,
-        first_reference: None,
+        first_error: None,
     };
     visitor.visit_program(program);
-    let (name, span) = visitor.first_reference?;
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        span,
-        format!(
-            "vindurFn \"{name}\" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime"
-        ),
-    ))
+    let (span, message) = visitor.first_error?;
+    Some(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
 struct RuntimeReferenceVisitor<'s, 'i, 'n> {
     scoping: &'s Scoping,
     imports: &'i VindurImports<'i>,
     function_names: &'n FxHashSet<&'n str>,
-    first_reference: Option<(String, Span)>,
+    first_error: Option<(Span, String)>,
 }
 
 impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
-        if self.first_reference.is_some() || !self.function_names.contains(identifier.name.as_str())
-        {
-            return;
-        }
-        let Some(reference_id) = identifier.reference_id.get() else {
-            return;
-        };
-        let Some(symbol_id) = self.scoping.get_reference(reference_id).symbol_id() else {
-            return;
-        };
-        if self.scoping.symbol_scope_id(symbol_id) == self.scoping.root_scope_id() {
-            self.first_reference = Some((identifier.name.to_string(), identifier.span));
+        if self.first_error.is_none() && self.is_vindur_fn_value_reference(identifier) {
+            self.first_error = Some((
+                identifier.span,
+                format!(
+                    "vindurFn \"{}\" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime",
+                    identifier.name
+                ),
+            ));
         }
     }
 
@@ -89,23 +78,50 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
         }
     }
 
-    // Re-exports keep the function available to other vindur styles
+    // Re-exports keep the function available to other vindur styles, but only named imports
+    // of the exported name are resolved
     fn visit_export_named_declaration(&mut self, export: &ExportNamedDeclaration<'a>) {
         if let Some(declaration) = &export.declaration {
             self.visit_declaration(declaration);
         }
+        for specifier in &export.specifiers {
+            let ModuleExportName::IdentifierReference(local) = &specifier.local else {
+                continue;
+            };
+            let exported = specifier.exported.name();
+            if self.first_error.is_none()
+                && exported.as_str() != local.name.as_str()
+                && self.is_vindur_fn_value_reference(local)
+            {
+                self.first_error = Some((
+                    specifier.span,
+                    format!(
+                        "vindurFn \"{}\" can't be exported as \"{exported}\", vindurFn functions can only be exported with their own name",
+                        local.name
+                    ),
+                ));
+            }
+        }
     }
 
     fn visit_export_default_declaration(&mut self, export: &ExportDefaultDeclaration<'a>) {
-        let is_identifier = export
+        if let Some(Expression::Identifier(identifier)) = export
             .declaration
             .as_expression()
-            .is_some_and(|expression| {
-                matches!(expression.get_inner_expression(), Expression::Identifier(_))
-            });
-        if !is_identifier {
-            walk::walk_export_default_declaration(self, export);
+            .map(Expression::get_inner_expression)
+            && self.first_error.is_none()
+            && self.is_vindur_fn_value_reference(identifier)
+        {
+            self.first_error = Some((
+                identifier.span,
+                format!(
+                    "vindurFn \"{}\" can't be default exported, vindurFn functions can only be imported by name, use a named export",
+                    identifier.name
+                ),
+            ));
+            return;
         }
+        walk::walk_export_default_declaration(self, export);
     }
 
     // vindurFn bodies are checked by the vindurFn validation, which reports a more precise error
@@ -122,6 +138,23 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
 }
 
 impl RuntimeReferenceVisitor<'_, '_, '_> {
+    /// A value reference to a module level vindurFn, shadowing bindings and types are ignored
+    fn is_vindur_fn_value_reference(&self, identifier: &IdentifierReference<'_>) -> bool {
+        if !self.function_names.contains(identifier.name.as_str()) {
+            return false;
+        }
+        let Some(reference_id) = identifier.reference_id.get() else {
+            return false;
+        };
+        let reference = self.scoping.get_reference(reference_id);
+        if !reference.is_value() {
+            return false;
+        }
+        reference.symbol_id().is_some_and(|symbol_id| {
+            self.scoping.symbol_scope_id(symbol_id) == self.scoping.root_scope_id()
+        })
+    }
+
     /// Tag call arguments, e.g. the component in `styled(A)` or the `.attrs({})` values, are
     /// kept in the runtime component, unlike the rest of the tag
     fn visit_runtime_tag_arguments(&mut self, tag: &Expression<'_>) {

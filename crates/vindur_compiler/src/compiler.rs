@@ -260,17 +260,23 @@ impl Compiler {
                 continue;
             };
             // Namespace member references can't be checked by the vindurFn runtime guard
-            if let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
-                specifiers.iter().find(|specifier| {
-                    matches!(
-                        specifier,
-                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
-                    )
-                })
+            if !import.import_kind.is_type()
+                && let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
+                    specifiers.iter().find(|specifier| {
+                        matches!(
+                            specifier,
+                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                        )
+                    })
                 && let Some(function_name) = facts
                     .exports
                     .iter()
-                    .filter(|(_, value)| matches!(value, StaticValue::Function(_)))
+                    .filter(|(_, value)| {
+                        matches!(
+                            value,
+                            StaticValue::Function(_) | StaticValue::ImportedFunction(_)
+                        )
+                    })
                     .map(|(name, _)| name)
                     .min()
             {

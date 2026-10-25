@@ -273,11 +273,10 @@ pub(crate) fn transform_program(
                     css_rules.extend(generate_class_rules(&generated_name, &content).map_err(
                         |error| css_error_diagnostic(file_path, source, tagged.span, error),
                     )?);
+                    needs_styled_helper = true;
                     edits.push(Edit {
                         span: tagged.span,
-                        replacement: format!(
-                            "styledComponent(\"{element}\", \"{generated_name}\")"
-                        ),
+                        replacement: format!("_vSC(\"{element}\", \"{generated_name}\")"),
                     });
                 }
             }

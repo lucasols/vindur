@@ -263,7 +263,11 @@ fn evaluate_function_expression(
             Some(StaticValue::String(
                 values
                     .iter()
-                    .map(static_value_to_string)
+                    // Like in JS, undefined elements are joined as empty strings
+                    .map(|value| match value {
+                        StaticValue::Undefined => String::new(),
+                        value => static_value_to_string(value),
+                    })
                     .collect::<Vec<_>>()
                     .join(&separator),
             ))

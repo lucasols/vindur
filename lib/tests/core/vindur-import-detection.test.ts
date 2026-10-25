@@ -157,3 +157,23 @@ test('should allow aliased vindur type imports', async () => {
     "
   `);
 });
+
+test('should keep type only vindur imports when merging vindur imports', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import type { StyledComponent } from 'vindur';
+      import { styled } from 'vindur';
+
+      export const Box: StyledComponent<'div'> = styled.div\`
+        color: red;
+      \`;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import type { StyledComponent } from "vindur";
+    export const Box: StyledComponent<"div"> = _vSC("div", "v1560qbr-1-Box");
+    "
+  `);
+});

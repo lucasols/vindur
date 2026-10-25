@@ -289,7 +289,8 @@ describe('Exported styled components', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "export default styledComponent("div", "v1560qbr-1");
+      "import { _vSC } from "vindur";
+      export default _vSC("div", "v1560qbr-1");
       "
     `);
 

@@ -752,3 +752,30 @@ test('should evaluate comparison operators and type assertions in vindurFn', asy
     "
   `);
 });
+
+test('should join undefined elements as empty strings in vindurFn', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { gaps } from '#/functions';
+
+      const style = css\`
+        \${gaps([0, 10])};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'functions.ts': dedent`
+        import { vindurFn } from 'vindur';
+
+        export const gaps = vindurFn((values: number[]) => \`--gaps: \${values.map((n) => (n === 0 ? undefined : \`\${n}px\`)).join('|')};\`);
+      `,
+    }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      --gaps: |10px;
+    }
+    "
+  `);
+});

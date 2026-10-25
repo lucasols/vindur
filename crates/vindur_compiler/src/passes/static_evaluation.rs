@@ -283,6 +283,12 @@ pub(super) fn evaluate_binary(
     right: StaticValue,
 ) -> Option<StaticValue> {
     match (left, operator, right) {
+        // Loose equality coerces values of different types, which is not evaluated
+        (left, BinaryOperator::Equality | BinaryOperator::Inequality, right)
+            if !same_primitive_type(&left, &right) =>
+        {
+            None
+        }
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }
@@ -307,6 +313,16 @@ pub(super) fn evaluate_binary(
         }
         _ => None,
     }
+}
+
+fn same_primitive_type(left: &StaticValue, right: &StaticValue) -> bool {
+    matches!(
+        (left, right),
+        (StaticValue::Boolean(_), StaticValue::Boolean(_))
+            | (StaticValue::Number(_), StaticValue::Number(_))
+            | (StaticValue::String(_), StaticValue::String(_))
+            | (StaticValue::Undefined, StaticValue::Undefined)
+    )
 }
 
 fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {

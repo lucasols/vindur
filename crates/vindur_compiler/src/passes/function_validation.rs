@@ -256,10 +256,14 @@ fn validate_condition(
             ValidationPosition::ConditionalTest,
         ),
         Expression::BinaryExpression(binary) => {
-            if binary.operator == BinaryOperator::Equality {
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equality | BinaryOperator::Inequality
+            ) {
                 return Some(FunctionValidationError {
                     message: format!(
-                        "vindurFn \"{name}\" contains unsupported comparison operator \"==\" - only ===, !==, >, <, >=, <= are supported"
+                        "vindurFn \"{name}\" contains unsupported comparison operator \"{}\" - only ===, !==, >, <, >=, <= are supported",
+                        binary.operator.as_str()
                     ),
                     span: expression.span(),
                 });

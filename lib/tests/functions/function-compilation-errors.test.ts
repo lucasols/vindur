@@ -657,3 +657,18 @@ test('should error on map callbacks with default parameters', async () => {
     loc: /test.tsx|3:64]
   `);
 });
+
+test('should error on loose inequality in vindurFn conditions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const color = vindurFn((value: string) => \`color: \${value != '0' ? 'red' : 'blue'};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "color" contains unsupported comparison operator "!=" - only ===, !==, >, <, >=, <= are supported
+    loc: /test.tsx|3:59]
+  `);
+});
