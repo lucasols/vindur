@@ -6,7 +6,7 @@ use oxc_css_parser::{
         StyleInParensKind, StyleQuery, SupportsCondition, SupportsConditionKind,
         SupportsInParensKind,
     },
-    token::TokenData,
+    token::{TokenData, TokenWithSpanData},
 };
 
 use super::css_syntax::{BlockKind, CssError, with_style_block};
@@ -82,7 +82,12 @@ impl ScopedIdentCollector<'_> {
 
     fn at_rule(&mut self, rule: &AtRule<'_>) -> Result<(), CssError> {
         match &rule.prelude {
-            Some(AtRulePrelude::Property(ident)) => self.ident(ident, ScopedRole::Name),
+            Some(
+                AtRulePrelude::Property(ident)
+                | AtRulePrelude::PositionTry(ident)
+                | AtRulePrelude::FontPaletteValues(ident)
+                | AtRulePrelude::ScrollTimeline(ident),
+            ) => self.ident(ident, ScopedRole::Name),
             Some(AtRulePrelude::Container(prelude)) => {
                 if let Some(name) = &prelude.name {
                     self.ident(name, ScopedRole::Name);
@@ -202,7 +207,7 @@ impl ScopedIdentCollector<'_> {
         if has_scoped_ident(&self.source[span.start..span.end]) {
             return Err(CssError::new(
                 format!(
-                    "Scoped CSS variables are not supported in `@{}` rule conditions",
+                    "Scoped CSS variables are not supported in `@{}` rule preludes",
                     rule.name.raw
                 ),
                 span.start,
@@ -226,8 +231,20 @@ impl ScopedIdentCollector<'_> {
     }
 
     fn values(&mut self, values: &[ComponentValue<'_>]) {
-        for value in values {
-            self.value(value, ScopedRole::Name);
+        for (index, value) in values.iter().enumerate() {
+            let role = match index
+                .checked_sub(2)
+                .and_then(|start| values.get(start..index))
+            {
+                Some(
+                    [
+                        ComponentValue::TokenWithSpan(name),
+                        ComponentValue::TokenWithSpan(paren),
+                    ],
+                ) if is_raw_var_call(name, paren, self.source) => ScopedRole::Read,
+                _ => ScopedRole::Name,
+            };
+            self.value(value, role);
         }
     }
 
@@ -278,6 +295,15 @@ fn is_var_function(name: &FunctionName<'_>) -> bool {
         name,
         FunctionName::Ident(InterpolableIdent::Literal(ident)) if ident.name.eq_ignore_ascii_case("var")
     )
+}
+
+/// Values kept as raw tokens, like custom property values, have `var(` as an identifier followed
+/// by a `(`
+fn is_raw_var_call(name: &TokenWithSpanData, paren: &TokenWithSpanData, source: &str) -> bool {
+    matches!(name.token, TokenData::Ident(_))
+        && name.raw(source).eq_ignore_ascii_case("var")
+        && matches!(paren.token, TokenData::LParen(_))
+        && paren.span.start == name.span.end
 }
 
 /// Whether the text has an identifier starting with `---`, comments, strings and urls are ignored

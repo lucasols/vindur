@@ -1,5 +1,6 @@
 mod css;
 mod css_syntax;
+mod css_validation;
 mod cx_optimize;
 mod direct;
 mod dynamic_color;

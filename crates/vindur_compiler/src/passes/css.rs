@@ -18,18 +18,27 @@ const LAYER_MARKER_SUFFIX: &str = "__";
 /// `layer('name')` interpolations are replaced by a selector marker, the layer name is hex
 /// encoded so the marker is always a single valid CSS identifier
 pub(crate) fn layer_marker(name: &str) -> String {
-    let encoded = name
-        .bytes()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    format!("{LAYER_MARKER_PREFIX}{encoded}{LAYER_MARKER_SUFFIX}")
+    format!(
+        "{LAYER_MARKER_PREFIX}{}{LAYER_MARKER_SUFFIX}",
+        hex_encode(name)
+    )
 }
 
 fn decode_layer_marker(selector: &str) -> Option<String> {
-    let encoded = selector
-        .strip_prefix(LAYER_MARKER_PREFIX)?
-        .strip_suffix(LAYER_MARKER_SUFFIX)?;
-    if encoded.len() % 2 != 0 {
+    hex_decode(
+        selector
+            .strip_prefix(LAYER_MARKER_PREFIX)?
+            .strip_suffix(LAYER_MARKER_SUFFIX)?,
+    )
+}
+
+/// Encodes a name as hex so it can be embedded in a CSS identifier
+pub(crate) fn hex_encode(name: &str) -> String {
+    name.bytes().map(|byte| format!("{byte:02x}")).collect()
+}
+
+pub(crate) fn hex_decode(encoded: &str) -> Option<String> {
+    if !encoded.len().is_multiple_of(2) {
         return None;
     }
     let bytes = (0..encoded.len())

@@ -205,7 +205,7 @@ pub(crate) fn transform_program(
                         BlockKind::Global,
                         tagged.span,
                         &file_hash,
-                        false,
+                        options.dev,
                         &mut id_index,
                         &mut scoped_variables,
                     )

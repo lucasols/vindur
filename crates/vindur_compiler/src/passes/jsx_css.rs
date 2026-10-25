@@ -44,7 +44,12 @@ pub(crate) fn transform_jsx_css_props(
     let mut visitor = JsxCssVisitor {
         output,
         diagnostic: None,
+        pass: JsxCssPass::CssProps,
     };
+    visitor.visit_program(program);
+    // Style props can set variables of css props in any element, so they are renamed after every
+    // css prop is processed
+    visitor.pass = JsxCssPass::StyleProps;
     visitor.visit_program(program);
     *visitor.output.id_index = (*visitor.output.id_index).max(minimum_final_index);
     match visitor.diagnostic {
@@ -56,6 +61,13 @@ pub(crate) fn transform_jsx_css_props(
 struct JsxCssVisitor<'a> {
     output: JsxCssTransform<'a>,
     diagnostic: Option<CompilerDiagnostic>,
+    pass: JsxCssPass,
+}
+
+#[derive(Clone, Copy)]
+enum JsxCssPass {
+    CssProps,
+    StyleProps,
 }
 
 impl<'a> Visit<'a> for JsxCssVisitor<'_> {
@@ -63,9 +75,13 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         if self.diagnostic.is_some() {
             return;
         }
-        self.process_style_attribute(element);
-        if let Some(css_attribute) = find_attribute(element, "css") {
-            self.process_css_attribute(element, css_attribute);
+        match self.pass {
+            JsxCssPass::CssProps => {
+                if let Some(css_attribute) = find_attribute(element, "css") {
+                    self.process_css_attribute(element, css_attribute);
+                }
+            }
+            JsxCssPass::StyleProps => self.process_style_attribute(element),
         }
         if self.diagnostic.is_none() {
             walk::walk_jsx_element(self, element);

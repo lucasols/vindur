@@ -147,6 +147,38 @@ describe('forward references', () => {
     `);
   });
 
+  test('should support forward references to names with $', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          \${() => $Container}:hover & {
+            color: white;
+          }
+        \`
+
+        const $Container = styled.div\`
+          padding: 20px;
+        \`
+      `,
+      production: true,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1 {
+        .v1560qbr-2:hover & {
+          color: white;
+        }
+      }
+
+      .v1560qbr-2 {
+        padding: 20px;
+      }
+      "
+    `);
+  });
+
   test('should throw error for undefined forward reference', async () => {
     await expect(async () => {
       await transformWithFormat({

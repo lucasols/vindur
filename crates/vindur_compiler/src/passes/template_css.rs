@@ -32,13 +32,28 @@ impl EvaluatedTemplate {
         });
     }
 
-    /// Maps a CSS error to the source, a zero width error is widened to the next character and an
-    /// error at the end of the CSS points to the closing backtick
-    fn source_span(&self, error: &CssError, source: &str, template: &TemplateLiteral<'_>) -> Span {
+    /// Maps a CSS error to the source and whether it starts in an interpolated value, a zero width
+    /// error is widened to the next character and an error at the end of the CSS points to the
+    /// closing backtick
+    fn source_span(
+        &self,
+        error: &CssError,
+        source: &str,
+        template: &TemplateLiteral<'_>,
+    ) -> (Span, bool) {
         if error.start >= self.css.len() {
-            return Span::new(template.span.end.saturating_sub(1), template.span.end);
+            return (
+                Span::new(template.span.end.saturating_sub(1), template.span.end),
+                false,
+            );
         }
-        self.mapped_span(error, source).unwrap_or(template.span)
+        self.mapped(error, source)
+            .map_or((template.span, false), |(span, segment)| {
+                (
+                    span,
+                    matches!(segment.origin, SegmentOrigin::Interpolation(_)),
+                )
+            })
     }
 
     /// Source position of a CSS error, `None` when it can't be mapped to the source
@@ -51,13 +66,12 @@ impl EvaluatedTemplate {
         if error.start >= self.css.len() {
             return Some(template.span.end);
         }
-        self.mapped_span(error, source).map(|span| span.start)
+        self.mapped(error, source).map(|(span, _)| span.start)
     }
 
-    fn mapped_span(&self, error: &CssError, source: &str) -> Option<Span> {
+    fn mapped(&self, error: &CssError, source: &str) -> Option<(Span, &TemplateSegment)> {
         let end = error.end.max(error.start + 1).min(self.css.len());
         template_source_span(&self.css, source, &self.segments, error.start..end)
-            .map(|(span, _)| span)
     }
 }
 
@@ -111,14 +125,30 @@ pub(crate) fn validate_template_css(
             ),
         ));
     }
-    let span = evaluated.source_span(&error, source, template);
+    let (span, in_interpolation) = evaluated.source_span(&error, source, template);
+    let is_syntax_error = error.syntax_error.is_some();
+    let is_line_comment = evaluated
+        .css
+        .get(error.start..)
+        .is_some_and(|rest| rest.starts_with("//"));
     let message = error.syntax_error.map_or(error.message, |description| {
         let variable_context = context.variable_name.map_or_else(
             || context.tag_type.to_owned(),
             |name| format!("... {name} = {}", context.tag_type),
         );
+        let description = if is_line_comment {
+            "`//` comments are not supported in CSS, use `/* ... */`".to_owned()
+        } else {
+            description
+        };
         format!("Invalid CSS at `{variable_context}`: {description}")
     });
+    // Syntax errors found in a static value point to the interpolation, not to the CSS token
+    let message = if in_interpolation && is_syntax_error {
+        format!("{message} (found in the interpolated value)")
+    } else {
+        message
+    };
     Err(CompilerDiagnostic::error(file_path, source, span, message))
 }
 

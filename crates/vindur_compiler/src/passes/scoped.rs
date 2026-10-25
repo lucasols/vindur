@@ -146,7 +146,7 @@ mod tests {
             Ok(output) => panic!("expected an error, got {output}"),
             Err(error) => assert_eq!(
                 error.message,
-                "Scoped CSS variables are not supported in `@media` rule conditions"
+                "Scoped CSS variables are not supported in `@media` rule preludes"
             ),
         }
     }
@@ -225,5 +225,29 @@ mod tests {
         read.sort();
         assert_eq!(declared, ["a", "d"]);
         assert_eq!(read, ["b", "c"]);
+    }
+
+    #[test]
+    fn counts_var_reads_in_raw_values() {
+        assert_eq!(
+            declared_and_read("---b: 1px; ---a: { var(---b) }; width: VAR(---a)!ie;"),
+            (
+                vec!["a".to_owned(), "b".to_owned()],
+                vec!["a".to_owned(), "b".to_owned()]
+            )
+        );
+    }
+
+    #[test]
+    fn rewrites_named_at_rule_preludes() {
+        assert_eq!(
+            process(
+                "@position-try ---below { top: anchor(bottom); }
+position-try-fallbacks: ---below;
+@font-palette-values ---brand { font-family: x; }
+font-palette: ---brand;"
+            ),
+            "@position-try --v1-1-below { top: anchor(bottom); }\nposition-try-fallbacks: --v1-1-below;\n@font-palette-values --v1-2-brand { font-family: x; }\nfont-palette: --v1-2-brand;"
+        );
     }
 }

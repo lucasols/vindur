@@ -1,14 +1,13 @@
 use crate::CompilerDiagnostic;
 use oxc_css_parser::{
     Allocator, ParserBuilder, ParserOptions, Syntax,
-    ast::{AtRule, ComponentValue, Declaration, InterpolableIdent, Statement, Stylesheet},
+    ast::{AtRule, AtRulePrelude, Statement, Stylesheet},
     error::Error,
-    token::TokenData,
 };
 
 use super::css::reject_misplaced_layers;
+use super::css_validation::{validate_block_kind, validate_statements};
 use super::scoped_idents::collect_scoped_idents;
-use super::unsupported_css_syntax::is_ident_char;
 
 /// A CSS problem found while parsing a style block, `start` and `end` are byte offsets into the
 /// parsed CSS
@@ -43,7 +42,7 @@ impl CssError {
         Self::syntax(error.kind.to_string(), error.span.start, error.span.end)
     }
 
-    fn syntax(description: String, start: usize, end: usize) -> Self {
+    pub(super) fn syntax(description: String, start: usize, end: usize) -> Self {
         Self {
             message: format!("Invalid CSS: {description}"),
             syntax_error: Some(description),
@@ -207,199 +206,29 @@ pub(crate) fn validate_style_block(css: &str, kind: BlockKind) -> Result<(), Css
     })
 }
 
-/// The CSS dialect also accepts postcss-only syntax like `$var: value;`, `*zoom: 1` or rules
-/// without a selector, reject them
-fn validate_statements(statements: &[Statement<'_>], source: &str) -> Result<(), CssError> {
-    for statement in statements {
-        match statement {
-            Statement::Declaration(declaration) => validate_declaration(declaration, source)?,
-            Statement::QualifiedRule(rule) => {
-                if rule.selector.selectors.is_empty() {
-                    return Err(CssError::syntax(
-                        "expected a selector before `{`".to_owned(),
-                        rule.block.span.start,
-                        rule.block.span.start + 1,
-                    ));
-                }
-                validate_statements(&rule.block.statements, source)?;
-            }
-            Statement::UnknownQualifiedRule(rule) => {
-                validate_statements(&rule.block.statements, source)?;
-            }
-            Statement::KeyframeBlock(block) => {
-                validate_statements(&block.block.statements, source)?;
-            }
-            Statement::AtRule(rule) => {
-                if let Some(block) = &rule.block {
-                    validate_statements(&block.statements, source)?;
-                }
-            }
-            Statement::PostcssSimpleVarDeclaration(declaration) => {
-                return Err(CssError::new(
-                    "Invalid CSS: `$` variables are not supported, use scoped CSS variables (`---name`) instead"
-                        .to_owned(),
-                    declaration.span.start,
-                    declaration.span.end,
-                ));
-            }
-            statement => {
-                let span = statement_span(statement);
-                return Err(CssError::new(
-                    "Invalid CSS: unsupported statement".to_owned(),
-                    span.start,
-                    span.end,
-                ));
-            }
-        }
-    }
-    Ok(())
-}
+const LAYER_RULE_START: &str = "@layer ";
 
-fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(), CssError> {
-    let InterpolableIdent::Literal(name) = &declaration.name else {
-        return Ok(());
+/// Whether `name` is a `<layer-name>`, CSS identifiers separated by `.` that are not CSS wide
+/// keywords. It is checked by parsing `@layer name {}`, so escapes are handled like the browser
+pub(crate) fn is_layer_name(name: &str) -> bool {
+    let rule = format!("{LAYER_RULE_START}{name} {{}}");
+    let allocator = Allocator::default();
+    let Ok(stylesheet) = parse_source(&allocator, &rule) else {
+        return false;
     };
-    if !is_property_name(name.raw) {
-        return Err(CssError::syntax(
-            format!(
-                "`{}` is not a valid property name, selectors need a `{{ ... }}` block",
-                name.raw
-            ),
-            name.span.start,
-            name.span.end,
-        ));
-    }
-    if name.raw.starts_with("--") {
-        return Ok(());
-    }
-    // `color: red\n width: 1px;` is parsed as a single `color` declaration
-    let next_property = declaration.value.windows(2).find_map(|pair| match pair {
+    let name_span = LAYER_RULE_START.len()..LAYER_RULE_START.len() + name.len();
+    match stylesheet.statements.as_slice() {
         [
-            ComponentValue::TokenWithSpan(ident),
-            ComponentValue::TokenWithSpan(colon),
-        ] if matches!(ident.token, TokenData::Ident(_))
-            && matches!(colon.token, TokenData::Colon(_)) =>
-        {
-            Some(ident)
-        }
-        _ => None,
-    });
-    match next_property {
-        Some(ident) => Err(CssError::syntax(
-            format!("missing `;` before `{}`", ident.raw(source)),
-            ident.span.start,
-            ident.span.end,
-        )),
-        None => Ok(()),
+            Statement::AtRule(AtRule {
+                prelude: Some(AtRulePrelude::Layer(layers)),
+                ..
+            }),
+        ] => match layers.names.as_slice() {
+            [layer] => (layer.span.start..layer.span.end) == name_span,
+            _ => false,
+        },
+        _ => false,
     }
-}
-
-/// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
-/// blocks of declarations
-fn validate_block_kind(statements: &[Statement<'_>], kind: BlockKind) -> Result<(), CssError> {
-    for statement in statements {
-        let message = match (kind, statement) {
-            (BlockKind::Style, _)
-            | (
-                BlockKind::Global,
-                Statement::AtRule(_)
-                | Statement::QualifiedRule(_)
-                | Statement::UnknownQualifiedRule(_),
-            ) => continue,
-            (BlockKind::Global, _) => {
-                "declarations in createGlobalStyle need a rule, e.g. `body { ... }`"
-            }
-            (BlockKind::Keyframes, Statement::KeyframeBlock(block)) => {
-                match block
-                    .block
-                    .statements
-                    .iter()
-                    .find(|statement| !matches!(statement, Statement::Declaration(_)))
-                {
-                    Some(nested) => {
-                        let span = statement_span(nested);
-                        return Err(CssError::syntax(
-                            "keyframes can only contain declarations".to_owned(),
-                            span.start,
-                            span.end,
-                        ));
-                    }
-                    None => continue,
-                }
-            }
-            (BlockKind::Keyframes, _) => {
-                "keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
-            }
-        };
-        let span = statement_span(statement);
-        return Err(CssError::syntax(message.to_owned(), span.start, span.end));
-    }
-    Ok(())
-}
-
-fn statement_span(statement: &Statement<'_>) -> oxc_css_parser::Span {
-    match statement {
-        Statement::AtRule(rule) => rule.span,
-        Statement::Declaration(declaration) => declaration.span,
-        Statement::KeyframeBlock(block) => block.span,
-        Statement::LessConditionalQualifiedRule(rule) => rule.span,
-        Statement::LessExtendRule(rule) => rule.span,
-        Statement::LessFunctionCall(function) => function.span,
-        Statement::LessMixinCall(call) => call.span,
-        Statement::LessMixinDefinition(definition) => definition.span,
-        Statement::LessVariableCall(call) => call.span,
-        Statement::LessVariableDeclaration(declaration) => declaration.span,
-        Statement::Placeholder(placeholder) => placeholder.span,
-        Statement::PostcssSimpleVarDeclaration(declaration) => declaration.span,
-        Statement::QualifiedRule(rule) => rule.span,
-        Statement::SassIfAtRule(rule) => rule.span,
-        Statement::SassVariableDeclaration(declaration) => declaration.span,
-        Statement::UnknownQualifiedRule(rule) => rule.span,
-        Statement::UnknownSassAtRule(rule) => rule.span,
-    }
-}
-
-/// The CSS dialect also accepts postcss property names like `*zoom` or `&`, which usually come
-/// from a selector missing its `{ ... }` block
-fn is_property_name(name: &str) -> bool {
-    let (body, mut needs_name_start) = match name.strip_prefix("--") {
-        Some(custom) => (custom, false),
-        None => (name.strip_prefix('-').unwrap_or(name), true),
-    };
-    let mut characters = body.chars().peekable();
-    while let Some(character) = characters.next() {
-        let is_valid = match character {
-            '\\' => skip_escape(&mut characters),
-            _ if needs_name_start => {
-                character.is_ascii_alphabetic() || character == '_' || !character.is_ascii()
-            }
-            _ => is_ident_char(character),
-        };
-        if !is_valid {
-            return false;
-        }
-        needs_name_start = false;
-    }
-    !needs_name_start
-}
-
-/// Skips an escape after its `\`, a hex escape can be followed by one whitespace
-fn skip_escape(characters: &mut std::iter::Peekable<std::str::Chars<'_>>) -> bool {
-    let Some(escaped) = characters.next() else {
-        return false;
-    };
-    if escaped == '\n' {
-        return false;
-    }
-    if escaped.is_ascii_hexdigit() {
-        for _ in 0..5 {
-            if characters.next_if(char::is_ascii_hexdigit).is_none() {
-                break;
-            }
-        }
-        characters.next_if(|character| character.is_ascii_whitespace());
-    }
-    true
 }
 
 pub(crate) fn css_error_diagnostic(
@@ -414,7 +243,6 @@ pub(crate) fn css_error_diagnostic(
 #[cfg(test)]
 mod tests {
     use super::{BlockKind, validate_style_block};
-
     fn error(css: &str) -> String {
         match validate_style_block(css, BlockKind::Style) {
             Ok(()) => "ok".to_owned(),
@@ -422,73 +250,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rejects_selectors_without_a_block() {
-        assert_eq!(
-            [
-                error("&:hover\ncolor: red;"),
-                error("color: red;\n&:focus"),
-                error("{ color: blue; }"),
-                error("*zoom: 1;"),
-            ],
-            [
-                "Invalid CSS: `&` is not a valid property name, selectors need a `{ ... }` block at 0..1",
-                "Invalid CSS: `&` is not a valid property name, selectors need a `{ ... }` block at 12..13",
-                "Invalid CSS: expected a selector before `{` at 0..1",
-                "Invalid CSS: `*zoom` is not a valid property name, selectors need a `{ ... }` block at 0..5",
-            ]
-        );
-    }
-
     fn kind_error(css: &str, kind: BlockKind) -> String {
         match validate_style_block(css, kind) {
             Ok(()) => "ok".to_owned(),
             Err(error) => format!("{} at {}..{}", error.message, error.start, error.end),
         }
-    }
-
-    #[test]
-    fn rejects_missing_semicolons_between_declarations() {
-        assert_eq!(
-            [
-                error("color: red\n  width: 1px;"),
-                error("filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);"),
-                error("--x: a: b;"),
-                error("grid-template-areas: \"a:b\";"),
-            ],
-            [
-                "Invalid CSS: missing `;` before `width` at 13..18",
-                "ok",
-                "ok",
-                "ok",
-            ]
-        );
-    }
-
-    #[test]
-    fn validates_global_and_keyframes_structure() {
-        assert_eq!(
-            [
-                kind_error("color: red;", BlockKind::Global),
-                kind_error(
-                    "& { color: red; } @media (width > 1px) { body { color: red; } }",
-                    BlockKind::Global
-                ),
-                kind_error("opacity: 0;", BlockKind::Keyframes),
-                kind_error("from { &:hover { color: red; } }", BlockKind::Keyframes),
-                kind_error(
-                    "entry 0% { opacity: 0; } to { opacity: 1; }",
-                    BlockKind::Keyframes
-                ),
-            ],
-            [
-                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 0..10",
-                "ok",
-                "Invalid CSS: keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
-                "Invalid CSS: keyframes can only contain declarations at 7..30",
-                "ok",
-            ]
-        );
     }
 
     #[test]
@@ -512,14 +278,6 @@ mod tests {
     }
 
     #[test]
-    fn accepts_valid_property_names() {
-        assert_eq!(
-            error("-webkit-box-shadow: none; --x: 1; ---y: 2; _height: 1px; \\63 olor: red; ñ: 1;"),
-            "ok"
-        );
-    }
-
-    #[test]
     fn ignores_scoped_text_in_prelude_comments_and_strings() {
         assert_eq!(
             error("@media (width /* ---theme */ > 1px) { color: red; }"),
@@ -532,7 +290,42 @@ mod tests {
         assert_eq!(error("@media (a---b) { color: red; }"), "ok");
         assert_eq!(
             error("@media (---theme) { color: red; }"),
-            "Scoped CSS variables are not supported in `@media` rule conditions at 7..17"
+            "Scoped CSS variables are not supported in `@media` rule preludes at 7..17"
         );
+    }
+
+    #[test]
+    fn validates_layer_names() {
+        for name in [
+            "base",
+            "theme.base",
+            "-moz-x",
+            "_a1",
+            "théme",
+            "a\\ b",
+            "foo\\.bar",
+            "\\31 foo",
+        ] {
+            assert!(super::is_layer_name(name), "{name}");
+        }
+        for name in [
+            "",
+            "1a",
+            "a b",
+            "a}",
+            "a;b",
+            "a{",
+            "a\\",
+            "a..b",
+            ".a",
+            "a.",
+            "initial",
+            "a.INHERIT",
+            "revert-layer",
+            "a,b",
+            "a/**/",
+        ] {
+            assert!(!super::is_layer_name(name), "{name}");
+        }
     }
 }

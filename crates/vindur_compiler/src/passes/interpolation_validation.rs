@@ -8,6 +8,7 @@ use crate::{
     facts::{FunctionParameter, StaticValue},
 };
 
+use super::css_syntax::is_layer_name;
 use super::static_evaluation::{evaluate_expression, resolved_constant};
 
 pub(super) fn invalid_layer_error(
@@ -30,7 +31,7 @@ pub(super) fn invalid_layer_error(
         return None;
     }
     if let [Argument::StringLiteral(name)] = call.arguments.as_slice() {
-        if name.value.split('.').all(is_css_identifier) {
+        if is_layer_name(&name.value) {
             return None;
         }
         return Some(CompilerDiagnostic::error(
@@ -50,33 +51,6 @@ pub(super) fn invalid_layer_error(
         span,
         "layer() must be called with a string literal layer name".to_owned(),
     ))
-}
-
-/// Checks that `name` is a CSS `<ident-token>`: a name start (letter, `_`, non ASCII or an escape),
-/// optionally preceded by `-` or `--`, followed by name characters
-fn is_css_identifier(name: &str) -> bool {
-    let mut chars = name.chars().peekable();
-    let mut has_start = false;
-    if chars.peek() == Some(&'-') {
-        chars.next();
-        if chars.peek() == Some(&'-') {
-            chars.next();
-            has_start = true;
-        }
-    }
-    while let Some(char) = chars.next() {
-        let is_name_start = char.is_ascii_alphabetic() || char == '_' || !char.is_ascii();
-        let valid = match char {
-            '\\' => chars.next().is_some_and(|escaped| escaped != '\n'),
-            _ if has_start => is_name_start || char.is_ascii_digit() || char == '-',
-            _ => is_name_start,
-        };
-        if !valid {
-            return false;
-        }
-        has_start = true;
-    }
-    has_start
 }
 
 pub(super) fn invalid_dynamic_color_method_error(
@@ -155,23 +129,4 @@ pub(super) fn invalid_array_argument_error(
         ));
     }
     None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_css_identifier;
-
-    #[test]
-    fn accepts_css_identifiers() {
-        for name in ["base", "-moz-x", "--x", "_a1", "théme", "a\\ b", "layer-2"] {
-            assert!(is_css_identifier(name), "{name}");
-        }
-    }
-
-    #[test]
-    fn rejects_non_identifiers() {
-        for name in ["", "-", "1a", "-1a", "a b", "a}", "a;b", "a{", "a\\"] {
-            assert!(!is_css_identifier(name), "{name}");
-        }
-    }
 }

@@ -12,6 +12,7 @@ use super::interpolation_validation::{
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
 };
+use super::styled::styled_ref_placeholder;
 use super::template_css::{EvaluatedTemplate, validate_template_css};
 use super::unsupported_css_syntax::unsupported_syntax_error;
 
@@ -185,9 +186,7 @@ fn build_template_css(
         }
         let expression_start = evaluated.css.len();
         if let Some(reference) = forward_styled_reference(expression) {
-            evaluated
-                .css
-                .push_str(&format!("__VINDUR_STYLED_REF_{reference}__"));
+            evaluated.css.push_str(&styled_ref_placeholder(reference));
             evaluated.map_expression(expression_start, expression.span());
             continue;
         }

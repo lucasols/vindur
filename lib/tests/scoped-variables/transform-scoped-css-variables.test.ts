@@ -396,13 +396,13 @@ describe('scoped CSS variables', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ":root {
-        --v1560qbr-2: #007bff;
-        --v1560qbr-3: 16px;
+        --v1560qbr-2-global-primary: #007bff;
+        --v1560qbr-3-global-font: 16px;
       }
 
       body {
-        color: var(--v1560qbr-2);
-        font-size: var(--v1560qbr-3);
+        color: var(--v1560qbr-2-global-primary);
+        font-size: var(--v1560qbr-3-global-font);
       }
       "
     `);
