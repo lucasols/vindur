@@ -1,34 +1,32 @@
-use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, JSXExpression,
-    StringLiteral,
-};
+use oxc_ast::ast::{JSXAttribute, JSXAttributeItem, JSXAttributeValue, JSXElement, JSXExpression};
+use oxc_semantic::Scoping;
 use oxc_span::{GetSpan, Span};
-use oxc_syntax::xml_entities::XML_ENTITIES;
+use rustc_hash::FxHashMap;
 
-use crate::edit::Edit;
+use crate::{
+    edit::{Edit, take_edited_source},
+    facts::StaticValue,
+};
+
+use super::{
+    static_evaluation::resolved_constant,
+    styled_jsx_helpers::{
+        ClassNameTarget, decode_jsx_entities, emit_class_name, has_dynamic_color_attribute,
+        is_named_attribute, js_string_literal,
+    },
+};
 
 pub(super) enum ClassNameMerge<'a> {
     // No later spread can override the last explicit className, so vindur's
     // classes are merged into it in place
     InPlace(&'a JSXAttribute<'a>),
     // A later spread may set className, so the classes are merged at runtime
-    Runtime(RuntimeClassInputs),
+    Runtime,
     // No className or spreads, so a new className is added
     Insert,
 }
 
-pub(super) struct RuntimeClassInputs {
-    // The last explicit className and the spreads after it, in source order,
-    // for `mergeClassNames`' last-one-wins semantics
-    pub inputs: Vec<String>,
-    // The explicit className moved into `inputs`, earlier ones are overridden anyway
-    pub moved_class_name: Option<Span>,
-}
-
-pub(super) fn class_name_merge<'a>(
-    element: &'a JSXElement<'a>,
-    source: &str,
-) -> ClassNameMerge<'a> {
+pub(super) fn class_name_merge<'a>(element: &'a JSXElement<'a>) -> ClassNameMerge<'a> {
     let attributes = &element.opening_element.attributes;
     let last_spread = attributes
         .iter()
@@ -37,193 +35,189 @@ pub(super) fn class_name_merge<'a>(
         .iter()
         .enumerate()
         .rev()
-        .find_map(|(index, item)| class_name_attribute(item).map(|attribute| (index, attribute)));
-    let Some(last_spread) = last_spread else {
-        return last_class_name.map_or(ClassNameMerge::Insert, |(_, attribute)| {
-            ClassNameMerge::InPlace(attribute)
+        .find_map(|(index, item)| {
+            let JSXAttributeItem::Attribute(attribute) = item else {
+                return None;
+            };
+            is_named_attribute(attribute, "className").then_some((index, &**attribute))
         });
-    };
-    if let Some((index, attribute)) = last_class_name
-        && index > last_spread
-    {
-        return ClassNameMerge::InPlace(attribute);
+    match (last_spread, last_class_name) {
+        (Some(spread), Some((index, attribute))) if index > spread => {
+            ClassNameMerge::InPlace(attribute)
+        }
+        (Some(_), _) => ClassNameMerge::Runtime,
+        (None, Some((_, attribute))) => ClassNameMerge::InPlace(attribute),
+        (None, None) => ClassNameMerge::Insert,
     }
-    let start = last_class_name.map_or(0, |(index, _)| index);
-    let inputs = attributes[start..]
-        .iter()
-        .filter_map(|item| match item {
-            JSXAttributeItem::SpreadAttribute(spread) => {
-                Some(source_text(source, spread.argument.span()).to_owned())
-            }
-            JSXAttributeItem::Attribute(attribute) => {
-                class_name_attribute(item).map(|_| explicit_class_input(attribute, source))
-            }
-        })
-        .collect();
-    ClassNameMerge::Runtime(RuntimeClassInputs {
-        inputs,
-        moved_class_name: last_class_name.map(|(_, attribute)| attribute.span),
+}
+
+/// What the className values are read with
+pub(super) struct ClassNameSources<'a> {
+    pub(super) source: &'a str,
+    pub(super) constants: &'a FxHashMap<String, StaticValue>,
+    pub(super) scoping: &'a Scoping,
+}
+
+/// The text around a className expression concatenated with vindur class names, guarding values
+/// that can be falsy at runtime, e.g. an optional `className` prop
+fn concat_guard(
+    expression: &JSXExpression<'_>,
+    sources: &ClassNameSources<'_>,
+) -> (&'static str, &'static str) {
+    match expression {
+        JSXExpression::Identifier(identifier)
+            if matches!(
+                resolved_constant(identifier, sources.constants, sources.scoping),
+                Some(StaticValue::CssClass { .. } | StaticValue::String(_))
+            ) =>
+        {
+            ("", "")
+        }
+        JSXExpression::StringLiteral(_) | JSXExpression::TemplateLiteral(_) => ("", ""),
+        // Operands that bind tighter than `||` don't need to be parenthesized
+        JSXExpression::Identifier(_)
+        | JSXExpression::StaticMemberExpression(_)
+        | JSXExpression::ComputedMemberExpression(_)
+        | JSXExpression::CallExpression(_) => ("(", " || \"\")"),
+        _ => ("((", ") || \"\")"),
+    }
+}
+
+/// The value of an expression container that isn't empty
+fn class_expression<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a JSXExpression<'a>> {
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return None;
+    };
+    (!matches!(container.expression, JSXExpression::EmptyExpression(_)))
+        .then_some(&container.expression)
+}
+
+/// Returns the existing className expression to be concatenated with vindur class names
+pub(super) fn class_name_concat_source(
+    attribute: &JSXAttribute<'_>,
+    sources: &ClassNameSources<'_>,
+) -> String {
+    concat_source(attribute, sources, |span| {
+        sources.source[span.start as usize..span.end as usize].to_owned()
     })
 }
 
-fn class_name_attribute<'a>(item: &'a JSXAttributeItem<'a>) -> Option<&'a JSXAttribute<'a>> {
-    let JSXAttributeItem::Attribute(attribute) = item else {
-        return None;
-    };
-    matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "className")
-        .then_some(attribute)
-}
-
-// Wrapped in an object so a nullish explicit className still overrides
-// earlier spreads, like it does in JSX
-pub(super) fn explicit_class_input(attribute: &JSXAttribute<'_>, source: &str) -> String {
-    match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => jsx_string_literal(&value.value),
-        Some(JSXAttributeValue::ExpressionContainer(container))
-            if !matches!(container.expression, JSXExpression::EmptyExpression(_)) =>
-        {
-            format!(
-                "{{ className: {} }}",
-                source_text(source, container.expression.span())
-            )
-        }
-        _ => "{ className: undefined }".to_owned(),
-    }
-}
-
-// Merges `class_expression` into an expression className in place. Only the
-// text around the expression is edited, so edits other passes make inside it
-// still apply. Returns `None` for string and valueless classNames
-pub(super) fn wrap_class_expression(
+/// Like `class_name_concat_source`, with the edits other passes made inside the expression, which
+/// are taken out of `edits`
+pub(super) fn edited_class_name_concat_source(
     attribute: &JSXAttribute<'_>,
-    class_expression: &str,
+    sources: &ClassNameSources<'_>,
+    edits: &mut Vec<Edit>,
+) -> String {
+    concat_source(attribute, sources, |span| {
+        take_edited_source(sources.source, span, edits)
+    })
+}
+
+fn concat_source(
+    attribute: &JSXAttribute<'_>,
+    sources: &ClassNameSources<'_>,
+    expression_source: impl FnOnce(Span) -> String,
+) -> String {
+    if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
+        return js_string_literal(&decode_jsx_entities(&value.value));
+    }
+    let Some(expression) = class_expression(attribute) else {
+        return "\"\"".to_owned();
+    };
+    let (open, close) = concat_guard(expression, sources);
+    format!("{open}{}{close}", expression_source(expression.span()))
+}
+
+/// Merges vindur class names into an existing className expression in place, as
+/// `{before}{class_name_concat_source}{after}`. Only the text around the expression is replaced,
+/// so edits other passes make inside it still apply. Returns `None` for strings and empty values
+pub(super) fn wrap_class_concat(
+    attribute: &JSXAttribute<'_>,
+    sources: &ClassNameSources<'_>,
+    before: &str,
+    after: &str,
 ) -> Option<[Edit; 2]> {
-    wrap_attribute_expression(
+    let (open, close) = concat_guard(class_expression(attribute)?, sources);
+    wrap_class_expression(
         attribute,
-        "className={[",
-        &format!(", {class_expression}].filter(Boolean).join(\" \")}}"),
+        &format!("{before}{open}"),
+        &format!("{close}{after}"),
     )
 }
 
-// Replaces the text before and after an expression attribute's value, keeping
-// edits other passes make inside it
-pub(super) fn wrap_attribute_expression(
+/// Replaces an existing className expression with `{prefix}expression{suffix}`, editing only the
+/// text around it, so edits other passes make inside it still apply
+pub(super) fn wrap_class_expression(
     attribute: &JSXAttribute<'_>,
     prefix: &str,
     suffix: &str,
 ) -> Option<[Edit; 2]> {
-    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-        return None;
-    };
-    if matches!(container.expression, JSXExpression::EmptyExpression(_)) {
-        return None;
-    }
-    let expression = container.expression.span();
+    let span = class_expression(attribute)?.span();
     Some([
         Edit {
-            span: Span::new(attribute.span.start, expression.start),
-            replacement: prefix.to_owned(),
+            span: Span::new(attribute.span.start, span.start),
+            replacement: format!("className={{{prefix}"),
         },
         Edit {
-            span: Span::new(expression.end, attribute.span.end),
-            replacement: suffix.to_owned(),
+            span: Span::new(span.end, attribute.span.end),
+            replacement: format!("{suffix}}}"),
         },
     ])
 }
 
-// JSX strings can't escape their quote, so the original quote is kept
-pub(super) fn extend_jsx_string(
-    value: &StringLiteral<'_>,
-    source: &str,
-    prefix: &str,
-    suffix: &str,
-) -> String {
-    let quote = source_text(source, value.span)
-        .chars()
-        .next()
-        .unwrap_or('"');
-    format!("{quote}{prefix}{}{suffix}{quote}", value.value)
-}
-
-fn source_text(source: &str, span: Span) -> &str {
-    &source[span.start as usize..span.end as usize]
-}
-
-// JSX attribute strings have no escape sequences but decode HTML entities, so
-// their raw text can't be pasted into a JS string literal
-pub(super) fn jsx_string_value(raw: &str) -> String {
-    let mut output = String::with_capacity(raw.len());
-    let mut rest = raw;
-    while let Some(start) = rest.find('&') {
-        output.push_str(&rest[..start]);
-        rest = &rest[start..];
-        let decoded = rest
-            .find(';')
-            .and_then(|end| decode_entity(&rest[1..end]).map(|character| (character, end)));
-        match decoded {
-            Some((character, end)) => {
-                output.push(character);
-                rest = &rest[end + 1..];
-            }
-            None => {
-                output.push('&');
-                rest = &rest[1..];
-            }
-        }
-    }
-    output.push_str(rest);
-    output
-}
-
-fn decode_entity(entity: &str) -> Option<char> {
-    if let Some(hex) = entity
-        .strip_prefix("#x")
-        .or_else(|| entity.strip_prefix("#X"))
+/// Replaces an existing className expression with `{before}{class_name_concat_source}{after}`,
+/// keeping the edits other passes made inside it. Elements with a `dynamicColor` prop hand the
+/// merged expression to the dynamic color pass, see `emit_class_name`
+pub(super) fn emit_class_concat(
+    edits: &mut Vec<Edit>,
+    class_expressions: &mut FxHashMap<u32, String>,
+    element: &JSXElement<'_>,
+    attribute: &JSXAttribute<'_>,
+    sources: &ClassNameSources<'_>,
+    before: &str,
+    after: &str,
+) {
+    if !has_dynamic_color_attribute(element)
+        && let Some(wrap) = wrap_class_concat(attribute, sources, before, after)
     {
-        return u32::from_str_radix(hex, 16).ok().and_then(char::from_u32);
+        edits.extend(wrap);
+        return;
     }
-    if let Some(decimal) = entity.strip_prefix('#') {
-        return decimal.parse().ok().and_then(char::from_u32);
-    }
-    XML_ENTITIES.get(entity).copied()
+    let existing = edited_class_name_concat_source(attribute, sources, edits);
+    emit_class_name(
+        edits,
+        class_expressions,
+        element,
+        ClassNameTarget::Replace(attribute.span),
+        format!("{before}{existing}{after}"),
+    );
 }
 
-pub(super) fn js_string_literal(value: &str) -> String {
-    let mut output = String::with_capacity(value.len() + 2);
-    output.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\u{2028}' => output.push_str("\\u2028"),
-            '\u{2029}' => output.push_str("\\u2029"),
-            character => output.push(character),
+/// `mergeClassNames` inputs: spread props and explicit `className` values in source order, with
+/// the edits other passes made inside them, plus the spans of the `className` attributes they
+/// replace
+pub(super) fn merge_class_name_inputs(
+    element: &JSXElement<'_>,
+    sources: &ClassNameSources<'_>,
+    edits: &mut Vec<Edit>,
+) -> (Vec<String>, Vec<Span>) {
+    let mut inputs = Vec::new();
+    let mut replaced_attributes = Vec::new();
+    for item in &element.opening_element.attributes {
+        match item {
+            JSXAttributeItem::SpreadAttribute(spread) => {
+                let span = spread.argument.span();
+                inputs.push(sources.source[span.start as usize..span.end as usize].to_owned());
+            }
+            JSXAttributeItem::Attribute(attribute)
+                if is_named_attribute(attribute, "className") =>
+            {
+                inputs.push(edited_class_name_concat_source(attribute, sources, edits));
+                replaced_attributes.push(attribute.span);
+            }
+            JSXAttributeItem::Attribute(_) => {}
         }
     }
-    output.push('"');
-    output
-}
-
-pub(super) fn jsx_string_literal(raw: &str) -> String {
-    js_string_literal(&jsx_string_value(raw))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{jsx_string_literal, jsx_string_value};
-
-    #[test]
-    fn decodes_entities() {
-        assert_eq!(
-            jsx_string_value("a &amp; b &#65; &#x42; &unknown; &"),
-            "a & b A B &unknown; &"
-        );
-    }
-
-    #[test]
-    fn escapes_js_string() {
-        assert_eq!(jsx_string_literal("a\\b\n\"c\""), "\"a\\\\b\\n\\\"c\\\"\"");
-    }
+    (inputs, replaced_attributes)
 }

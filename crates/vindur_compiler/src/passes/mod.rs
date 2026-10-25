@@ -19,6 +19,7 @@ mod jsx_class_name;
 mod jsx_css;
 mod jsx_cx;
 mod jsx_cx_attribute;
+mod jsx_cx_css_references;
 mod runtime_helpers;
 mod scoped;
 mod scoped_idents;

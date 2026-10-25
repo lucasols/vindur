@@ -9,7 +9,7 @@ use oxc_syntax::operator::LogicalOperator;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
-use super::{import_analysis::is_compile_time_import, jsx_class_name::js_string_literal};
+use super::{import_analysis::is_compile_time_import, styled_jsx_helpers::js_string_literal};
 
 pub(crate) fn optimize_cx_calls(
     program: &Program<'_>,

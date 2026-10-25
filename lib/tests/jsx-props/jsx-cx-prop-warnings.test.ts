@@ -565,4 +565,42 @@ describe('Warnings for Missing CSS Classes', () => {
       "
     `);
   });
+
+  test('should warn about cx modifiers only used in selectors of other elements', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          & .active {
+            opacity: 0.5;
+          }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: 'Warning: Missing CSS classes for cx modifiers in Box: active'
+          loc: 'current_file:9:48'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Box {
+        & .active {
+          opacity: 0.5;
+        }
+      }
+      "
+    `);
+  });
 });

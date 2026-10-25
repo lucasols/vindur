@@ -22,7 +22,7 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_resolved_import_edits, collect_vindur_imports,
+        collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
@@ -58,7 +58,6 @@ pub(crate) fn transform_program(
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, source, &mut imports, &mut edits);
-    collect_resolved_import_edits(program, source, imported_values, &mut edits);
 
     let mut constants = collect_constants(program, scoping);
     constants.extend(imported_values.iter().map(|(name, value)| {
@@ -84,6 +83,7 @@ pub(crate) fn transform_program(
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let helper_names = RuntimeHelperNames::new(program, scoping);
+    let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let exported_names = collect_exported_names(program);
@@ -326,6 +326,7 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             elements: &mut cx_elements,
+            class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
@@ -350,6 +351,7 @@ pub(crate) fn transform_program(
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
             cx_elements: &cx_elements,
+            class_expressions: &mut class_expressions,
             scoped_variables: &mut scoped_variables,
         },
     )?;
@@ -359,7 +361,6 @@ pub(crate) fn transform_program(
         DynamicColorTransform {
             constants: &constants,
             scoping,
-            imported_values,
             edits: &mut edits,
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,
@@ -367,6 +368,7 @@ pub(crate) fn transform_program(
             helper_names: &helper_names,
             source,
             styled_components: &styled_components,
+            class_expressions: &class_expressions,
         },
     )?;
 

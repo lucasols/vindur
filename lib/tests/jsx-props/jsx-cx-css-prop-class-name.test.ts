@@ -46,15 +46,13 @@ test('should merge css prop and cx prop with an existing className', async () =>
             }
           />
           <div
-            className={[
-              extra,
-              "v1560qbr-3-css-prop-3 " +
-                cx({
-                  "v1560qbr-4-active": isActive,
-                }),
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className={
+              (extra || "") +
+              " v1560qbr-3-css-prop-3 " +
+              cx({
+                "v1560qbr-4-active": isActive,
+              })
+            }
           />
         </>
       );
@@ -176,40 +174,33 @@ test('should merge explicit className with spread props', async () => {
           <div {...props} className="base v1560qbr-1-css-prop-1" />
           <div
             {...props}
-            className={[
-              isActive ? "on" : undefined,
+            className={
+              ((isActive ? "on" : undefined) || "") +
+              " " +
               cx({
                 active: isActive,
-              }),
-            ]
-              .filter(Boolean)
-              .join(" ")}
+              })
+            }
           />
           <div
             {...props}
-            className={[next(), "v1560qbr-2-css-prop-2"].filter(Boolean).join(" ")}
+            className={(next() || "") + " v1560qbr-2-css-prop-2"}
             data-count={count}
           />
           <div
             {...props}
-            className={[
-              "v1560qbr-4",
+            className={
+              ("v1560qbr-4" || "") +
+              " " +
               cx({
                 active: isActive,
-              }),
-            ]
-              .filter(Boolean)
-              .join(" ")}
+              })
+            }
           />
           <div
             {...props}
             className={mergeClassNames(
-              [
-                {
-                  className: extra,
-                },
-                props,
-              ],
+              [extra || "", props],
               "v1560qbr-3-css-prop-3",
             )}
           />
@@ -260,15 +251,7 @@ test('should merge styled component class names with an explicit className befor
       return (
         <div
           {...props}
-          className={mergeClassNames(
-            [
-              {
-                className: extra,
-              },
-              props,
-            ],
-            "v1560qbr-1-Box",
-          )}
+          className={mergeClassNames([extra || "", props], "v1560qbr-1-Box")}
         />
       );
     }
@@ -309,31 +292,6 @@ test('should keep the quotes of single quoted className strings', async () => {
   `);
 });
 
-test('should throw for dynamicColor with className and css prop', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { createDynamicCssColor } from 'vindur';
-
-        const color = createDynamicCssColor();
-
-        function Component({ value }) {
-          return (
-            <div
-              className="base"
-              css={\`color: \${color.var};\`}
-              dynamicColor={color.set(value)}
-            />
-          );
-        }
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: dynamicColor can't be combined with both className and the css or cx prop on the same element
-    loc: 8:6]
-  `);
-});
-
 test('should keep the user cx import when generated classes still call cx', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -355,15 +313,13 @@ test('should keep the user cx import when generated classes still call cx', asyn
     function Component({ big, active }) {
       return (
         <button
-          className={[
-            "base" + (big ? " big" : ""),
-            "v1560qbr-1-Btn " +
-              cx({
-                "v1560qbr-2-active": active,
-              }),
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          className={
+            ("base" + (big ? " big" : "") || "") +
+            " v1560qbr-1-Btn " +
+            cx({
+              "v1560qbr-2-active": active,
+            })
+          }
         />
       );
     }
@@ -387,14 +343,13 @@ test('should inject the cx helper when the user imports cx under an alias', asyn
     function Component({ active }) {
       return (
         <circle
-          className={[
-            classNames("base"),
+          className={
+            (classNames("base") || "") +
+            " " +
             cx({
               active: active,
-            }),
-          ]
-            .filter(Boolean)
-            .join(" ")}
+            })
+          }
         />
       );
     }
@@ -439,14 +394,13 @@ test('should import helpers under an alias when another binding uses their name'
     import cx from "classnames";
     export const Component = ({ active }) => (
       <div
-        className={[
-          cx("base"),
+        className={
+          (cx("base") || "") +
+          " " +
           _vCx({
             active: active,
-          }),
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          })
+        }
       />
     );
     "
@@ -531,42 +485,75 @@ test('should insert className before a self-closing tag after a line comment end
   `);
 });
 
-test('should throw for dynamicColor before a transformed prop with spread props', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled, createDynamicCssColor } from 'vindur';
+test('should merge a cx prop after dynamicColor on a styled component with spread props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, createDynamicCssColor } from 'vindur';
 
-        const color = createDynamicCssColor();
-        const Box = styled.div\`&.on { color: blue; }\`;
+      const color = createDynamicCssColor();
+      const Box = styled.div\`&.on { color: blue; }\`;
 
-        export const App = ({ p, v, x }) => (
-          <Box {...p} dynamicColor={color.set(v)} cx={{ on: x }} />
-        );
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: dynamicColor can't be combined with this cx prop on the same element, vindur also transforms it. Place dynamicColor after it
-    loc: 7:42]
+      export const App = ({ p, v, x }) => (
+        <Box {...p} dynamicColor={color.set(v)} cx={{ on: x }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import {
+      createDynamicCssColor,
+      cx,
+      mergeClassNames,
+      mergeStyles,
+    } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const App = ({ p, v, x }) => (
+      <div
+        {...p}
+        {...color._sp(v, {
+          className: mergeClassNames(
+            [p],
+            "v1560qbr-2-Box " +
+              cx({
+                "v1560qbr-3-on": x,
+              }),
+          ),
+          style: mergeStyles([p]),
+        })}
+      />
+    );
+    "
   `);
 });
 
-test('should throw for dynamicColor with a transformed style prop before spread props', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled, createDynamicCssColor } from 'vindur';
+test('should keep a transformed style prop placed before spread props with dynamicColor', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, createDynamicCssColor } from 'vindur';
 
-        const color = createDynamicCssColor();
-        const Box = styled.div\`---offset: 1px; left: var(---offset);\`;
+      const color = createDynamicCssColor();
+      const Box = styled.div\`---offset: 1px; left: var(---offset);\`;
 
-        export const App = ({ x, v, p }) => (
-          <Box style={{ '---offset': x }} {...p} dynamicColor={color.set(v)} />
-        );
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: dynamicColor can't be combined with this style prop on the same element, vindur also transforms it
-    loc: 7:7]
+      export const App = ({ x, v, p }) => (
+        <Box style={{ '---offset': x }} {...p} dynamicColor={color.set(v)} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    export const App = ({ x, v, p }) => (
+      <div
+        {...p}
+        {...color._sp(v, {
+          className: mergeClassNames([p], "v1560qbr-2-Box"),
+          style: mergeStyles([p], {
+            "--v1560qbr-3-offset": x,
+          }),
+        })}
+      />
+    );
+    "
   `);
 });

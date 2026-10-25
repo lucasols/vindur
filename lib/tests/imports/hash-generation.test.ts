@@ -47,12 +47,13 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { StyledButton } from "#/components";
+      "import { primaryColor, StyledButton } from "#/components";
       const containerStyles = "v1560qbr-1-containerStyles";
       const App = () => (
         <StyledButton
-          className={containerStyles}
-          {...primaryColor._sp("#blue", {})}
+          {...primaryColor._sp("#blue", {
+            className: containerStyles,
+          })}
         />
       );
       "

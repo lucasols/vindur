@@ -55,37 +55,3 @@ test('should alias the cx helper when the file calls a global cx', async () => {
     "
   `);
 });
-
-test('should keep the cx import while a copied spread still calls cx', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { cx } from 'vindur';
-
-      export const App = ({ a }) => (
-        <div {...{ className: cx({ b: a }) }} css={\`color: red;\`} />
-      );
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { mergeClassNames, cx } from "vindur";
-    export const App = ({ a }) => (
-      <div
-        {...{
-          className: a ? "b" : "",
-        }}
-        className={mergeClassNames(
-          [
-            {
-              className: cx({
-                b: a,
-              }),
-            },
-          ],
-          "v1560qbr-1-css-prop-1",
-        )}
-      />
-    );
-    "
-  `);
-});

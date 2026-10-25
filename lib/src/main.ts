@@ -327,7 +327,7 @@ export function mergeClassNames(
 ): string {
   let finalClassName = '';
 
-  // Extract className from spread props
+  // Extract className from spread props, a later className key overrides earlier ones like in JSX
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       finalClassName = prop;
@@ -348,18 +348,21 @@ export function mergeClassNames(
     }
   }
 
+  if (!finalClassName) return vindurClassName;
   if (!vindurClassName) return finalClassName;
 
-  if (finalClassName) return `${finalClassName} ${vindurClassName}`;
-
-  return vindurClassName;
+  return `${finalClassName} ${vindurClassName}`;
 }
 
 /**
- * Merge styles from spread props
+ * Resolve the style from spread props placed after an explicit `style`, a later style key
+ * overrides earlier ones like in JSX
  */
-export function mergeStyles(spreadProps: unknown[]): Record<string, unknown> {
-  const mergedStyle: Record<string, unknown> = {};
+export function mergeStyles(
+  spreadProps: unknown[],
+  baseStyle: object | undefined = undefined,
+): object | undefined {
+  let finalStyle = baseStyle;
 
   for (const prop of spreadProps) {
     if (
@@ -370,11 +373,9 @@ export function mergeStyles(spreadProps: unknown[]): Record<string, unknown> {
       && isSpreadProperty(prop, 'style')
     ) {
       const style = prop.style;
-      if (style && typeof style === 'object') {
-        Object.assign(mergedStyle, style);
-      }
+      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 
-  return mergedStyle;
+  return finalStyle;
 }

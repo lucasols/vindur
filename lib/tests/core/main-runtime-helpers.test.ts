@@ -51,6 +51,13 @@ describe('createDynamicCssColor', () => {
     );
   });
 
+  test('should not require merge props in _sp', () => {
+    const color = createDynamicCssColor('test-hash', true);
+
+    expect(color._sp(undefined, undefined)).toEqual({});
+    expect(color._sp('#ff0000', undefined).className).toBeTypeOf('string');
+  });
+
   test('should create color object with proper methods in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
@@ -317,26 +324,66 @@ describe('mergeClassNames', () => {
 
     expect(result).toBe('user vindur-class');
   });
+
+  test('should ignore null and undefined spread props', () => {
+    const result = mergeClassNames(
+      ['explicit', null, undefined],
+      'vindur-class',
+    );
+    expect(result).toBe('explicit vindur-class');
+  });
+
+  test('should let a later undefined className override earlier classes', () => {
+    const result = mergeClassNames(
+      ['explicit', { className: undefined }],
+      'vindur-class',
+    );
+    expect(result).toBe('vindur-class');
+  });
+
+  test('should not add a separator for an empty vindur className', () => {
+    expect(mergeClassNames([{ className: 'x' }], '')).toBe('x');
+  });
 });
 
 describe('mergeStyles', () => {
-  test('should merge style objects from spread props', () => {
+  test('should use the style of the last spread prop with a style, like JSX', () => {
     const result = mergeStyles([
       { style: { color: 'red', margin: '10px' } },
       { style: { backgroundColor: 'blue', margin: '20px' } },
       { otherProp: 'value' },
     ]);
 
-    expect(result).toEqual({
+    expect(result).toEqual({ backgroundColor: 'blue', margin: '20px' });
+  });
+
+  test('should keep the base style when no later spread has a style', () => {
+    expect(mergeStyles([{ id: 'x' }], { display: 'none' })).toEqual({
+      display: 'none',
+    });
+    expect(mergeStyles([{ style: { color: 'red' } }], { display: 'none' })).toEqual({
       color: 'red',
-      margin: '20px', // Later value overwrites
-      backgroundColor: 'blue',
     });
   });
 
+  test('should clear the style when a later spread has an undefined style', () => {
+    expect(mergeStyles([{ style: undefined }], { display: 'none' })).toBeUndefined();
+  });
+
+  test('should ignore inherited style properties', () => {
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { style: { display: 'none' } });
+
+    expect(mergeStyles([inherited], { color: 'red' })).toEqual({ color: 'red' });
+  });
+
   test('should handle empty props', () => {
-    const result = mergeStyles([]);
-    expect(result).toEqual({});
+    expect(mergeStyles([])).toBeUndefined();
+  });
+
+  test('should ignore null and undefined spread props', () => {
+    const result = mergeStyles([null, { style: { color: 'red' } }, undefined]);
+    expect(result).toEqual({ color: 'red' });
   });
 
   test('should ignore invalid style properties', () => {
@@ -352,13 +399,7 @@ describe('mergeStyles', () => {
   test('should handle props without style property', () => {
     const result = mergeStyles([{ className: 'test' }, { id: 'test-id' }]);
 
-    expect(result).toEqual({});
-  });
-
-  test('should skip nullish spread props', () => {
-    const result = mergeStyles([null, undefined, { style: { color: 'red' } }]);
-
-    expect(result).toEqual({ color: 'red' });
+    expect(result).toBeUndefined();
   });
 
   test('should read styles of spread functions like JSX', () => {

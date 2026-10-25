@@ -82,7 +82,9 @@ const App = ({ active }) => <div className={cx('base', { active })} css={`color:
     assert!(
         output
             .code
-            .contains(r#"[("base" + (active ? " active" : "")), "#)
+            .contains(r#"(("base" + (active ? " active" : "")) || "") + " "#),
+        "{}",
+        output.code
     );
     assert!(output.css.contains("color: red;"));
 }

@@ -350,7 +350,8 @@ test('should keep css nested in className of style flag components with spread p
         <div
           {...props}
           className={
-            ["v1560qbr-1-Box", "v1560qbr-2", ""].filter(Boolean).join(" ") +
+            "v1560qbr-1-Box " +
+            ("v1560qbr-2" || "") +
             (active ? " voctcyj-active" : "")
           }
         />
@@ -398,11 +399,7 @@ test('should escape and decode string union style flag values in class names', a
       <>
         <div className={'v1560qbr-1-Box vr4ikfs-size-a"b'} />
         <div className={"v1560qbr-1-Box c vr4ikfs-size-x&y"} />
-        <div
-          className={["v1560qbr-1-Box", c, 'vr4ikfs-size-a"b']
-            .filter(Boolean)
-            .join(" ")}
-        />
+        <div className={"v1560qbr-1-Box " + (c || "") + ' vr4ikfs-size-a"b'} />
       </>
     );
     "

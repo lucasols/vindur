@@ -254,10 +254,8 @@ test('should keep css classes nested in a styled component className', async () 
     "function Component({ extra }) {
       return (
         <>
-          <div
-            className={["v1560qbr-2", "v1560qbr-1-Box"].filter(Boolean).join(" ")}
-          />
-          <div className={[extra, "v1560qbr-1-Box"].filter(Boolean).join(" ")} />
+          <div className={"v1560qbr-1-Box " + ("v1560qbr-2" || "")} />
+          <div className={"v1560qbr-1-Box " + (extra || "")} />
         </>
       );
     }

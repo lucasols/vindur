@@ -27,12 +27,21 @@ pub(super) fn rewrite_cx_selectors_in_body(
 
 // Whether `class_name` is one of the classes `rewrite_cx_selectors` would rewrite
 pub(super) fn contains_class_selector(css: &str, class_name: &str) -> bool {
+    contains_rewritten_class(css, class_name, RuleContext::TopLevel)
+}
+
+// Like `contains_class_selector`, for the declarations and nested rules of a single rule
+pub(super) fn contains_class_selector_in_body(css: &str, class_name: &str) -> bool {
+    contains_rewritten_class(css, class_name, RuleContext::StyledElement)
+}
+
+fn contains_rewritten_class(css: &str, class_name: &str, context: RuleContext) -> bool {
     // A marker that can't appear in CSS, so only rewritten occurrences are found
     const MARKER: &str = "\u{0}";
     rewrite_rules(
         css,
         &|token| (token == class_name).then(|| MARKER.to_owned()),
-        RuleContext::TopLevel,
+        context,
     )
     .contains(MARKER)
 }
