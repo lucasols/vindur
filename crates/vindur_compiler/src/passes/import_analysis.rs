@@ -15,7 +15,6 @@ const COMPILE_TIME_IMPORTS: &[&str] = &[
     "layer",
     "stableId",
     "styled",
-    "vindurFn",
 ];
 
 pub(super) fn is_compile_time_import(name: &str) -> bool {
@@ -134,8 +133,10 @@ pub(super) fn collect_vindur_imports(
                 specifier_count += 1;
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
+                    // Runtime imports are tracked too, so vindur utilities are detected by
+                    // their import instead of their name
+                    imports.insert(&named.local, imported.as_str());
                     if is_compile_time_import(imported.as_str()) {
-                        imports.insert(&named.local, imported.as_str());
                         compile_time_count += 1;
                         continue;
                     }

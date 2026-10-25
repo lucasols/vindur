@@ -92,7 +92,9 @@ pub(super) fn process_variable_declaration(
         }
         if let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
-            && callee.name.as_str() == "createDynamicCssColor"
+            && transform
+                .imports
+                .matches_import_or_global(callee, "createDynamicCssColor")
         {
             if !call.arguments.is_empty() {
                 return Err(CompilerDiagnostic::error(
@@ -111,13 +113,15 @@ pub(super) fn process_variable_declaration(
             );
             transform.edits.push(Edit {
                 span: call.span,
-                replacement: format!("createDynamicCssColor(\"{id}\", {})", transform.dev),
+                replacement: format!("{}(\"{id}\", {})", callee.name, transform.dev),
             });
             continue;
         }
         if let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
-            && callee.name.as_str() == "createStaticThemeColors"
+            && transform
+                .imports
+                .matches_import_or_global(callee, "createStaticThemeColors")
         {
             let colors = parse_theme_colors(&call.arguments).map_err(|error| {
                 CompilerDiagnostic::error(
