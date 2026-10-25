@@ -118,12 +118,11 @@ pub(super) fn with_style_block<T>(
     };
     let allocator = Allocator::default();
     parse_source(&allocator, source)
-        .map_err(|error| {
-            if kind == BlockKind::Keyframes {
-                keyframes_error(css, error)
-            } else {
-                error
-            }
+        // An unclosed bracket or comment makes the parser fail later, at a confusing position
+        .map_err(|error| match check_balance(source) {
+            Err(balance_error) if balance_error.start <= error.start => balance_error,
+            _ if kind == BlockKind::Keyframes => keyframes_error(css, error),
+            _ => error,
         })
         .and_then(|stylesheet| {
             check_balance(source)?;
@@ -303,6 +302,22 @@ mod tests {
                 "Invalid CSS: unclosed `(`, add `)` at 18..19",
                 "Invalid CSS: unclosed `(`, add `)` at 27..28",
                 "Invalid CSS: unclosed comment, add `*/` at 20..22",
+            ]
+        );
+    }
+
+    #[test]
+    fn prefers_unclosed_brackets_over_later_parser_errors() {
+        assert_eq!(
+            [
+                error("& { width: calc(1px } color: red; }"),
+                error("& { background: url(a.png } color: red; }"),
+                error("/* note } width: 1px;"),
+            ],
+            [
+                "Invalid CSS: unclosed `(`, add `)` at 15..16",
+                "Invalid CSS: unclosed `url(`, add `)` at 16..20",
+                "Invalid CSS: unclosed comment, add `*/` at 0..2",
             ]
         );
     }

@@ -237,7 +237,7 @@ describe('forward references', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Forward reference to undefined styled component: UndefinedComponent. Make sure the component is defined in the same file.
-      loc: /test.tsx|1:0]
+      loc: /test.tsx|6:4]
     `,
     );
   });

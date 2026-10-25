@@ -5,6 +5,7 @@ use oxc_span::{GetSpan, Span};
 
 use crate::CompilerDiagnostic;
 
+use super::css::layer_markers_in_text;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
 use super::styled::{StyleFlag, css_class_name_part, replace_class_selector};
@@ -93,7 +94,7 @@ pub(crate) fn validate_template_css(
     let validate =
         |css: &str| validate_style_block(&validation_css(css, context.style_flags), kind);
     let Err(error) = validate(&evaluated.css) else {
-        return Ok(());
+        return reject_layers_in_text(evaluated, file_path, source);
     };
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
@@ -106,17 +107,9 @@ pub(crate) fn validate_template_css(
                 .is_some_and(|(position, rebuilt_position)| rebuilt_position > position),
         })
     };
-    let candidates = evaluated
-        .selector_classes
-        .iter()
-        .copied()
-        .filter(|&index| {
-            template.expressions.get(index).is_some_and(|expression| {
-                position.is_none_or(|position| expression.span().start < position)
-            })
-        })
-        .collect::<Vec<_>>();
-    if let Some(index) = missing_extension(&candidates, fixes_error)?
+    // The parser can report the error before the interpolation, at the `{` of the rule holding it,
+    // so every candidate is tried, `fixes_error` rejects the ones that don't fix the error
+    if let Some(index) = missing_extension(&evaluated.selector_classes, fixes_error)?
         && let Some(expression) = template.expressions.get(index)
     {
         let span = expression.span();
@@ -157,6 +150,33 @@ pub(crate) fn validate_template_css(
     Err(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
+/// The parser accepts a `layer()` inside a string or comment, where it is not a rule selector
+fn reject_layers_in_text(
+    evaluated: &EvaluatedTemplate,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    for start in layer_markers_in_text(&evaluated.css) {
+        if let Some(TemplateSegment {
+            origin: SegmentOrigin::Interpolation(span),
+            ..
+        }) = evaluated
+            .segments
+            .iter()
+            .find(|segment| segment.range.contains(&start))
+        {
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                *span,
+                "layer() can only be used as the selector of a rule, e.g. `${layer('name')} { ... }`"
+                    .to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Finds the first CSS class interpolation missing its `;`. Consecutive missing `;` only fix the
 /// CSS together, so when no single one does, all are forced and the ones not needed are dropped
 fn missing_extension(
@@ -191,11 +211,12 @@ fn validation_css<'a>(css: &'a str, style_flags: &[StyleFlag]) -> Cow<'a, str> {
     style_flags
         .iter()
         .filter(|flag| flag.prop_name.contains('$'))
-        .fold(Cow::Borrowed(css), |css, flag| {
+        .flat_map(StyleFlag::class_names)
+        .fold(Cow::Borrowed(css), |css, class_name| {
             Cow::Owned(replace_class_selector(
                 &css,
-                &flag.prop_name,
-                &css_class_name_part(&flag.prop_name),
+                &class_name,
+                &css_class_name_part(&class_name),
             ))
         })
 }

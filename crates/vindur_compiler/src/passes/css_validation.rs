@@ -3,8 +3,9 @@ use oxc_css_parser::{
     token::TokenData,
 };
 
+use super::css::with_layer_calls;
 use super::css_syntax::{BlockKind, CssError};
-use super::unsupported_css_syntax::is_ident_char;
+use super::css_tokens::is_ident_char;
 
 /// The CSS dialect also accepts postcss-only syntax like `$var: value;`, `*zoom: 1` or rules
 /// without a selector, reject them
@@ -60,10 +61,12 @@ pub(super) fn validate_statements(
 /// The CSS dialect keeps rules whose prelude is not a selector, like `color: red &:hover { ... }`
 /// (a declaration missing its `;` before a nested rule) or `50% { ... }` outside keyframes
 fn unknown_rule_error(prelude: &TokenSeq<'_>, source: &str) -> CssError {
-    let text = source[prelude.span.start..prelude.span.end]
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let text = with_layer_calls(
+        &source[prelude.span.start..prelude.span.end]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
     // A declaration starts with a property name followed by `:` and a space, a selector like
     // `&:hover:` has no space after its `:`
     let is_declaration_shaped = text.split_once(':').is_some_and(|(property, rest)| {
@@ -93,7 +96,7 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
     }
     // `color: red\n width: 1px;` is parsed as a single `color` declaration. Custom property values
     // can contain `name:` on any line, so they are not checked
-    if name.raw.starts_with("--") {
+    if name.name.starts_with("--") {
         return Ok(());
     }
     let next_property = declaration.value.windows(2).find_map(|pair| match pair {
@@ -384,8 +387,12 @@ mod tests {
     #[test]
     fn accepts_colons_in_custom_property_values() {
         assert_eq!(
-            [error("--config:\n    theme: dark;"), error("--x: a: b;"),],
-            ["ok", "ok"]
+            [
+                error("--config:\n    theme: dark;"),
+                error("--x: a: b;"),
+                error("\\2d -config: theme: dark;"),
+            ],
+            ["ok", "ok", "ok"]
         );
     }
 }

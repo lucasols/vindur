@@ -2,15 +2,15 @@ use oxc_css_parser::{
     ast::{
         AtRule, AtRulePrelude, ComponentValue, ContainerCondition, ContainerConditionKind,
         Declaration, FunctionName, ImportPrelude, ImportPreludeSupportsKind, InterpolableIdent,
-        QueryInParensKind, SimpleBlock, Statement, StyleCondition, StyleConditionKind,
-        StyleInParensKind, StyleQuery, SupportsCondition, SupportsConditionKind,
-        SupportsInParensKind,
+        KeyframesName, QueryInParensKind, SimpleBlock, Statement, StyleCondition,
+        StyleConditionKind, StyleInParensKind, StyleQuery, SupportsCondition,
+        SupportsConditionKind, SupportsInParensKind,
     },
     token::{TokenData, TokenWithSpanData},
 };
 
 use super::css_syntax::{BlockKind, CssError, with_style_block};
-use super::unsupported_css_syntax::{is_ident_char, skipped_token_end};
+use super::css_tokens::{ident_end, is_ident_char, skipped_token_end};
 
 /// How a scoped variable identifier is used
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -89,7 +89,9 @@ impl ScopedIdentCollector<'_> {
                 AtRulePrelude::Property(ident)
                 | AtRulePrelude::PositionTry(ident)
                 | AtRulePrelude::FontPaletteValues(ident)
-                | AtRulePrelude::ScrollTimeline(ident),
+                | AtRulePrelude::ScrollTimeline(ident)
+                | AtRulePrelude::CounterStyle(ident)
+                | AtRulePrelude::Keyframes(KeyframesName::Ident(ident)),
             ) => self.ident(ident, ScopedRole::Name),
             Some(AtRulePrelude::Container(prelude)) => {
                 if let Some(name) = &prelude.name {
@@ -344,10 +346,7 @@ fn scoped_ident_ranges(text: &str) -> Vec<(usize, usize)> {
                 .is_some_and(is_ident_char)
             && !text[..index].chars().next_back().is_some_and(is_ident_char)
         {
-            let name_length = rest[SCOPED_PREFIX.len()..]
-                .find(|character: char| !is_ident_char(character))
-                .unwrap_or(rest.len() - SCOPED_PREFIX.len());
-            let end = index + SCOPED_PREFIX.len() + name_length;
+            let end = ident_end(text, index + SCOPED_PREFIX.len());
             ranges.push((index, end));
             index = end;
             continue;

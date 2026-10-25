@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression, TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -9,6 +9,8 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::css_tokens::is_ident_char;
+use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
@@ -23,6 +25,19 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
+}
+
+impl StyleFlag {
+    /// The classes the flag selects in CSS, e.g. `active` or `size-small` and `size-large`
+    pub(crate) fn class_names(&self) -> Vec<String> {
+        match &self.kind {
+            StyleFlagKind::Boolean => vec![self.prop_name.clone()],
+            StyleFlagKind::StringUnion(values) => values
+                .iter()
+                .map(|value| format!("{}-{value}", self.prop_name))
+                .collect(),
+        }
+    }
 }
 
 /// JS identifiers can contain `$`, which is not valid in a CSS class name
@@ -271,16 +286,18 @@ pub(crate) fn resolve_styled_references(
             for flag in &component.style_flags {
                 match &flag.kind {
                     StyleFlagKind::Boolean => {
-                        *rule = rule.replace(
-                            &format!(".{class_name}.{}", flag.prop_name),
-                            &format!(".{class_name}.{}", flag.hashed_class_name),
+                        *rule = replace_class_selector(
+                            rule,
+                            &format!("{class_name}.{}", flag.prop_name),
+                            &format!("{class_name}.{}", flag.hashed_class_name),
                         );
                     }
                     StyleFlagKind::StringUnion(values) => {
                         for value in values {
-                            *rule = rule.replace(
-                                &format!(".{class_name}.{}-{value}", flag.prop_name),
-                                &format!(".{class_name}.{}-{value}", flag.hashed_class_name),
+                            *rule = replace_class_selector(
+                                rule,
+                                &format!("{class_name}.{}-{value}", flag.prop_name),
+                                &format!("{class_name}.{}-{value}", flag.hashed_class_name),
                             );
                         }
                     }
@@ -293,6 +310,29 @@ pub(crate) fn resolve_styled_references(
         let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
         hex_decode(encoded)
     })
+}
+
+/// The `${() => name}` interpolation of a forward reference, used to locate errors about it
+pub(crate) fn forward_reference_span(program: &Program<'_>, name: &str) -> Option<Span> {
+    struct Finder<'n> {
+        name: &'n str,
+        span: Option<Span>,
+    }
+    impl<'a> Visit<'a> for Finder<'_> {
+        fn visit_template_literal(&mut self, template: &TemplateLiteral<'a>) {
+            if self.span.is_none() {
+                self.span = template
+                    .expressions
+                    .iter()
+                    .find(|expression| forward_styled_reference(expression) == Some(self.name))
+                    .map(GetSpan::span);
+            }
+            walk::walk_template_literal(self, template);
+        }
+    }
+    let mut finder = Finder { name, span: None };
+    finder.visit_program(program);
+    finder.span
 }
 
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
@@ -336,13 +376,7 @@ pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<St
     let css = strip_css_comments(css);
     let declared = flags
         .iter()
-        .flat_map(|flag| match &flag.kind {
-            StyleFlagKind::Boolean => vec![flag.prop_name.clone()],
-            StyleFlagKind::StringUnion(values) => values
-                .iter()
-                .map(|value| format!("{}-{value}", flag.prop_name))
-                .collect(),
-        })
+        .flat_map(StyleFlag::class_names)
         .collect::<rustc_hash::FxHashSet<_>>();
     let mut classes: Vec<String> = Vec::new();
     for name in ampersand_compound_classes(&css) {
@@ -410,14 +444,18 @@ pub(super) fn strip_css_comments(css: &str) -> String {
     output
 }
 
+/// Whether a class name continues after `index`, `$` is included because flag names can have it
+fn continues_class_name(css: &str, index: usize) -> bool {
+    css[index..]
+        .chars()
+        .next()
+        .is_some_and(|character| is_ident_char(character) || character == '$')
+}
+
 fn contains_class_selector(css: &str, name: &str) -> bool {
     let needle = format!(".{name}");
-    css.match_indices(&needle).any(|(index, _)| {
-        css[index + needle.len()..]
-            .chars()
-            .next()
-            .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
-    })
+    css.match_indices(&needle)
+        .any(|(index, _)| !continues_class_name(css, index + needle.len()))
 }
 
 pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
@@ -426,11 +464,7 @@ pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &st
     let mut rest = css;
     while let Some(index) = rest.find(&needle) {
         let end = index + needle.len();
-        let next_is_word = rest[end..]
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_');
-        if next_is_word {
+        if continues_class_name(rest, end) {
             output.push_str(&rest[..end]);
         } else {
             output.push_str(&rest[..index]);

@@ -38,7 +38,7 @@ use super::{
     },
     static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
-    styled::{resolve_styled_references, styled_tag_element},
+    styled::{forward_reference_span, resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
@@ -500,7 +500,7 @@ pub(crate) fn transform_program(
         return Err(CompilerDiagnostic::error(
             file_path,
             source,
-            oxc_span::Span::new(0, 0),
+            forward_reference_span(program, &reference).unwrap_or(program.span),
             format!(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),

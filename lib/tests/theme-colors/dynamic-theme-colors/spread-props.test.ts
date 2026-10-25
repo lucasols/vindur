@@ -247,6 +247,65 @@ describe('Dynamic Colors - Spread Props', () => {
       "
     `);
   });
+
+  test('should merge className and style placed before spread props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, css } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const box = css\`
+          width: var(---width);
+          background: \${color.var};
+        \`
+
+        const Component = ({ width, ...props }: { width: number }) => {
+          return (
+            <div
+              dynamicColor={color.set('#fff')}
+              className={box}
+              style={{ '---width': \`\${width}px\` }}
+              {...props}
+            />
+          );
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1", true);
+      const box = "v1560qbr-2-box";
+      const Component = ({ width, ...props }: { width: number }) => {
+        return (
+          <div
+            {...color._sp("#fff", {
+              className: mergeClassNames([box, props], undefined),
+              style: mergeStyles([
+                {
+                  style: {
+                    "--v1560qbr-3-width": \`\${width}px\`,
+                  },
+                },
+                props,
+              ]),
+            })}
+            {...props}
+          />
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2-box {
+        width: var(--v1560qbr-3-width);
+        background: var(--v1560qbr-1);
+      }
+      "
+    `);
+  });
 });
 
 test('should merge className before spread props with dynamic colors', async () => {

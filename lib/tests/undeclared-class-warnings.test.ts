@@ -63,6 +63,46 @@ describe('Styled components', () => {
     `);
   });
 
+  test('should not treat classes starting with a style flag name as the flag', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+          &.active-look {
+            color: blue;
+          }
+        \`
+      `,
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "The class 'active-look' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        &.voctcyj-active {
+          color: red;
+        }
+        &.active-look {
+          color: blue;
+        }
+      }
+      "
+    `);
+  });
+
   test('should not warn when class is declared as string union style flag', async () => {
     const warnings: TransformWarning[] = [];
 

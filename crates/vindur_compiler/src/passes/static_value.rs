@@ -223,12 +223,7 @@ fn build_template_css(
             return Err(interpolation_error(expression, file_path, source, context));
         }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
-            next.value
-                .cooked
-                .as_ref()
-                .unwrap_or(&next.value.raw)
-                .trim_start()
-                .starts_with(';')
+            starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
         });
         let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
         let followed_by_semicolon = has_semicolon || forced_semicolon;
@@ -287,6 +282,18 @@ fn build_template_css(
         previous_was_css_extension = is_css_extension;
     }
     Ok(evaluated)
+}
+
+/// Whether the text starts with `;` after whitespace and comments
+fn starts_with_semicolon(text: &str) -> bool {
+    let mut rest = text.trim_start();
+    while let Some(comment) = rest.strip_prefix("/*") {
+        let Some(end) = comment.find("*/") else {
+            return false;
+        };
+        rest = comment[end + 2..].trim_start();
+    }
+    rest.starts_with(';')
 }
 
 fn binary_expression_error(
@@ -409,7 +416,7 @@ fn imported_function_preserves_boundary(
     quasis.last().is_some_and(|quasi| quasi.contains('\n'))
 }
 
-fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
+pub(super) fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
     let Expression::ArrowFunctionExpression(arrow) = expression else {
         return None;
     };

@@ -254,4 +254,25 @@ font-palette: ---brand;"
             "@position-try --v1-1-below { top: anchor(bottom); }\nposition-try-fallbacks: --v1-1-below;\n@font-palette-values --v1-2-brand { font-family: x; }\nfont-palette: --v1-2-brand;"
         );
     }
+
+    #[test]
+    fn rewrites_keyframes_and_counter_style_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes ---spin { to { opacity: 0; } } .a { animation: ---spin 1s; } @counter-style ---stars { system: cyclic; symbols: \"*\"; } ol { list-style: ---stars; }",
+                BlockKind::Global
+            ),
+            "@keyframes --v1-1-spin { to { opacity: 0; } } .a { animation: --v1-1-spin 1s; } @counter-style --v1-2-stars { system: cyclic; symbols: \"*\"; } ol { list-style: --v1-2-stars; }"
+        );
+    }
+
+    #[test]
+    fn uses_one_name_for_the_same_escaped_spelling() {
+        assert_eq!(
+            process(
+                "view-transition-name: ---f\\6f o; &::view-transition-old(---f\\6f o) { opacity: 0; }"
+            ),
+            "view-transition-name: --v1-1-f\\6f o; &::view-transition-old(--v1-1-f\\6f o) { opacity: 0; }"
+        );
+    }
 }

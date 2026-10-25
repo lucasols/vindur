@@ -1,7 +1,7 @@
 use super::css_syntax::CssError;
-use super::unsupported_css_syntax::{is_url_function, skipped_token_end};
-
-const URL_START: &str = "url(";
+use super::css_tokens::{
+    escape_end, ident_end, is_css_whitespace, is_ident_char, is_url_function, skipped_token_end,
+};
 
 /// Fails on an unclosed comment, an unclosed `(`, `[` or `url(`, or an unexpected `)` or `]`.
 /// oxc-css-parser 0.0.17 does not report these inside nested blocks, where they swallow the rules
@@ -17,12 +17,12 @@ pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
                 index + 2,
             ));
         }
-        if is_unquoted_url(css, index) {
-            index = unquoted_url_end(css, index).ok_or_else(|| {
+        if let Some(arguments_start) = unquoted_url_arguments_start(css, index) {
+            index = unquoted_url_end(css, arguments_start).ok_or_else(|| {
                 CssError::syntax(
                     "unclosed `url(`, add `)`".to_owned(),
                     index,
-                    index + URL_START.len(),
+                    arguments_start,
                 )
             })?;
             continue;
@@ -76,40 +76,84 @@ fn unclosed(opener: u8, start: usize) -> CssError {
     )
 }
 
-fn is_unquoted_url(css: &str, index: usize) -> bool {
-    is_url_function(css, index)
-        && !css[index + URL_START.len()..]
-            .trim_start()
-            .starts_with(['"', '\''])
+/// Where the arguments of an unquoted `url(` start, the function name can be escaped like
+/// `u\72l(`
+fn unquoted_url_arguments_start(css: &str, index: usize) -> Option<usize> {
+    let arguments_start = if is_url_function(css, index) {
+        index + "url(".len()
+    } else {
+        if !css[index..].chars().next().is_some_and(is_ident_char)
+            || css[..index].chars().next_back().is_some_and(is_ident_char)
+        {
+            return None;
+        }
+        let name_end = ident_end(css, index);
+        let name = &css[index..name_end];
+        if !name.contains('\\')
+            || !decode_ident(name).eq_ignore_ascii_case("url")
+            || css.as_bytes().get(name_end) != Some(&b'(')
+        {
+            return None;
+        }
+        name_end + 1
+    };
+    (!css[arguments_start..]
+        .trim_start_matches(is_css_whitespace)
+        .starts_with(['"', '\'']))
+    .then_some(arguments_start)
+}
+
+fn decode_ident(raw: &str) -> String {
+    let mut decoded = String::with_capacity(raw.len());
+    let mut index = 0;
+    while let Some(character) = raw[index..].chars().next() {
+        if character != '\\' {
+            decoded.push(character);
+            index += character.len_utf8();
+            continue;
+        }
+        let end = escape_end(raw, index);
+        let escaped = raw[index + 1..end].trim_end_matches(is_css_whitespace);
+        let hex = u32::from_str_radix(escaped, 16)
+            .ok()
+            .and_then(char::from_u32);
+        match hex {
+            Some(character) if escaped.bytes().all(|byte| byte.is_ascii_hexdigit()) => {
+                decoded.push(character);
+            }
+            _ => decoded.push_str(escaped),
+        }
+        index = end;
+    }
+    decoded
 }
 
 /// The end of an unquoted `url(...)`, `None` when it is not closed before a quote, a `(`, or
 /// whitespace that is not followed by `)`
-fn unquoted_url_end(css: &str, start: usize) -> Option<usize> {
-    let arguments_start = start + URL_START.len();
-    let arguments = &css[arguments_start..];
+fn unquoted_url_end(css: &str, arguments_start: usize) -> Option<usize> {
     let mut seen_value = false;
-    let mut characters = arguments.char_indices();
-    while let Some((offset, character)) = characters.next() {
+    let mut index = arguments_start;
+    while let Some(character) = css[index..].chars().next() {
         match character {
-            ')' => return Some(arguments_start + offset + 1),
+            ')' => return Some(index + 1),
             '\\' => {
-                characters.next();
+                index = escape_end(css, index);
                 seen_value = true;
+                continue;
             }
             '"' | '\'' | '(' => return None,
-            character if character.is_whitespace() => {
-                if !seen_value {
-                    continue;
+            character if is_css_whitespace(character) => {
+                if seen_value {
+                    let rest = &css[index..];
+                    let trimmed = rest.trim_start_matches(is_css_whitespace);
+                    return trimmed
+                        .starts_with(')')
+                        .then(|| index + rest.len() - trimmed.len() + 1);
                 }
-                let rest = &arguments[offset..];
-                let trimmed = rest.trim_start();
-                return trimmed
-                    .starts_with(')')
-                    .then(|| arguments_start + offset + rest.len() - trimmed.len() + 1);
             }
             _ => seen_value = true,
         }
+        index += character.len_utf8();
     }
     None
 }
@@ -134,6 +178,8 @@ mod tests {
             "background: url(a.png); mask: url( b.svg ); cursor: url(\"c.cur\"), auto;",
             "background: url(a\\).png); content: 'é(';",
             "--x: { a: [b] }; } stray: brace;",
+            "background: url(foo\\20 bar.png); mask: url(a\u{a0}b.png);",
+            "background: u\\72l(a[b.png);",
         ] {
             assert_eq!(check(css), "ok", "{css}");
         }

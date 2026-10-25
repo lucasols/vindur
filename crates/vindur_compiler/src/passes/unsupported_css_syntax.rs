@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use oxc_span::Span;
 
+use super::css_tokens::{is_ident_char, skipped_token_end};
 use crate::CompilerDiagnostic;
 
 const GLOBAL_SELECTOR: &str = ":global";
@@ -129,8 +130,16 @@ fn segment_source_span(
     };
     let evaluated = &css[segment.range.clone()];
     let local = range.start - segment.range.start..range.end - segment.range.start;
-    let raw_start = source
-        .get(span.start as usize..span.end as usize)
+    let raw_quasi = source.get(span.start as usize..span.end as usize);
+    if let Some(raw_quasi) = raw_quasi
+        && evaluated != raw_quasi
+        && let Some(start) = newline_normalized_offset(raw_quasi, evaluated, local.start)
+        && let Some(end) = newline_normalized_offset(raw_quasi, evaluated, local.end)
+        && let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end))
+    {
+        return Span::new(span.start + start, span.start + end);
+    }
+    let raw_start = raw_quasi
         .and_then(|raw| {
             if evaluated == raw {
                 return Some(local.start);
@@ -152,6 +161,23 @@ fn segment_source_span(
         }
         _ => span,
     }
+}
+
+/// The raw offset of an offset in the evaluated quasi when they only differ by line endings, JS
+/// templates evaluate `\r\n` and `\r` to `\n`
+fn newline_normalized_offset(raw: &str, evaluated: &str, offset: usize) -> Option<usize> {
+    if raw.replace("\r\n", "\n").replace('\r', "\n") != evaluated {
+        return None;
+    }
+    let bytes = raw.as_bytes();
+    let mut raw_index = 0;
+    for _ in 0..offset {
+        if bytes.get(raw_index..raw_index + 2) == Some(b"\r\n") {
+            raw_index += 1;
+        }
+        raw_index += 1;
+    }
+    Some(raw_index)
 }
 
 fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSyntax> {
@@ -224,28 +250,6 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         index += rest.chars().next().map_or(1, char::len_utf8);
     }
     None
-}
-
-// Comments, strings, escapes and unquoted urls can't contain unsupported syntax
-pub(super) fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
-    let rest = &css[index..];
-    if let Some(comment) = rest.strip_prefix("/*") {
-        return Some(
-            comment
-                .find("*/")
-                .map_or(css.len(), |end| index + 2 + end + 2),
-        );
-    }
-    match rest.as_bytes().first() {
-        Some(b'"' | b'\'') => Some(string_end(css, index)),
-        Some(b'\\') => Some(escape_end(css, index)),
-        _ if is_url_function(css, index) => Some(url_end(css, index)),
-        _ => None,
-    }
-}
-
-fn escape_end(css: &str, start: usize) -> usize {
-    start + 1 + css[start + 1..].chars().next().map_or(0, char::len_utf8)
 }
 
 // Pseudo-class names are case-insensitive
@@ -337,46 +341,6 @@ fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
     }
 }
 
-fn string_end(css: &str, start: usize) -> usize {
-    let bytes = css.as_bytes();
-    let quote = bytes[start];
-    let mut index = start + 1;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index += 2,
-            b'\n' => return index,
-            byte if byte == quote => return index + 1,
-            _ => index += 1,
-        }
-    }
-    bytes.len()
-}
-
-pub(super) fn is_url_function(css: &str, index: usize) -> bool {
-    css.get(index..index + 4)
-        .is_some_and(|name| name.eq_ignore_ascii_case("url("))
-        && !css[..index].chars().next_back().is_some_and(is_ident_char)
-}
-
-// Quoted urls are skipped as strings, so only the `url` name is skipped and
-// its parentheses are tracked as usual, unquoted ones are skipped entirely
-fn url_end(css: &str, start: usize) -> usize {
-    let arguments_start = start + 4;
-    let arguments = &css[arguments_start..];
-    if arguments.trim_start().starts_with(['"', '\'']) {
-        return start + 3;
-    }
-    let mut index = arguments_start;
-    while index < css.len() {
-        match css.as_bytes()[index] {
-            b'\\' => index = escape_end(css, index),
-            b')' => return index + 1,
-            _ => index += 1,
-        }
-    }
-    css.len()
-}
-
 // Returns the at-rule and its lowercase name without vendor prefix, e.g.
 // `@-webkit-Keyframes` -> `keyframes`, at-rule names are case-insensitive
 fn at_rule_name(rest: &str) -> Option<(&str, String)> {
@@ -390,14 +354,6 @@ fn at_rule_name(rest: &str) -> Option<(&str, String)> {
         None => name,
     };
     Some((at_rule, unprefixed))
-}
-
-pub(super) fn is_ident_char(character: char) -> bool {
-    character.is_ascii_alphanumeric()
-        || character == '-'
-        || character == '_'
-        || character == '\\'
-        || !character.is_ascii()
 }
 
 fn keyframes_message(at_rule: &str, tag_type: &str, enclosing_block: Option<&Block<'_>>) -> String {

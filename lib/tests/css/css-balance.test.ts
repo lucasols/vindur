@@ -113,7 +113,7 @@ test('should throw for an unexpected closing parenthesis', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: expect token \`;\`, but found \`)\`
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: unexpected \`)\`
     loc: 5:14]
   `);
 });

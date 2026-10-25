@@ -2,6 +2,7 @@ mod color_math;
 mod css;
 mod css_balance;
 mod css_syntax;
+mod css_tokens;
 mod css_validation;
 mod cx_key_warnings;
 mod cx_modifier_selectors;
