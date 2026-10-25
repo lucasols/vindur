@@ -1,5 +1,11 @@
 This file provides guidance to Code Agents when working with code in this repository.
 
+# Development Philosophy
+
+- Prioritize the runtime performance of apps that use vindur, with compilation speed as a close second
+- Vindur doesn't need to support every scenario or variation: features can be limited, mainly to gain performance. Unsupported or invalid code must produce a warning or error, never silently compile to something wrong
+- Supporting fewer features is better than having slow compilations
+
 # Running ts code
 
 The node version installed supports running ts code directly. No build step is needed. Just use `node` to run ts code
