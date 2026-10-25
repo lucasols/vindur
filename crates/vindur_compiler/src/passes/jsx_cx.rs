@@ -11,6 +11,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     dynamic_color_merge::{ClassPart, DynamicColorClasses},
+    jsx_cx_rules::{declared_modifiers, rewrite_class_rule},
     static_evaluation::resolved_constant,
     styled::StyledComponent,
     transform_support::js_string_literal,
@@ -189,6 +190,26 @@ impl JsxCxVisitor<'_> {
             let value = &self.output.source[value_span.start as usize..value_span.end as usize];
             properties.push(format!("{}: {value}", js_string_literal(&output_name)));
             mappings.push((class_name, output_name, should_rewrite_css));
+        }
+
+        // Only the styled component's rule is rewritten, a css reference's own modifiers
+        // would keep the unhashed names and never match
+        if styled.is_some()
+            && let Some(reference) =
+                find_attribute(element, "css").and_then(|css| self.css_class_reference(css))
+        {
+            let modifiers = declared_modifiers(self.output.css_rules, &reference, &mappings);
+            if !modifiers.is_empty() {
+                self.set_error(
+                    attribute.span,
+                    format!(
+                        "cx modifiers [{}] are declared in the css prop reference of {element_name}, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. ${}) or move the modifiers into the styled component.",
+                        modifiers.join(", "),
+                        modifiers[0]
+                    ),
+                );
+                return;
+            }
         }
 
         if let Some(styled) = &styled {
@@ -403,20 +424,22 @@ impl JsxCxVisitor<'_> {
         ]
         .into_iter()
         .flatten()
-        .find_map(|attribute| {
-            let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-                return None;
-            };
-            let JSXExpression::Identifier(identifier) = &container.expression else {
-                return None;
-            };
-            let Some(StaticValue::CssClass { name, .. }) =
-                resolved_constant(identifier, self.output.constants, self.output.scoping)
-            else {
-                return None;
-            };
-            Some(name.clone())
-        })
+        .find_map(|attribute| self.css_class_reference(attribute))
+    }
+
+    fn css_class_reference(&self, attribute: &JSXAttribute<'_>) -> Option<String> {
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let JSXExpression::Identifier(identifier) = &container.expression else {
+            return None;
+        };
+        let Some(StaticValue::CssClass { name, .. }) =
+            resolved_constant(identifier, self.output.constants, self.output.scoping)
+        else {
+            return None;
+        };
+        Some(name.clone())
     }
 
     fn set_error(&mut self, span: oxc_span::Span, message: String) {
@@ -426,24 +449,6 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
-    }
-}
-
-fn rewrite_class_rule(
-    css_rules: &mut [String],
-    class_name: &str,
-    mappings: &[(String, String, bool)],
-) {
-    let rule_start = format!(".{class_name} {{");
-    for rule in css_rules
-        .iter_mut()
-        .filter(|rule| rule.starts_with(&rule_start))
-    {
-        for (original, hashed, should_rewrite) in mappings {
-            if *should_rewrite {
-                *rule = rule.replace(&format!("&.{original}"), &format!("&.{hashed}"));
-            }
-        }
     }
 }
 

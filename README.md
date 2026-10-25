@@ -1042,6 +1042,8 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />`) are a compile error, use `$` keys or move them into the styled component.
+
 ### `cx` utility function
 
 In cases where you can't use the `cx` prop, you can use the `cx` utility function to merge classes. It works just like the `classnames` library.
@@ -1282,6 +1284,8 @@ Each color in your theme provides:
 - **`contrast.var`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
+
+Amounts must be between 0 and 1, other values are a compile error.
 
 ## Dynamic Theme Colors
 

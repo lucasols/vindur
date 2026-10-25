@@ -194,7 +194,7 @@ describe('createStaticThemeColors', () => {
   });
 });
 
-test('should evaluate constant and negative amounts of static theme color methods', async () => {
+test('should evaluate constant amounts of static theme color methods', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { css, createStaticThemeColors } from 'vindur';
@@ -205,7 +205,7 @@ test('should evaluate constant and negative amounts of static theme color method
 
       export const style = css\`
         color: \${colors.primary.darker(AMOUNT)};
-        background: \${colors.primary.lighter(-0.1)};
+        background: \${colors.primary.lighter(0.1)};
         border-color: \${colors.primary.contrast.optimal(OPTIONS)};
         outline-color: \${colors.primary.contrast.optimal({ alpha: 0 })};
       \`;
@@ -215,7 +215,7 @@ test('should evaluate constant and negative amounts of static theme color method
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-style {
       color: var(--stc-primary-darker-0\\.2, #0062cc);
-      background: var(--stc-primary-lighter--0\\.1, #006eff);
+      background: var(--stc-primary-lighter-0\\.1, #1a88ff);
       border-color: var(--stc-primary-contrast-optimal-0\\.5, #ffffff80);
       outline-color: var(--stc-primary-contrast-optimal-0, #fff0);
     }
@@ -239,6 +239,89 @@ test('should fail on static theme color method amounts that are not static', asy
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Method darker requires a numeric argument
     loc: 6:11]
+  `);
+});
+
+test('should fail on color method amounts outside 0 and 1', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createStaticThemeColors } from 'vindur';
+
+        const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        export const style = css\`
+          background: \${colors.primary.lighter(-0.1)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method lighter amount must be between 0 and 1, got -0.1
+    loc: 6:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+        const AMOUNT = 1.5;
+
+        export const style = css\`
+          background: \${color.alpha(AMOUNT)};
+          color: \${color.contrast.alpha(0.5)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method alpha amount must be between 0 and 1, got 1.5
+    loc: 7:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+
+        export const style = css\`
+          color: \${color.contrast.alpha(1.2)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method alpha amount must be between 0 and 1, got 1.2
+    loc: 6:11]
+  `);
+});
+
+test('should accept color method amounts of 0 and 1', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createDynamicCssColor, createStaticThemeColors } from 'vindur';
+
+      const color = createDynamicCssColor();
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      export const style = css\`
+        color: \${color.darker(0)};
+        background: \${color.lighter(1)};
+        border-color: \${colors.primary.saturatedDarker(1)};
+        outline-color: \${colors.primary.contrast.alpha(0)};
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2-style {
+      color: color-mix(in srgb, var(--v1560qbr-1-color) 100%, #000);
+      background: color-mix(in srgb, var(--v1560qbr-1-color) 0%, #fff);
+      border-color: var(--stc-primary-saturatedDarker-1, #000);
+      outline-color: var(--stc-primary-contrast-alpha-0, #fff0);
+    }
+    "
   `);
 });
 

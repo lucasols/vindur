@@ -234,19 +234,23 @@ pub(super) fn invalid_color_method_error(
             | StaticValue::DynamicColorPath { .. }
             | StaticValue::ThemeColor { .. }
             | StaticValue::ThemeColorContrast { .. }
-    ) || matches!(
-        call.arguments.as_slice(),
-        [argument] if argument
-            .as_expression()
-            .and_then(|expression| evaluate_expression(expression, constants, scoping))
-            .is_some_and(|value| matches!(value, StaticValue::Number(_)))
     ) {
         return None;
     }
+    let amount = match call.arguments.as_slice() {
+        [argument] => argument
+            .as_expression()
+            .and_then(|expression| evaluate_expression(expression, constants, scoping)),
+        _ => None,
+    };
+    let message = match amount {
+        Some(StaticValue::Number(amount)) if (0.0..=1.0).contains(&amount) => return None,
+        Some(StaticValue::Number(amount)) => {
+            format!("Method {method} amount must be between 0 and 1, got {amount}")
+        }
+        _ => format!("Method {method} requires a numeric argument"),
+    };
     Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        format!("Method {method} requires a numeric argument"),
+        file_path, source, call.span, message,
     ))
 }
