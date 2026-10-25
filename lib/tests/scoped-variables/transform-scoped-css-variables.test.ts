@@ -574,7 +574,7 @@ describe('scoped CSS variables', () => {
   test('should not count scoped names as declarations or reads', async () => {
     const warnings: TransformWarning[] = [];
 
-    await transformWithFormat({
+    const result = await transformWithFormat({
       source: dedent`
         import { createGlobalStyle, styled } from 'vindur';
 
@@ -606,6 +606,25 @@ describe('scoped CSS variables', () => {
       - TransformWarning#:
           message: "Scoped variable '---unread' is declared but never read"
           loc: '/test.tsx:11:6'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@property --v1560qbr-2-angle {
+        syntax: "<angle>";
+        inherits: false;
+        initial-value: 0deg;
+      }
+
+      .v1560qbr-3-Card {
+        container-name: --v1560qbr-4-card;
+        --v1560qbr-5-unread: 1px;
+        transition-property: --v1560qbr-5-unread;
+
+        @container --v1560qbr-4-card (min-width: 1px) {
+          color: red;
+        }
+      }
       "
     `);
   });
