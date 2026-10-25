@@ -371,4 +371,47 @@ describe('keyframes corner cases', () => {
       "
     `);
   });
+
+  test('should support scroll driven animation timeline ranges', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { keyframes } from 'vindur'
+
+        const reveal = keyframes\`
+          entry 0% { opacity: 0; }
+          exit 100% { opacity: 1; }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@keyframes v1560qbr-1-reveal {
+        entry 0% {
+          opacity: 0;
+        }
+        exit 100% {
+          opacity: 1;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should throw when keyframes close their block early', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { keyframes } from 'vindur'
+
+          const fade = keyframes\`
+            from { opacity: 0; } }
+            .other { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`}\`
+      loc: 4:23]
+    `);
+  });
 });

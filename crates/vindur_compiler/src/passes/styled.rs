@@ -3,6 +3,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
+use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
 
 #[derive(Clone, Debug)]
@@ -16,6 +17,11 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
+}
+
+/// JS identifiers can contain `$`, which is not valid in a CSS class name
+pub(crate) fn css_class_name_part(name: &str) -> String {
+    name.replace('$', "_")
 }
 
 #[derive(Clone, Debug)]
@@ -223,8 +229,7 @@ pub(crate) fn resolve_styled_references(
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
-            let placeholder = format!("__VINDUR_STYLED_REF_{name}__");
-            *rule = rule.replace(&placeholder, &format!(".{class_name}"));
+            *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
             for flag in &component.style_flags {
                 match &flag.kind {
                     StyleFlagKind::Boolean => {
@@ -246,10 +251,19 @@ pub(crate) fn resolve_styled_references(
         }
     }
     css_rules.iter().find_map(|rule| {
-        let (_, suffix) = rule.split_once("__VINDUR_STYLED_REF_")?;
-        let (name, _) = suffix.split_once("__")?;
-        Some(name.to_owned())
+        let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
+        let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
+        hex_decode(encoded)
     })
+}
+
+const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
+const STYLED_REF_SUFFIX: &str = "__";
+
+/// Forward styled component references are replaced by a placeholder until every component is
+/// known, the name is hex encoded because JS identifiers can contain `$`, which CSS rejects
+pub(crate) fn styled_ref_placeholder(name: &str) -> String {
+    format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
 pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {

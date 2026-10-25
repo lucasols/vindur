@@ -7,7 +7,11 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{
+    CompilerDiagnostic,
+    edit::{Edit, take_edited_source},
+    facts::StaticValue,
+};
 
 use super::{static_evaluation::resolved_constant, styled::StyledComponent};
 
@@ -130,7 +134,10 @@ impl DynamicColorVisitor<'_> {
                 class_attribute,
                 style_attribute,
                 &spreads,
-                self.output.source,
+                &mut AttributeSources {
+                    source: self.output.source,
+                    edits: self.output.edits,
+                },
                 self.output.needs_merge_class_names,
                 self.output.needs_merge_styles,
             )
@@ -313,7 +320,7 @@ fn color_merge_object(
     class_attribute: Option<&JSXAttribute<'_>>,
     style_attribute: Option<&JSXAttribute<'_>>,
     spreads: &[SpreadSource],
-    source: &str,
+    sources: &mut AttributeSources<'_>,
     needs_merge_class_names: &mut bool,
     needs_merge_styles: &mut bool,
 ) -> Option<String> {
@@ -338,14 +345,14 @@ fn color_merge_object(
         match (base_class, class_attribute) {
             (None, None) => None,
             (Some(base), None) => Some(format!("\"{base}\"")),
-            (None, Some(attribute)) => Some(attribute_value_source(attribute, source)),
+            (None, Some(attribute)) => Some(sources.value(attribute)),
             (Some(base), Some(attribute)) => match &attribute.value {
                 Some(JSXAttributeValue::StringLiteral(value)) => {
                     Some(format!("\"{base} {}\"", value.value))
                 }
                 _ => Some(format!(
                     "[\"{base}\", {}].filter(Boolean).join(\" \")",
-                    attribute_value_source(attribute, source)
+                    sources.value(attribute)
                 )),
             },
         }
@@ -354,7 +361,7 @@ fn color_merge_object(
         *needs_merge_styles = true;
         Some(format!("mergeStyles([{spread_names}])"))
     } else {
-        style_attribute.map(|attribute| attribute_value_source(attribute, source))
+        style_attribute.map(|attribute| sources.value(attribute))
     };
     if class_name.is_none() && style.is_none() {
         return None;
@@ -369,14 +376,22 @@ fn color_merge_object(
     Some(format!("{{\n{},\n}}", properties.join(",\n")))
 }
 
-fn attribute_value_source(attribute: &JSXAttribute<'_>, source: &str) -> String {
-    match &attribute.value {
-        Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
-        Some(JSXAttributeValue::ExpressionContainer(container)) => {
-            let span = container.expression.span();
-            source[span.start as usize..span.end as usize].to_owned()
+/// Copies the values of attributes the merge replaces, with the edits earlier passes made inside
+/// them (like renamed scoped variables in `style`)
+struct AttributeSources<'a> {
+    source: &'a str,
+    edits: &'a mut Vec<Edit>,
+}
+
+impl AttributeSources<'_> {
+    fn value(&mut self, attribute: &JSXAttribute<'_>) -> String {
+        match &attribute.value {
+            Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
+            Some(JSXAttributeValue::ExpressionContainer(container)) => {
+                take_edited_source(self.source, container.expression.span(), self.edits)
+            }
+            _ => "undefined".to_owned(),
         }
-        _ => "undefined".to_owned(),
     }
 }
 

@@ -8,6 +8,7 @@ use crate::{
     facts::{FunctionParameter, StaticValue},
 };
 
+use super::css_syntax::is_layer_name;
 use super::static_evaluation::{evaluate_expression, resolved_constant};
 
 pub(super) fn invalid_layer_error(
@@ -17,7 +18,7 @@ pub(super) fn invalid_layer_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
+    let Expression::CallExpression(call) = expression.without_parentheses() else {
         return None;
     };
     let Expression::Identifier(callee) = &call.callee else {
@@ -29,8 +30,19 @@ pub(super) fn invalid_layer_error(
     ) {
         return None;
     }
-    if matches!(call.arguments.as_slice(), [Argument::StringLiteral(_)]) {
-        return None;
+    if let [Argument::StringLiteral(name)] = call.arguments.as_slice() {
+        if is_layer_name(&name.value) {
+            return None;
+        }
+        return Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            name.span,
+            format!(
+                "Invalid layer name \"{}\", layer names must be CSS identifiers separated by `.`",
+                name.value
+            ),
+        ));
     }
     let span = call.arguments.first().map_or(call.span, GetSpan::span);
     Some(CompilerDiagnostic::error(

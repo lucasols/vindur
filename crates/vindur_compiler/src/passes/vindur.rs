@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    css::clean_css,
-    css_warnings::css_extension_warnings,
+    css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, css_error_diagnostic},
     cx_optimize::optimize_cx_calls,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -26,7 +26,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
-    scoped::{declared_scoped_variable_names, process_scoped_variables},
+    scoped::{ScopedVariables, process_scoped_variables},
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
@@ -82,8 +82,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
-    let mut scoped_variables = FxHashMap::default();
-    let mut scoped_declaration_spans = FxHashMap::default();
+    let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let exported_names = collect_exported_names(program);
     let exported_object_names = collect_exported_object_names(program);
@@ -140,7 +139,6 @@ pub(crate) fn transform_program(
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
                         scoped_variables: &mut scoped_variables,
-                        scoped_declaration_spans: &mut scoped_declaration_spans,
                         warnings: &mut warnings,
                     },
                 )?;
@@ -181,7 +179,6 @@ pub(crate) fn transform_program(
                             needs_styled_helper: &mut needs_styled_helper,
                             needs_style_flags_helper: &mut needs_style_flags_helper,
                             scoped_variables: &mut scoped_variables,
-                            scoped_declaration_spans: &mut scoped_declaration_spans,
                             warnings: &mut warnings,
                         },
                     )?;
@@ -201,18 +198,19 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "createGlobalStyle",
+                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
                         &clean_css(&content),
+                        BlockKind::Global,
+                        tagged.span,
                         &file_hash,
-                        false,
+                        options.dev,
                         &mut id_index,
                         &mut scoped_variables,
-                    );
-                    for name in declared_scoped_variable_names(&content) {
-                        scoped_declaration_spans.entry(name).or_insert(tagged.span);
-                    }
+                    )
+                    .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(content);
                     }
@@ -238,18 +236,22 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "styled",
+                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
                         &clean_css(&content),
+                        BlockKind::Style,
+                        tagged.span,
                         &file_hash,
                         options.dev,
                         &mut id_index,
                         &mut scoped_variables,
-                    );
-                    if !content.is_empty() {
-                        css_rules.push(format!(".{generated_name} {{\n  {content}\n}}"));
-                    }
+                    )
+                    .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
+                    css_rules.extend(generate_class_rules(&generated_name, &content).map_err(
+                        |error| css_error_diagnostic(file_path, source, tagged.span, error),
+                    )?);
                     edits.push(Edit {
                         span: tagged.span,
                         replacement: format!(
@@ -376,12 +378,6 @@ pub(crate) fn transform_program(
         },
     )?;
 
-    if options.dev {
-        warnings.extend(css_extension_warnings(
-            program, &constants, scoping, file_path, source,
-        ));
-    }
-
     let mut runtime_helpers = Vec::new();
     if needs_styled_helper {
         runtime_helpers.push("_vSC");
@@ -443,9 +439,7 @@ pub(crate) fn transform_program(
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variable_warnings(
-        &css,
         &scoped_variables,
-        &scoped_declaration_spans,
         file_path,
         source,
     ));
@@ -502,33 +496,26 @@ fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
 }
 
 fn scoped_variable_warnings(
-    css: &str,
-    variables: &FxHashMap<String, String>,
-    declaration_spans: &FxHashMap<String, oxc_span::Span>,
+    variables: &ScopedVariables,
     file_path: &str,
     source: &str,
 ) -> Vec<CompilerDiagnostic> {
     let mut warnings = Vec::new();
-    for (name, generated) in variables {
-        let declared = css.contains(&format!("--{generated}:"));
-        let used = css.contains(&format!("var(--{generated}"));
-        if declared && !used {
-            warnings.push(CompilerDiagnostic::warning(
+    for name in variables.generated.keys() {
+        match (variables.declared.get(name), variables.read.get(name)) {
+            (Some(&span), None) => warnings.push(CompilerDiagnostic::warning(
                 file_path,
                 source,
-                declaration_spans
-                    .get(name)
-                    .copied()
-                    .unwrap_or_else(|| oxc_span::Span::new(0, 0)),
+                span,
                 format!("Scoped variable '---{name}' is declared but never read"),
-            ));
-        } else if used && !declared {
-            warnings.push(CompilerDiagnostic::warning(
+            )),
+            (None, Some(&span)) => warnings.push(CompilerDiagnostic::warning(
                 file_path,
                 source,
-                oxc_span::Span::new(0, 0),
+                span,
                 format!("Scoped variable '---{name}' is used but never declared"),
-            ));
+            )),
+            _ => {}
         }
     }
     warnings.sort_by(|left, right| left.message.cmp(&right.message));

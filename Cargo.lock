@@ -483,6 +483,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "oxc-css-parser"
+version = "0.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae9b30d35c09734e9d99e0955a35f3450a7dd811b617bdf985c9876bd82bd2a1"
+dependencies = [
+ "oxc_allocator",
+]
+
+[[package]]
 name = "oxc-miette"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1175,6 +1184,7 @@ dependencies = [
 name = "vindur_compiler"
 version = "0.1.0"
 dependencies = [
+ "oxc-css-parser",
  "oxc_allocator",
  "oxc_ast",
  "oxc_ast_visit",

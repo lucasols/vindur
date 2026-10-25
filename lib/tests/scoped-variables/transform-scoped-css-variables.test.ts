@@ -396,13 +396,13 @@ describe('scoped CSS variables', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ":root {
-        --v1560qbr-2: #007bff;
-        --v1560qbr-3: 16px;
+        --v1560qbr-2-global-primary: #007bff;
+        --v1560qbr-3-global-font: 16px;
       }
 
       body {
-        color: var(--v1560qbr-2);
-        font-size: var(--v1560qbr-3);
+        color: var(--v1560qbr-2-global-primary);
+        font-size: var(--v1560qbr-3-global-font);
       }
       "
     `);
@@ -497,7 +497,100 @@ describe('scoped CSS variables', () => {
       "
       - TransformWarning#:
           message: "Scoped variable '---theme-color' is used but never declared"
-          loc: '/test.tsx:1:0'
+          loc: '/test.tsx:3:6'
+      "
+    `);
+  });
+
+  test('should not warn about declarations and reads the CSS parser understands', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---gap : 4px;
+          ---theme: dark;
+          padding: var( ---gap );
+
+          @container style(---theme: dark) {
+            color: white;
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
+      "
+    `);
+  });
+
+  test('should not count scoped names as declarations or reads', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, styled } from 'vindur';
+
+        createGlobalStyle\`
+          @property ---angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+          }
+        \`;
+
+        const Card = styled.div\`
+          container-name: ---card;
+          ---unread: 1px;
+          transition-property: ---unread;
+
+          @container ---card (min-width: 1px) {
+            color: red;
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "Scoped variable '---unread' is declared but never read"
+          loc: '/test.tsx:11:6'
+      "
+    `);
+  });
+
+  test('should not warn about variables declared through the style prop', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          width: var(---width);
+        \`;
+
+        const App = () => <Card style={{ '---width': '1px' }} />;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
       "
     `);
   });
@@ -571,6 +664,79 @@ describe('scoped CSS variables', () => {
         background: var(--v1560qbr-2-scoped-var);
         color: var(--regular-var);
         border: 1px solid var(--global-color);
+      }
+      "
+    `);
+  });
+
+  test('should ignore scoped variable names inside strings and comments', async () => {
+    const warnings: TransformWarning[] = [];
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Card = styled.div\`
+          ---color: red;
+          /* ---old-color: blue; */
+          color: var(---color);
+
+          &::before {
+            content: "---color";
+          }
+        \`;
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(warnings).toHaveLength(0);
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        --v1560qbr-2-color: red;
+        /* ---old-color: blue; */
+        color: var(--v1560qbr-2-color);
+
+        &::before {
+          content: "---color";
+        }
+      }
+      "
+    `);
+  });
+
+  test('should transform scoped variables in container style queries and supports conditions', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          ---theme: dark;
+          color: var(---theme);
+
+          @container style(---theme: dark) {
+            color: white;
+          }
+
+          @supports (---theme: dark) {
+            color: black;
+          }
+        \`;
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        --v1560qbr-2-theme: dark;
+        color: var(--v1560qbr-2-theme);
+
+        @container style(--v1560qbr-2-theme: dark) {
+          color: white;
+        }
+
+        @supports (--v1560qbr-2-theme: dark) {
+          color: black;
+        }
       }
       "
     `);

@@ -192,7 +192,7 @@ describe('CSS layers with layer() function', () => {
     `);
   });
 
-  test('should work with any layer name', async () => {
+  test('should reject layer names that are not CSS identifiers', async () => {
     const source = dedent`
       import { styled, layer } from 'vindur'
 
@@ -203,16 +203,14 @@ describe('CSS layers with layer() function', () => {
       \`
     `;
 
-    const result = await transformWithFormat({ source });
-
-    expect(result.css).toMatchInlineSnapshot(`
-      "@layer invalid layer name {
-        .v1560qbr-1-Card {
-          background: white;
-        }
-      }
-      "
-    `);
+    await expect(async () => {
+      await transformWithFormat({ source });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Invalid layer name "invalid layer name", layer names must be CSS identifiers separated by \`.\`
+      loc: 4:10]
+    `,
+    );
   });
 
   test('should require string literal for layer name', async () => {
@@ -275,6 +273,173 @@ describe('CSS layers with layer() function', () => {
         }
       }
       "
+    `);
+  });
+
+  test('should ignore braces inside strings in layer blocks', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        const Card = styled.div\`
+          \${layer('base')} {
+            &::before {
+              content: "}";
+            }
+          }
+          color: red;
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base {
+        .v1560qbr-1-Card {
+          &::before {
+            content: "}";
+          }
+        }
+      }
+
+      .v1560qbr-1-Card {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should throw when layer() is used inside a nested rule', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled, layer } from 'vindur'
+
+          const Card = styled.div\`
+            &:hover {
+              \${layer('base')} {
+                color: red;
+              }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: layer() can only be used at the top level of a style block
+      loc: 5:6]
+    `);
+  });
+
+  test('should keep the position of empty layers in the layer order', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        const Card = styled.div\`
+          \${layer('base')} {}
+          \${layer('theme')} {
+            color: blue;
+          }
+          \${layer('base')} {
+            color: red;
+          }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base;
+
+      @layer theme {
+        .v1560qbr-1-Card {
+          color: blue;
+        }
+      }
+
+      @layer base {
+        .v1560qbr-1-Card {
+          color: red;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should support layers in css prop and default exported styled components', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur'
+
+        export default styled.div\`
+          \${layer('base')} {
+            color: red;
+          }
+        \`
+
+        export const App = () => (
+          <div
+            css={\`
+              \${layer('base')} {
+                color: blue;
+              }
+            \`}
+          />
+        )
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base {
+        .v1560qbr-1 {
+          color: red;
+        }
+      }
+
+      @layer base {
+        .v1560qbr-2-css-prop-2 {
+          color: blue;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should validate layer names in parenthesized layer() calls', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css, layer } from 'vindur'
+
+          const style = css\`
+            \${(layer('invalid name'))} {
+              color: red;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid layer name "invalid name", layer names must be CSS identifiers separated by \`.\`
+      loc: 4:11]
+    `);
+  });
+
+  test('should throw when layer() is used in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle, layer } from 'vindur'
+
+          createGlobalStyle\`
+            \${layer('base')} {
+              body {
+                margin: 0;
+              }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: layer() is not supported in createGlobalStyle, use \`@layer name { ... }\` instead
+      loc: 4:4]
     `);
   });
 });

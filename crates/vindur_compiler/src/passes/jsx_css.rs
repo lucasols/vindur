@@ -10,9 +10,10 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    css::clean_css,
+    css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, css_error_diagnostic},
     jsx_cx::CxElementTransform,
-    scoped::process_scoped_variables,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
@@ -32,7 +33,7 @@ pub(crate) struct JsxCssTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub needs_merge_helper: &'a mut bool,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
+    pub scoped_variables: &'a mut ScopedVariables,
 }
 
 pub(crate) fn transform_jsx_css_props(
@@ -43,7 +44,12 @@ pub(crate) fn transform_jsx_css_props(
     let mut visitor = JsxCssVisitor {
         output,
         diagnostic: None,
+        pass: JsxCssPass::CssProps,
     };
+    visitor.visit_program(program);
+    // Style props can set variables of css props in any element, so they are renamed after every
+    // css prop is processed
+    visitor.pass = JsxCssPass::StyleProps;
     visitor.visit_program(program);
     *visitor.output.id_index = (*visitor.output.id_index).max(minimum_final_index);
     match visitor.diagnostic {
@@ -55,6 +61,13 @@ pub(crate) fn transform_jsx_css_props(
 struct JsxCssVisitor<'a> {
     output: JsxCssTransform<'a>,
     diagnostic: Option<CompilerDiagnostic>,
+    pass: JsxCssPass,
+}
+
+#[derive(Clone, Copy)]
+enum JsxCssPass {
+    CssProps,
+    StyleProps,
 }
 
 impl<'a> Visit<'a> for JsxCssVisitor<'_> {
@@ -62,9 +75,13 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         if self.diagnostic.is_some() {
             return;
         }
-        self.process_style_attribute(element);
-        if let Some(css_attribute) = find_attribute(element, "css") {
-            self.process_css_attribute(element, css_attribute);
+        match self.pass {
+            JsxCssPass::CssProps => {
+                if let Some(css_attribute) = find_attribute(element, "css") {
+                    self.process_css_attribute(element, css_attribute);
+                }
+            }
+            JsxCssPass::StyleProps => self.process_style_attribute(element),
         }
         if self.diagnostic.is_none() {
             walk::walk_jsx_element(self, element);
@@ -94,13 +111,19 @@ impl JsxCssVisitor<'_> {
             let Some(scoped_name) = name.strip_prefix("---") else {
                 continue;
             };
-            let Some(generated) = self.output.scoped_variables.get(scoped_name) else {
+            let Some(generated) = self.output.scoped_variables.generated.get(scoped_name) else {
                 continue;
             };
             self.output.edits.push(Edit {
                 span: property.key.span(),
                 replacement: format!("\"--{generated}\""),
             });
+            // Setting the variable in the style prop declares it
+            self.output
+                .scoped_variables
+                .declared
+                .entry(scoped_name.to_owned())
+                .or_insert(property.key.span());
             transformed = true;
         }
         if transformed {
@@ -154,7 +177,7 @@ impl JsxCssVisitor<'_> {
             return;
         }
         let cx_transform = self.output.cx_elements.get(&element.span.start);
-        let (class_name, css_content) = match &container.expression {
+        let (class_name, css_rules) = match &container.expression {
             JSXExpression::TemplateLiteral(template) => {
                 if cx_transform.is_none()
                     && let Some(index) = self.output.id_starts.get(&element.span.start)
@@ -170,6 +193,7 @@ impl JsxCssVisitor<'_> {
                     &TemplateContext {
                         variable_name: None,
                         tag_type: "css",
+                        style_flags: &[],
                     },
                 ) {
                     Ok(content) => clean_css(&content),
@@ -199,14 +223,29 @@ impl JsxCssVisitor<'_> {
                 } else {
                     format!("{}-{index}", self.output.file_hash)
                 };
-                let content = process_scoped_variables(
+                let rules = match process_scoped_variables(
                     &content,
+                    BlockKind::Style,
+                    template.span,
                     self.output.file_hash,
                     self.output.dev,
                     self.output.id_index,
                     self.output.scoped_variables,
-                );
-                (name, Some(content))
+                )
+                .and_then(|content| generate_class_rules(&name, &content))
+                {
+                    Ok(rules) => rules,
+                    Err(error) => {
+                        self.diagnostic = Some(css_error_diagnostic(
+                            self.output.file_path,
+                            self.output.source,
+                            template.span,
+                            error,
+                        ));
+                        return;
+                    }
+                };
+                (name, rules)
             }
             expression => {
                 if is_custom_component(&element.opening_element.name) {
@@ -217,13 +256,7 @@ impl JsxCssVisitor<'_> {
             }
         };
 
-        if let Some(content) = css_content
-            && !content.is_empty()
-        {
-            self.output
-                .css_rules
-                .push(format!(".{class_name} {{\n  {content}\n}}"));
-        }
+        self.output.css_rules.extend(css_rules);
 
         let component = styled_component(element, self.output.styled_components);
         if is_custom_component(&element.opening_element.name) && component.is_none() {

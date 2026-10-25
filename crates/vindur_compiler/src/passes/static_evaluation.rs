@@ -16,6 +16,8 @@ use rustc_hash::FxHashMap;
 
 use crate::facts::StaticValue;
 
+use super::css::layer_marker;
+use super::css_syntax::is_layer_name;
 use super::dynamic_color_value::{dynamic_color_member, dynamic_color_method};
 use super::function_evaluation::{evaluate_argument, evaluate_function};
 use super::function_value::compile_vindur_function;
@@ -92,10 +94,8 @@ pub(super) fn evaluate_expression(
                         let [Argument::StringLiteral(name)] = call.arguments.as_slice() else {
                             return None;
                         };
-                        Some(StaticValue::String(format!(
-                            "__VINDUR_LAYER_START__{}__",
-                            name.value
-                        )))
+                        is_layer_name(&name.value)
+                            .then(|| StaticValue::String(layer_marker(&name.value)))
                     }
                     StaticValue::Function(function) | StaticValue::ImportedFunction(function) => {
                         let arguments = call

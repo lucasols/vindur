@@ -73,12 +73,31 @@ pub(crate) fn apply_edits(
     Ok(output)
 }
 
+/// The source of `span` with the edits inside it applied. The edits are removed, so the span can be
+/// copied into a replacement of a larger span
+pub(crate) fn take_edited_source(source: &str, span: Span, edits: &mut Vec<Edit>) -> String {
+    let (mut inner, outer): (Vec<Edit>, Vec<Edit>) = std::mem::take(edits)
+        .into_iter()
+        .partition(|edit| edit.span.start >= span.start && edit.span.end <= span.end);
+    *edits = outer;
+    inner.sort_unstable_by_key(|edit| (edit.span.start, edit.span.end));
+    let mut output = String::new();
+    let mut cursor = span.start as usize;
+    for edit in inner {
+        output.push_str(&source[cursor..edit.span.start as usize]);
+        output.push_str(&edit.replacement);
+        cursor = edit.span.end as usize;
+    }
+    output.push_str(&source[cursor..span.end as usize]);
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use oxc_span::Span;
     use pretty_assertions::assert_eq;
 
-    use super::{Edit, apply_edits, expand_removal_to_line};
+    use super::{Edit, apply_edits, expand_removal_to_line, take_edited_source};
 
     #[test]
     fn applies_ordered_non_overlapping_edits() {
@@ -106,6 +125,33 @@ mod tests {
         assert_eq!(
             expand_removal_to_line(source, Span::new(start, end)),
             Span::new(18, 32)
+        );
+    }
+
+    #[test]
+    fn takes_the_edits_inside_a_copied_span() {
+        let source = "a({ x: 1 }) b";
+        let mut edits = vec![
+            Edit {
+                span: Span::new(4, 5),
+                replacement: "y".to_owned(),
+            },
+            Edit {
+                span: Span::new(12, 13),
+                replacement: "c".to_owned(),
+            },
+        ];
+
+        assert_eq!(
+            take_edited_source(source, Span::new(2, 10), &mut edits),
+            "{ y: 1 }"
+        );
+        assert_eq!(
+            edits,
+            vec![Edit {
+                span: Span::new(12, 13),
+                replacement: "c".to_owned(),
+            }]
         );
     }
 }

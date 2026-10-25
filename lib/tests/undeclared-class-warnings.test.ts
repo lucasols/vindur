@@ -425,35 +425,26 @@ describe('Edge cases', () => {
     `);
   });
 
-  test('should handle malformed selectors gracefully', async () => {
-    const warnings: TransformWarning[] = [];
+  test('should throw for malformed selectors', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
 
-    await transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur'
-
-        const Component = styled.div\`
-          background: white;
-          &. {
-            /* malformed selector */
-          }
-          &.123invalid {
-            /* invalid class name */
-          }
-          &.valid-class {
-            background: blue;
-          }
-        \`
-      `,
-      onWarning: (warning) => warnings.push(warning),
-    });
-
-    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
-      "
-      - TransformWarning#:
-          message: "The class 'valid-class' is used in CSS but not declared in the component"
-          loc: 'current_file:3:6'
-      "
+          const Component = styled.div\`
+            background: white;
+            &. {
+              /* malformed selector */
+            }
+            &.valid-class {
+              background: blue;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid CSS at \`... Component = styled\`: unexpected whitespace
+      loc: 5:4]
     `);
   });
 });
