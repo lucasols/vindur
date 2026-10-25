@@ -22,7 +22,7 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_resolved_import_edits, collect_vindur_imports,
+        collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
@@ -57,7 +57,6 @@ pub(crate) fn transform_program(
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, source, &mut imports, &mut edits);
-    collect_resolved_import_edits(program, source, imported_values, &mut edits);
 
     let mut constants = collect_constants(program, scoping);
     constants.extend(imported_values.iter().map(|(name, value)| {

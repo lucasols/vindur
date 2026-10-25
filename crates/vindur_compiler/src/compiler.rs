@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::normalize::normalize_code;
 use crate::passes::transform_program;
+use crate::resolved_imports::remove_resolved_imports;
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
@@ -150,6 +151,11 @@ impl Compiler {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
+        let edited_code =
+            match remove_resolved_imports(file_path, edited_code, source_type, &imported_values) {
+                Ok(code) => code,
+                Err(diagnostic) => return failed_output(source, diagnostic),
+            };
         let code = if options.normalize_code {
             match normalize_code(file_path, &edited_code, source_type) {
                 Ok(code) => code,

@@ -319,6 +319,7 @@ test('should allow cx modifiers declared outside the css references', async () =
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { cx } from "vindur";
+    import { base } from "#/styles";
     const layout = "v1560qbr-1-layout";
     export const A = ({ on }: { on: boolean }) => (
       <>

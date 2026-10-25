@@ -22,9 +22,7 @@ test('compile file with exported function', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { spacing } from "@/utils";
-
-    // Just test that importing vindurFn functions works
+    "// Just test that importing vindurFn functions works
     console.log("Spacing function imported successfully");
     "
   `);

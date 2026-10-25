@@ -27,7 +27,8 @@ describe('dynamic color imports', () => {
     // Should NOT be the hardcoded 'v1560qbr-2'
     // For imported colors, they should get a proper index from the file where they're used
     expect(result.code).toMatchInlineSnapshot(`
-      "const styles = "v1560qbr-1-styles";
+      "import { themeColor } from "#/colors";
+      const styles = "v1560qbr-1-styles";
       const App = () => (
         <div
           {...themeColor._sp("#ff0000", {
@@ -111,7 +112,8 @@ describe('dynamic color imports', () => {
 
     // Should not contain hardcoded hash
     expect(result.code).toMatchInlineSnapshot(`
-      "const styles = "v1560qbr-1";
+      "import { brandColor } from "#/theme";
+      const styles = "v1560qbr-1";
       const App = () => (
         <div
           {...brandColor._sp("#3b82f6", {

@@ -1,10 +1,9 @@
 use oxc_ast::ast::{BindingPattern, Expression, ImportDeclarationSpecifier, Program, Statement};
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 use crate::{
     edit::{Edit, expand_removal_to_line},
-    facts::StaticValue,
     semantic::VindurImports,
 };
 
@@ -163,88 +162,5 @@ pub(super) fn collect_vindur_imports(
                 ),
             });
         }
-    }
-}
-
-pub(super) fn collect_resolved_import_edits(
-    program: &Program<'_>,
-    source: &str,
-    imported_values: &FxHashMap<String, StaticValue>,
-    edits: &mut Vec<Edit>,
-) {
-    for statement in &program.body {
-        let Statement::ImportDeclaration(declaration) = statement else {
-            continue;
-        };
-        if declaration.source.value.as_str() == "vindur" {
-            continue;
-        }
-        let Some(specifiers) = &declaration.specifiers else {
-            continue;
-        };
-        let mut compile_time_count = 0usize;
-        let mut has_keyframes = false;
-        let mut runtime_specifiers = Vec::new();
-        for specifier in specifiers {
-            let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier else {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            };
-            let Some(value) = imported_values.get(named.local.name.as_str()) else {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            };
-            if matches!(
-                value,
-                StaticValue::MissingImport { .. }
-                    | StaticValue::InvalidFunction { .. }
-                    | StaticValue::InvalidObject { .. }
-            ) {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            if matches!(value, StaticValue::Function(_))
-                && !source[declaration.span.end as usize..]
-                    .contains(&format!("{}(", named.local.name))
-            {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            if matches!(
-                value,
-                StaticValue::ClassName(_) | StaticValue::ThemeColors(_)
-            ) {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            compile_time_count += 1;
-            has_keyframes |= matches!(value, StaticValue::Keyframes(_));
-        }
-        if compile_time_count == 0 {
-            continue;
-        }
-        edits.push(Edit {
-            span: if runtime_specifiers.is_empty() && has_keyframes {
-                declaration.span
-            } else {
-                expand_removal_to_line(source, declaration.span)
-            },
-            replacement: if !runtime_specifiers.is_empty() {
-                format!(
-                    "import {{ {} }} from \"{}\";\n",
-                    runtime_specifiers.join(", "),
-                    declaration.source.value
-                )
-            } else if has_keyframes {
-                format!("import \"{}\";", declaration.source.value)
-            } else {
-                String::new()
-            },
-        });
     }
 }
