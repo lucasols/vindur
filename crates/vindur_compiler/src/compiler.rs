@@ -259,6 +259,31 @@ impl Compiler {
             let Some(specifiers) = &import.specifiers else {
                 continue;
             };
+            // Namespace member references can't be checked by the vindurFn runtime guard
+            if let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
+                specifiers.iter().find(|specifier| {
+                    matches!(
+                        specifier,
+                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                    )
+                })
+                && let Some(function_name) = facts
+                    .exports
+                    .iter()
+                    .filter(|(_, value)| matches!(value, StaticValue::Function(_)))
+                    .map(|(name, _)| name)
+                    .min()
+            {
+                return Err(CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    namespace.span,
+                    format!(
+                        "vindurFn exports of \"{}\" can't be imported with a namespace import, import them by name, e.g. import {{ {function_name} }} from \"{}\"",
+                        import.source.value, import.source.value
+                    ),
+                ));
+            }
             let mut needs_dependency = false;
             for specifier in specifiers {
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {

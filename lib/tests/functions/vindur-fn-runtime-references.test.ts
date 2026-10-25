@@ -225,3 +225,24 @@ test('should report the vindurFn validation error for vindurFn compositions', as
     loc: /test.tsx|4:54]
   `);
 });
+
+test('should error on namespace imports of modules that export vindurFns', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import * as mixins from '#/transition';
+
+        export const box = css\`
+          color: red;
+        \`;
+
+        export const value = mixins.transition('opacity');
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn exports of "#/transition" can't be imported with a namespace import, import them by name, e.g. import { transition } from "#/transition"
+    loc: 2:7]
+  `);
+});
