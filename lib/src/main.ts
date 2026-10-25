@@ -287,44 +287,53 @@ export function cx(
  * Merge classNames from spread props with vindur-generated classNames
  */
 export function mergeClassNames(
-  spreadProps: (Record<string, unknown> | string)[],
+  spreadProps: (Record<string, unknown> | string | null | undefined)[],
   vindurClassName: string,
 ): string {
   let finalClassName = '';
 
-  // Extract className from spread props
+  // Extract className from spread props, a later className key overrides earlier ones like in JSX
   for (const prop of spreadProps) {
     if (typeof prop === 'string') {
       finalClassName = prop;
-    } else if (typeof prop === 'object' && 'className' in prop) {
+    } else if (
+      prop &&
+      typeof prop === 'object' &&
+      // JSX spreads only copy own enumerable properties
+      Object.prototype.propertyIsEnumerable.call(prop, 'className')
+    ) {
       const className = prop.className;
-      if (typeof className === 'string') {
-        finalClassName = className;
-      }
+      finalClassName = typeof className === 'string' ? className : '';
     }
   }
 
-  if (finalClassName) return `${finalClassName} ${vindurClassName}`;
+  if (!finalClassName) return vindurClassName;
+  if (!vindurClassName) return finalClassName;
 
-  return vindurClassName;
+  return `${finalClassName} ${vindurClassName}`;
 }
 
 /**
- * Merge styles from spread props
+ * Resolve the style from spread props placed after an explicit `style`, a later style key
+ * overrides earlier ones like in JSX
  */
 export function mergeStyles(
-  spreadProps: Record<string, unknown>[],
-): Record<string, unknown> {
-  const mergedStyle: Record<string, unknown> = {};
+  spreadProps: (Record<string, unknown> | null | undefined)[],
+  baseStyle: object | undefined = undefined,
+): object | undefined {
+  let finalStyle = baseStyle;
 
   for (const prop of spreadProps) {
-    if (typeof prop === 'object' && 'style' in prop) {
+    if (
+      prop &&
+      typeof prop === 'object' &&
+      // JSX spreads only copy own enumerable properties
+      Object.prototype.propertyIsEnumerable.call(prop, 'style')
+    ) {
       const style = prop.style;
-      if (style && typeof style === 'object') {
-        Object.assign(mergedStyle, style);
-      }
+      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 
-  return mergedStyle;
+  return finalStyle;
 }

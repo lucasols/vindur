@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     Argument, Expression, IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, Program,
+    JSXAttributeValue, JSXElement, JSXExpression, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -13,18 +13,28 @@ use crate::{
     facts::StaticValue,
 };
 
-use super::{static_evaluation::resolved_constant, styled::StyledComponent};
+use super::{
+    jsx_attributes::{
+        find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
+    },
+    static_evaluation::resolved_constant,
+    styled::StyledComponent,
+    styled_jsx_helpers::{
+        class_name_concat_source, decode_jsx_entities, js_string_literal, merge_class_name_inputs,
+    },
+};
 
 pub(super) struct DynamicColorTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
-    pub imported_values: &'a FxHashMap<String, StaticValue>,
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
     pub source: &'a str,
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub needs_merge_class_names: &'a mut bool,
     pub needs_merge_styles: &'a mut bool,
+    /// Merged className expressions emitted by the css and cx prop passes, by element start
+    pub class_expressions: &'a FxHashMap<u32, String>,
 }
 
 pub(super) fn transform_dynamic_color_props(
@@ -78,8 +88,9 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
-        let component = jsx_name(&element.opening_element.name)
-            .and_then(|name| self.output.styled_components.get(name));
+        let element_name = jsx_name(&element.opening_element.name);
+        let component = element_name.and_then(|name| self.output.styled_components.get(name));
+        let class_expression = self.output.class_expressions.get(&element.span.start);
         if let Some(component) = component
             && !component.runtime
         {
@@ -98,50 +109,53 @@ impl DynamicColorVisitor<'_> {
         let class_attribute = find_last_attribute(element, "className");
         let style_attribute = find_last_attribute(element, "style");
         let spreads = spread_sources(element, self.output.source);
-        let preserve_native_attributes = component.is_none()
-            && spreads.is_empty()
-            && colors.iter().all(|color| {
-                matches!(
-                    self.output.imported_values.get(&color.name),
-                    Some(StaticValue::DynamicColor { .. })
-                )
-            });
-        if !preserve_native_attributes {
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                if matches!(name.name.as_str(), "className" | "style") {
-                    self.output.edits.push(Edit {
-                        span: other.span,
-                        replacement: String::new(),
-                    });
-                }
+        // `_sp` returns the final className and style, so they are always merged into it
+        for item in &element.opening_element.attributes {
+            let JSXAttributeItem::Attribute(other) = item else {
+                continue;
+            };
+            let JSXAttributeName::Identifier(name) = &other.name else {
+                continue;
+            };
+            // The css and cx prop passes already removed the className attributes
+            if name.name.as_str() == "style"
+                || (name.name.as_str() == "className" && class_expression.is_none())
+            {
+                self.output.edits.push(Edit {
+                    span: other.span,
+                    replacement: String::new(),
+                });
             }
         }
 
         let base_class = component.map(|component| component.class_name.as_str());
-        let merge = if preserve_native_attributes
-            && (class_attribute.is_some() || style_attribute.is_some())
-        {
-            Some("{}".to_owned())
-        } else {
-            color_merge_object(
-                base_class,
-                class_attribute,
-                style_attribute,
-                &spreads,
-                &mut AttributeSources {
-                    source: self.output.source,
-                    edits: self.output.edits,
+        let class_inputs = merge_class_name_inputs(
+            element,
+            self.output.source,
+            self.output.constants,
+            self.output.scoping,
+        )
+        .0;
+        let merge = color_merge_object(
+            class_expression.map_or(
+                ClassNameSource::Attributes {
+                    base_class,
+                    class_inputs: &class_inputs,
                 },
-                self.output.needs_merge_class_names,
-                self.output.needs_merge_styles,
-            )
-        };
+                |expression| ClassNameSource::Merged(expression),
+            ),
+            class_attribute,
+            style_attribute,
+            &spreads,
+            &mut AttributeSources {
+                source: self.output.source,
+                constants: self.output.constants,
+                scoping: self.output.scoping,
+                edits: self.output.edits,
+            },
+            self.output.needs_merge_class_names,
+            self.output.needs_merge_styles,
+        );
         let call = colors.iter().rev().fold(merge, |inner, color| {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
@@ -149,52 +163,16 @@ impl DynamicColorVisitor<'_> {
         let Some(call) = call else {
             return;
         };
-        if spreads.is_empty() {
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
-            let offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(offset, offset),
-                replacement: format!(" {{...{call}}}"),
-            });
-        } else {
-            let mut trailing_props = Vec::new();
-            for item in &element.opening_element.attributes {
-                let JSXAttributeItem::Attribute(other) = item else {
-                    continue;
-                };
-                if other.span.start <= attribute.span.start {
-                    continue;
-                }
-                let JSXAttributeName::Identifier(name) = &other.name else {
-                    continue;
-                };
-                if name.name.as_str().starts_with("on")
-                    || matches!(name.name.as_str(), "className" | "style")
-                {
-                    continue;
-                }
-                trailing_props.push(
-                    self.output.source[other.span.start as usize..other.span.end as usize]
-                        .to_owned(),
-                );
-                self.output.edits.push(Edit {
-                    span: other.span,
-                    replacement: String::new(),
-                });
-            }
-            let prefix = if trailing_props.is_empty() {
-                String::new()
-            } else {
-                format!("{} ", trailing_props.join(" "))
-            };
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: format!("{prefix}{{...{call}}}"),
-            });
-        }
+        // `_sp` only sets className and style, already merged from every spread, so it goes last
+        self.output.edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        let offset = opening_attribute_insertion_offset(element, self.output.source);
+        self.output.edits.push(Edit {
+            span: oxc_span::Span::new(offset, offset),
+            replacement: format!(" {{...{call}}}"),
+        });
     }
 
     fn conditional_error_message(&self, expression: &JSXExpression<'_>) -> Option<String> {
@@ -296,7 +274,7 @@ impl DynamicColorVisitor<'_> {
         };
         Some(vec![ColorExpression {
             name: color.name.to_string(),
-            value: format!("\"{}\"", value.value),
+            value: js_string_literal(&value.value),
         }])
     }
 
@@ -315,8 +293,18 @@ struct ColorExpression {
     value: String,
 }
 
+enum ClassNameSource<'a> {
+    /// Already merged by the css or cx prop passes
+    Merged(&'a str),
+    /// Built from the styled component class, className attributes and spreads
+    Attributes {
+        base_class: Option<&'a str>,
+        class_inputs: &'a [String],
+    },
+}
+
 fn color_merge_object(
-    base_class: Option<&str>,
+    class_source: ClassNameSource<'_>,
     class_attribute: Option<&JSXAttribute<'_>>,
     style_attribute: Option<&JSXAttribute<'_>>,
     spreads: &[SpreadSource],
@@ -325,41 +313,58 @@ fn color_merge_object(
     needs_merge_styles: &mut bool,
 ) -> Option<String> {
     let last_spread_start = spreads.last().map_or(0, |spread| spread.start);
-    let spread_names = spreads
-        .iter()
-        .map(|spread| spread.source.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
     let class_after_spreads = class_attribute
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
     let style_after_spreads = style_attribute
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
-    let class_name = if !spreads.is_empty() && !class_after_spreads {
-        *needs_merge_class_names = true;
-        Some(format!(
-            "mergeClassNames([{}], {})",
-            spread_names,
-            base_class.map_or("undefined".to_owned(), |base| format!("\"{base}\""))
-        ))
-    } else {
-        match (base_class, class_attribute) {
+    let class_name = match class_source {
+        ClassNameSource::Merged(expression) => Some(expression.to_owned()),
+        ClassNameSource::Attributes {
+            base_class,
+            class_inputs,
+        } if !spreads.is_empty() && !class_after_spreads => {
+            *needs_merge_class_names = true;
+            Some(format!(
+                "mergeClassNames([{}], {})",
+                class_inputs.join(", "),
+                base_class.map_or("\"\"".to_owned(), |base| format!("\"{base}\""))
+            ))
+        }
+        ClassNameSource::Attributes { base_class, .. } => match (base_class, class_attribute) {
             (None, None) => None,
             (Some(base), None) => Some(format!("\"{base}\"")),
             (None, Some(attribute)) => Some(sources.value(attribute)),
             (Some(base), Some(attribute)) => match &attribute.value {
-                Some(JSXAttributeValue::StringLiteral(value)) => {
-                    Some(format!("\"{base} {}\"", value.value))
-                }
+                Some(JSXAttributeValue::StringLiteral(value)) => Some(js_string_literal(&format!(
+                    "{base} {}",
+                    decode_jsx_entities(&value.value)
+                ))),
                 _ => Some(format!(
-                    "[\"{base}\", {}].filter(Boolean).join(\" \")",
-                    sources.value(attribute)
+                    "\"{base} \" + {}",
+                    sources.class_name_concat(attribute)
                 )),
             },
-        }
+        },
     };
     let style = if !spreads.is_empty() && !style_after_spreads {
         *needs_merge_styles = true;
-        Some(format!("mergeStyles([{spread_names}])"))
+        // Only spreads after the explicit style can override it
+        let style_start = style_attribute.map_or(0, |attribute| attribute.span.start);
+        let overriding_spreads = spreads
+            .iter()
+            .filter(|spread| spread.start > style_start)
+            .map(|spread| spread.source.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(style_attribute.map_or_else(
+            || format!("mergeStyles([{overriding_spreads}])"),
+            |attribute| {
+                format!(
+                    "mergeStyles([{overriding_spreads}], {})",
+                    sources.value(attribute)
+                )
+            },
+        ))
     } else {
         style_attribute.map(|attribute| sources.value(attribute))
     };
@@ -380,56 +385,32 @@ fn color_merge_object(
 /// them (like renamed scoped variables in `style`)
 struct AttributeSources<'a> {
     source: &'a str,
+    constants: &'a FxHashMap<String, StaticValue>,
+    scoping: &'a Scoping,
     edits: &'a mut Vec<Edit>,
 }
 
 impl AttributeSources<'_> {
     fn value(&mut self, attribute: &JSXAttribute<'_>) -> String {
         match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => format!("\"{}\"", value.value),
+            Some(JSXAttributeValue::StringLiteral(value)) => {
+                js_string_literal(&decode_jsx_entities(&value.value))
+            }
             Some(JSXAttributeValue::ExpressionContainer(container)) => {
                 take_edited_source(self.source, container.expression.span(), self.edits)
             }
             _ => "undefined".to_owned(),
         }
     }
+
+    fn class_name_concat(&self, attribute: &JSXAttribute<'_>) -> String {
+        class_name_concat_source(attribute, self.source, self.constants, self.scoping)
+    }
 }
 
 fn expression_source(value: &impl GetSpan, source: &str) -> String {
     let span = value.span();
     source[span.start as usize..span.end as usize].to_owned()
-}
-
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element.opening_element.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-            return None;
-        };
-        (identifier.name.as_str() == name).then_some(&**attribute)
-    })
-}
-
-fn find_last_attribute<'a>(
-    element: &'a JSXElement<'a>,
-    name: &str,
-) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .rev()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-                return None;
-            };
-            (identifier.name.as_str() == name).then_some(&**attribute)
-        })
 }
 
 struct SpreadSource {
@@ -453,21 +434,4 @@ fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<SpreadSource> {
             })
         })
         .collect()
-}
-
-fn jsx_name<'a>(name: &'a JSXElementName<'a>) -> Option<&'a str> {
-    match name {
-        JSXElementName::Identifier(identifier) => Some(identifier.name.as_str()),
-        JSXElementName::IdentifierReference(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
-    }
 }
