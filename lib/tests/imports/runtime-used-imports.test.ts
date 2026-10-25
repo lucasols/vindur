@@ -178,3 +178,47 @@ test('should remove imports of compile time values only used in vindur templates
     "
   `);
 });
+
+test('should keep imports of plain constants used in non-vindur templates', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { centerContent } from './consts';
+      import { styled } from '@linaria/react';
+
+      const Box = styled.div\`
+        \${centerContent};
+      \`;
+
+      export const X = () => (
+        <Box>
+          <span cx={{ $a: true }} />
+        </Box>
+      );
+    `,
+    sourcePath: '/lin.tsx',
+    overrideDefaultFs: createFsMock({
+      'consts.ts': dedent`
+        export const centerContent = 'display: flex;';
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    import { centerContent } from "./consts";
+    import { styled } from "@linaria/react";
+    const Box = styled.div\`
+      \${centerContent};
+    \`;
+    export const X = () => (
+      <Box>
+        <span
+          className={cx({
+            a: true,
+          })}
+        />
+      </Box>
+    );
+    "
+  `);
+});
