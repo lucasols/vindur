@@ -1,5 +1,5 @@
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::{Scoping, SemanticBuilder};
 use oxc_span::{GetSpan, SourceType};
@@ -20,7 +20,10 @@ pub(crate) fn remove_resolved_imports(
     source_type: SourceType,
     imported_values: &FxHashMap<String, StaticValue>,
 ) -> Result<String, CompilerDiagnostic> {
-    if imported_values.is_empty() {
+    if !imported_values
+        .values()
+        .any(|value| !is_runtime_value(value))
+    {
         return Ok(code);
     }
     let allocator = Allocator::default();
@@ -81,7 +84,8 @@ fn collect_resolved_import_edits(
             continue;
         };
         let mut compile_time_count = 0usize;
-        let mut has_keyframes = false;
+        let mut has_styles = false;
+        let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         for specifier in specifiers {
             let compile_time_value = match specifier {
@@ -99,32 +103,86 @@ fn collect_resolved_import_edits(
             };
             let Some(value) = compile_time_value else {
                 let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
+                let specifier_source = source[span.start as usize..span.end as usize].to_owned();
+                if matches!(
+                    specifier,
+                    ImportDeclarationSpecifier::ImportDefaultSpecifier(_)
+                ) {
+                    default_specifier = Some(specifier_source);
+                } else {
+                    runtime_specifiers.push(specifier_source);
+                }
                 continue;
             };
             compile_time_count += 1;
-            has_keyframes |= matches!(value, StaticValue::Keyframes(_));
+            // The module's CSS is only loaded while the module itself is imported, so keep it
+            // when its keyframes or an inlined class name are still used by this file
+            has_styles |= match value {
+                StaticValue::Keyframes(_) => true,
+                StaticValue::CssClass { name, .. } => contains_class_name(source, name),
+                _ => false,
+            };
         }
         if compile_time_count == 0 {
             continue;
         }
+        let has_runtime_specifiers = default_specifier.is_some() || !runtime_specifiers.is_empty();
         edits.push(Edit {
-            span: if runtime_specifiers.is_empty() && has_keyframes {
+            span: if !has_runtime_specifiers && has_styles {
                 declaration.span
             } else {
                 expand_removal_to_line(source, declaration.span)
             },
-            replacement: if !runtime_specifiers.is_empty() {
-                format!(
-                    "import {{ {} }} from \"{}\";\n",
-                    runtime_specifiers.join(", "),
-                    declaration.source.value
-                )
-            } else if has_keyframes {
+            replacement: if has_runtime_specifiers {
+                rebuilt_import(declaration, source, default_specifier, &runtime_specifiers)
+            } else if has_styles {
                 format!("import \"{}\";", declaration.source.value)
             } else {
                 String::new()
             },
         });
     }
+}
+
+/// Rebuilds an import declaration with only its runtime specifiers, keeping the default
+/// specifier, the `import type` kind and any import attributes
+fn rebuilt_import(
+    declaration: &ImportDeclaration<'_>,
+    source: &str,
+    default_specifier: Option<String>,
+    named_specifiers: &[String],
+) -> String {
+    let kind = if declaration.import_kind.is_type() {
+        "type "
+    } else {
+        ""
+    };
+    let named =
+        (!named_specifiers.is_empty()).then(|| format!("{{ {} }}", named_specifiers.join(", ")));
+    let bindings = default_specifier
+        .into_iter()
+        .chain(named)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let attributes = source[declaration.source.span.end as usize..declaration.span.end as usize]
+        .trim()
+        .trim_end_matches(';');
+    let attributes = if attributes.is_empty() {
+        String::new()
+    } else {
+        format!(" {attributes}")
+    };
+    format!(
+        "import {kind}{bindings} from \"{}\"{attributes};\n",
+        declaration.source.value
+    )
+}
+
+fn contains_class_name(code: &str, class_name: &str) -> bool {
+    code.match_indices(class_name).any(|(index, _)| {
+        let is_class_char = |char: char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_');
+        let before = code[..index].chars().next_back();
+        let after = code[index + class_name.len()..].chars().next();
+        !before.is_some_and(is_class_char) && !after.is_some_and(is_class_char)
+    })
 }

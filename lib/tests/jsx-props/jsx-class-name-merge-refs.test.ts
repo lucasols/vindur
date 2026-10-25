@@ -241,6 +241,7 @@ test('should allow $-prefixed cx classes with an imported css reference', async 
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { cx } from "vindur";
+    import "#/styles";
     export const A = ({ on }: { on: boolean }) => (
       <div
         className={

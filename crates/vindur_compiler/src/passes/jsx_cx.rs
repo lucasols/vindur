@@ -314,15 +314,16 @@ impl JsxCxVisitor<'_> {
             );
             return;
         }
-        if find_last_attribute(element, "className").is_none() {
-            let class_name = styled.as_ref().map_or_else(
+        self.output.edits.push(Edit {
+            span: attribute.span,
+            replacement: String::new(),
+        });
+        let component = styled.as_ref();
+        let Some(class_attribute) = find_last_attribute(element, "className") else {
+            let class_name = component.map_or_else(
                 || cx_call.clone(),
                 |component| format!("\"{} \" + {cx_call}", component.class_name),
             );
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
             let offset = opening_attribute_insertion_offset(element, self.output.source);
             emit_class_name(
                 self.output.edits,
@@ -332,47 +333,37 @@ impl JsxCxVisitor<'_> {
                 class_name,
             );
             return;
-        }
-        let replacement = match (styled.as_ref(), find_last_attribute(element, "className")) {
-            (Some(_), None) | (None, None) => String::new(),
-            (component, Some(class_attribute)) => {
-                let value = match &class_attribute.value {
-                    Some(JSXAttributeValue::StringLiteral(value)) => {
-                        let existing = decode_jsx_entities(&value.value);
-                        let prefix = component.map_or_else(
-                            || format!("{existing} "),
-                            |component| format!("{existing} {} ", component.class_name),
-                        );
-                        format!("{} + {cx_call}", js_string_literal(&prefix))
-                    }
-                    _ => {
-                        let existing = class_name_concat_source(
-                            class_attribute,
-                            self.output.source,
-                            self.output.constants,
-                            self.output.scoping,
-                        );
-                        let separator = component.map_or_else(
-                            || " ".to_owned(),
-                            |component| format!(" {} ", component.class_name),
-                        );
-                        format!("{existing} + \"{separator}\" + {cx_call}")
-                    }
-                };
-                emit_class_name(
-                    self.output.edits,
-                    self.output.class_expressions,
-                    element,
-                    ClassNameTarget::Replace(class_attribute.span),
-                    value,
+        };
+        let value = match &class_attribute.value {
+            Some(JSXAttributeValue::StringLiteral(value)) => {
+                let existing = decode_jsx_entities(&value.value);
+                let prefix = component.map_or_else(
+                    || format!("{existing} "),
+                    |component| format!("{existing} {} ", component.class_name),
                 );
-                String::new()
+                format!("{} + {cx_call}", js_string_literal(&prefix))
+            }
+            _ => {
+                let existing = class_name_concat_source(
+                    class_attribute,
+                    self.output.source,
+                    self.output.constants,
+                    self.output.scoping,
+                );
+                let separator = component.map_or_else(
+                    || " ".to_owned(),
+                    |component| format!(" {} ", component.class_name),
+                );
+                format!("{existing} + \"{separator}\" + {cx_call}")
             }
         };
-        self.output.edits.push(Edit {
-            span: attribute.span,
-            replacement,
-        });
+        emit_class_name(
+            self.output.edits,
+            self.output.class_expressions,
+            element,
+            ClassNameTarget::Replace(class_attribute.span),
+            value,
+        );
     }
 
     fn missing_styled_classes(

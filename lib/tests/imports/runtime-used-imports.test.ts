@@ -86,3 +86,33 @@ test('should remove imported constants only used in templates', async () => {
     "
   `);
 });
+
+test('should keep default and type imports when removing compile-time specifiers', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import Widget, { SIZE } from '#/constants';
+      import type { Props, LABEL } from '#/constants';
+      import { type Item, shared } from '#/constants';
+
+      const styles = css\`
+        \${shared};
+        width: \${SIZE}px;
+      \`;
+
+      export const A = (props: Props & Item) => <Widget className={styles} {...props} />;
+    `,
+    overrideDefaultFs: constantsFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import Widget from "#/constants";
+    import type { Props } from "#/constants";
+    import { type Item } from "#/constants";
+    const styles = "v1560qbr-1-styles";
+    export const A = (props: Props & Item) => (
+      <Widget className={styles} {...props} />
+    );
+    "
+  `);
+});

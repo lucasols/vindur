@@ -22,7 +22,8 @@ test('should inline the class name of an imported css prop reference', async () 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "export const A = () => <div className="v1s4vg6s-1-card" />;
+    "import "./styles";
+    export const A = () => <div className="v1s4vg6s-1-card" />;
     "
   `);
 });
