@@ -436,3 +436,58 @@ test('should warn about cx modifiers only declared for another element', async (
     "
   `);
 });
+
+test('should keep rewriting cx classes of nested rules that may match the styled element', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        /* responsive */ @media (min-width: 1px) { &.active { left: 0; } }
+        :is(&) { &.active { top: 0; } }
+        &:hover, & .child { &.active { color: red; } }
+        & /* note */ .tab { &.active { color: blue; } }
+        &:hover /* note */ { &.active { right: 0; } }
+        &.md\\:active { bottom: 0; }
+      \`;
+
+      export const App = ({ a, b }) => <Box cx={{ active: a, 'md:active': b }} />;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      /* responsive */
+      @media (min-width: 1px) {
+        &.v1560qbr-2-active {
+          left: 0;
+        }
+      }
+      :is(&) {
+        &.v1560qbr-2-active {
+          top: 0;
+        }
+      }
+      &:hover,
+      & .child {
+        &.v1560qbr-2-active {
+          color: red;
+        }
+      }
+      & /* note */ .tab {
+        &.active {
+          color: blue;
+        }
+      }
+      &:hover /* note */ {
+        &.v1560qbr-2-active {
+          right: 0;
+        }
+      }
+      &.v1560qbr-3-md\\:active {
+        bottom: 0;
+      }
+    }
+    "
+  `);
+});

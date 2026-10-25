@@ -7,7 +7,11 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{
+    CompilerDiagnostic,
+    edit::{Edit, take_edited_source},
+    facts::StaticValue,
+};
 
 use super::{
     cx_selectors::{contains_class_selector, rewrite_cx_selectors},
@@ -213,7 +217,9 @@ impl JsxCxVisitor<'_> {
                     (hashed, true)
                 };
             let value_span = property.value.span();
-            let value = &self.output.source[value_span.start as usize..value_span.end as usize];
+            // The value is copied into the generated call, with the edits of other passes inside
+            // it, like a `stableId()` call
+            let value = take_edited_source(self.output.source, value_span, self.output.edits);
             // A `"__proto__"` key would set the prototype instead of adding the class
             let key = if output_name == "__proto__" {
                 format!("[{}]", js_string_literal(&output_name))

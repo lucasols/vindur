@@ -112,9 +112,9 @@ test('should keep template literal expressions grouped in optimized cx calls', a
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const classes = (active, mode, a, b) => [
-      active ? "size-" + (mode ? "lg" : "sm") : "",
-      active ? "" + a + b : "",
-      active ? "" + a : "",
+      active ? \`size-\${mode ? "lg" : "sm"}\` : "",
+      active ? \`\${a}\${b}\` : "",
+      active ? \`\${a}\` : "",
     ];
     "
   `);
@@ -155,6 +155,35 @@ test('should not optimize cx calls holding code other passes transform', async (
         })}
       />
     );
+    "
+  `);
+});
+
+test('should keep cx calls with shadowed undefined or prototype setters and template values', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { cx } from 'vindur';
+
+      function f(undefined) {
+        return cx(undefined, 'a');
+      }
+      const g = cx({ __proto__: true, b: true });
+      const h = (obj) => cx(true && \`x\${obj}\`);
+      const i = cx(undefined, 'c');
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    function f(undefined) {
+      return cx(undefined, "a");
+    }
+    const g = cx({
+      __proto__: true,
+      b: true,
+    });
+    const h = (obj) => (true ? \`x\${obj}\` : "");
+    const i = "c";
     "
   `);
 });

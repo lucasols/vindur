@@ -1,8 +1,9 @@
 // Rewrites the classes of the compound selectors that match the styled element, like
 // `&.active.selected`, `&:hover.active`, `&[data-open].active`, `.active&` or
 // `&:not(div.active)`, to their hashed classes. Whole class names are matched, so `&.active`
-// doesn't touch `&.activeIcon`. Rules nested under a rule for another element, like the
-// `&.selected` of `& .tab { &.selected {} }`, are left alone
+// doesn't touch `&.activeIcon`, and escaped classes like `&.md\:active` match the `md:active`
+// key. Rules nested under a rule that clearly targets another element, like the `&.selected`
+// of `& .tab { &.selected {} }`, are left alone
 //
 // `css` holds whole rules like `.v1-Box { ... }`
 pub(super) fn rewrite_cx_selectors(css: &str, mappings: &[(String, String, bool)]) -> String {
@@ -36,7 +37,7 @@ fn mapping_class(mappings: &[(String, String, bool)]) -> impl Fn(&str) -> Option
         mappings
             .iter()
             .find(|(original, _, should_rewrite)| *should_rewrite && original == class_name)
-            .map(|(_, hashed, _)| hashed.clone())
+            .map(|(_, hashed, _)| css_escape(hashed))
     }
 }
 
@@ -47,7 +48,7 @@ enum RuleContext {
     TopLevel,
     // Inside the styled element's rule, or a rule nested in it that still matches it
     StyledElement,
-    // Inside a rule for another element, like `& .tab { ... }`
+    // Inside a rule that clearly targets another element, like `& .tab { ... }`
     OtherElement,
 }
 
@@ -61,7 +62,7 @@ fn rewrite_rules(css: &str, map: &ClassMapper<'_>, initial: RuleContext) -> Stri
         let context = contexts.last().copied().unwrap_or(initial);
         match css[end..].chars().next() {
             Some('{') => {
-                let is_at_rule = css[index..end].trim_start().starts_with('@');
+                let is_at_rule = css[skip_trivia(css, index, end)..end].starts_with('@');
                 if !is_at_rule && context == RuleContext::StyledElement {
                     rewrite_selector_list(css, index, end, &mut output, map, false);
                 } else {
@@ -70,7 +71,7 @@ fn rewrite_rules(css: &str, map: &ClassMapper<'_>, initial: RuleContext) -> Stri
                 contexts.push(match context {
                     _ if is_at_rule => context,
                     RuleContext::TopLevel => RuleContext::StyledElement,
-                    RuleContext::StyledElement if subjects_match_parent(css, index, end) => {
+                    RuleContext::StyledElement if nested_rule_matches_parent(css, index, end) => {
                         RuleContext::StyledElement
                     }
                     RuleContext::StyledElement | RuleContext::OtherElement => {
@@ -107,10 +108,12 @@ fn segment_end(css: &str, mut index: usize) -> usize {
     css.len()
 }
 
-// Whether every selector of a nested rule's prelude still matches the parent's element, like
-// `&:hover` or `.dark &`, unlike `& .tab` or `.tab`
-fn subjects_match_parent(css: &str, start: usize, end: usize) -> bool {
+// Whether a nested rule may still match the parent's element. Only a prelude whose selectors
+// all clearly target another element doesn't, so anything uncertain, like `.tab`, `:is(&)` or
+// `&:hover, & .tab`, keeps rewriting the modifiers as before nesting was tracked
+fn nested_rule_matches_parent(css: &str, start: usize, end: usize) -> bool {
     let mut index = start;
+    let mut has_selector = false;
     while index < end {
         let argument_end = next_argument(css, index, end);
         let content_end = if css[index..argument_end].ends_with(',') {
@@ -118,15 +121,40 @@ fn subjects_match_parent(css: &str, start: usize, end: usize) -> bool {
         } else {
             argument_end
         };
-        let subject_has_ampersand = compound_ranges(css, index, content_end).last().is_some_and(
-            |&(compound_start, compound_end)| contains_ampersand(css, compound_start, compound_end),
-        );
-        if !subject_has_ampersand {
-            return false;
+        if !targets_other_element(css, index, content_end) {
+            return true;
         }
+        has_selector = true;
         index = argument_end;
     }
-    true
+    !has_selector
+}
+
+// Whether a selector clearly targets another element: a `&` before its last compound and none
+// in that compound, like `& .tab` or `& > .icon`
+fn targets_other_element(css: &str, start: usize, end: usize) -> bool {
+    let compounds = compound_ranges(css, start, end);
+    let Some((&(subject_start, subject_end), ancestors)) = compounds.split_last() else {
+        return false;
+    };
+    !css[subject_start..subject_end].contains('&')
+        && ancestors.iter().any(|&(compound_start, compound_end)| {
+            contains_ampersand(css, compound_start, compound_end)
+        })
+}
+
+// The position after the whitespace and comments starting at `index`
+fn skip_trivia(css: &str, mut index: usize, end: usize) -> usize {
+    while let Some(character) = css[index..end].chars().next() {
+        index = if css[index..end].starts_with("/*") {
+            skipped_end(css, index, end)
+        } else if character.is_whitespace() {
+            index + character.len_utf8()
+        } else {
+            return index;
+        };
+    }
+    end
 }
 
 // Whether the compound between `start` and `end` has a `&` outside its pseudo-class arguments
@@ -167,7 +195,7 @@ fn rewrite_compound(
             Some('.') => {
                 let token = identifier(&css[index + 1..limit]);
                 output.push('.');
-                match rewrite_classes.then(|| map(token)).flatten() {
+                match rewrite_classes.then(|| map(&unescape(token))).flatten() {
                     Some(hashed) => output.push_str(&hashed),
                     None => output.push_str(token),
                 }
@@ -311,13 +339,20 @@ fn rewrite_compound_range(
     }
 }
 
-// The ranges of the compound selectors between `start` and `end`, separated by whitespace and
-// the `>`, `+` and `~` combinators
+// The ranges of the compound selectors between `start` and `end`, separated by whitespace,
+// comments and the `>`, `+` and `~` combinators
 fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut compound_start = None;
     let mut index = start;
     while let Some(character) = css[index..end].chars().next() {
+        if css[index..end].starts_with("/*") {
+            if let Some(range_start) = compound_start.take() {
+                ranges.push((range_start, index));
+            }
+            index = skipped_end(css, index, end);
+            continue;
+        }
         if character.is_whitespace() || matches!(character, '>' | '+' | '~') {
             if let Some(range_start) = compound_start.take() {
                 ranges.push((range_start, index));
@@ -328,7 +363,6 @@ fn compound_ranges(css: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
         compound_start.get_or_insert(index);
         index = match character {
             '"' | '\'' | '(' | '[' => skipped_end(css, index, end),
-            '/' if css[index..end].starts_with("/*") => skipped_end(css, index, end),
             '\\' => {
                 let escaped = css[index + 1..end].chars().next().map_or(0, char::len_utf8);
                 index + 1 + escaped
@@ -449,4 +483,46 @@ fn is_class_name_character(character: char) -> bool {
         || character == '_'
         || character == '-'
         || !character.is_ascii()
+}
+
+// The value of a CSS identifier, `md\:active` or `md\3a active` is `md:active`
+fn unescape(identifier: &str) -> String {
+    let mut value = String::with_capacity(identifier.len());
+    let mut characters = identifier.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            value.push(character);
+            continue;
+        }
+        let mut hex = String::new();
+        while hex.len() < 6
+            && let Some(digit) = characters.next_if(char::is_ascii_hexdigit)
+        {
+            hex.push(digit);
+        }
+        if hex.is_empty() {
+            value.extend(characters.next());
+        } else {
+            characters.next_if(|next| *next == ' ');
+            let code_point = u32::from_str_radix(&hex, 16).unwrap_or(0xFFFD);
+            value.push(char::from_u32(code_point).unwrap_or('\u{FFFD}'));
+        }
+    }
+    value
+}
+
+// `class_name` as a CSS identifier, like `md:active` as `md\:active`
+fn css_escape(class_name: &str) -> String {
+    let mut escaped = String::with_capacity(class_name.len());
+    for character in class_name.chars() {
+        if is_class_name_character(character) {
+            escaped.push(character);
+        } else if character.is_whitespace() || character.is_control() {
+            escaped.push_str(&format!("\\{:x} ", u32::from(character)));
+        } else {
+            escaped.push('\\');
+            escaped.push(character);
+        }
+    }
+    escaped
 }

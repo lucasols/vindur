@@ -170,3 +170,25 @@ test('should handle empty cx objects and __proto__ class names', async () => {
     "
   `);
 });
+
+test('should keep transformed code inside cx values', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { stableId } from 'vindur';
+
+      export const App = ({ id }) => <div cx={{ $selected: id === stableId() }} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ id }) => (
+      <div
+        className={cx({
+          selected: id === "v1560qbr-1",
+        })}
+      />
+    );
+    "
+  `);
+});

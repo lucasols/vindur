@@ -474,4 +474,24 @@ describe('Exported styled components', () => {
       }"
     `);
   });
+
+  test('should pass the wrapped component of exported custom component styles', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Pie } from 'recharts';
+
+        export const StyledPie = styled(Pie)\`
+          opacity: 0.5;
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import { Pie } from "recharts";
+      export const StyledPie = _vSC(Pie, "v1560qbr-1-StyledPie");
+      "
+    `);
+  });
 });

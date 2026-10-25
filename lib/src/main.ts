@@ -337,8 +337,13 @@ export function mergeClassNames(
       && 'className' in prop
       && isSpreadProperty(prop, 'className')
     ) {
-      const className = prop.className;
-      finalClassName = typeof className === 'string' ? className : '';
+      const className: unknown = prop.className;
+      // Like React, numbers render as a class, nullish and boolean values as none
+      finalClassName =
+        typeof className === 'string' ? className
+        : typeof className === 'number' || typeof className === 'bigint' ?
+          String(className)
+        : '';
     }
   }
 

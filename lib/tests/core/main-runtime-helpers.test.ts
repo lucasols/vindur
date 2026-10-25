@@ -290,6 +290,24 @@ describe('mergeClassNames', () => {
 
     expect(result).toBe('visible vindur-class');
   });
+
+  test('should stringify non-string class names like React', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: 5 }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('5 vindur-class');
+  });
+
+  test('should drop boolean class names like React', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: false }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('vindur-class');
+  });
 });
 
 describe('mergeStyles', () => {

@@ -296,10 +296,13 @@ pub(super) fn process_variable_declaration(
                     .map_or(String::new(), |value| format!(", {value}"));
                 let replacement = if style_flags.is_empty() {
                     *transform.needs_styled_helper = true;
-                    format!(
-                        "_vSC(\"{}\", \"{complete_class_name}\"{attrs_argument})",
-                        base_component.element,
-                    )
+                    // `styled(Pie)` renders the `Pie` component, not a `"Pie"` element
+                    let element_source = if base_component.element_is_identifier {
+                        base_component.element.clone()
+                    } else {
+                        format!("\"{}\"", base_component.element)
+                    };
+                    format!("_vSC({element_source}, \"{complete_class_name}\"{attrs_argument})")
                 } else {
                     *transform.needs_style_flags_helper = true;
                     style_flags_runtime_call(
