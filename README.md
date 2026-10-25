@@ -1042,7 +1042,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />`) are a compile error, use `$` keys or move them into the styled component.
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) are a compile error, use `$` keys or move them into the styled component.
 
 ### `cx` utility function
 
@@ -1285,7 +1285,7 @@ Each color in your theme provides:
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
-Amounts must be between 0 and 1, other values are a compile error.
+Amounts, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
 
 ## Dynamic Theme Colors
 

@@ -89,23 +89,30 @@ test('should fail on hashed cx keys declared in the css reference of a styled co
       color: green;
     \`
 
-    const Component = ({ on, c }) => <Box css={cls} ${attributes} />;
+    const Component = ({ on, c }) => <Box ${attributes} />;
   `;
 
   await expect(
-    transformWithFormat({ source: source('cx={{ on }}') }),
+    transformWithFormat({ source: source('css={cls} cx={{ on }}') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx modifiers [on] are declared in the css prop reference of Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
+    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
     loc: 17:48]
   `);
 
   await expect(
     transformWithFormat({
-      source: source('cx={{ on }} dynamicColor={color.set(c)}'),
+      source: source('css={cls} cx={{ on }} dynamicColor={color.set(c)}'),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx modifiers [on] are declared in the css prop reference of Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
+    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
     loc: 17:48]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('className={cls} cx={{ on }}') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
+    loc: 17:54]
   `);
 });
 

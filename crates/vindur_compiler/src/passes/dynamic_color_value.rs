@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue};
 
-use super::static_evaluation::evaluate_expression;
+use super::{static_evaluation::evaluate_expression, styled::strip_css_comments};
 
 pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
@@ -45,6 +45,9 @@ pub(super) fn dynamic_color_method(
         StaticValue::DynamicColorPath { id, path, .. } if path == "contrast" => (id, true),
         _ => return None,
     };
+    if !is_color_method(contrast, method) {
+        return None;
+    }
     let base = if contrast {
         format!("var(--{id}-c)")
     } else {
@@ -72,7 +75,7 @@ pub(super) fn dynamic_color_method(
         "darker" => format!("color-mix(in srgb, {base} {percentage}%, #000)"),
         "lighter" => format!("color-mix(in srgb, {base} {percentage}%, #fff)"),
         // Uses the hsl vars set by the runtime, see `saturated_darker` in color_math.rs
-        "saturatedDarker" if !contrast => format!(
+        "saturatedDarker" => format!(
             "hsl(var(--{id}-h), var(--{id}-sds), calc(var(--{id}-l) * {}))",
             format_factor(1.0 - amount)
         ),
@@ -129,13 +132,13 @@ pub(super) fn container_selector_error(
     source: &str,
 ) -> Option<CompilerDiagnostic> {
     let (previous, next) = surrounding_quasis;
-    let previous = without_css_comments(previous);
+    let previous = strip_css_comments(previous);
     let starts_selector = previous
         .rsplit(['{', '}', ';', ','])
         .next()
         .is_none_or(|selector_start| selector_start.trim().is_empty());
     // The rest of the compound selector, e.g. `:hover` in `${c.container.isDark}:hover {`
-    let rest = without_css_comments(next?.split_once('{')?.0);
+    let rest = strip_css_comments(next?.split_once('{')?.0);
     // A leading space is a descendant combinator, so only a trailing one is trimmed
     let compound = rest.split(',').next().unwrap_or_default().trim_end();
     if !starts_selector
@@ -196,20 +199,18 @@ pub(super) fn color_interpolation_error(
     Some(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
-fn without_css_comments(css: &str) -> String {
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.find("/*") {
-        output.push_str(&rest[..start]);
-        rest = rest[start + 2..]
-            .find("*/")
-            .map_or("", |end| &rest[start + 2 + end + 2..]);
+/// The methods each kind of color has at runtime, see `ColorOps` and `ContrastOps` in
+/// lib/src/runtime-colors.ts
+pub(super) fn is_color_method(contrast: bool, method: &str) -> bool {
+    if contrast {
+        matches!(method, "alpha" | "optimal")
+    } else {
+        matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker")
     }
-    output.push_str(rest);
-    output
 }
 
-/// Color methods that take an amount need it to evaluate to a number
+/// Color methods that take an amount need it to evaluate to a number between 0 and 1,
+/// `contrast.optimal` takes an optional `{ alpha }` object
 pub(super) fn invalid_color_method_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -217,40 +218,81 @@ pub(super) fn invalid_color_method_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
+    let Expression::CallExpression(call) = expression.without_parentheses() else {
         return None;
     };
     let Expression::StaticMemberExpression(callee) = &call.callee else {
         return None;
     };
     let method = callee.property.name.as_str();
-    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
-        return None;
-    }
-    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
     if !matches!(
-        receiver,
-        StaticValue::DynamicColor { .. }
-            | StaticValue::DynamicColorPath { .. }
-            | StaticValue::ThemeColor { .. }
-            | StaticValue::ThemeColorContrast { .. }
+        method,
+        "alpha" | "darker" | "lighter" | "saturatedDarker" | "optimal"
     ) {
         return None;
     }
-    let amount = match call.arguments.as_slice() {
-        [argument] => argument
-            .as_expression()
-            .and_then(|expression| evaluate_expression(expression, constants, scoping)),
-        _ => None,
+    let contrast = match evaluate_expression(&callee.object, constants, scoping)? {
+        StaticValue::DynamicColor { .. } | StaticValue::ThemeColor { .. } => false,
+        StaticValue::DynamicColorPath { path, .. } if path == "contrast" => true,
+        StaticValue::ThemeColorContrast { .. } => true,
+        _ => return None,
     };
-    let message = match amount {
-        Some(StaticValue::Number(amount)) if (0.0..=1.0).contains(&amount) => return None,
-        Some(StaticValue::Number(amount)) => {
-            format!("Method {method} amount must be between 0 and 1, got {amount}")
+    let error = |message: String| {
+        Some(CompilerDiagnostic::error(
+            file_path, source, call.span, message,
+        ))
+    };
+    if !is_color_method(contrast, method) {
+        return error(if contrast {
+            format!(
+                "Method {method} is not available on contrast colors, they only have `var`, `alpha` and `optimal`"
+            )
+        } else {
+            format!(
+                "Method {method} is only available on contrast colors, e.g. `color.contrast.{method}()`"
+            )
+        });
+    }
+    let argument = match call.arguments.as_slice() {
+        [] => None,
+        [argument] => match argument.as_expression() {
+            Some(expression) => evaluate_expression(expression, constants, scoping),
+            None => return error(format!("Method {method} doesn't accept spread arguments")),
+        },
+        _ => return error(format!("Method {method} takes a single argument")),
+    };
+    let amount = if method == "optimal" {
+        match argument {
+            None | Some(StaticValue::Undefined) => return None,
+            Some(
+                StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. },
+            ) => match properties.get("alpha") {
+                None | Some(StaticValue::Undefined) => return None,
+                Some(StaticValue::Number(alpha)) => *alpha,
+                Some(_) => return error("Method optimal alpha must be a number".to_owned()),
+            },
+            Some(_) => {
+                return error(
+                    "Method optimal takes an optional `{ alpha }` object, e.g. `optimal({ alpha: 0.5 })`"
+                        .to_owned(),
+                );
+            }
         }
-        _ => format!("Method {method} requires a numeric argument"),
+    } else {
+        match argument {
+            Some(StaticValue::Number(amount)) => amount,
+            _ => return error(format!("Method {method} requires a numeric argument")),
+        }
     };
-    Some(CompilerDiagnostic::error(
-        file_path, source, call.span, message,
+    if (0.0..=1.0).contains(&amount) {
+        return None;
+    }
+    let name = if method == "optimal" {
+        "optimal alpha".to_owned()
+    } else {
+        format!("{method} amount")
+    };
+    error(format!(
+        "Method {name} must be between 0 and 1, got {amount}"
     ))
 }

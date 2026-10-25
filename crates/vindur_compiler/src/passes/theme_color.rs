@@ -4,9 +4,12 @@ use rustc_hash::FxHashMap;
 
 use crate::facts::StaticValue;
 
-use super::color_math::{
-    OPTIMAL_CONTRAST_SATURATED_DARKER, compress_hex, mix, parse_hex, prefers_black_text,
-    saturated_darker,
+use super::{
+    color_math::{
+        OPTIMAL_CONTRAST_SATURATED_DARKER, compress_hex, mix, parse_hex, prefers_black_text,
+        saturated_darker,
+    },
+    dynamic_color_value::is_color_method,
 };
 
 pub(super) struct ThemeColorParseError {
@@ -106,6 +109,9 @@ pub(super) fn theme_method(
         StaticValue::ThemeColorContrast { name, hex, .. } => (name, hex, "contrast-"),
         _ => return None,
     };
+    if !is_color_method(!prefix.is_empty(), method) {
+        return None;
+    }
     let rgb = parse_hex(hex)?;
     let (result, amount) = match method {
         "optimal" => {

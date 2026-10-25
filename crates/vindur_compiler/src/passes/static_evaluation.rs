@@ -109,12 +109,18 @@ pub(super) fn evaluate_expression(
                 }
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-                let amount = match call.arguments.first() {
-                    Some(argument) => color_method_amount(argument, constants, scoping)?,
-                    None => None,
+                let method = callee.property.name.as_str();
+                let amount = match call.arguments.as_slice() {
+                    [argument] => color_method_amount(method, argument, constants, scoping)?,
+                    [] => None,
+                    _ => return None,
                 };
-                dynamic_color_method(&receiver, callee.property.name.as_str(), amount)
-                    .or_else(|| theme_method(&receiver, callee.property.name.as_str(), amount))
+                // Out of range amounts make invalid CSS, see `invalid_color_method_error`
+                if amount.is_some_and(|amount| !(0.0..=1.0).contains(&amount)) {
+                    return None;
+                }
+                dynamic_color_method(&receiver, method, amount)
+                    .or_else(|| theme_method(&receiver, method, amount))
             } else {
                 None
             }
@@ -250,9 +256,11 @@ fn evaluate_template_value(
                 .as_str(),
         );
         if let Some(expression) = template.expressions.get(index) {
-            output.push_str(&static_value_to_string(&evaluate_expression(
-                expression, constants, scoping,
-            )?));
+            let value = evaluate_expression(expression, constants, scoping)?;
+            if is_unresolved_import(&value) {
+                return None;
+            }
+            output.push_str(&static_value_to_string(&value));
         }
     }
     Some(output)
@@ -334,6 +342,17 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
         | StaticValue::UnexportedThemeColors(_) => "[theme color]".to_owned(),
         StaticValue::Undefined => unreachable!(),
     }
+}
+
+/// An imported name whose value couldn't be evaluated in its module, e.g.
+/// `export const hover = getColor()`, it has no CSS value
+pub(super) fn is_unresolved_import(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::MissingImport { .. }
+            | StaticValue::InvalidFunction { .. }
+            | StaticValue::InvalidObject { .. }
+    )
 }
 
 pub(super) fn static_value_to_boolean(value: &StaticValue) -> bool {
@@ -445,14 +464,17 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
 /// `None` when the argument can't be evaluated, so the caller fails instead of using 0.
 /// An `undefined` argument or alpha is the same as omitting it
 fn color_method_amount(
+    method: &str,
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<Option<f64>> {
     match evaluate_expression(argument.as_expression()?, constants, scoping)? {
-        StaticValue::Number(value) => Some(Some(value)),
+        StaticValue::Number(value) if method != "optimal" => Some(Some(value)),
         StaticValue::Undefined => Some(None),
-        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
+        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. }
+            if method == "optimal" =>
+        {
             match properties.get("alpha") {
                 Some(StaticValue::Number(value)) => Some(Some(*value)),
                 Some(StaticValue::Undefined) | None => Some(None),

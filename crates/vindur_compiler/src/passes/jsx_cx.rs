@@ -192,18 +192,17 @@ impl JsxCxVisitor<'_> {
             mappings.push((class_name, output_name, should_rewrite_css));
         }
 
-        // Only the styled component's rule is rewritten, a css reference's own modifiers
-        // would keep the unhashed names and never match
+        // Only the styled component's rule is rewritten, the modifiers of a css reference in
+        // the css prop or className would keep the unhashed names and never match
         if styled.is_some()
-            && let Some(reference) =
-                find_attribute(element, "css").and_then(|css| self.css_class_reference(css))
+            && let Some(reference) = self.css_reference_name(element)
         {
             let modifiers = declared_modifiers(self.output.css_rules, &reference, &mappings);
             if !modifiers.is_empty() {
                 self.set_error(
                     attribute.span,
                     format!(
-                        "cx modifiers [{}] are declared in the css prop reference of {element_name}, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. ${}) or move the modifiers into the styled component.",
+                        "cx modifiers [{}] are declared in the css reference passed to {element_name}, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. ${}) or move the modifiers into the styled component.",
                         modifiers.join(", "),
                         modifiers[0]
                     ),

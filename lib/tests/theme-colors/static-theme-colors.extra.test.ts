@@ -394,7 +394,7 @@ test('should throw error when a theme color method is called without amount', as
         const colors = createStaticThemeColors({ primary: '#007bff' })
 
         const style = css\`
-          color: \${colors.primary.contrast.darker()};
+          color: \${colors.primary.darker()};
         \`
       `,
     }),

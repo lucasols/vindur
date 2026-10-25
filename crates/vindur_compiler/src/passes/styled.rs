@@ -334,7 +334,7 @@ pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<St
     classes
 }
 
-fn strip_css_comments(css: &str) -> String {
+pub(super) fn strip_css_comments(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
     while let Some(start) = rest.find("/*") {

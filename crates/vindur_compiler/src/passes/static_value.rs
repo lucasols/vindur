@@ -15,7 +15,8 @@ use super::dynamic_color_value::{
 };
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
+    static_value_to_string,
 };
 
 pub(crate) struct TemplateContext<'a> {
@@ -165,7 +166,7 @@ pub(crate) fn evaluate_template(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        if matches!(value, StaticValue::LayerFunction) {
+        if matches!(value, StaticValue::LayerFunction) || is_unresolved_import(&value) {
             return Err(interpolation_error(expression, file_path, source, context));
         }
         if let Some(diagnostic) = color_interpolation_error(&value, expression, file_path, source) {
