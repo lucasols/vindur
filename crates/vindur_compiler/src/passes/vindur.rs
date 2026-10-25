@@ -198,6 +198,7 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "createGlobalStyle",
+                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -235,6 +236,7 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "styled",
+                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(

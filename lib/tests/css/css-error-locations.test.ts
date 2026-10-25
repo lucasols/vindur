@@ -22,21 +22,23 @@ test('should throw for a missing `;` before a nested rule', async () => {
   `);
 });
 
-test('should throw for a missing `;` after a custom property', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { css } from 'vindur'
+test('should accept colons in multiline custom property values', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
 
-        const style = css\`
-          ---size: 10px
-          width: var(---size);
-        \`
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` before \`width\`
-    loc: 5:2]
+      const style = css\`
+        --config:
+          theme: dark;
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      --config: theme: dark;
+    }
+    "
   `);
 });
 

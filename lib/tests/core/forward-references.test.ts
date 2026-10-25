@@ -179,6 +179,46 @@ describe('forward references', () => {
     `);
   });
 
+  test('should replace $ in dev class names of components used as selectors', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const $Icon = styled.span\`
+          color: red;
+        \`
+
+        const Card = styled.div\`
+          \${$Icon}, \${() => $Container}:hover & {
+            color: white;
+          }
+        \`
+
+        const $Container = styled.div\`
+          padding: 20px;
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-_Icon {
+        color: red;
+      }
+
+      .v1560qbr-2-Card {
+        .v1560qbr-1-_Icon,
+        .v1560qbr-3-_Container:hover & {
+          color: white;
+        }
+      }
+
+      .v1560qbr-3-_Container {
+        padding: 20px;
+      }
+      "
+    `);
+  });
+
   test('should throw error for undefined forward reference', async () => {
     await expect(async () => {
       await transformWithFormat({

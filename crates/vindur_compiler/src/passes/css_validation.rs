@@ -64,11 +64,11 @@ fn unknown_rule_error(prelude: &TokenSeq<'_>, source: &str) -> CssError {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let is_declaration_shaped = text.contains(':')
-        && !text
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_digit() || character == '.');
+    // A declaration starts with a property name followed by `:` and a space, a selector like
+    // `&:hover:` has no space after its `:`
+    let is_declaration_shaped = text.split_once(':').is_some_and(|(property, rest)| {
+        is_property_name(property.trim_end()) && (rest.is_empty() || rest.starts_with(' '))
+    });
     let message = if is_declaration_shaped {
         format!("missing `;` before a nested rule, `{text}` is not a valid selector")
     } else {
@@ -92,15 +92,16 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
         ));
     }
     // `color: red\n width: 1px;` is parsed as a single `color` declaration. Custom property values
-    // can contain `name:`, so for them only a `name:` on a new line is a missing `;`
-    let is_custom_property = name.raw.starts_with("--");
+    // can contain `name:` on any line, so they are not checked
+    if name.raw.starts_with("--") {
+        return Ok(());
+    }
     let next_property = declaration.value.windows(2).find_map(|pair| match pair {
         [
             ComponentValue::TokenWithSpan(ident),
             ComponentValue::TokenWithSpan(colon),
         ] if matches!(ident.token, TokenData::Ident(_))
-            && matches!(colon.token, TokenData::Colon(_))
-            && (!is_custom_property || starts_line(source, ident.span.start)) =>
+            && matches!(colon.token, TokenData::Colon(_)) =>
         {
             Some(ident)
         }
@@ -114,14 +115,6 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
         )),
         None => Ok(()),
     }
-}
-
-fn starts_line(source: &str, offset: usize) -> bool {
-    source[..offset]
-        .chars()
-        .rev()
-        .take_while(char::is_ascii_whitespace)
-        .any(|character| character == '\n')
 }
 
 /// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
@@ -345,11 +338,13 @@ mod tests {
                 error("color: red\n  &:hover { color: blue; }"),
                 error("color: red\n  .child { color: blue; }"),
                 error("color: red; 50% { opacity: 0; }"),
+                error("&:hover: { color: red; }"),
             ],
             [
                 "Invalid CSS: missing `;` before a nested rule, `color: red &:hover` is not a valid selector at 0..20",
                 "Invalid CSS: missing `;` before a nested rule, `color: red .child` is not a valid selector at 0..19",
                 "Invalid CSS: `50%` is not a valid selector at 12..15",
+                "Invalid CSS: `&:hover:` is not a valid selector at 0..8",
             ]
         );
     }
@@ -387,18 +382,10 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_semicolons_after_custom_properties() {
+    fn accepts_colons_in_custom_property_values() {
         assert_eq!(
-            [
-                error("---size: 10px\n  width: var(---size);"),
-                error("--x: 1px\n  width: 2px;"),
-                error("--x: a: b;"),
-            ],
-            [
-                "Invalid CSS: missing `;` before `width` at 16..21",
-                "Invalid CSS: missing `;` before `width` at 11..16",
-                "ok",
-            ]
+            [error("--config:\n    theme: dark;"), error("--x: a: b;"),],
+            ["ok", "ok"]
         );
     }
 }

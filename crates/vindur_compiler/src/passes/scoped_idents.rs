@@ -66,7 +66,10 @@ impl ScopedIdentCollector<'_> {
                 Statement::Declaration(declaration) => {
                     self.declaration(declaration, ScopedRole::Declaration);
                 }
-                Statement::QualifiedRule(rule) => self.block(&rule.block)?,
+                Statement::QualifiedRule(rule) => {
+                    self.selector(rule.selector.span);
+                    self.block(&rule.block)?;
+                }
                 Statement::UnknownQualifiedRule(rule) => self.block(&rule.block)?,
                 Statement::KeyframeBlock(block) => self.block(&block.block)?,
                 Statement::AtRule(rule) => self.at_rule(rule)?,
@@ -217,6 +220,19 @@ impl ScopedIdentCollector<'_> {
         Ok(())
     }
 
+    /// Selectors can name scoped variables, like `::view-transition-old(---card)`
+    fn selector(&mut self, span: oxc_css_parser::Span) {
+        let text = &self.source[span.start..span.end];
+        for (start, end) in scoped_ident_ranges(text) {
+            self.push(
+                span.start + start,
+                span.start + end,
+                &text[start..end],
+                ScopedRole::Name,
+            );
+        }
+    }
+
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
@@ -308,6 +324,12 @@ fn is_raw_var_call(name: &TokenWithSpanData, paren: &TokenWithSpanData, source: 
 
 /// Whether the text has an identifier starting with `---`, comments, strings and urls are ignored
 fn has_scoped_ident(text: &str) -> bool {
+    !scoped_ident_ranges(text).is_empty()
+}
+
+/// Byte ranges of the identifiers starting with `---`, comments, strings and urls are ignored
+fn scoped_ident_ranges(text: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
     let mut index = 0;
     while let Some(character) = text[index..].chars().next() {
         if let Some(end) = skipped_token_end(text, index) {
@@ -322,9 +344,15 @@ fn has_scoped_ident(text: &str) -> bool {
                 .is_some_and(is_ident_char)
             && !text[..index].chars().next_back().is_some_and(is_ident_char)
         {
-            return true;
+            let name_length = rest[SCOPED_PREFIX.len()..]
+                .find(|character: char| !is_ident_char(character))
+                .unwrap_or(rest.len() - SCOPED_PREFIX.len());
+            let end = index + SCOPED_PREFIX.len() + name_length;
+            ranges.push((index, end));
+            index = end;
+            continue;
         }
         index += character.len_utf8();
     }
-    false
+    ranges
 }

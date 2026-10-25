@@ -49,3 +49,44 @@ test('should rename style prop variables read by css props', async () => {
     "
   `);
 });
+
+test('should rename style prop variables merged by dynamicColor', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const App = ({ width }: { width: string }) => (
+        <div
+          dynamicColor={color.set('#fff')}
+          style={{ '---width': width }}
+          css={\`width: var(---width);\`}
+        />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1", true);
+    const App = ({ width }: { width: string }) => (
+      <div
+        className="v1560qbr-2-css-prop-2"
+        {...color._sp("#fff", {
+          style: {
+            "--v1560qbr-3-width": width,
+          },
+        })}
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2-css-prop-2 {
+      width: var(--v1560qbr-3-width);
+    }
+    "
+  `);
+});

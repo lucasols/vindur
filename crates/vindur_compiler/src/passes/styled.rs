@@ -19,6 +19,11 @@ pub(crate) struct StyleFlag {
     pub prop_name: String,
 }
 
+/// JS identifiers can contain `$`, which is not valid in a CSS class name
+pub(crate) fn css_class_name_part(name: &str) -> String {
+    name.replace('$', "_")
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct StyledComponent {
     pub attrs: Option<String>,

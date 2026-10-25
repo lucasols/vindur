@@ -193,6 +193,7 @@ impl JsxCssVisitor<'_> {
                     &TemplateContext {
                         variable_name: None,
                         tag_type: "css",
+                        style_flags: &[],
                     },
                 ) {
                     Ok(content) => clean_css(&content),

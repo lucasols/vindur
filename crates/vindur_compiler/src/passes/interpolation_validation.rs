@@ -18,7 +18,7 @@ pub(super) fn invalid_layer_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
+    let Expression::CallExpression(call) = expression.without_parentheses() else {
         return None;
     };
     let Expression::Identifier(callee) = &call.callee else {

@@ -17,7 +17,7 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
     styled::{
-        StyledComponent, StyledTagContext, missing_style_flag_selectors,
+        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::{parse_theme_colors, static_color_fallbacks},
@@ -179,6 +179,11 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
+            let style_flags = if own_style_flags.is_empty() {
+                base_component.style_flags.clone()
+            } else {
+                own_style_flags
+            };
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -188,6 +193,7 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(variable_name),
                     tag_type: "styled",
+                    style_flags: &style_flags,
                 },
             )?;
             let content = clean_css(&content);
@@ -195,23 +201,6 @@ pub(super) fn process_variable_declaration(
                 content
             } else {
                 static_color_fallbacks(&content)
-            };
-            let content = process_scoped_variables(
-                &content,
-                BlockKind::Style,
-                identifier.span,
-                transform.file_hash,
-                transform.dev,
-                transform.id_index,
-                transform.scoped_variables,
-            )
-            .map_err(|error| {
-                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
-            })?;
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
             };
             if transform.dev {
                 transform.warnings.extend(
@@ -264,7 +253,20 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
+            // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content = process_scoped_variables(
+                &content,
+                BlockKind::Style,
+                identifier.span,
+                transform.file_hash,
+                transform.dev,
+                transform.id_index,
+                transform.scoped_variables,
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             transform
                 .css_rules
                 .extend(
@@ -356,6 +358,7 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
+                    style_flags: &[],
                 },
             )?;
             let content = clean_css(&content);
@@ -402,6 +405,7 @@ pub(super) fn process_variable_declaration(
             &TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
+                style_flags: &[],
             },
         )?;
         let content = clean_css(&content);
@@ -453,7 +457,10 @@ pub(super) fn process_variable_declaration(
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {
     if dev {
-        format!("{file_hash}-{id_index}-{variable_name}")
+        format!(
+            "{file_hash}-{id_index}-{}",
+            css_class_name_part(variable_name)
+        )
     } else {
         format!("{file_hash}-{id_index}")
     }

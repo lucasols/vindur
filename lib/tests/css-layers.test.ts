@@ -403,6 +403,25 @@ describe('CSS layers with layer() function', () => {
     `);
   });
 
+  test('should validate layer names in parenthesized layer() calls', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css, layer } from 'vindur'
+
+          const style = css\`
+            \${(layer('invalid name'))} {
+              color: red;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid layer name "invalid name", layer names must be CSS identifiers separated by \`.\`
+      loc: 4:11]
+    `);
+  });
+
   test('should throw when layer() is used in createGlobalStyle', async () => {
     await expect(
       transformWithFormat({
