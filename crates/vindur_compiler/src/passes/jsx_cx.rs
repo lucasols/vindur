@@ -16,7 +16,7 @@ use crate::{
 use super::{
     css::clean_css,
     css_syntax::CssError,
-    cx_modifier_selectors::{ModifierCss, element_class_names},
+    cx_modifier_selectors::{ModifierCss, element_class_names, rewrites_any},
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
@@ -27,7 +27,7 @@ use super::{
     jsx_css::is_foreign_css_attribute,
     jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
     jsx_cx_css_references::{
-        css_references, rewrite_class_rules, rewrite_css_references,
+        CssReference, css_references, rewrite_class_rules, rewrite_css_references,
         unsupported_css_reference_modifiers,
     },
     runtime_helpers::RuntimeHelperNames,
@@ -76,6 +76,7 @@ pub(crate) fn transform_jsx_cx_props(
     let mut visitor = JsxCxVisitor {
         output,
         class_indices: FxHashMap::default(),
+        modifier_forms: FxHashMap::default(),
         diagnostic: None,
     };
     visitor.visit_program(program);
@@ -89,6 +90,9 @@ pub(crate) fn transform_jsx_cx_props(
 struct JsxCxVisitor<'a> {
     output: JsxCxTransform<'a>,
     class_indices: FxHashMap<String, u32>,
+    /// Whether each `(rules owner, class)` modifier is used hashed, the owner rules are renamed
+    /// for hashed keys, so a `$` key of the same class would stop matching them
+    modifier_forms: FxHashMap<(String, String), bool>,
     diagnostic: Option<CompilerDiagnostic>,
 }
 
@@ -175,6 +179,7 @@ impl JsxCxVisitor<'_> {
             (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
+        let owners = ModifierOwners::new(element, styled.as_ref(), has_vindur_css, &css_references);
         let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
@@ -224,6 +229,11 @@ impl JsxCxVisitor<'_> {
                     "cx prop on plain DOM elements requires classes to use $ prefix (e.g., $className) when not used with css prop or styled components. This ensures you're referencing external CSS classes."
                         .to_owned(),
                 );
+                return;
+            }
+            let hashed = !class_name.starts_with('$');
+            if let Some(message) = self.mixed_modifier_form(&owners, &class_name, hashed) {
+                self.set_error(property.key.span(), message);
                 return;
             }
             let (output_name, should_rewrite_css) =
@@ -440,7 +450,12 @@ impl JsxCxVisitor<'_> {
         styled: &StyledComponent,
         mappings: &[(String, String, bool)],
     ) -> Result<Vec<String>, CssError> {
-        let Some(base_class) = styled.class_name.split_whitespace().last() else {
+        let Some(base_class) = styled
+            .class_name
+            .split_whitespace()
+            .last()
+            .filter(|_| rewrites_any(mappings))
+        else {
             return Ok(Vec::new());
         };
         let mut declared = self.css_prop_class_names(element);
@@ -501,6 +516,35 @@ impl JsxCxVisitor<'_> {
         rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings)
     }
 
+    /// Fails when a class of rules shared with other elements is used both hashed and as a `$`
+    /// key, e.g. `cx={{ active }}` and `cx={{ $active }}` on the same styled component
+    fn mixed_modifier_form(
+        &mut self,
+        owners: &ModifierOwners,
+        key: &str,
+        hashed: bool,
+    ) -> Option<String> {
+        let class_name = key.strip_prefix('$').unwrap_or(key);
+        let owners = if hashed {
+            &owners.hashed
+        } else {
+            &owners.unhashed
+        };
+        let mut mixed = false;
+        for owner in owners {
+            let form = self
+                .modifier_forms
+                .entry((owner.clone(), class_name.to_owned()))
+                .or_insert(hashed);
+            mixed |= *form != hashed;
+        }
+        mixed.then(|| {
+            format!(
+                "cx prop class \"{class_name}\" is used both hashed and as \"${class_name}\" with the same styles, hashing renames their \"&.{class_name}\" selectors so \"${class_name}\" would stop matching. Use the same key in all cx props of these styles."
+            )
+        })
+    }
+
     fn set_error(&mut self, span: oxc_span::Span, message: String) {
         self.diagnostic = Some(CompilerDiagnostic::error(
             self.output.file_path,
@@ -508,6 +552,47 @@ impl JsxCxVisitor<'_> {
             span,
             message,
         ));
+    }
+}
+
+/// The rules each cx key class can be declared in, so their modifiers are shared with other
+/// elements using them
+struct ModifierOwners {
+    /// The rules renamed for hashed keys
+    hashed: Vec<String>,
+    /// The rules a `$` key class can match
+    unhashed: Vec<String>,
+}
+
+impl ModifierOwners {
+    fn new(
+        element: &JSXElement<'_>,
+        styled: Option<&StyledComponent>,
+        has_vindur_css: bool,
+        css_references: &[CssReference],
+    ) -> Self {
+        let styled_class = styled
+            .and_then(|styled| styled.class_name.split_whitespace().last())
+            .map(str::to_owned);
+        let references = css_references
+            .iter()
+            .map(|reference| reference.name().to_owned())
+            .collect::<Vec<_>>();
+        let css_prop = has_vindur_css.then(|| format!("css:{}", element.span.start));
+        // Css references of a styled component are not renamed, see
+        // `unsupported_css_reference_modifiers`
+        let hashed = match &styled_class {
+            Some(class) => vec![class.clone()],
+            None => references.clone(),
+        };
+        Self {
+            hashed: hashed.into_iter().chain(css_prop.clone()).collect(),
+            unhashed: styled_class
+                .into_iter()
+                .chain(references)
+                .chain(css_prop)
+                .collect(),
+        }
     }
 }
 

@@ -53,6 +53,9 @@ pub(super) fn rewrite_modifiers(
     kind: ModifierCss,
     mappings: &[(String, String, bool)],
 ) -> Result<String, CssError> {
+    if !rewrites_any(mappings) {
+        return Ok(css.to_owned());
+    }
     let mut result = String::with_capacity(css.len());
     let mut last = 0;
     for class in element_classes(css, kind)? {
@@ -68,6 +71,13 @@ pub(super) fn rewrite_modifiers(
     }
     result.push_str(&css[last..]);
     Ok(result)
+}
+
+/// If any of the `(original, hashed, should_rewrite)` mappings renames a class
+pub(super) fn rewrites_any(mappings: &[(String, String, bool)]) -> bool {
+    mappings
+        .iter()
+        .any(|(_, _, should_rewrite)| *should_rewrite)
 }
 
 fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
@@ -137,8 +147,10 @@ impl ElementClassCollector {
 
     /// Returns the context of the at-rule body and if its scope root is the element. Grouping
     /// rules like `@media` keep both. In a `@scope` body `&` and `:scope` are the scope root, so
-    /// they're still the element only when every start selector is, e.g. `@scope (&.a)`. Without
-    /// a start selector, e.g. `@scope to (.x)`, the root is the parent of the stylesheet owner
+    /// they're still the element when the subject of any start selector is, e.g. `@scope (&.a)`.
+    /// Without a start selector, e.g. `@scope to (.x)`, the root is the parent of the stylesheet
+    /// owner. In the start selectors of a `@scope` nested in other elements only `:scope` can
+    /// still be the element, e.g. `@scope (:scope.active > &)` in `@scope (&) { & .child { ... } }`
     fn at_rule(&mut self, rule: &AtRule<'_>, context: Context) -> (Context, bool) {
         let is_scope = rule.name.name.eq_ignore_ascii_case("scope");
         let prelude = match &rule.prelude {
@@ -155,6 +167,10 @@ impl ElementClassCollector {
         let body = match (context, start.map(|start| &start.selector)) {
             (Context::Outer, _) => Context::Outer,
             (Context::Element, Some(Some(list))) => self.selector_list(list),
+            (Context::Other, Some(Some(list))) => {
+                self.other_selector_list(list);
+                Context::Other
+            }
             _ => Context::Other,
         };
         let scope_root_is_element = body == Context::Element;
@@ -404,6 +420,7 @@ mod tests {
                 block("@scope (&) { :scope { &.active { color: red; } } }"),
                 block("@scope (&) to (&.active > *) { .child { color: red; } }"),
                 block("@scope (&) { & .child { :scope.active & { color: red; } } }"),
+                block("@scope (&) { & .child { @scope (:scope.active > &) { color: red; } } }"),
             ],
             [
                 "&.h-active { color: red; }",
@@ -423,6 +440,7 @@ mod tests {
                 "@scope (&) { :scope { &.h-active { color: red; } } }",
                 "@scope (&) to (&.h-active > *) { .child { color: red; } }",
                 "@scope (&) { & .child { :scope.h-active & { color: red; } } }",
+                "@scope (&) { & .child { @scope (:scope.h-active > &) { color: red; } } }",
             ]
         );
     }
@@ -448,6 +466,7 @@ mod tests {
             "@scope to (.x) { &.active { color: red; } }",
             "@scope { :scope.active { color: red; } }",
             "@scope to (:scope.active > *) { color: red; }",
+            "@scope (&) { .c { @scope (&.active) { :scope.disabled { color: red; } } } }",
             "content: \"&.active\"; /* &.active */",
             "---x: &.active;",
         ] {

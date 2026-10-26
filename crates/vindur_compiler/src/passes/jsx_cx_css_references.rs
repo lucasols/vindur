@@ -6,7 +6,7 @@ use crate::facts::StaticValue;
 
 use super::{
     css_syntax::CssError,
-    cx_modifier_selectors::{ModifierCss, element_class_names, rewrite_modifiers},
+    cx_modifier_selectors::{ModifierCss, element_class_names, rewrite_modifiers, rewrites_any},
     jsx_attributes::find_last_attribute,
     static_evaluation::resolved_constant,
     styled_jsx_helpers::is_class_rule,
@@ -18,6 +18,13 @@ pub(super) struct CssReference {
     identifier: String,
     span: oxc_span::Span,
     imported: bool,
+}
+
+impl CssReference {
+    /// The class name of the referenced css
+    pub(super) fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// The `css` function references used in `className` or `css`
@@ -65,6 +72,9 @@ pub(super) fn unsupported_css_reference_modifiers(
     css_references: &[CssReference],
     mappings: &[(String, String, bool)],
 ) -> Option<(oxc_span::Span, String)> {
+    if !rewrites_any(mappings) {
+        return None;
+    }
     let mut declaring = Vec::new();
     for reference in css_references {
         match declares_rewritten_modifier(reference, mappings) {
@@ -122,6 +132,9 @@ pub(super) fn rewrite_class_rules(
     class_names: &[String],
     mappings: &[(String, String, bool)],
 ) -> Result<(), CssError> {
+    if !rewrites_any(mappings) {
+        return Ok(());
+    }
     for rule in css_rules.iter_mut().filter(|rule| {
         class_names
             .iter()

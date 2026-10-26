@@ -174,3 +174,117 @@ test('should keep $ cx keys and styled modifiers with a css reference on a style
     "
   `);
 });
+
+test('should fail on a class used both hashed and with $ in cx props of the same styles', async () => {
+  const source = (elements: string) => dedent`
+    import { css, styled } from 'vindur'
+
+    const styles = css\`
+      &.active {
+        color: blue;
+      }
+    \`
+
+    const Box = styled.div\`
+      &.active {
+        color: yellow;
+      }
+    \`
+
+    const Component = ({ on }) => (
+      <>
+        ${elements}
+      </>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<div css={styles} cx={{ active: on }} />\n<div css={styles} cx={{ $active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:28]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Box cx={{ $active: on }} />\n<Box cx={{ active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:15]
+  `);
+});
+
+test('should allow a class hashed and with $ in cx props of different styles', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur'
+
+      const styles = css\`
+        &.active {
+          color: blue;
+        }
+      \`
+
+      const Box = styled.div\`
+        &.active {
+          color: yellow;
+        }
+      \`
+
+      const Component = ({ on }) => (
+        <>
+          <div css={styles} cx={{ $active: on }} />
+          <Box cx={{ active: on }} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const styles = "v1560qbr-1-styles";
+    const Component = ({ on }) => (
+      <>
+        <div
+          className={
+            "v1560qbr-1-styles " +
+            cx({
+              active: on,
+            })
+          }
+        />
+        <div
+          className={
+            "v1560qbr-2-Box " +
+            cx({
+              "v1560qbr-4-active": on,
+            })
+          }
+        />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      &.active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2-Box {
+      &.v1560qbr-4-active {
+        color: yellow;
+      }
+    }
+    "
+  `);
+});

@@ -1001,7 +1001,7 @@ Other `css` values on custom components (strings or non-vindur values) are left 
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`), and each `$` key must be a single class.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`) and must not start with `---`, which is reserved for scoped variables, and each `$` key must be a single class. A class can't be both hashed and `$`-prefixed in the `cx` props of the same styles, like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`.
 
 In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed.
 
