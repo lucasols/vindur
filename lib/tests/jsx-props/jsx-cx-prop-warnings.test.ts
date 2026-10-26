@@ -574,7 +574,7 @@ describe('Warnings for Missing CSS Classes', () => {
         import { styled } from 'vindur';
 
         const Box = styled.div\`
-          & .active {
+          &:not(.active) {
             opacity: 0.5;
           }
 

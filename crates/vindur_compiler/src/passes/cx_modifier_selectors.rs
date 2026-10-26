@@ -165,12 +165,12 @@ impl ElementClassCollector {
         (body, scope_root_is_element)
     }
 
-    /// Collects the element classes of a rule nested in the element, the rule block is still
-    /// the element when the subject of every selector is, e.g. `&:hover, &.a, :where(&.b)`
+    /// Collects the element classes of a rule nested in the element, the rule block may still
+    /// match the element when the subject of any selector is, e.g. `&:hover, & .child`
     fn selector_list(&mut self, list: &SelectorList<'_>) -> Context {
-        let mut is_element = !list.selectors.is_empty();
+        let mut is_element = false;
         for selector in &list.selectors {
-            is_element &= self.selector(selector, false);
+            is_element |= self.selector(selector, false);
         }
         if is_element {
             Context::Element
@@ -391,6 +391,7 @@ mod tests {
                 block("&:is(.active, .disabled):where(.x .active) { color: red; }"),
                 block("@media (min-width: 1px) { &.active { color: red; } }"),
                 block("&:hover { &.active { color: red; } }"),
+                block("&:hover, & .child { &.active { color: red; } }"),
                 block(":where(&.active) { &.disabled { color: red; } }"),
                 block(".x:not(&.active) { color: red; }"),
                 block("&:nth-child(1 of .active):nth-last-child(2 of &.disabled) { color: red; }"),
@@ -411,6 +412,7 @@ mod tests {
                 "&:is(.h-active, .h-disabled):where(.x .h-active) { color: red; }",
                 "@media (min-width: 1px) { &.h-active { color: red; } }",
                 "&:hover { &.h-active { color: red; } }",
+                "&:hover, & .child { &.h-active { color: red; } }",
                 ":where(&.h-active) { &.h-disabled { color: red; } }",
                 ".x:not(&.h-active) { color: red; }",
                 "&:nth-child(1 of .h-active):nth-last-child(2 of &.h-disabled) { color: red; }",
@@ -434,7 +436,6 @@ mod tests {
             "&.active-extra { color: red; }",
             "&:has(.active) { color: red; }",
             "& .child { &.active { color: red; } }",
-            "&:hover, & .child { &.active { color: red; } }",
             ":where(&, .x) { &.active { color: red; } }",
             ":not(&) { &.active { color: red; } }",
             "&:nth-of-type(1) .active { color: red; }",
