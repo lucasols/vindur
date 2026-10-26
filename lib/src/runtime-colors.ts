@@ -14,6 +14,8 @@ import {
 
 export type StaticColor<D extends string> = {
   value: string;
+  /** @deprecated Use `value` instead */
+  var: string;
   defaultHex: D;
   alpha: (alpha: number) => string;
   darker: (amount: number) => string;
@@ -21,6 +23,8 @@ export type StaticColor<D extends string> = {
   saturatedDarker: (amount: number) => string;
   contrast: {
     value: string;
+    /** @deprecated Use `value` instead */
+    var: string;
     optimal: (options?: { alpha?: number }) => string;
     alpha: (alpha: number) => string;
   };
@@ -281,12 +285,14 @@ function staticColorOps(hex: string): ColorOps {
 
   return {
     value: hex,
+    var: hex,
     alpha: (alpha) => alphaHex(rgb, alpha),
     darker: (amount) => toHex(mix(rgb, 0, amount)),
     lighter: (amount) => toHex(mix(rgb, 255, amount)),
     saturatedDarker: (amount) => toHex(saturatedDarker(rgb, amount)),
     contrast: {
       value: contrastHex,
+      var: contrastHex,
       optimal: (options) =>
         options?.alpha === undefined ?
           optimalHex
@@ -311,12 +317,16 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 
 export type ContrastOps = {
   value: string;
+  /** @deprecated Use `value` instead */
+  var: string;
   optimal: (options?: { alpha?: number }) => string;
   alpha: (alpha: number) => string;
 };
 
 export type ColorOps = {
   value: string;
+  /** @deprecated Use `value` instead */
+  var: string;
   alpha: (alpha: number) => string;
   darker: (amount: number) => string;
   lighter: (amount: number) => string;
@@ -341,6 +351,7 @@ export function buildColorOps({
 }): ColorOps {
   return {
     value: base,
+    var: base,
     alpha: (alpha: number) =>
       `color-mix(in srgb, ${base} ${colorMixPercentage(alpha)}, transparent)`,
     darker: (amount: number) =>
@@ -350,6 +361,7 @@ export function buildColorOps({
     saturatedDarker: saturatedDarkerOp,
     contrast: {
       value: contrastBase,
+      var: contrastBase,
       optimal: (options?: { alpha?: number }) => {
         if (options?.alpha !== undefined) {
           return `color-mix(in srgb, ${contrastOptimalBase} ${colorMixPercentage(options.alpha)}, transparent)`;

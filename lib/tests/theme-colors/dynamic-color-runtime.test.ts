@@ -26,6 +26,15 @@ describe('createDynamicCssColor runtime', () => {
     );
   });
 
+  test('should keep the deprecated `var` property as an alias of `value`', () => {
+    const color = createDynamicCssColor('test-123');
+
+    expect(color).toMatchObject({
+      var: 'var(--test-123)',
+      contrast: { var: 'var(--test-123-c)' },
+    });
+  });
+
   test('should generate correct contrast functions', () => {
     const color = createDynamicCssColor('test-123');
 
