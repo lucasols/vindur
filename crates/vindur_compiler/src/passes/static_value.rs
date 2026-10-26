@@ -11,7 +11,9 @@ use super::dynamic_color_value::{
     color_interpolation_error, container_selector_error, invalid_color_method_error,
 };
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
-use super::interpolation_validation::{invalid_array_argument_error, invalid_layer_error};
+use super::interpolation_validation::{
+    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+};
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
     static_value_to_string,
@@ -251,7 +253,15 @@ fn build_template_css(
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
             StaticValue::CssClass { name, .. } => format!(".{name}"),
-            value => static_value_to_string(value),
+            value => {
+                let value = static_value_to_string(value);
+                if let Some(diagnostic) =
+                    interpolated_scoped_variable_error(&value, expression, file_path, source)
+                {
+                    return Err(diagnostic);
+                }
+                value
+            }
         };
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =

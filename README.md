@@ -730,6 +730,8 @@ Compiles to scoped CSS variables:
 }
 ```
 
+Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+
 #### Dynamic Variables
 
 Scoped variables can be set dynamically with the `style` prop:

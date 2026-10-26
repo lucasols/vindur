@@ -9,7 +9,27 @@ use crate::{
 };
 
 use super::css_syntax::is_layer_name;
+use super::id_order::scoped_variable_names;
 use super::static_evaluation::resolved_constant;
+
+/// Scoped variables must be written in the template text, values interpolated from constants or
+/// vindurFn calls can't add them
+pub(super) fn interpolated_scoped_variable_error(
+    value: &str,
+    expression: &Expression<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let name = scoped_variable_names(value).into_iter().next()?;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        expression.span(),
+        format!(
+            "Interpolated values can't contain scoped variables like \"---{name}\", write scoped variables directly in the template"
+        ),
+    ))
+}
 
 pub(super) fn invalid_layer_error(
     expression: &Expression<'_>,

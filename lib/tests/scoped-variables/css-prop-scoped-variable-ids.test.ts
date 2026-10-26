@@ -59,54 +59,42 @@ test('should give css prop scoped variables ids after the cx classes of the elem
   `);
 });
 
-test('should not reuse the ids of later declarations for scoped variables from interpolations', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { createDynamicCssColor } from 'vindur'
-      import { withGap } from '#/fns'
+test('should reject scoped variables from interpolated values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { withGap } from '#/fns'
 
-      export const Box = () => <div css={\`\${withGap(2)}\`} />
-
-      const color = createDynamicCssColor()
-
-      export const Badge = ({ c }) => (
-        <div dynamicColor={color.set(c)} css={\`color: \${color.var};\`} />
-      )
-    `,
-    overrideDefaultFs: createFsMock({
-      'fns.ts': dedent`
-        import { vindurFn } from 'vindur'
-
-        export const withGap = vindurFn((size: number) => \`---gap: \${size}px; gap: var(---gap);\`)
+        export const Box = () => <div css={\`\${withGap(2)}\`} />
       `,
-    }),
-    production: true,
-  });
+      overrideDefaultFs: createFsMock({
+        'fns.ts': dedent`
+          import { vindurFn } from 'vindur'
 
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor } from "vindur";
-    export const Box = () => <div className="v1560qbr-1" />;
-    const color = createDynamicCssColor("v1560qbr-2", false);
-    export const Badge = ({ c }) => (
-      <div
-        {...color._sp(c, {
-          className: "v1560qbr-3",
-        })}
-      />
-    );
-    "
+          export const withGap = vindurFn((size: number) => \`---gap: \${size}px; gap: var(---gap);\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---gap", write scoped variables directly in the template
+    loc: 3:38]
   `);
 
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1 {
-      --v1560qbr-4: 2px;
-      gap: var(--v1560qbr-4);
-    }
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
 
-    .v1560qbr-3 {
-      color: var(--v1560qbr-2);
-    }
-    "
+        const GAP = '---gap'
+
+        const Box = styled.div\`
+          gap: var(\${GAP});
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---gap", write scoped variables directly in the template
+    loc: 6:13]
   `);
 });
 

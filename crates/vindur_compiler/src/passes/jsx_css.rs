@@ -5,15 +5,14 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
     css::{clean_css, generate_class_rules},
-    css_syntax::{BlockKind, CssError, css_error_diagnostic},
+    css_syntax::{BlockKind, css_error_diagnostic},
     cx_selectors::rewrite_cx_selectors_in_body,
-    id_order::{css_attribute_scoped_variable_count, scoped_variable_names},
     jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
     jsx_class_name::{
         ClassNameMerge, ClassNameSources, class_name_merge, emit_class_concat,
@@ -59,7 +58,6 @@ pub(crate) fn transform_jsx_css_props(
     let minimum_final_index = *output.id_index;
     let mut visitor = JsxCssVisitor {
         output,
-        tail_index: minimum_final_index,
         diagnostic: None,
         pass: JsxCssPass::CssProps,
     };
@@ -68,9 +66,7 @@ pub(crate) fn transform_jsx_css_props(
     // css prop is processed
     visitor.pass = JsxCssPass::StyleProps;
     visitor.visit_program(program);
-    *visitor.output.id_index = (*visitor.output.id_index)
-        .max(minimum_final_index)
-        .max(visitor.tail_index);
+    *visitor.output.id_index = (*visitor.output.id_index).max(minimum_final_index);
     match visitor.diagnostic {
         Some(diagnostic) => Err(diagnostic),
         None => Ok(()),
@@ -79,8 +75,6 @@ pub(crate) fn transform_jsx_css_props(
 
 struct JsxCssVisitor<'a> {
     output: JsxCssTransform<'a>,
-    /// The next id after every reserved one
-    tail_index: u32,
     diagnostic: Option<CompilerDiagnostic>,
     pass: JsxCssPass,
 }
@@ -241,9 +235,17 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     *self.output.id_index = cx.next_index;
                 }
-                let rules = match self
-                    .process_css_prop_scoped_variables(&content, attribute, template.span)
-                    .and_then(|content| generate_class_rules(&name, &content))
+                // The ids after the class are reserved for the scoped variables of the template
+                let rules = match process_scoped_variables(
+                    &content,
+                    BlockKind::Style,
+                    template.span,
+                    self.output.file_hash,
+                    self.output.dev,
+                    self.output.id_index,
+                    self.output.scoped_variables,
+                )
+                .and_then(|content| generate_class_rules(&name, &content))
                 {
                     Ok(rules) => rules,
                     Err(error) => {
@@ -346,37 +348,6 @@ impl JsxCssVisitor<'_> {
                 complete_expression.unwrap_or_else(|| js_string_literal(&complete_class)),
             );
         }
-    }
-
-    /// The scoped variables of a css prop take the ids reserved after its class, unless
-    /// interpolations add more names than its template has. Those take ids after every
-    /// reserved one, so they can't reuse the ids of a later declaration
-    fn process_css_prop_scoped_variables(
-        &mut self,
-        content: &str,
-        attribute: &JSXAttribute<'_>,
-        span: oxc_span::Span,
-    ) -> Result<String, CssError> {
-        let new_names = scoped_variable_names(content)
-            .into_iter()
-            .filter(|name| !self.output.scoped_variables.generated.contains_key(*name))
-            .collect::<FxHashSet<_>>()
-            .len();
-        let reserved = css_attribute_scoped_variable_count(attribute);
-        let index = if u32::try_from(new_names).unwrap_or(u32::MAX) <= reserved {
-            &mut *self.output.id_index
-        } else {
-            &mut self.tail_index
-        };
-        process_scoped_variables(
-            content,
-            BlockKind::Style,
-            span,
-            self.output.file_hash,
-            self.output.dev,
-            index,
-            self.output.scoped_variables,
-        )
     }
 
     fn merge_class_attribute(
