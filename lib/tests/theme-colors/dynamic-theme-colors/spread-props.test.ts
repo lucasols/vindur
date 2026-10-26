@@ -282,15 +282,10 @@ describe('Dynamic Colors - Spread Props', () => {
           <div
             {...props}
             {...color._sp("#fff", {
-              className: mergeClassNames([box, props], undefined),
-              style: mergeStyles([
-                {
-                  style: {
-                    "--v1560qbr-3-width": \`\${width}px\`,
-                  },
-                },
-                props,
-              ]),
+              className: mergeClassNames([box, props], ""),
+              style: mergeStyles([props], {
+                "--v1560qbr-3-width": \`\${width}px\`,
+              }),
             })}
           />
         );
@@ -361,7 +356,7 @@ describe('Dynamic Colors - Spread Props', () => {
         <div
           {...props}
           {...color._sp("#fff", {
-            className: mergeClassNames([null, props], undefined),
+            className: mergeClassNames([null || "", props], ""),
             style: mergeStyles([props]),
           })}
         />
@@ -396,7 +391,7 @@ describe('Dynamic Colors - Spread Props', () => {
           icon={<span className="v1560qbr-2-Icon" />}
           id={"v1560qbr-3"}
           {...color._sp("#fff", {
-            className: mergeClassNames([props], undefined),
+            className: mergeClassNames([props], ""),
             style: mergeStyles([props]),
           })}
         />

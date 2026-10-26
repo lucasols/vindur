@@ -59,14 +59,12 @@ test('should merge the css prop class with className and dynamicColor', async ()
       <>
         <div
           {...color._sp("#fff", {
-            className: "v1560qbr-2-css-prop-2 card",
+            className: "card v1560qbr-2-css-prop-2",
           })}
         />
         <div
           {...color._sp("#fff", {
-            className: ["v1560qbr-3-css-prop-3", className]
-              .filter(Boolean)
-              .join(" "),
+            className: (className || "") + " v1560qbr-3-css-prop-3",
           })}
         />
       </>
@@ -168,8 +166,7 @@ test('should merge styled component, css and cx prop classes into dynamicColor',
       <div
         {...color._sp("#fff", {
           className:
-            "v1560qbr-2-Card " +
-            "v1560qbr-3-css-prop-3 " +
+            "v1560qbr-2-Card v1560qbr-3-css-prop-3 " +
             cx({
               "v1560qbr-4-active": active,
             }),
