@@ -268,7 +268,7 @@ describe('keyframes cross-file imports', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.tsx: Function "unknownAnimation" not found in /animations.ts
-      loc: /animations.ts|4:6]
+      loc: 5:15]
     `,
     );
   });

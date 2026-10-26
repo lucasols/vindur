@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    CallExpression, ExportDefaultDeclaration, ExportNamedDeclaration, Expression,
+    CallExpression, Declaration, ExportDefaultDeclaration, ExportNamedDeclaration, Expression,
     IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression,
-    ModuleExportName, Program, TSTypeQuery, TaggedTemplateExpression,
+    ModuleExportName, Program, Statement, TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -9,6 +9,8 @@ use oxc_span::Span;
 use rustc_hash::FxHashSet;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
+
+const VINDUR_TEMPLATE_TAGS: &[&str] = &["css", "styled", "keyframes", "createGlobalStyle"];
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
 /// they can only be referenced in vindur templates and css props, or re-exported by name.
@@ -20,13 +22,20 @@ pub(super) fn runtime_vindur_fn_reference_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    if function_names.is_empty() {
+    let declares_vindur_fn = imports
+        .iter_names()
+        .any(|(_, imported)| imported == "vindurFn")
+        || scoping
+            .root_unresolved_references()
+            .contains_key("vindurFn");
+    if function_names.is_empty() && !declares_vindur_fn {
         return None;
     }
     let mut visitor = RuntimeReferenceVisitor {
         scoping,
         imports,
         function_names,
+        declaration_spans: vindur_fn_declaration_spans(program),
         first_error: None,
     };
     visitor.visit_program(program);
@@ -38,6 +47,7 @@ struct RuntimeReferenceVisitor<'s, 'i, 'n> {
     scoping: &'s Scoping,
     imports: &'i VindurImports<'i>,
     function_names: &'n FxHashSet<&'n str>,
+    declaration_spans: FxHashSet<Span>,
     first_error: Option<(Span, String)>,
 }
 
@@ -55,8 +65,12 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     }
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        let is_vindur_template = tag_root(&tagged.tag)
-            .is_some_and(|identifier| self.imports.get_identifier(identifier).is_some());
+        let is_vindur_template = tag_root(&tagged.tag).is_some_and(|identifier| {
+            self.imports.get_identifier(identifier).is_some()
+                || VINDUR_TEMPLATE_TAGS
+                    .iter()
+                    .any(|tag| self.imports.matches_import_or_global(identifier, tag))
+        });
         if is_vindur_template {
             self.visit_runtime_tag_arguments(&tagged.tag);
         } else {
@@ -126,10 +140,19 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
 
     // vindurFn bodies are checked by the vindurFn validation, which reports a more precise error
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
-        let is_vindur_fn = matches!(&call.callee, Expression::Identifier(callee)
-            if self.imports.matches_import_or_global(callee, "vindurFn"));
-        if !is_vindur_fn {
+        let Expression::Identifier(callee) = &call.callee else {
             walk::walk_call_expression(self, call);
+            return;
+        };
+        if !self.imports.matches_import_or_global(callee, "vindurFn") {
+            walk::walk_call_expression(self, call);
+            return;
+        }
+        if self.first_error.is_none() && !self.declaration_spans.contains(&call.span) {
+            self.first_error = Some((
+                call.span,
+                "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"".to_owned(),
+            ));
         }
     }
 
@@ -171,6 +194,30 @@ impl RuntimeReferenceVisitor<'_, '_, '_> {
             _ => {}
         }
     }
+}
+
+/// vindurFn calls initializing module level variables, which are checked by the vindurFn
+/// declaration validation
+fn vindur_fn_declaration_spans(program: &Program<'_>) -> FxHashSet<Span> {
+    program
+        .body
+        .iter()
+        .filter_map(|statement| match statement {
+            Statement::VariableDeclaration(declaration) => Some(&**declaration),
+            Statement::ExportNamedDeclaration(export) => match &export.declaration {
+                Some(Declaration::VariableDeclaration(declaration)) => Some(&**declaration),
+                _ => None,
+            },
+            _ => None,
+        })
+        .flat_map(|declaration| &declaration.declarations)
+        .filter_map(
+            |declarator| match declarator.init.as_ref()?.get_inner_expression() {
+                Expression::CallExpression(call) => Some(call.span),
+                _ => None,
+            },
+        )
+        .collect()
 }
 
 /// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`

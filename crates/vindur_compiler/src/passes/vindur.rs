@@ -244,6 +244,19 @@ pub(crate) fn transform_program(
             Statement::ExportDefaultDeclaration(export) => {
                 if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
                     &export.declaration
+                    && is_styled_tag(&tagged.tag, &imports)
+                    && (tagged.type_arguments.is_some()
+                        || styled_tag_element(&tagged.tag, &imports).is_none())
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        tagged.span,
+                        "default exported styled components only support \"export default styled.tag`...`\", declare it as a variable, e.g. \"const Component = styled...\", and export it with \"export default Component\"".to_owned(),
+                    ));
+                }
+                if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
+                    &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)
                 {
                     let generated_name = format!("{file_hash}-{id_index}");
@@ -548,3 +561,15 @@ fn scoped_variable_warnings(
 #[cfg(test)]
 #[path = "vindur_tests.rs"]
 mod tests;
+
+/// Whether a tag expression starts with `styled`, e.g. `styled(A).attrs({})`
+fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    match tag {
+        Expression::Identifier(identifier) => {
+            imports.matches_import_or_global(identifier, "styled")
+        }
+        Expression::StaticMemberExpression(member) => is_styled_tag(&member.object, imports),
+        Expression::CallExpression(call) => is_styled_tag(&call.callee, imports),
+        _ => false,
+    }
+}

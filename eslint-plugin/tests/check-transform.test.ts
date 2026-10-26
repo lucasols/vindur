@@ -715,3 +715,53 @@ describe('warning system - onWarning callback functionality', () => {
     });
   });
 });
+
+describe('errors in imported files', () => {
+  test('should report errors located in an imported file at the start of the file', async () => {
+    mockExistsSync.mockImplementation((path) => {
+      return String(path).includes('/styles.ts');
+    });
+
+    mockReadFileSync.mockImplementation((path) => {
+      if (String(path).includes('/styles.ts')) {
+        return dedent`
+          import { css } from 'vindur';
+
+          export const ellipsis = css\`
+            overflow: hidden
+            white-space: nowrap;
+          \`;
+        `;
+      }
+
+      throw new Error(`File not found: ${String(path)}`);
+    });
+
+    const { result } = await invalid({
+      code: dedent`
+        import { styled } from 'vindur';
+        import { ellipsis } from '@/styles';
+
+        const Title = styled.div\`
+          \${ellipsis};
+          color: red;
+        \`;
+      `,
+      options: [
+        {
+          importAliases: {
+            '@': '/',
+          },
+        },
+      ],
+    });
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformError'
+        msg: '/styles.ts: Invalid CSS at \`... ellipsis = css\`: missing \`;\` before \`white-space\`'
+        loc: '1:1'
+      "
+    `);
+  });
+});

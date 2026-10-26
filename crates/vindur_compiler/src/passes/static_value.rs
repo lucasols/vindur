@@ -147,7 +147,7 @@ fn build_template_css(
             }) = resolved_constant(identifier, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
-                source_path,
+                file_path,
                 source,
                 expression.span(),
                 format!("Function \"{imported_name}\" not found in {source_path}"),
@@ -155,11 +155,11 @@ fn build_template_css(
         }
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
-            && let Some(StaticValue::InvalidFunction { source_path }) =
+            && let Some(StaticValue::InvalidFunction { .. }) =
                 resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
-                source_path,
+                file_path,
                 source,
                 expression.span(),
                 "called a invalid vindur function, style functions must be defined with \"vindurFn(() => ...)\" function"
@@ -168,11 +168,11 @@ fn build_template_css(
         }
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
-            && let Some(StaticValue::ImportedValue { source_path, .. }) =
+            && let Some(StaticValue::ImportedValue { .. }) =
                 resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
-                source_path,
+                file_path,
                 source,
                 expression.span(),
                 "called a invalid vindur function, style functions must be defined with \"vindurFn(() => ...)\" function"

@@ -508,7 +508,7 @@ test('should throw error when imported CSS is not found', async () => {
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
-    loc: /styles.ts|4:6]
+    loc: 5:4]
   `,
   );
 });

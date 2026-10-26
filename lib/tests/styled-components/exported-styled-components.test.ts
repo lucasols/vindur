@@ -304,6 +304,57 @@ describe('Exported styled components', () => {
     `);
   });
 
+  test('should error on default exports of other styled forms', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Base = () => null
+
+          export default styled(Base)\`
+            color: red;
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: default exported styled components only support "export default styled.tag\`...\`", declare it as a variable, e.g. "const Component = styled...", and export it with "export default Component"
+      loc: 5:15]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          export default styled.input.attrs({ type: 'text' })\`
+            color: red;
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: default exported styled components only support "export default styled.tag\`...\`", declare it as a variable, e.g. "const Component = styled...", and export it with "export default Component"
+      loc: 3:15]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          export default styled.div<{ active: boolean }>\`
+            &.active {
+              color: red;
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: default exported styled components only support "export default styled.tag\`...\`", declare it as a variable, e.g. "const Component = styled...", and export it with "export default Component"
+      loc: 3:15]
+    `);
+  });
+
   test('should handle mixed local and exported styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`

@@ -135,6 +135,16 @@ pub(super) fn collect_vindur_imports(
         if let Some(specifiers) = &declaration.specifiers {
             for specifier in specifiers {
                 specifier_count += 1;
+                if !declaration.import_kind.is_type()
+                    && !matches!(specifier, ImportDeclarationSpecifier::ImportSpecifier(_))
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        specifier.span(),
+                        "namespace and default imports from \"vindur\" are not supported, import the functions by name, e.g. import { css } from \"vindur\"".to_owned(),
+                    ));
+                }
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
                     let is_type_import =

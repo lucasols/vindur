@@ -177,3 +177,40 @@ test('should keep type only vindur imports when merging vindur imports', async (
     "
   `);
 });
+
+test('should error on namespace imports from vindur', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import * as vindur from 'vindur';
+
+        export const box = css\`
+          color: red;
+        \`;
+
+        export const className = vindur.cx({ active: true });
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: namespace and default imports from "vindur" are not supported, import the functions by name, e.g. import { css } from "vindur"
+    loc: 2:7]
+  `);
+});
+
+test('should error on default imports from vindur', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import vindur from 'vindur';
+
+        export const box = vindur.css\`
+          color: red;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: namespace and default imports from "vindur" are not supported, import the functions by name, e.g. import { css } from "vindur"
+    loc: 1:7]
+  `);
+});

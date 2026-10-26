@@ -315,3 +315,76 @@ test('should error on namespace imports of modules that export vindurFns', async
     loc: 2:7]
   `);
 });
+
+test('should error on vindurFn declarations that are not exported constants', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export default vindurFn((size: number) => \`padding: \${size}px;\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn is not supported here, vindur functions must be declared with "export const name = vindurFn((...) => ...)"
+    loc: 3:15]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const mixins = {
+          spacing: vindurFn((size: number) => \`padding: \${size}px;\`),
+        };
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn is not supported here, vindur functions must be declared with "export const name = vindurFn((...) => ...)"
+    loc: 4:11]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export function createSpacing() {
+          const spacing = vindurFn((size: number) => \`padding: \${size}px;\`);
+          return spacing;
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn is not supported here, vindur functions must be declared with "export const name = vindurFn((...) => ...)"
+    loc: 4:18]
+  `);
+});
+
+test('should allow vindurFn usage in templates of the global styled', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { transition } from '#/transition';
+
+      const Box = styled.div\`
+        \${transition('opacity')};
+      \`;
+
+      export const App = () => <Box />;
+    `,
+    overrideDefaultFs: transitionFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => <div className="v1560qbr-1-Box" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      transition: opacity 0.2s;
+    }
+    "
+  `);
+});
