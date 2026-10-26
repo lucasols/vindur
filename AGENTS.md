@@ -2,9 +2,24 @@ This file provides guidance to Code Agents when working with code in this reposi
 
 # Development Philosophy
 
-- Prioritize the runtime performance of apps that use vindur, with compilation speed as a close second
-- Vindur doesn't need to support every scenario or variation: features can be limited, mainly to gain performance. Unsupported or invalid code must produce a warning or error, never silently compile to something wrong
-- Supporting fewer features is better than having slow compilations
+Vindur is a compiler, and compilers have endless edge cases. Do not try to cover them all: support a small, well-defined set of patterns and reject everything else.
+
+## Restricted feature set, fail fast
+
+- Prefer a restricted set of supported syntax and patterns over handling every corner case. A narrow feature that is always correct beats a broad one with gaps
+- When code falls outside the supported set, emit a clear error (or a warning when the output is still correct) that tells the user what to write instead. Never guess, fall back, or silently compile to something wrong
+- Do not add special-case handling for rare patterns (aliased imports, re-exports, indirect references, computed values, unusual module shapes, etc.) unless there is a real use case. Rejecting them with a good error is the default
+- When fixing a bug in an edge case, first consider whether the pattern should be unsupported instead of handled
+- Keep the supported surface easy to describe in the README. If a feature needs a long list of exceptions to explain, it is probably too broad
+
+## Performance
+
+Performance is a priority on both sides of the compiler:
+
+1. **Runtime performance of the generated code** comes first: the output runs in every user's app (see "Runtime performance" below)
+2. **Compilation speed** comes second. The core compiler is written in Rust, so it is already fast; do not trade output quality or correctness for small compile-time gains. Still avoid features that need expensive analysis (whole-program evaluation, deep cross-module resolution, repeated parsing, unbounded recursion), restricting the feature instead
+
+If a feature can only be supported with slow compilation or runtime overhead, restrict or drop it.
 
 # Running ts code
 
