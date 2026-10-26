@@ -10,8 +10,8 @@ describe('Dynamic Colors - Basic Usage', () => {
       const dynamicColor = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${dynamicColor.var};
-        color: \${dynamicColor.contrast.var};
+        background: \${dynamicColor.value};
+        color: \${dynamicColor.contrast.value};
       \`
 
       const Component = () => {
@@ -56,8 +56,8 @@ describe('Dynamic Colors - Basic Usage', () => {
       const color = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = () => {
@@ -164,7 +164,7 @@ describe('Dynamic Colors - Basic Usage', () => {
       const color = createDynamicCssColor('custom-id')
 
       const Button = styled.button\`
-        background: \${color.var};
+        background: \${color.value};
       \`
 
       const Component = () => {

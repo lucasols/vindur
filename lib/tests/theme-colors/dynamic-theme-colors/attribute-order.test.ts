@@ -14,7 +14,7 @@ test('should place the dynamic color props after a later spread and props with J
       \`
 
       const Card = styled.div\`
-        color: \${color.var};
+        color: \${color.value};
       \`
 
       const Component = (props) => (
@@ -52,7 +52,7 @@ test('should apply style flags of a styled component with dynamicColor', async (
       const color = createDynamicCssColor()
 
       const Flag = styled.div<{ active: boolean; size: 'small' | 'large' }>\`
-        color: \${color.var};
+        color: \${color.value};
 
         &.active {
           color: blue;

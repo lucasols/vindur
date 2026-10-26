@@ -14,7 +14,7 @@ test('should give css prop scoped variables ids after the cx classes of the elem
       const color = createDynamicCssColor()
 
       export const Badge = ({ c }) => (
-        <div dynamicColor={color.set(c)} css={\`color: \${color.var};\`} />
+        <div dynamicColor={color.set(c)} css={\`color: \${color.value};\`} />
       )
     `,
     production: true,

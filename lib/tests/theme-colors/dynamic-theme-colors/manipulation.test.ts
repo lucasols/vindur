@@ -10,8 +10,8 @@ describe('Dynamic Colors - Color Manipulation Functions', () => {
       const color = createDynamicCssColor()
 
       const Button = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
 
         --darker: \${color.darker(0.1)};
         --alpha: \${color.alpha(0.8)};

@@ -13,7 +13,7 @@ describe('createStaticThemeColors only import', () => {
       })
 
       // No other vindur functions used, just the theme colors
-      console.log(colors.primary.var)
+      console.log(colors.primary.value)
     `;
 
     const result = await transformWithFormat({ source });
@@ -26,7 +26,7 @@ describe('createStaticThemeColors only import', () => {
       });
 
       // No other vindur functions used, just the theme colors
-      console.log(colors.primary.var);
+      console.log(colors.primary.value);
       "
     `);
   });
@@ -41,7 +41,7 @@ describe('createStaticThemeColors only import', () => {
       })
 
       export function getThemeColor(name: keyof typeof colors) {
-        return colors[name].var
+        return colors[name].value
       }
     `;
 
@@ -54,7 +54,7 @@ describe('createStaticThemeColors only import', () => {
         danger: "#dc3545",
       });
       export function getThemeColor(name: keyof typeof colors) {
-        return colors[name].var;
+        return colors[name].value;
       }
       "
     `);

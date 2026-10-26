@@ -88,8 +88,8 @@ test('should replace characters invalid in CSS in theme color variable names', a
       const colors = createStaticThemeColors({ $brand: '#3366cc' })
 
       export const a = css\`
-        color: \${colors.$brand.var};
-        background: \${colors.$brand.contrast.var};
+        color: \${colors.$brand.value};
+        background: \${colors.$brand.contrast.value};
         border-color: \${colors.$brand.darker(0.1)};
       \`
     `,

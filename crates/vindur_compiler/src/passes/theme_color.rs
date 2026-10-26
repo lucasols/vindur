@@ -82,7 +82,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
         StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
             Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex, .. } if property == "var" => Some(
+        StaticValue::ThemeColor { name, hex, .. } if property == "value" => Some(
             StaticValue::String(format!("var(--stc-{}-var, {hex})", css_name(name))),
         ),
         StaticValue::ThemeColor { name, hex, .. } if property == "contrast" => {
@@ -92,7 +92,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
                 base_hex: hex.clone(),
             })
         }
-        StaticValue::ThemeColorContrast { name, hex, .. } if property == "var" => Some(
+        StaticValue::ThemeColorContrast { name, hex, .. } if property == "value" => Some(
             StaticValue::String(format!("var(--stc-{}-contrast-var, {hex})", css_name(name))),
         ),
         _ => None,

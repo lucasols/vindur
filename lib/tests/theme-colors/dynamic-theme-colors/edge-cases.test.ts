@@ -17,8 +17,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       import { themeColor } from '#/colors'
 
       const Button = styled.button\`
-        background: \${themeColor.var};
-        color: \${themeColor.contrast.var};
+        background: \${themeColor.value};
+        color: \${themeColor.contrast.value};
 
         \${themeColor.self.isDark} {
           border: 1px solid white;
@@ -79,8 +79,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ condition }) => {
@@ -129,8 +129,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ themeColor }) => {
@@ -179,8 +179,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ isActive }) => {
@@ -231,7 +231,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ condition }) => {
@@ -258,7 +258,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ hasColor }) => {
@@ -285,7 +285,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ shouldApplyColor }) => {

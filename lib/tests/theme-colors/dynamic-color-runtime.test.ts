@@ -11,7 +11,7 @@ describe('createDynamicCssColor runtime', () => {
   test('should generate correct CSS variables and functions', () => {
     const color = createDynamicCssColor('test-123');
 
-    expect(color.var).toBe('var(--test-123)');
+    expect(color.value).toBe('var(--test-123)');
     expect(color.alpha(0.5)).toBe(
       'color-mix(in srgb, var(--test-123) 50%, transparent)',
     );
@@ -29,7 +29,7 @@ describe('createDynamicCssColor runtime', () => {
   test('should generate correct contrast functions', () => {
     const color = createDynamicCssColor('test-123');
 
-    expect(color.contrast.var).toBe('var(--test-123-c)');
+    expect(color.contrast.value).toBe('var(--test-123-c)');
     expect(color.contrast.optimal()).toBe('var(--test-123-c-optimal)');
     expect(color.contrast.optimal({ alpha: 0.6 })).toBe(
       'color-mix(in srgb, var(--test-123-c-optimal) 60%, transparent)',

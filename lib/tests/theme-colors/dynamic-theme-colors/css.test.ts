@@ -10,8 +10,8 @@ describe('Dynamic Colors - CSS Function Usage', () => {
       const color = createDynamicCssColor()
 
       const cardStyles = css\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
         padding: 20px;
         border-radius: 8px;
 
@@ -69,8 +69,8 @@ describe('Dynamic Colors - CSS Function Usage', () => {
       const color = createDynamicCssColor()
 
       const cardStyles = css\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
         padding: 20px;
       \`
 

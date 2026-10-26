@@ -57,7 +57,7 @@ test('should throw for real-world helper usage patterns from agent-eval', () => 
 
         const Eyebrow = styled.div\`
           \${kicker}
-          color: \${colors.textMuted.var};
+          color: \${colors.textMuted.value};
         \`
 
         const IconButtonRoot = styled.button<{ md: boolean }>\`
@@ -70,7 +70,7 @@ test('should throw for real-world helper usage patterns from agent-eval', () => 
           \${kicker}
           \${transition({ property: 'color' })}
           appearance: none;
-          color: \${colors.textMuted.var};
+          color: \${colors.textMuted.value};
         \`
       `,
       dev: true,

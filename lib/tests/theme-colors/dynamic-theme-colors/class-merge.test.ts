@@ -11,7 +11,7 @@ test('should merge css prop class and className of imported dynamic color', asyn
         <div
           className="base"
           css={\`
-            background: \${themeColor.var};
+            background: \${themeColor.value};
           \`}
           dynamicColor={themeColor.set('#ff6b6b')}
         />
@@ -55,7 +55,7 @@ test('should merge cx classes, css className and scoped style into the dynamic c
 
       const cls = css\`
         ---size: 1px;
-        color: \${color.contrast.var};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ active, size }) => (
@@ -108,7 +108,7 @@ test('should keep className and style before a spread as fallbacks', async () =>
       const color = createDynamicCssColor()
 
       const Box = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
       \`
 
       const Component = (props) => (
@@ -146,7 +146,7 @@ test('should keep the import of a dynamic color used in a custom component css p
       import { themeColor } from '#/colors'
       import { Custom } from '#/custom'
 
-      const Component = () => <Custom css={themeColor.var} />;
+      const Component = () => <Custom css={themeColor.value} />;
     `,
     overrideDefaultFs: createFsMock({
       'colors.ts': dedent`
@@ -160,7 +160,7 @@ test('should keep the import of a dynamic color used in a custom component css p
   expect(result.code).toMatchInlineSnapshot(`
     "import { themeColor } from "#/colors";
     import { Custom } from "#/custom";
-    const Component = () => <Custom css={themeColor.var} />;
+    const Component = () => <Custom css={themeColor.value} />;
     "
   `);
 });

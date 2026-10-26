@@ -12,7 +12,7 @@ describe('imported file hash generation', () => {
         const containerStyles = css\`
           \${baseStyles};
           animation: \${fadeAnimation} 0.3s;
-          color: \${primaryColor.var};
+          color: \${primaryColor.value};
         \`
 
         const App = () => (
@@ -81,7 +81,7 @@ describe('imported file hash generation', () => {
         const mainStyles = css\`
           \${buttonStyles};
           animation: \${slideIn} 0.5s;
-          background: \${themeColor.var};
+          background: \${themeColor.value};
         \`
       `,
       overrideDefaultFs: createFsMock({
@@ -188,7 +188,7 @@ describe('imported file hash generation', () => {
         import { css } from 'vindur'
 
         const styles = css\`
-          color: \${publicColor.var};
+          color: \${publicColor.value};
         \`
 
         const App = () => <PublicButton className={styles} />
@@ -242,8 +242,8 @@ describe('imported file hash generation', () => {
         import { css } from 'vindur'
 
         const styles = css\`
-          color: \${primaryColor.var};
-          background: \${secondaryColor.var};
+          color: \${primaryColor.value};
+          background: \${secondaryColor.value};
         \`
       `,
       overrideDefaultFs: createFsMock({
@@ -313,7 +313,7 @@ describe('imported file hash generation', () => {
           export const complexLayout = css\`
             \${headerStyles};
             animation: \${fadeIn} 0.3s;
-            color: \${themeColor.var};
+            color: \${themeColor.value};
           \`
         `,
       }),
@@ -599,7 +599,7 @@ describe('imported file hash generation', () => {
         const Button = styled.button\`
           padding: 12px;
           animation: \${fadeIn} 0.3s;
-          color: \${themeColor.var};
+          color: \${themeColor.value};
         \`
 
         // Index 5

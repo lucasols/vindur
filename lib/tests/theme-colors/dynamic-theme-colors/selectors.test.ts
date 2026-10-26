@@ -11,8 +11,8 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const dynamicColor = createDynamicCssColor()
 
       const Container = styled.div\`
-        background: \${dynamicColor.var};
-        color: \${dynamicColor.contrast.var};
+        background: \${dynamicColor.value};
+        color: \${dynamicColor.contrast.value};
 
         \${dynamicColor.self.isDark} {
           border: 2px solid white;
@@ -151,7 +151,7 @@ describe('Dynamic Colors - Conditional Selectors', () => {
       const color = createDynamicCssColor()
 
       const ComplexComponent = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
 
         \${color.self.isDark} {
           color: white;

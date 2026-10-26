@@ -30,19 +30,19 @@ test.beforeAll(async ({ browser }) => {
       \`;
 
       const primaryStyles = css\`
-        background: \${colors.primary.var};
+        background: \${colors.primary.value};
       \`;
 
       const secondaryStyles = css\`
-        background: \${colors.secondary.var};
+        background: \${colors.secondary.value};
       \`;
 
       const cardStyles = css\`
         padding: 20px;
         border-radius: 8px;
         margin: 10px;
-        border: 2px solid \${colors.success.var};
-        background-color: \${colors.primary.var};
+        border: 2px solid \${colors.success.value};
+        background-color: \${colors.primary.value};
       \`;
 
       export default function App() {
@@ -71,7 +71,7 @@ test.beforeAll(async ({ browser }) => {
 
             <div 
               data-testid="danger-text"
-              style={{ color: colors.danger.var }}
+              style={{ color: colors.danger.value }}
             >
               Danger Text
             </div>

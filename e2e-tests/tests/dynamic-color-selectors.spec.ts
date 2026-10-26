@@ -12,7 +12,7 @@ const files = {
     const bg = createDynamicCssColor();
 
     const Card = styled.div\`
-      background: \${bg.var};
+      background: \${bg.value};
       outline-style: none;
 
       \${bg.self.isDark} {
@@ -37,7 +37,7 @@ const files = {
     \`;
 
     const importedBox = css\`
-      background: \${themeColor.var};
+      background: \${themeColor.value};
       outline-style: dotted;
     \`;
 

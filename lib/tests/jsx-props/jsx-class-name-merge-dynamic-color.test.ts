@@ -71,7 +71,7 @@ test('should keep the css prop class of a styled component with dynamicColor', a
       const color = createDynamicCssColor();
 
       const Box = styled.div\`
-        color: \${color.var};
+        color: \${color.value};
       \`;
 
       export const A = () => (

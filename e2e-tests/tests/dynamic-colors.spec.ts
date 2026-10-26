@@ -20,7 +20,7 @@ test.beforeAll(async ({ browser }) => {
         padding: 10px 20px;
         border: none;
         border-radius: 4px;
-        background: \${primaryColor.var};
+        background: \${primaryColor.value};
         color: white;
         font-weight: 500;
       \`;
@@ -29,7 +29,7 @@ test.beforeAll(async ({ browser }) => {
         padding: 10px 20px;
         border: none;
         border-radius: 4px;
-        background: \${secondaryColor.var};
+        background: \${secondaryColor.value};
         color: white;
         font-weight: 500;
       \`;
@@ -38,7 +38,7 @@ test.beforeAll(async ({ browser }) => {
         padding: 20px;
         border-radius: 8px;
         margin: 10px;
-        background: \${primaryColor.var};
+        background: \${primaryColor.value};
       \`;
 
       export default function App() {

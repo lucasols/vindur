@@ -12,7 +12,7 @@ describe('createStaticThemeColors runtime', () => {
     });
 
     expect(colors.primary.defaultHex).toBe('#007bff');
-    expect(colors.primary.var).toBe('#007bff');
+    expect(colors.primary.value).toBe('#007bff');
     // values match the compiled production output
     expect(colors.red.alpha(0.5)).toBe('#ff000080');
     expect(colors.primary.darker(0.1)).toBe('#006fe6');
@@ -20,9 +20,9 @@ describe('createStaticThemeColors runtime', () => {
     expect(colors.primary.saturatedDarker(0.1)).toBe('#006fe6');
 
     // Contrast operations
-    expect(colors.primary.contrast.var).toBe('#fff');
+    expect(colors.primary.contrast.value).toBe('#fff');
     expect(colors.primary.contrast.alpha(0.8)).toBe('#fffc');
-    expect(colors.light.contrast.var).toBe('#000');
+    expect(colors.light.contrast.value).toBe('#000');
     expect(colors.primary.contrast.optimal()).toBe('#fff');
     expect(colors.primary.contrast.optimal({ alpha: 0.6 })).toBe('#fff9');
     expect(colors.light.contrast.optimal()).toBe('#242424');
@@ -50,7 +50,7 @@ test('runtime color operations match the compiled production output', () => {
     'saturatedDarker(0.5)',
     'alpha(0.4)',
     'alpha(0)',
-    'contrast.var',
+    'contrast.value',
     'contrast.alpha(0.5)',
     'contrast.optimal()',
     'contrast.optimal({ alpha: 0 })',
@@ -65,7 +65,7 @@ test('runtime color operations match the compiled production output', () => {
       color.saturatedDarker(0.5),
       color.alpha(0.4),
       color.alpha(0),
-      color.contrast.var,
+      color.contrast.value,
       color.contrast.alpha(0.5),
       color.contrast.optimal(),
       color.contrast.optimal({ alpha: 0 }),

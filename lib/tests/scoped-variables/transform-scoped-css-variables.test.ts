@@ -721,7 +721,7 @@ describe('scoped CSS variables', () => {
         const color = createDynamicCssColor()
 
         export const Badge = ({ c }) => (
-          <div dynamicColor={color.set(c)} css={\`color: \${color.var};\`} />
+          <div dynamicColor={color.set(c)} css={\`color: \${color.value};\`} />
         )
       `,
       production: true,

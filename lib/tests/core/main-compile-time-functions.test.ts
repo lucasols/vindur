@@ -79,7 +79,7 @@ describe('compile-time functions should throw at runtime', () => {
 
     expect(result.primary.defaultHex).toBe('#007bff');
     expect(result.secondary.defaultHex).toBe('#6c757d');
-    expect(result.primary.var).toBe('#007bff');
+    expect(result.primary.value).toBe('#007bff');
   });
 
   test('stableId should throw error at runtime', () => {

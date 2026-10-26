@@ -17,7 +17,7 @@ const files = {
 
     export const ExportedButton = styled.button\`
       border: none;
-      background: \${color.var};
+      background: \${color.value};
     \`;
 
     export const Badge = styled.span<{ active: boolean }>\`

@@ -10,8 +10,8 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Button = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = () => {
@@ -63,7 +63,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
         padding: 20px;
       \`
 
@@ -125,7 +125,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Box = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
       \`
 
       const Component = () => {
@@ -183,7 +183,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
         padding: 20px;
       \`
 
@@ -257,7 +257,7 @@ test('should merge className before spread props with dynamic colors', async () 
       const color = createDynamicCssColor()
 
       const Button = styled.button\`
-        background: \${color.var};
+        background: \${color.value};
       \`
 
       const Component = ({ buttonProps, props, value }) => {

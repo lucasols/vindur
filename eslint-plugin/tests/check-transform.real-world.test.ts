@@ -86,7 +86,7 @@ describe('real-world regressions', () => {
 
         const Eyebrow = styled.div\`
           \${kicker}
-          color: \${colors.textMuted.var};
+          color: \${colors.textMuted.value};
         \`;
 
         const IconButtonRoot = styled.button<{ md: boolean }>\`
@@ -99,7 +99,7 @@ describe('real-world regressions', () => {
           \${kicker}
           \${transition({ property: 'color' })}
           appearance: none;
-          color: \${colors.textMuted.var};
+          color: \${colors.textMuted.value};
         \`;
       `,
       options: [
