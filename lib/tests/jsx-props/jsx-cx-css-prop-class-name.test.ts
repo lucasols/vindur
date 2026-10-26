@@ -327,24 +327,21 @@ test('should keep the user cx import when generated classes still call cx', asyn
   `);
 });
 
-test('should keep the user cx import while it has references besides optimized calls', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { cx } from 'vindur';
+test('should throw for references to the cx function other than direct calls', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { cx } from 'vindur';
 
-      const joinClasses = cx;
-      const base = cx('base');
+        const joinClasses = cx;
+        const base = cx('base');
 
-      export const Component = () => <div className={base} data-join={joinClasses} />;
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const joinClasses = cx;
-    const base = "base";
-    export const Component = () => <div className={base} data-join={joinClasses} />;
-    "
+        export const Component = () => <div className={base} data-join={joinClasses} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindur's "cx" can only be called directly, eg. cx("base", { active: isActive }), other references to it are not supported
+    loc: 3:20]
   `);
 });
 

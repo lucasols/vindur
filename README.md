@@ -1079,6 +1079,8 @@ const className = cx(
 ('class-1 class-2 merge short-circuit');
 ```
 
+`cx` must be called directly. Other references, like `const join = cx` or passing `cx` as a value, are a compile error.
+
 ### Automatic `cx()` Optimization
 
 Vindur automatically optimizes `cx()` function calls at compile time when possible:

@@ -4,6 +4,7 @@ mod css_syntax;
 mod css_tokens;
 mod css_validation;
 mod cx_optimize;
+mod cx_references;
 mod cx_selectors;
 mod direct;
 mod dynamic_color;

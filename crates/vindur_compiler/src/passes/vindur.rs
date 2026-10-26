@@ -17,6 +17,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_optimize::optimize_cx_calls,
+    cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
@@ -84,6 +85,9 @@ pub(crate) fn transform_program(
         })
         .map(|(name, _)| name.as_str())
         .collect();
+    if let Some(diagnostic) = non_call_cx_reference_error(program, scoping, file_path, source) {
+        return Err(diagnostic);
+    }
     if let Some(diagnostic) = runtime_vindur_fn_reference_error(
         program,
         scoping,

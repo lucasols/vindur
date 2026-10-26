@@ -29,8 +29,8 @@ pub(crate) fn optimize_cx_calls(
     };
     visitor.visit_program(program);
     // Generated code may still call the user's `cx` import, which suppressed
-    // injecting the runtime helper. Any other reference, like `const join = cx`,
-    // also needs the import
+    // injecting the runtime helper. Other references are rejected before, so
+    // only calls that weren't optimized (and `typeof cx`) keep the import
     let references = cx_symbols
         .iter()
         .map(|symbol| scoping.get_resolved_reference_ids(*symbol).len())
@@ -40,7 +40,7 @@ pub(crate) fn optimize_cx_calls(
     }
 }
 
-fn vindur_cx_symbols(program: &Program<'_>) -> Vec<SymbolId> {
+pub(super) fn vindur_cx_symbols(program: &Program<'_>) -> Vec<SymbolId> {
     program
         .body
         .iter()
