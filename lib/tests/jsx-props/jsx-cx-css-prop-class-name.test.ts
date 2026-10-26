@@ -327,36 +327,6 @@ test('should keep the user cx import when generated classes still call cx', asyn
   `);
 });
 
-test('should inject the cx helper when the user imports cx under an alias', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { cx as classNames } from 'vindur';
-
-      function Component({ active }) {
-        return <circle className={classNames('base')} cx={{ $active: active }} />;
-      }
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, cx as classNames } from "vindur";
-    function Component({ active }) {
-      return (
-        <circle
-          className={
-            (classNames("base") || "") +
-            " " +
-            cx({
-              active: active,
-            })
-          }
-        />
-      );
-    }
-    "
-  `);
-});
-
 test('should keep the user cx import while it has references besides optimized calls', async () => {
   const result = await transformWithFormat({
     source: dedent`

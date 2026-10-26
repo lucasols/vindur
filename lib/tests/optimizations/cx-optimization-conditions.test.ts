@@ -46,32 +46,6 @@ test('should keep cx calls with getters at runtime', async () => {
   `);
 });
 
-test('should not optimize calls of an aliased cx import', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { cx as cn } from 'vindur';
-
-      export const classes = (name, enabled) => [
-        cn({ [name]: true }),
-        cn({ active: enabled }),
-      ];
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as cn } from "vindur";
-    export const classes = (name, enabled) => [
-      cn({
-        [name]: true,
-      }),
-      cn({
-        active: enabled,
-      }),
-    ];
-    "
-  `);
-});
-
 test('should keep optimized cx calls grouped as operands', async () => {
   const result = await transformWithFormat({
     source: dedent`

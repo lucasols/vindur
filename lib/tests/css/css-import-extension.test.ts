@@ -585,7 +585,7 @@ test('should throw error on direct circular import', async () => {
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: /styles.ts: Invalid interpolation used at \`... baseStyles = css\` ... \${mainStyles}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-    loc: 5:4
+    loc: /styles.ts|5:4
     ignoreInLint: true]
   `,
   );
@@ -627,7 +627,7 @@ test('should throw error on indirect circular import', async () => {
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-    loc: 5:4
+    loc: /fileA.ts|5:4
     ignoreInLint: true]
   `,
   );

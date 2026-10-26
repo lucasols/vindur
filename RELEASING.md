@@ -14,7 +14,7 @@ the artifacts. pkg-manager then synchronizes all platform versions, validates
 the complete artifact set, updates the root optional dependencies, and publishes
 the platform packages before `@vindur-css/native`.
 
-The compiler needs Rust 1.95 or newer (the workspace `rust-version`), run
+The compiler needs Rust 1.99 or newer (the workspace `rust-version`), run
 `rustup update stable` first if the local toolchain is older.
 
 Install Zig once before the first native release:

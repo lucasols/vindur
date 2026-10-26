@@ -189,3 +189,43 @@ describe('variable references in function calls', () => {
     `);
   });
 });
+
+test('should compare imported constants passed to vindurFn', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { size } from '#/functions';
+      import { SIZE } from '#/constants';
+
+      const style = css\`
+        \${size(SIZE)};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'functions.ts': dedent`
+        import { vindurFn } from 'vindur';
+
+        export const size = vindurFn((n: number) => \`
+          width: \${n === 10 ? 'ten' : 'other'};
+          height: \${n > 5 ? 'big' : 'small'};
+        \`);
+      `,
+      'constants.ts': dedent`
+        export const SIZE = 10;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      width: ten;
+      height: big;
+    }
+    "
+  `);
+});

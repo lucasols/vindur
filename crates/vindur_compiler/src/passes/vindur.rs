@@ -37,6 +37,7 @@ use super::{
     styled::{resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
+    vindur_fn_references::runtime_vindur_fn_reference_error,
 };
 
 pub(crate) struct PassOutput {
@@ -57,9 +58,10 @@ pub(crate) fn transform_program(
 ) -> Result<PassOutput, CompilerDiagnostic> {
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
-    collect_vindur_imports(program, source, &mut imports, &mut edits);
+    collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
+    let exported_names = collect_exported_names(program);
 
-    let mut constants = collect_constants(program, scoping);
+    let mut constants = collect_constants(program, scoping, &imports);
     constants.extend(imported_values.iter().map(|(name, value)| {
         let value = match value {
             StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
@@ -71,6 +73,26 @@ pub(crate) fn transform_program(
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
         }
+    }
+    let function_names = constants
+        .iter()
+        .filter(|(_, value)| {
+            matches!(
+                value,
+                StaticValue::Function(_) | StaticValue::ImportedFunction(_)
+            )
+        })
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if let Some(diagnostic) = runtime_vindur_fn_reference_error(
+        program,
+        scoping,
+        &imports,
+        &function_names,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
     }
     let file_hash = format!("v{}", murmur2(file_path));
     let mut css_rules = Vec::new();
@@ -86,7 +108,6 @@ pub(crate) fn transform_program(
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
-    let exported_names = collect_exported_names(program);
     let exported_object_names = collect_exported_object_names(program);
     let jsx_id_events = collect_jsx_id_events(program);
     let mut jsx_event_index = 0_usize;
@@ -254,11 +275,10 @@ pub(crate) fn transform_program(
                     css_rules.extend(generate_class_rules(&generated_name, &content).map_err(
                         |error| css_error_diagnostic(file_path, source, tagged.span, error),
                     )?);
+                    needs_styled_helper = true;
                     edits.push(Edit {
                         span: tagged.span,
-                        replacement: format!(
-                            "styledComponent(\"{element}\", \"{generated_name}\")"
-                        ),
+                        replacement: format!("_vSC(\"{element}\", \"{generated_name}\")"),
                     });
                 }
             }

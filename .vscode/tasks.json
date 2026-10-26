@@ -24,11 +24,6 @@
       "script": "lint-all"
     },
     {
-      "label": "sync AI",
-      "type": "npm",
-      "script": "sync-ai"
-    },
-    {
       "label": "run app test",
       "type": "npm",
       "script": "run-app-test"
