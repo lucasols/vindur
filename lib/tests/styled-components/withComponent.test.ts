@@ -464,3 +464,24 @@ describe('withComponent', () => {
     `);
   });
 });
+
+test('should error on withComponent sharing a variable declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button\`
+          padding: 10px;
+        \`;
+
+        const size = 2, Link = Button.withComponent('a');
+
+        export const App = () => <Link>{size}</Link>;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Styled components must use their own variable declaration
+    loc: 7:0]
+  `);
+});

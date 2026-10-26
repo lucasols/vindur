@@ -28,24 +28,23 @@ pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
     imports: &VindurImports<'_>,
-) -> FxHashMap<String, StaticValue> {
-    let mut constants = FxHashMap::default();
+    constants: &mut FxHashMap<String, StaticValue>,
+) {
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
-                collect_declaration_constants(declaration, &mut constants, scoping, imports);
+                collect_declaration_constants(declaration, constants, scoping, imports);
             }
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    collect_declaration_constants(declaration, &mut constants, scoping, imports);
+                    collect_declaration_constants(declaration, constants, scoping, imports);
                 }
             }
             _ => {}
         }
     }
-    constants
 }
 
 /// Evaluates a style template to CSS, the result is validated with the CSS parser

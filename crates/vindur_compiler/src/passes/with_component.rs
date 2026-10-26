@@ -1,4 +1,4 @@
-use oxc_ast::ast::{Argument, Expression};
+use oxc_ast::ast::{Argument, Expression, VariableDeclaration};
 use oxc_span::GetSpan;
 
 use crate::{
@@ -8,11 +8,11 @@ use crate::{
 };
 
 use super::styled::{StyleFlag, StyledComponent};
-use super::transform_support::VariableTransform;
+use super::transform_support::{VariableTransform, own_declaration};
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
-    declaration_span: oxc_span::Span,
+    declaration: &VariableDeclaration<'_>,
     variable_name: &str,
     transform: &mut VariableTransform<'_>,
 ) -> Result<bool, CompilerDiagnostic> {
@@ -43,6 +43,11 @@ pub(super) fn process_with_component(
             ),
         ));
     };
+    own_declaration(
+        declaration,
+        transform,
+        "Styled components must use their own variable declaration",
+    )?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),
@@ -99,7 +104,7 @@ pub(super) fn process_with_component(
         });
     } else {
         transform.edits.push(Edit {
-            span: expand_removal_to_line(transform.source, declaration_span),
+            span: expand_removal_to_line(transform.source, declaration.span),
             replacement: String::new(),
         });
     }

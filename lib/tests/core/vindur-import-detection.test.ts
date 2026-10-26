@@ -233,3 +233,34 @@ test('should error when a name needed for a runtime helper is already declared',
     loc: 1:14]
   `);
 });
+
+test('should keep type-only vindur imports as type imports', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import type { styled, StyledComponent } from 'vindur';
+      import { css } from 'vindur';
+
+      export type Box = StyledComponent<'div'>;
+      export type Styled = typeof styled;
+
+      export const box = css\`
+        color: red;
+      \`;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import type { StyledComponent } from "vindur";
+    export type Box = StyledComponent<"div">;
+    export type Styled = typeof styled;
+    export const box = "v1560qbr-1-box";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-box {
+      color: red;
+    }
+    "
+  `);
+});

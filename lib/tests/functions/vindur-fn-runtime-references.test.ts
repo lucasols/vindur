@@ -436,3 +436,37 @@ test('should error on vindurFn usage in templates of tags that are not imported'
     loc: /test.tsx|4:4]
   `);
 });
+
+test('should error on vindurFn sharing a variable declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        const size = 2, spacing = vindurFn((value: number) => \`padding: \${value}px;\`);
+
+        export { size };
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn functions must use their own variable declaration
+    loc: 3:0]
+  `);
+});
+
+test('should error on vindurFn usage in templates of runtime vindur imports', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { cx } from 'vindur';
+        import { transition } from '#/transition';
+
+        export const className = cx\`\${transition('opacity')}\`;
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    loc: /test.tsx|4:30]
+  `);
+});

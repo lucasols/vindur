@@ -438,4 +438,23 @@ describe('createGlobalStyle', () => {
       loc: 3:6]
     `);
   });
+
+  test('should error on createGlobalStyle sharing a variable declaration', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`, size = 2;
+
+          export const getSize = () => size;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle must use its own variable declaration
+      loc: 3:0]
+    `);
+  });
 });

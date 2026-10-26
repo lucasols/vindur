@@ -424,3 +424,45 @@ test('should error on interpolating an uncalled vindurFn', async () => {
     ignoreInLint: true]
   `);
 });
+
+test('should evaluate module constants computed from imported values', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { SIZE } from '#/constants'
+      import { padding } from '#/functions'
+
+      const DOUBLE = SIZE * 2
+
+      const style = css\`
+        width: \${DOUBLE}px;
+        \${padding(DOUBLE)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'constants.ts': dedent`
+        export const SIZE = 4
+      `,
+      'functions.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const padding = vindurFn((value: number) => \`padding: \${value}px;\`)
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { SIZE } from "#/constants";
+    const DOUBLE = SIZE * 2;
+    const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      width: 8px;
+      padding: 8px;
+    }
+    "
+  `);
+});

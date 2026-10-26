@@ -60,14 +60,18 @@ pub(crate) fn transform_program(
     collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
     let exported_names = collect_exported_names(program);
 
-    let mut constants = collect_constants(program, scoping, &imports);
-    constants.extend(imported_values.iter().map(|(name, value)| {
-        let value = match value {
-            StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
-            value => value.clone(),
-        };
-        (name.clone(), value)
-    }));
+    // Imported values come first, so module constants can be computed from them
+    let mut constants = imported_values
+        .iter()
+        .map(|(name, value)| {
+            let value = match value {
+                StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
+                value => value.clone(),
+            };
+            (name.clone(), value)
+        })
+        .collect();
+    collect_constants(program, scoping, &imports, &mut constants);
     for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);

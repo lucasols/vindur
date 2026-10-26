@@ -74,11 +74,13 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     }
 
     // Vindur templates are compiled away or rejected, `styled` is the only tag also compiled
-    // when it isn't imported
+    // when it isn't imported. Runtime vindur imports like `cx` aren't template tags
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         let is_vindur_template = tag_root(&tagged.tag).is_some_and(|identifier| {
-            self.imports.get_identifier(identifier).is_some()
-                || self.imports.matches_import_or_global(identifier, "styled")
+            matches!(
+                self.imports.get_identifier(identifier),
+                Some("css" | "keyframes" | "createGlobalStyle")
+            ) || self.imports.matches_import_or_global(identifier, "styled")
         });
         if is_vindur_template {
             self.visit_runtime_tag_arguments(&tagged.tag);
