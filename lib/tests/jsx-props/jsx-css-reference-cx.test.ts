@@ -34,8 +34,7 @@ test('should keep the cx prop of an element with a css reference prop', async ()
       <>
         <div
           className={
-            styles +
-            " " +
+            "v1560qbr-2-styles " +
             cx({
               "v1560qbr-4-active": active,
             })
@@ -43,15 +42,12 @@ test('should keep the cx prop of an element with a css reference prop', async ()
         />
         <div
           {...color._sp(c, {
-            className: [
-              styles,
+            className:
+              "v1560qbr-2-styles " +
               cx({
                 "v1560qbr-4-active": active,
                 raw: true,
               }),
-            ]
-              .filter(Boolean)
-              .join(" "),
           })}
         />
       </>
@@ -92,11 +88,10 @@ test('should fail on hashed cx keys declared in the css reference of a styled co
     const Component = ({ on, c }) => <Box ${attributes} />;
   `;
 
-  await expect(
-    transformWithFormat({ source: source('css={cls} cx={{ on }}') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
-    loc: 17:48]
+  await expect(transformWithFormat({ source: source('css={cls} cx={{ on }}') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used on styled component "Box" with the css reference "cls". Move the modifier styles into the styled component or use $-prefixed classes (e.g. $active).
+    loc: 17:43]
   `);
 
   await expect(
@@ -104,15 +99,15 @@ test('should fail on hashed cx keys declared in the css reference of a styled co
       source: source('css={cls} cx={{ on }} dynamicColor={color.set(c)}'),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
-    loc: 17:48]
+    [TransformError: /test.tsx: cx prop modifiers can't be used on styled component "Box" with the css reference "cls". Move the modifier styles into the styled component or use $-prefixed classes (e.g. $active).
+    loc: 17:43]
   `);
 
   await expect(
     transformWithFormat({ source: source('className={cls} cx={{ on }}') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx modifiers [on] are declared in the css reference passed to Box, but cx only hashes the modifiers of the styled component. Use $ prefixed keys (e.g. $on) or move the modifiers into the styled component.
-    loc: 17:54]
+    [TransformError: /test.tsx: cx prop modifiers can't be used on styled component "Box" with the css reference "cls". Move the modifier styles into the styled component or use $-prefixed classes (e.g. $active).
+    loc: 17:49]
   `);
 });
 
@@ -148,16 +143,13 @@ test('should keep $ cx keys and styled modifiers with a css reference on a style
     const cls = "v1560qbr-1-cls";
     const Component = ({ on, active }) => (
       <div
-        className={[
-          "v1560qbr-2-Box",
-          cls,
+        className={
+          "v1560qbr-2-Box v1560qbr-1-cls " +
           cx({
             on: on,
             "v1560qbr-4-active": active,
-          }),
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          })
+        }
       />
     );
     "

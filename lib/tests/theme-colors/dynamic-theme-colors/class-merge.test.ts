@@ -31,7 +31,7 @@ test('should merge css prop class and className of imported dynamic color', asyn
     const Component = () => (
       <div
         {...themeColor._sp("#ff6b6b", {
-          className: "v1560qbr-1-css-prop-1 base",
+          className: "base v1560qbr-1-css-prop-1",
         })}
       />
     );
@@ -53,12 +53,14 @@ test('should merge cx classes, css className and scoped style into the dynamic c
 
       const color = createDynamicCssColor()
 
+      const cls = css\`
+        ---size: 1px;
+        color: \${color.contrast.var};
+      \`
+
       const Component = ({ active, size }) => (
         <div
-          className={css\`
-            ---size: 1px;
-            color: \${color.contrast.var};
-          \`}
+          className={cls}
           style={{ '---size': size }}
           cx={{ $active: active }}
           dynamicColor={color.set(null)}
@@ -70,17 +72,16 @@ test('should merge cx classes, css className and scoped style into the dynamic c
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
+    const cls = "v1560qbr-2-cls";
     const Component = ({ active, size }) => (
       <div
         {...color._sp(null, {
-          className: [
+          className:
+            cls +
+            " " +
             cx({
               active: active,
             }),
-            "v1560qbr-2",
-          ]
-            .filter(Boolean)
-            .join(" "),
           style: {
             "--v1560qbr-3-size": size,
           },
@@ -91,7 +92,7 @@ test('should merge cx classes, css className and scoped style into the dynamic c
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-2 {
+    ".v1560qbr-2-cls {
       --v1560qbr-3-size: 1px;
       color: var(--v1560qbr-1-color-c);
     }
@@ -129,14 +130,9 @@ test('should keep className and style before a spread as fallbacks', async () =>
         {...props}
         {...color._sp("#ff6b6b", {
           className: mergeClassNames(["fallback", props], "v1560qbr-2-Box"),
-          style: mergeStyles([
-            {
-              style: {
-                padding: 1,
-              },
-            },
-            props,
-          ]),
+          style: mergeStyles([props], {
+            padding: 1,
+          }),
         })}
       />
     );

@@ -226,7 +226,7 @@ describe('keyframes error handling', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = css\` ... \${obj.start}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = keyframes\` ... \${obj.start}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
       loc: 7:12]
     `,
     );
@@ -250,7 +250,7 @@ describe('keyframes error handling', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = css\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = keyframes\` ... \${undefinedVariable}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
       loc: 5:15
       ignoreInLint: true]
     `,
@@ -369,6 +369,49 @@ describe('keyframes corner cases', () => {
         }
       }
       "
+    `);
+  });
+
+  test('should support scroll driven animation timeline ranges', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { keyframes } from 'vindur'
+
+        const reveal = keyframes\`
+          entry 0% { opacity: 0; }
+          exit 100% { opacity: 1; }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@keyframes v1560qbr-1-reveal {
+        entry 0% {
+          opacity: 0;
+        }
+        exit 100% {
+          opacity: 1;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should throw when keyframes close their block early', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { keyframes } from 'vindur'
+
+          const fade = keyframes\`
+            from { opacity: 0; } }
+            .other { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`}\`
+      loc: 4:23]
     `);
   });
 });

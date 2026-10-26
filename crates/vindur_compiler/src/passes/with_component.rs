@@ -1,6 +1,5 @@
 use oxc_ast::ast::{Argument, Expression};
 use oxc_span::GetSpan;
-use rustc_hash::FxHashMap;
 
 use crate::{
     CompilerDiagnostic,
@@ -8,19 +7,8 @@ use crate::{
     facts::StaticValue,
 };
 
-use super::scoped::declared_scoped_variable_names;
 use super::styled::{StyleFlag, StyledComponent};
 use super::transform_support::VariableTransform;
-
-pub(super) fn record_scoped_declarations(
-    css: &str,
-    span: oxc_span::Span,
-    declarations: &mut FxHashMap<String, oxc_span::Span>,
-) {
-    for name in declared_scoped_variable_names(css) {
-        declarations.entry(name).or_insert(span);
-    }
-}
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
@@ -89,11 +77,7 @@ pub(super) fn process_with_component(
     if runtime {
         let replacement = if base.style_flags.is_empty() {
             *transform.needs_styled_helper = true;
-            let element_source = if element_is_identifier {
-                element
-            } else {
-                format!("\"{element}\"")
-            };
+            let element_source = runtime_element_source(&element, element_is_identifier);
             let attrs = base
                 .attrs
                 .as_ref()
@@ -134,11 +118,16 @@ pub(super) fn style_flags_runtime_call(
         .map(|flag| format!("[\"{}\", \"{}\"]", flag.prop_name, flag.hashed_class_name))
         .collect::<Vec<_>>()
         .join(", ");
-    let element_source = if element_is_identifier {
+    let element_source = runtime_element_source(element, element_is_identifier);
+    let attrs_argument = attrs.map_or(String::new(), |value| format!(", {value}"));
+    format!("_vCWM([{modifier_array}], \"{class_name}\", {element_source}{attrs_argument})")
+}
+
+/// Components are passed to the runtime helpers as references, DOM elements as tag names
+pub(super) fn runtime_element_source(element: &str, element_is_identifier: bool) -> String {
+    if element_is_identifier {
         element.to_owned()
     } else {
         format!("\"{element}\"")
-    };
-    let attrs_argument = attrs.map_or(String::new(), |value| format!(", {value}"));
-    format!("_vCWM([{modifier_array}], \"{class_name}\", {element_source}{attrs_argument})")
+    }
 }

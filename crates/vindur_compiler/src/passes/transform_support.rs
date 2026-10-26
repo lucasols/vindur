@@ -1,4 +1,7 @@
-use oxc_ast::ast::{BindingPattern, Expression, Program, VariableDeclaration};
+use oxc_ast::ast::{
+    Argument, BindingIdentifier, BindingPattern, Expression, Program, VariableDeclaration,
+    VariableDeclarationKind,
+};
 use oxc_semantic::Scoping;
 use rustc_hash::FxHashMap;
 
@@ -11,18 +14,18 @@ use crate::{
 
 use super::{
     css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
-    scoped::process_scoped_variables,
+    function_value::try_compile_vindur_function,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
     styled::{
-        StyledComponent, StyledTagContext, missing_style_flag_selectors,
+        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::{parse_theme_colors, static_color_fallbacks},
-    with_component::{
-        process_with_component, record_scoped_declarations, style_flags_runtime_call,
-    },
+    with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
 
 pub(super) struct VariableTransform<'a> {
@@ -41,8 +44,7 @@ pub(super) struct VariableTransform<'a> {
     pub is_exported: bool,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
-    pub scoped_declaration_spans: &'a mut FxHashMap<String, oxc_span::Span>,
+    pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
 
@@ -54,47 +56,21 @@ pub(super) fn process_variable_declaration(
         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
             continue;
         };
+        // Wrapped declarations are detected too, so they are rejected instead of ignored
         if let Some(initializer) = &declarator.init
-            && let Expression::CallExpression(call) = initializer
-            && let Expression::Identifier(callee) = &call.callee
-            && transform
-                .imports
-                .matches_import_or_global(callee, "vindurFn")
-            && let Some(error) =
-                validate_vindur_function(identifier.name.as_str(), initializer, transform.source)
-        {
-            let span = if error.message.starts_with("vindurFn must be called") {
-                identifier.span
-            } else {
-                error.span
-            };
-            return Err(CompilerDiagnostic::error(
-                transform.file_path,
-                transform.source,
-                span,
-                error.message,
-            ));
-        }
-        if !transform.is_exported
-            && let Some(Expression::CallExpression(call)) = &declarator.init
+            && let Expression::CallExpression(call) = initializer.get_inner_expression()
             && let Expression::Identifier(callee) = &call.callee
             && transform
                 .imports
                 .matches_import_or_global(callee, "vindurFn")
         {
-            return Err(CompilerDiagnostic::error(
-                transform.file_path,
-                transform.source,
-                identifier.span,
-                format!(
-                    "vindurFn \"{}\" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.",
-                    identifier.name
-                ),
-            ));
+            validate_vindur_function_declaration(declaration, identifier, initializer, transform)?;
         }
         if let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
-            && callee.name.as_str() == "createDynamicCssColor"
+            && transform
+                .imports
+                .matches_import_or_global(callee, "createDynamicCssColor")
         {
             if !call.arguments.is_empty() {
                 return Err(CompilerDiagnostic::error(
@@ -122,13 +98,15 @@ pub(super) fn process_variable_declaration(
             );
             transform.edits.push(Edit {
                 span: call.span,
-                replacement: format!("createDynamicCssColor(\"{id}\", {})", transform.dev),
+                replacement: format!("{}(\"{id}\", {})", callee.name, transform.dev),
             });
             continue;
         }
         if let Some(Expression::CallExpression(call)) = &declarator.init
             && let Expression::Identifier(callee) = &call.callee
-            && callee.name.as_str() == "createStaticThemeColors"
+            && transform
+                .imports
+                .matches_import_or_global(callee, "createStaticThemeColors")
         {
             let colors = parse_theme_colors(&call.arguments).map_err(|error| {
                 CompilerDiagnostic::error(
@@ -190,6 +168,11 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
+            let style_flags = if own_style_flags.is_empty() {
+                base_component.style_flags.clone()
+            } else {
+                own_style_flags
+            };
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -199,6 +182,7 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(variable_name),
                     tag_type: "styled",
+                    style_flags: &style_flags,
                 },
             )?;
             let content = clean_css(&content);
@@ -206,23 +190,6 @@ pub(super) fn process_variable_declaration(
                 content
             } else {
                 static_color_fallbacks(&content)
-            };
-            record_scoped_declarations(
-                &content,
-                identifier.span,
-                transform.scoped_declaration_spans,
-            );
-            let content = process_scoped_variables(
-                &content,
-                transform.file_hash,
-                transform.dev,
-                transform.id_index,
-                transform.scoped_variables,
-            );
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
             };
             if transform.dev {
                 transform.warnings.extend(
@@ -245,17 +212,22 @@ pub(super) fn process_variable_declaration(
                         && (transform.source.contains("cx=")
                             || transform.source.contains("className={`")));
                 if !suppress_undeclared {
-                    let undeclared = undeclared_style_classes(&content, &style_flags);
-                    let dynamic_color_ids = if undeclared.is_empty() {
-                        Vec::new()
-                    } else {
-                        dynamic_color_ids(transform.constants)
-                    };
+                    // Dynamic color selectors (`color.self.isDark`) add vindur's own classes
+                    let dynamic_color_prefixes = transform
+                        .constants
+                        .values()
+                        .filter_map(|value| match value {
+                            StaticValue::DynamicColor { id, .. } => Some(format!("{id}-")),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared
+                        undeclared_style_classes(&content, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
-                                !is_dynamic_color_class(class_name, &dynamic_color_ids)
+                                !dynamic_color_prefixes
+                                    .iter()
+                                    .any(|prefix| class_name.starts_with(prefix))
                             })
                             .map(|class_name| {
                                 CompilerDiagnostic::warning(
@@ -270,10 +242,32 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
+            // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content = process_scoped_variables(
+                &content,
+                BlockKind::Style,
+                identifier.span,
+                transform.file_hash,
+                transform.dev,
+                transform.id_index,
+                transform.scoped_variables,
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             transform
                 .css_rules
-                .extend(generate_class_rules(&generated_name, &content));
+                .extend(
+                    generate_class_rules(&generated_name, &content).map_err(|error| {
+                        css_error_diagnostic(
+                            transform.file_path,
+                            transform.source,
+                            tagged.span,
+                            error,
+                        )
+                    })?,
+                );
             let complete_class_name = if base_component.class_name.is_empty() {
                 generated_name.clone()
             } else {
@@ -292,8 +286,11 @@ pub(super) fn process_variable_declaration(
                 let replacement = if style_flags.is_empty() {
                     *transform.needs_styled_helper = true;
                     format!(
-                        "_vSC(\"{}\", \"{complete_class_name}\"{attrs_argument})",
-                        base_component.element,
+                        "_vSC({}, \"{complete_class_name}\"{attrs_argument})",
+                        runtime_element_source(
+                            &base_component.element,
+                            base_component.element_is_identifier
+                        ),
                     )
                 } else {
                     *transform.needs_style_flags_helper = true;
@@ -353,21 +350,22 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
+                    style_flags: &[],
                 },
             )?;
             let content = clean_css(&content);
-            record_scoped_declarations(
-                &content,
-                identifier.span,
-                transform.scoped_declaration_spans,
-            );
             let content = process_scoped_variables(
                 &content,
+                BlockKind::Global,
+                identifier.span,
                 transform.file_hash,
                 transform.dev,
                 transform.id_index,
                 transform.scoped_variables,
-            );
+            )
+            .map_err(|error| {
+                css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+            })?;
             if !content.is_empty() {
                 transform.css_rules.push(content);
             }
@@ -398,7 +396,8 @@ pub(super) fn process_variable_declaration(
             transform.source,
             &TemplateContext {
                 variable_name: Some(variable_name),
-                tag_type: "css",
+                tag_type: tag_name,
+                style_flags: &[],
             },
         )?;
         let content = clean_css(&content);
@@ -407,23 +406,25 @@ pub(super) fn process_variable_declaration(
         } else {
             static_color_fallbacks(&content)
         };
-        record_scoped_declarations(
-            &content,
-            identifier.span,
-            transform.scoped_declaration_spans,
-        );
         let content = process_scoped_variables(
             &content,
+            BlockKind::from_tag_type(tag_name),
+            identifier.span,
             transform.file_hash,
             transform.dev,
             transform.id_index,
             transform.scoped_variables,
-        );
+        )
+        .map_err(|error| {
+            css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+        })?;
         if !content.is_empty() {
             let rules = if tag_name == "keyframes" {
                 vec![format!("@keyframes {generated_name} {{\n  {content}\n}}")]
             } else {
-                generate_class_rules(&generated_name, &content)
+                generate_class_rules(&generated_name, &content).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
             };
             transform.css_rules.extend(rules);
         }
@@ -446,43 +447,75 @@ pub(super) fn process_variable_declaration(
     Ok(())
 }
 
+fn validate_vindur_function_declaration(
+    declaration: &VariableDeclaration<'_>,
+    identifier: &BindingIdentifier<'_>,
+    initializer: &Expression<'_>,
+    transform: &VariableTransform<'_>,
+) -> Result<(), CompilerDiagnostic> {
+    let error = |span, message| {
+        Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            span,
+            message,
+        ))
+    };
+    if let Some(validation) =
+        validate_vindur_function(identifier.name.as_str(), initializer, transform.source)
+    {
+        let span = if validation.message.starts_with("vindurFn must be called") {
+            identifier.span
+        } else {
+            validation.span
+        };
+        return error(span, validation.message);
+    }
+    if !transform.is_exported {
+        return error(
+            identifier.span,
+            format!(
+                "vindurFn \"{}\" must be exported, locally declared vindurFn functions are not supported. If you are trying to use a vindurFn function, you must import it from another file.",
+                identifier.name
+            ),
+        );
+    }
+    // Only const arrow function declarations are compiled, other forms can't be used
+    let is_arrow_function = matches!(
+        initializer,
+        Expression::CallExpression(call)
+            if matches!(call.arguments.as_slice(), [Argument::ArrowFunctionExpression(_)])
+    );
+    if declaration.kind != VariableDeclarationKind::Const || !is_arrow_function {
+        return error(
+            identifier.span,
+            format!(
+                "vindurFn \"{}\" is not supported, vindur functions must be declared with \"export const {} = vindurFn((...) => ...)\"",
+                identifier.name, identifier.name
+            ),
+        );
+    }
+    if let Some(Err(span)) = try_compile_vindur_function(initializer, transform.imports) {
+        return error(
+            span,
+            format!(
+                "vindurFn \"{}\" contains unsupported syntax \"{}\", it can't be evaluated at compile time",
+                identifier.name,
+                &transform.source[span.start as usize..span.end as usize]
+            ),
+        );
+    }
+    Ok(())
+}
+
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {
     if dev {
-        // `$` is valid in JS identifiers but not in CSS class and variable names
-        let name = variable_name.replace('$', "_");
-        format!("{file_hash}-{id_index}-{name}")
+        format!(
+            "{file_hash}-{id_index}-{}",
+            css_class_name_part(variable_name)
+        )
     } else {
         format!("{file_hash}-{id_index}")
-    }
-}
-
-/// A double quoted JS string literal, e.g. for a JSX attribute string moved into an
-/// expression: `className='a"b'` has a raw `"`
-pub(super) fn js_string_literal(value: &str) -> String {
-    let mut output = String::with_capacity(value.len() + 2);
-    output.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\u{2028}' => output.push_str("\\u2028"),
-            '\u{2029}' => output.push_str("\\u2029"),
-            _ => output.push(character),
-        }
-    }
-    output.push('"');
-    output
-}
-
-/// A JSX attribute string value, JSX strings have no escapes so a value with a `"` is
-/// written as an expression
-pub(super) fn jsx_attribute_string(value: &str) -> String {
-    if value.contains('"') {
-        format!("{{{}}}", js_string_literal(value))
-    } else {
-        format!("\"{value}\"")
     }
 }
 
@@ -491,24 +524,4 @@ pub(super) fn imported_tag_name<'a>(
     imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     imports.get_expression(tag)
-}
-
-fn dynamic_color_ids(constants: &FxHashMap<String, StaticValue>) -> Vec<String> {
-    constants
-        .values()
-        .filter_map(|value| match value {
-            StaticValue::DynamicColor { id, .. } => Some(id.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
-/// `${color.self.isDark}` interpolates the color's own condition classes, which are set
-/// by `dynamicColor`, not declared by the component
-fn is_dynamic_color_class(class_name: &str, dynamic_color_ids: &[String]) -> bool {
-    dynamic_color_ids.iter().any(|id| {
-        class_name
-            .strip_prefix(id.as_str())
-            .is_some_and(|rest| rest.starts_with('-'))
-    })
 }

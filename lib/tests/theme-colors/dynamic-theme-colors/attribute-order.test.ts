@@ -75,12 +75,9 @@ test('should apply style flags of a styled component with dynamicColor', async (
     const Component = ({ active, c }) => (
       <div
         {...color._sp(c, {
-          className: [
-            "v1560qbr-2-Flag vr4ikfs-size-small",
-            active && "voctcyj-active",
-          ]
-            .filter(Boolean)
-            .join(" "),
+          className:
+            "v1560qbr-2-Flag vr4ikfs-size-small" +
+            (active ? " voctcyj-active" : ""),
         })}
       />
     );

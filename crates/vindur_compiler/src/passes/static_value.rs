@@ -1,44 +1,48 @@
 use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, Program, Statement, TemplateElement, TemplateLiteral,
+    Expression, IdentifierReference, Program, Statement, TemplateElement, TemplateLiteral,
 };
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{
-    CompilerDiagnostic,
-    facts::{FunctionParameter, StaticValue},
-};
+use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::dynamic_color_value::{
     color_interpolation_error, container_selector_error, invalid_color_method_error,
 };
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::interpolation_validation::{invalid_array_argument_error, invalid_layer_error};
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
     static_value_to_string,
 };
+use super::styled::{StyleFlag, styled_ref_placeholder};
+use super::template_css::{EvaluatedTemplate, validate_template_css};
+use super::unsupported_css_syntax::unsupported_syntax_error;
 
 pub(crate) struct TemplateContext<'a> {
     pub variable_name: Option<&'a str>,
     pub tag_type: &'a str,
+    /// Style flags of a styled component, their selectors are replaced after validation
+    pub style_flags: &'a [StyleFlag],
 }
 
 pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
+    imports: &VindurImports<'_>,
 ) -> FxHashMap<String, StaticValue> {
     let mut constants = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
-                collect_declaration_constants(declaration, &mut constants, scoping);
+                collect_declaration_constants(declaration, &mut constants, scoping, imports);
             }
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    collect_declaration_constants(declaration, &mut constants, scoping);
+                    collect_declaration_constants(declaration, &mut constants, scoping, imports);
                 }
             }
             _ => {}
@@ -47,6 +51,7 @@ pub(crate) fn collect_constants(
     constants
 }
 
+/// Evaluates a style template to CSS, the result is validated with the CSS parser
 pub(crate) fn evaluate_template(
     template: &TemplateLiteral<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -55,10 +60,49 @@ pub(crate) fn evaluate_template(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Result<String, CompilerDiagnostic> {
-    let mut output = String::new();
+    let build = |forced_extensions: &[usize]| {
+        build_template_css(
+            template,
+            constants,
+            scoping,
+            file_path,
+            source,
+            context,
+            forced_extensions,
+        )
+    };
+    let evaluated = build(&[])?;
+    if let Some(diagnostic) = unsupported_syntax_error(
+        &evaluated.css,
+        &evaluated.segments,
+        template.span,
+        context.tag_type,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
+    }
+    validate_template_css(&evaluated, template, file_path, source, context, build)?;
+    Ok(evaluated.css)
+}
+
+/// `forced_extensions` evaluates the CSS class interpolations at those indices as style
+/// extensions, as if they were followed by `;`
+fn build_template_css(
+    template: &TemplateLiteral<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+    context: &TemplateContext<'_>,
+    forced_extensions: &[usize],
+) -> Result<EvaluatedTemplate, CompilerDiagnostic> {
+    let mut evaluated = EvaluatedTemplate::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
-        output.push_str(quasi_text(quasi));
+        let quasi_start = evaluated.css.len();
+        evaluated.css.push_str(quasi_text(quasi));
+        evaluated.map_quasi(quasi_start, quasi);
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
@@ -77,7 +121,10 @@ pub(crate) fn evaluate_template(
             && let Some(diagnostic) = container_selector_error(
                 expression,
                 // The evaluated CSS so far, so earlier interpolations count as part of the selector
-                (&output, template.quasis.get(index + 1).map(quasi_text)),
+                (
+                    &evaluated.css,
+                    template.quasis.get(index + 1).map(quasi_text),
+                ),
                 constants,
                 scoping,
                 file_path,
@@ -154,8 +201,10 @@ pub(crate) fn evaluate_template(
                 format!("Binary expression evaluation failed: {message}"),
             ));
         }
+        let expression_start = evaluated.css.len();
         if let Some(reference) = forward_styled_reference(expression) {
-            output.push_str(&format!("__VINDUR_STYLED_REF_{reference}__"));
+            evaluated.css.push_str(&styled_ref_placeholder(reference));
+            evaluated.map_expression(expression_start, expression.span());
             continue;
         }
         let Some(value) = evaluate_expression(expression, constants, scoping) else {
@@ -172,7 +221,7 @@ pub(crate) fn evaluate_template(
         if let Some(diagnostic) = color_interpolation_error(&value, expression, file_path, source) {
             return Err(diagnostic);
         }
-        let followed_by_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
+        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value
                 .cooked
                 .as_ref()
@@ -180,6 +229,11 @@ pub(crate) fn evaluate_template(
                 .trim_start()
                 .starts_with(';')
         });
+        let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
+        let followed_by_semicolon = has_semicolon || forced_semicolon;
+        if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
+            evaluated.selector_classes.push(index);
+        }
         let is_css_extension =
             matches!(value, StaticValue::CssClass { .. }) && followed_by_semicolon;
         let static_before_expression = quasi
@@ -192,7 +246,7 @@ pub(crate) fn evaluate_template(
             .trim();
         if is_css_extension && (previous_was_css_extension || !static_before_expression.is_empty())
         {
-            output.push('\n');
+            evaluated.css.push('\n');
         }
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
@@ -202,19 +256,28 @@ pub(crate) fn evaluate_template(
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
                 imported_function_preserves_boundary(expression, constants, scoping);
-            if preserves_boundary && !output.trim_end_matches([' ', '\t']).ends_with("\n\n") {
-                output.push('\n');
+            if preserves_boundary
+                && !evaluated
+                    .css
+                    .trim_end_matches([' ', '\t'])
+                    .ends_with("\n\n")
+            {
+                evaluated.css.push('\n');
             }
-            output.push_str(value.trim());
+            evaluated.css.push_str(value.trim());
             if value.contains(';') && !followed_by_semicolon && preserves_boundary {
-                output.push('\n');
+                evaluated.css.push('\n');
             }
         } else {
-            output.push_str(&value);
+            evaluated.css.push_str(&value);
         }
+        if forced_semicolon {
+            evaluated.css.push(';');
+        }
+        evaluated.map_expression(expression_start, expression.span());
         previous_was_css_extension = is_css_extension;
     }
-    Ok(output)
+    Ok(evaluated)
 }
 
 fn binary_expression_error(
@@ -344,37 +407,6 @@ fn imported_function_preserves_boundary(
     quasis.last().is_some_and(|quasi| quasi.contains('\n'))
 }
 
-fn invalid_layer_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::Identifier(callee) = &call.callee else {
-        return None;
-    };
-    if !matches!(
-        resolved_constant(callee, constants, scoping),
-        Some(StaticValue::LayerFunction)
-    ) {
-        return None;
-    }
-    if matches!(call.arguments.as_slice(), [Argument::StringLiteral(_)]) {
-        return None;
-    }
-    let span = call.arguments.first().map_or(call.span, GetSpan::span);
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        span,
-        "layer() must be called with a string literal layer name".to_owned(),
-    ))
-}
-
 fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
     let Expression::ArrowFunctionExpression(arrow) = expression else {
         return None;
@@ -389,51 +421,6 @@ fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e st
         return None;
     };
     Some(identifier.name.as_str())
-}
-
-fn invalid_array_argument_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::Identifier(callee) = &call.callee else {
-        return None;
-    };
-    let function = match resolved_constant(callee, constants, scoping)? {
-        StaticValue::Function(function) | StaticValue::ImportedFunction(function) => function,
-        _ => return None,
-    };
-    for (index, argument) in call.arguments.iter().enumerate() {
-        let Argument::ArrayExpression(array) = argument else {
-            continue;
-        };
-        let is_valid = array.elements.iter().all(|element| {
-            matches!(
-                element.as_expression(),
-                Some(Expression::StringLiteral(_) | Expression::NumericLiteral(_))
-            )
-        });
-        if is_valid {
-            continue;
-        }
-        let FunctionParameter::Identifier { name, .. } = function.parameters.get(index)? else {
-            return None;
-        };
-        return Some(CompilerDiagnostic::error(
-            file_path,
-            source,
-            array.span,
-            format!(
-                "Array argument for parameter '{name}' contains non-literal values that cannot be statically analyzed. Arrays must contain only string and number literals."
-            ),
-        ));
-    }
-    None
 }
 
 fn interpolation_error(

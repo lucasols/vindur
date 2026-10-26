@@ -6,6 +6,7 @@ mod hash;
 mod normalize;
 mod options;
 mod passes;
+mod resolved_imports;
 mod resolver;
 mod semantic;
 

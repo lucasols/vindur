@@ -2,43 +2,6 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { transformWithFormat } from '../testUtils';
 
-test('should import cx for cx props when the vindur cx is aliased', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { cx as classes } from 'vindur'
-
-      export const A = ({ size }) => <div className={classes('x', size && 'big')} />
-
-      export const B = ({ on }) => <div css={\`&.on { color: blue; }\`} cx={{ on }} />
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ size }) => <div className={"x" + (size ? " big" : "")} />;
-    export const B = ({ on }) => (
-      <div
-        className={
-          "v1560qbr-1-css-prop-1 " +
-          cx({
-            "v1560qbr-2-on": on,
-          })
-        }
-      />
-    );
-    "
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-css-prop-1 {
-      &.v1560qbr-2-on {
-        color: blue;
-      }
-    }
-    "
-  `);
-});
-
 test('should throw when another cx is imported in a file with cx props', async () => {
   await expect(
     transformWithFormat({

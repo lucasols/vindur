@@ -14,8 +14,10 @@ use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 use oxc_syntax::reference::ReferenceId;
 use rustc_hash::FxHashMap;
 
-use crate::facts::StaticValue;
+use crate::{facts::StaticValue, semantic::VindurImports};
 
+use super::css::layer_marker;
+use super::css_syntax::is_layer_name;
 use super::dynamic_color_value::{dynamic_color_member, dynamic_color_method};
 use super::function_evaluation::{evaluate_argument, evaluate_function};
 use super::function_value::compile_vindur_function;
@@ -25,6 +27,7 @@ pub(super) fn collect_declaration_constants(
     declaration: &VariableDeclaration<'_>,
     constants: &mut FxHashMap<String, StaticValue>,
     scoping: &Scoping,
+    imports: &VindurImports<'_>,
 ) {
     if declaration.kind != VariableDeclarationKind::Const {
         return;
@@ -37,7 +40,7 @@ pub(super) fn collect_declaration_constants(
         let Some(initializer) = &declarator.init else {
             continue;
         };
-        if let Some(value) = compile_vindur_function(initializer)
+        if let Some(value) = compile_vindur_function(initializer, imports)
             .or_else(|| evaluate_expression(initializer, constants, scoping))
         {
             constants.insert(identifier.name.to_string(), value);
@@ -92,10 +95,8 @@ pub(super) fn evaluate_expression(
                         let [Argument::StringLiteral(name)] = call.arguments.as_slice() else {
                             return None;
                         };
-                        Some(StaticValue::String(format!(
-                            "__VINDUR_LAYER_START__{}__",
-                            name.value
-                        )))
+                        is_layer_name(&name.value)
+                            .then(|| StaticValue::String(layer_marker(&name.value)))
                     }
                     StaticValue::Function(function) | StaticValue::ImportedFunction(function) => {
                         let arguments = call
@@ -272,6 +273,12 @@ pub(super) fn evaluate_binary(
     right: StaticValue,
 ) -> Option<StaticValue> {
     match (left, operator, right) {
+        // Loose equality coerces values of different types, which is not evaluated
+        (left, BinaryOperator::Equality | BinaryOperator::Inequality, right)
+            if !same_primitive_type(&left, &right) =>
+        {
+            None
+        }
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }
@@ -296,6 +303,16 @@ pub(super) fn evaluate_binary(
         }
         _ => None,
     }
+}
+
+fn same_primitive_type(left: &StaticValue, right: &StaticValue) -> bool {
+    matches!(
+        (left, right),
+        (StaticValue::Boolean(_), StaticValue::Boolean(_))
+            | (StaticValue::Number(_), StaticValue::Number(_))
+            | (StaticValue::String(_), StaticValue::String(_))
+            | (StaticValue::Undefined, StaticValue::Undefined)
+    )
 }
 
 fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {

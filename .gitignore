@@ -13,3 +13,4 @@ test-mocks-dir*
 notes
 e2e-tests/test-runs
 e2e-tests/test-results
+.vscode/review-state.json

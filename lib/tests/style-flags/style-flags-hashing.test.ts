@@ -201,3 +201,62 @@ test('referencing styled component with flags preserves style flag hash', async 
     "
   `);
 });
+
+test('should support style flags with $ prefixed names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Widget = styled.div<{
+        $active: boolean;
+        $size: 'small' | 'large';
+      }>\`
+        background: white;
+
+        &.$active {
+          background: blue;
+        }
+
+        &.$size-small {
+          padding: 4px;
+        }
+
+        &.$size-large {
+          padding: 16px;
+        }
+      \`;
+
+      function Component() {
+        return <Widget $active $size="small" />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component() {
+      return (
+        <div className={"v1560qbr-1-Widget v1ytfoaf-_active vh12jjb-_size-small"} />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Widget {
+      background: white;
+
+      &.v1ytfoaf-_active {
+        background: blue;
+      }
+
+      &.vh12jjb-_size-small {
+        padding: 4px;
+      }
+
+      &.vh12jjb-_size-large {
+        padding: 16px;
+      }
+    }
+    "
+  `);
+});

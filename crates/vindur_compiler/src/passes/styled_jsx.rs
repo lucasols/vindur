@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit};
 
-use super::{styled::StyledComponent, transform_support::jsx_attribute_string};
+use super::styled::StyledComponent;
 
 pub(crate) struct StyledJsxTransform<'a> {
     pub components: &'a FxHashMap<String, StyledComponent>,
@@ -88,10 +88,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                     self.file_path,
                     self.source,
                     spread.span,
-                    format!(
-                        "Unsupported spread expression \"{}\" used in vindur styled component. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.",
-                        format_spread_expression(&spread.source)
-                    ),
+                    unsupported_spread_message(&spread, "vindur styled component"),
                 ));
                 return;
             }
@@ -139,24 +136,13 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 .is_none_or(|attribute| attribute.span.start < last_spread.start)
         {
             *self.needs_merge_helper = true;
-            let mut inputs = Vec::new();
-            for item in &element.opening_element.attributes {
-                match item {
-                    JSXAttributeItem::SpreadAttribute(spread) => {
-                        let span = spread.argument.span();
-                        inputs.push(self.source[span.start as usize..span.end as usize].to_owned());
-                    }
-                    JSXAttributeItem::Attribute(attribute)
-                        if is_named_attribute(attribute, "className") =>
-                    {
-                        inputs.push(class_name_value_source(attribute, self.source));
-                        self.edits.push(Edit {
-                            span: attribute.span,
-                            replacement: String::new(),
-                        });
-                    }
-                    _ => {}
-                }
+            let (inputs, replaced_attributes) =
+                merge_class_name_inputs(element, self.source, self.constants, self.scoping);
+            for span in replaced_attributes {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
             }
             let offset = opening_attribute_insertion_offset(element, self.source);
             self.edits.push(Edit {
@@ -179,10 +165,12 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
                 self.edits.push(Edit {
                     span: value.span,
-                    replacement: jsx_attribute_string(&format!(
-                        "{} {}",
-                        component.class_name, value.value
-                    )),
+                    replacement: wrap_jsx_string(
+                        value,
+                        self.source,
+                        &format!("{} ", component.class_name),
+                        "",
+                    ),
                 });
             } else if matches!(
                 &attribute.value,
@@ -201,9 +189,14 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.edits.push(Edit {
                     span: attribute.span,
                     replacement: format!(
-                        "className={{[\"{}\", {}].filter(Boolean).join(\" \")}}",
+                        "className={{\"{} \" + {}}}",
                         component.class_name,
-                        class_name_value_source(attribute, self.source)
+                        class_name_concat_source(
+                            attribute,
+                            self.source,
+                            self.constants,
+                            self.scoping
+                        )
                     ),
                 });
             }
@@ -316,11 +309,19 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 .map(|class| format!("\"{class}\""))
                 .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
                 .collect::<Vec<_>>();
+            let (inputs, replaced_attributes) =
+                merge_class_name_inputs(element, self.source, self.constants, self.scoping);
+            for span in replaced_attributes {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
             cx_arguments.insert(
                 0,
                 format!(
                     "mergeClassNames([{}], \"{}\")",
-                    spreads.join(", "),
+                    inputs.join(", "),
                     component.class_name
                 ),
             );
@@ -345,6 +346,8 @@ impl StyledJsxVisitor<'_, '_, '_> {
                 &component.class_name,
                 &static_classes,
                 self.source,
+                self.constants,
+                self.scoping,
             );
             self.edits.push(Edit {
                 span: attribute.span,
@@ -360,4 +363,7 @@ impl StyledJsxVisitor<'_, '_, '_> {
     }
 }
 
-use super::styled_jsx_helpers::*;
+use super::{
+    jsx_attributes::{jsx_name, opening_attribute_insertion_offset},
+    styled_jsx_helpers::*,
+};

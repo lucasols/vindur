@@ -90,7 +90,14 @@ mod tests {
             .build(&parsed.program)
             .semantic;
         let mut imports = VindurImports::new(semantic.scoping());
-        collect_vindur_imports(&parsed.program, source, &mut imports, &mut Vec::new());
+        collect_vindur_imports(
+            &parsed.program,
+            "/test.tsx",
+            source,
+            &mut imports,
+            &mut Vec::new(),
+        )
+        .expect("vindur imports");
         let offsets = css_template_offsets(&parsed.program, &imports);
         let expected = source
             .match_indices('`')

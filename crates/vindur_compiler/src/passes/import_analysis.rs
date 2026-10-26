@@ -1,10 +1,10 @@
 use oxc_ast::ast::{BindingPattern, Expression, ImportDeclarationSpecifier, Program, Statement};
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 use crate::{
+    diagnostic::CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
-    facts::StaticValue,
     semantic::VindurImports,
 };
 
@@ -16,7 +16,6 @@ const COMPILE_TIME_IMPORTS: &[&str] = &[
     "layer",
     "stableId",
     "styled",
-    "vindurFn",
 ];
 
 pub(super) fn is_compile_time_import(name: &str) -> bool {
@@ -47,8 +46,10 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
-                if let oxc_ast::ast::ExportDefaultDeclarationKind::Identifier(identifier) =
-                    &export.declaration
+                if let Some(Expression::Identifier(identifier)) = export
+                    .declaration
+                    .as_expression()
+                    .map(Expression::get_inner_expression)
                 {
                     names.insert(identifier.name.to_string());
                 }
@@ -115,10 +116,11 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
 
 pub(super) fn collect_vindur_imports(
     program: &Program<'_>,
+    file_path: &str,
     source: &str,
     imports: &mut VindurImports<'_>,
     edits: &mut Vec<Edit>,
-) {
+) -> Result<(), CompilerDiagnostic> {
     for statement in &program.body {
         let Statement::ImportDeclaration(declaration) = statement else {
             continue;
@@ -135,8 +137,23 @@ pub(super) fn collect_vindur_imports(
                 specifier_count += 1;
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
+                    let is_type_import =
+                        declaration.import_kind.is_type() || named.import_kind.is_type();
+                    if !is_type_import && imported.as_str() != named.local.name.as_str() {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            named.span,
+                            format!(
+                                "aliased vindur imports are not supported, import \"{imported}\" without the \"{}\" alias",
+                                named.local.name
+                            ),
+                        ));
+                    }
+                    // Runtime imports are tracked too, so vindur utilities are detected by
+                    // their import instead of their name
+                    imports.insert(&named.local, imported.as_str());
                     if is_compile_time_import(imported.as_str()) {
-                        imports.insert(&named.local, imported.as_str());
                         compile_time_count += 1;
                         continue;
                     }
@@ -164,93 +181,5 @@ pub(super) fn collect_vindur_imports(
             });
         }
     }
-}
-
-pub(super) fn collect_resolved_import_edits(
-    program: &Program<'_>,
-    source: &str,
-    imported_values: &FxHashMap<String, StaticValue>,
-    runtime_referenced_names: &FxHashSet<String>,
-    edits: &mut Vec<Edit>,
-) {
-    for statement in &program.body {
-        let Statement::ImportDeclaration(declaration) = statement else {
-            continue;
-        };
-        if declaration.source.value.as_str() == "vindur" {
-            continue;
-        }
-        let Some(specifiers) = &declaration.specifiers else {
-            continue;
-        };
-        let mut compile_time_count = 0usize;
-        let mut has_keyframes = false;
-        let mut runtime_specifiers = Vec::new();
-        for specifier in specifiers {
-            let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier else {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            };
-            let Some(value) = imported_values.get(named.local.name.as_str()) else {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            };
-            if matches!(
-                value,
-                StaticValue::MissingImport { .. }
-                    | StaticValue::InvalidFunction { .. }
-                    | StaticValue::InvalidObject { .. }
-            ) {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            if matches!(value, StaticValue::Function(_))
-                && !source[declaration.span.end as usize..]
-                    .contains(&format!("{}(", named.local.name))
-            {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            // Dynamic colors are runtime objects, e.g. `dynamicColor` props compile to
-            // `color._sp()`, only their uses in templates are compiled away
-            let runtime_dynamic_color = matches!(value, StaticValue::DynamicColor { .. })
-                && runtime_referenced_names.contains(named.local.name.as_str());
-            if matches!(
-                value,
-                StaticValue::ClassName(_) | StaticValue::ThemeColors(_)
-            ) || runtime_dynamic_color
-            {
-                let span = specifier.span();
-                runtime_specifiers.push(source[span.start as usize..span.end as usize].to_owned());
-                continue;
-            }
-            compile_time_count += 1;
-            has_keyframes |= matches!(value, StaticValue::Keyframes(_));
-        }
-        if compile_time_count == 0 {
-            continue;
-        }
-        edits.push(Edit {
-            span: if runtime_specifiers.is_empty() && has_keyframes {
-                declaration.span
-            } else {
-                expand_removal_to_line(source, declaration.span)
-            },
-            replacement: if !runtime_specifiers.is_empty() {
-                format!(
-                    "import {{ {} }} from \"{}\";\n",
-                    runtime_specifiers.join(", "),
-                    declaration.source.value
-                )
-            } else if has_keyframes {
-                format!("import \"{}\";", declaration.source.value)
-            } else {
-                String::new()
-            },
-        });
-    }
+    Ok(())
 }

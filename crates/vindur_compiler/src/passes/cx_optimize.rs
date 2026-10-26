@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
-use super::{import_analysis::is_compile_time_import, transform_support::js_string_literal};
+use super::{import_analysis::is_compile_time_import, styled_jsx_helpers::js_string_literal};
 
 /// `keep_import` is set when generated code calls the user's own `cx` import
 pub(crate) fn optimize_cx_calls(

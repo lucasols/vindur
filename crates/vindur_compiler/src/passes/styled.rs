@@ -3,6 +3,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
+use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
 
 #[derive(Clone, Debug)]
@@ -16,6 +17,11 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
+}
+
+/// JS identifiers can contain `$`, which is not valid in a CSS class name
+pub(crate) fn css_class_name_part(name: &str) -> String {
+    name.replace('$', "_")
 }
 
 #[derive(Clone, Debug)]
@@ -223,8 +229,7 @@ pub(crate) fn resolve_styled_references(
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
-            let placeholder = format!("__VINDUR_STYLED_REF_{name}__");
-            *rule = rule.replace(&placeholder, &format!(".{class_name}"));
+            *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
             for flag in &component.style_flags {
                 match &flag.kind {
                     StyleFlagKind::Boolean => {
@@ -246,10 +251,19 @@ pub(crate) fn resolve_styled_references(
         }
     }
     css_rules.iter().find_map(|rule| {
-        let (_, suffix) = rule.split_once("__VINDUR_STYLED_REF_")?;
-        let (name, _) = suffix.split_once("__")?;
-        Some(name.to_owned())
+        let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
+        let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
+        hex_decode(encoded)
     })
+}
+
+const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
+const STYLED_REF_SUFFIX: &str = "__";
+
+/// Forward styled component references are replaced by a placeholder until every component is
+/// known, the name is hex encoded because JS identifiers can contain `$`, which CSS rejects
+pub(crate) fn styled_ref_placeholder(name: &str) -> String {
+    format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
 pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {
@@ -292,46 +306,56 @@ pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<St
                 .collect(),
         })
         .collect::<rustc_hash::FxHashSet<_>>();
-    let bytes = css.as_bytes();
-    let mut classes = Vec::new();
-    let mut index = 0usize;
-    while index + 2 <= bytes.len() {
-        let starts_selector =
-            bytes.get(index) == Some(&b'&') && bytes.get(index + 1) == Some(&b'.');
-        let chained_selector = bytes.get(index) == Some(&b'.')
-            && index > 0
-            && bytes[index - 1] != b' '
-            && bytes[index - 1] != b'\n';
-        if !starts_selector && !chained_selector {
-            index += 1;
-            continue;
-        }
-        let start = if starts_selector {
-            index + 2
-        } else {
-            index + 1
-        };
-        let Some(first) = bytes.get(start).copied() else {
-            break;
-        };
-        if !first.is_ascii_alphabetic() && first != b'_' && first != b'-' {
-            index = start + 1;
-            continue;
-        }
-        let mut end = start + 1;
-        while bytes
-            .get(end)
-            .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b'-'))
-        {
-            end += 1;
-        }
-        let name = &css[start..end];
+    let mut classes: Vec<String> = Vec::new();
+    for name in ampersand_compound_classes(&css) {
         if !declared.contains(name) && !classes.iter().any(|class| class == name) {
             classes.push(name.to_owned());
         }
-        index = end;
     }
     classes
+}
+
+fn is_compound_boundary(byte: u8) -> bool {
+    byte.is_ascii_whitespace() || matches!(byte, b',' | b'{' | b'}' | b'>' | b'+' | b'~' | b';')
+}
+
+// Only classes in the same compound selector as `&` (`&.active`,
+// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not
+fn ampersand_compound_classes(css: &str) -> Vec<&str> {
+    let bytes = css.as_bytes();
+    let mut names = Vec::new();
+    let mut compound_end = 0usize;
+    for (ampersand, _) in css.match_indices('&') {
+        if ampersand < compound_end {
+            continue;
+        }
+        let start = bytes[..ampersand]
+            .iter()
+            .rposition(|byte| is_compound_boundary(*byte))
+            .map_or(0, |index| index + 1);
+        compound_end = bytes[ampersand..]
+            .iter()
+            .position(|byte| is_compound_boundary(*byte))
+            .map_or(bytes.len(), |index| ampersand + index);
+        let compound = &css[start..compound_end];
+        for (dot, _) in compound.match_indices('.') {
+            let name_start = dot + 1;
+            let name_end = compound[name_start..]
+                .find(|character: char| {
+                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
+                })
+                .map_or(compound.len(), |index| name_start + index);
+            let name = &compound[name_start..name_end];
+            if name
+                .chars()
+                .next()
+                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
+            {
+                names.push(name);
+            }
+        }
+    }
+    names
 }
 
 pub(super) fn strip_css_comments(css: &str) -> String {

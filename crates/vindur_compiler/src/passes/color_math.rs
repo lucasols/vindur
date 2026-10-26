@@ -38,12 +38,9 @@ pub(super) fn compress_hex((red, green, blue): Rgb, alpha: Option<u8>) -> String
     if let Some(alpha) = alpha {
         value.push_str(&format!("{alpha:02x}"));
     }
-    let bytes = value.as_bytes();
-    if bytes.chunks_exact(2).all(|pair| pair[0] == pair[1]) {
-        value = bytes
-            .chunks_exact(2)
-            .map(|pair| char::from(pair[0]))
-            .collect();
+    let (pairs, _) = value.as_bytes().as_chunks::<2>();
+    if pairs.iter().all(|[first, second]| first == second) {
+        value = pairs.iter().map(|[first, _]| char::from(*first)).collect();
     }
     format!("#{value}")
 }

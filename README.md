@@ -465,7 +465,7 @@ const Container = styled.div`
 
 ### CSS Style Extension
 
-Extend CSS styles from `css` function into styled components using semicolon extension:
+Extend CSS styles from `css` function into styled components using semicolon extension. Without the `;` the interpolation is used as a class selector, so a missing `;` before declarations fails the build with a hint:
 
 ```tsx
 import { css, styled } from 'vindur';
@@ -672,6 +672,8 @@ const slideAnimation = keyframes`
   }
 `;
 ```
+
+`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated.
 
 ### Scoped CSS Variables
 
@@ -881,6 +883,8 @@ createGlobalStyle`
 `;
 ```
 
+`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
+
 ### Mixins and Functions
 
 Create reusable style functions with `vindurFn`:
@@ -917,6 +921,8 @@ const Button = styled.button`
   cursor: pointer;
 `;
 ```
+
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
 
 ### JSX CSS Prop
 
@@ -1463,10 +1469,6 @@ Compiles to:
   }
 }
 ```
-
-## Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
 
 ## License
 

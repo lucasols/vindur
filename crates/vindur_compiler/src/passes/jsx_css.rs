@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
-    JSXElementName, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind,
+    Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -10,15 +10,21 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 
 use super::{
-    css::clean_css,
-    dynamic_color_merge::{ClassPart, DynamicColorClasses},
+    css::{clean_css, generate_class_rules},
+    css_syntax::{BlockKind, CssError, css_error_diagnostic},
     id_order::{css_attribute_scoped_variable_count, scoped_variable_names},
+    jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
     jsx_cx::CxElementTransform,
-    scoped::process_scoped_variables,
+    scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
-    transform_support::jsx_attribute_string,
+    styled_jsx_helpers::{
+        ClassNameTarget, class_name_concat_source, decode_jsx_entities, emit_class_name,
+        has_dynamic_color_attribute, has_spread_attribute, js_string_literal,
+        merge_class_name_inputs, replace_modifier_selector, styled_spread_sources,
+        unsupported_spread_message, wrap_jsx_string,
+    },
 };
 
 pub(crate) struct JsxCssTransform<'a> {
@@ -35,8 +41,8 @@ pub(crate) struct JsxCssTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub needs_merge_helper: &'a mut bool,
     pub cx_elements: &'a FxHashMap<u32, CxElementTransform>,
-    pub scoped_variables: &'a mut FxHashMap<String, String>,
-    pub dynamic_color_classes: &'a mut DynamicColorClasses,
+    pub class_expressions: &'a mut FxHashMap<u32, String>,
+    pub scoped_variables: &'a mut ScopedVariables,
 }
 
 pub(crate) fn transform_jsx_css_props(
@@ -47,11 +53,14 @@ pub(crate) fn transform_jsx_css_props(
     let mut visitor = JsxCssVisitor {
         output,
         tail_index: minimum_final_index,
-        style_objects: Vec::new(),
         diagnostic: None,
+        pass: JsxCssPass::CssProps,
     };
     visitor.visit_program(program);
-    visitor.process_style_objects();
+    // Style props can set variables of css props in any element, so they are renamed after every
+    // css prop is processed
+    visitor.pass = JsxCssPass::StyleProps;
+    visitor.visit_program(program);
     *visitor.output.id_index = (*visitor.output.id_index)
         .max(minimum_final_index)
         .max(visitor.tail_index);
@@ -65,9 +74,14 @@ struct JsxCssVisitor<'a> {
     output: JsxCssTransform<'a>,
     /// The next id after every reserved one
     tail_index: u32,
-    /// Style objects with `---name` keys, mapped once every css prop is processed
-    style_objects: Vec<(oxc_span::Span, Vec<(oxc_span::Span, String)>)>,
     diagnostic: Option<CompilerDiagnostic>,
+    pass: JsxCssPass,
+}
+
+#[derive(Clone, Copy)]
+enum JsxCssPass {
+    CssProps,
+    StyleProps,
 }
 
 impl<'a> Visit<'a> for JsxCssVisitor<'_> {
@@ -75,10 +89,14 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         if self.diagnostic.is_some() {
             return;
         }
-        if let Some(css_attribute) = find_attribute(element, "css") {
-            self.process_css_attribute(element, css_attribute);
+        match self.pass {
+            JsxCssPass::CssProps => {
+                if let Some(css_attribute) = find_attribute(element, "css") {
+                    self.process_css_attribute(element, css_attribute);
+                }
+            }
+            JsxCssPass::StyleProps => self.process_style_attribute(element),
         }
-        self.collect_style_attribute(element);
         if self.diagnostic.is_none() {
             walk::walk_jsx_element(self, element);
         }
@@ -86,7 +104,7 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
 }
 
 impl JsxCssVisitor<'_> {
-    fn collect_style_attribute(&mut self, element: &JSXElement<'_>) {
+    fn process_style_attribute(&mut self, element: &JSXElement<'_>) {
         let Some(attribute) = find_attribute(element, "style") else {
             return;
         };
@@ -96,48 +114,41 @@ impl JsxCssVisitor<'_> {
         let JSXExpression::ObjectExpression(object) = &container.expression else {
             return;
         };
-        let keys = object
-            .properties
-            .iter()
-            .filter_map(|property| {
-                let ObjectPropertyKind::ObjectProperty(property) = property else {
-                    return None;
-                };
-                let name = property.key.static_name()?;
-                let scoped_name = name.strip_prefix("---")?;
-                Some((property.key.span(), scoped_name.to_owned()))
-            })
-            .collect::<Vec<_>>();
-        if !keys.is_empty() {
-            self.style_objects.push((object.span, keys));
+        let mut transformed = false;
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(property) = property else {
+                continue;
+            };
+            let Some(name) = property.key.static_name() else {
+                continue;
+            };
+            let Some(scoped_name) = name.strip_prefix("---") else {
+                continue;
+            };
+            let Some(generated) = self.output.scoped_variables.generated.get(scoped_name) else {
+                continue;
+            };
+            self.output.edits.push(Edit {
+                span: property.key.span(),
+                replacement: format!("\"--{generated}\""),
+            });
+            // Setting the variable in the style prop declares it
+            self.output
+                .scoped_variables
+                .declared
+                .entry(scoped_name.to_owned())
+                .or_insert(property.key.span());
+            transformed = true;
         }
-    }
-
-    /// Runs after every css prop registered its scoped variables, so a parent's style
-    /// prop can set a variable that a child's css prop declares
-    fn process_style_objects(&mut self) {
-        for (object_span, keys) in std::mem::take(&mut self.style_objects) {
-            let mut transformed = false;
-            for (key_span, scoped_name) in keys {
-                let Some(generated) = self.output.scoped_variables.get(&scoped_name) else {
-                    continue;
-                };
-                self.output.edits.push(Edit {
-                    span: key_span,
-                    replacement: format!("\"--{generated}\""),
-                });
-                transformed = true;
-            }
-            if transformed {
-                self.output.edits.push(Edit {
-                    span: oxc_span::Span::new(object_span.start + 1, object_span.start + 1),
-                    replacement: "\n".to_owned(),
-                });
-                self.output.edits.push(Edit {
-                    span: oxc_span::Span::new(object_span.end - 1, object_span.end - 1),
-                    replacement: "\n".to_owned(),
-                });
-            }
+        if transformed {
+            self.output.edits.push(Edit {
+                span: oxc_span::Span::new(object.span.start + 1, object.span.start + 1),
+                replacement: "\n".to_owned(),
+            });
+            self.output.edits.push(Edit {
+                span: oxc_span::Span::new(object.span.end - 1, object.span.end - 1),
+                replacement: "\n".to_owned(),
+            });
         }
     }
 
@@ -146,62 +157,37 @@ impl JsxCssVisitor<'_> {
             self.invalid_value(attribute.span);
             return;
         };
-        if let JSXExpression::Identifier(identifier) = &container.expression {
-            let Some(StaticValue::CssClass { .. }) =
-                resolved_constant(identifier, self.output.constants, self.output.scoping)
-            else {
-                if is_custom_component(&element.opening_element.name) {
+        let cx_transform = self.output.cx_elements.get(&element.span.start);
+        let (class_name, css_rules) = match &container.expression {
+            JSXExpression::Identifier(identifier) => {
+                let Some(StaticValue::CssClass { name, .. }) =
+                    resolved_constant(identifier, self.output.constants, self.output.scoping)
+                else {
+                    if is_custom_component(&element.opening_element.name) {
+                        return;
+                    }
+                    self.invalid_value(identifier.span);
+                    return;
+                };
+                let styled = styled_component(element, self.output.styled_components);
+                if is_custom_component(&element.opening_element.name) && styled.is_none() {
                     return;
                 }
-                self.invalid_value(identifier.span);
-                return;
-            };
-            let styled = styled_component(element, self.output.styled_components);
-            if is_custom_component(&element.opening_element.name) && styled.is_none() {
-                return;
+                if styled.is_none()
+                    && cx_transform.is_none()
+                    && find_last_attribute(element, "className").is_none()
+                    && !has_spread_attribute(element)
+                    && !has_dynamic_color_attribute(element)
+                {
+                    // Inlined, so imported references don't need a runtime binding
+                    self.output.edits.push(Edit {
+                        span: attribute.span,
+                        replacement: format!("className=\"{name}\""),
+                    });
+                    return;
+                }
+                (name.clone(), Vec::new())
             }
-            // The cx prop of an element with a css prop is emitted here
-            let cx_call = self
-                .output
-                .cx_elements
-                .get(&element.span.start)
-                .map(|cx| cx.call.clone());
-            let mut parts = vec![ClassPart::Expression(identifier.name.to_string())];
-            parts.extend(cx_call.clone().map(ClassPart::Expression));
-            if self.merge_into_dynamic_color(element, attribute, parts) {
-                return;
-            }
-            let cx_argument = cx_call
-                .as_ref()
-                .map_or(String::new(), |cx| format!(", {cx}"));
-            if let Some(styled) = styled {
-                self.output.edits.push(Edit {
-                    span: attribute.span,
-                    replacement: format!(
-                        "className={{[\"{}\", {}{cx_argument}].filter(Boolean).join(\" \")}}",
-                        styled.class_name, identifier.name
-                    ),
-                });
-                return;
-            }
-            if let Some(cx) = cx_call {
-                self.output.edits.push(Edit {
-                    span: attribute.span,
-                    replacement: format!("className={{{} + \" \" + {cx}}}", identifier.name),
-                });
-                return;
-            }
-            let JSXAttributeName::Identifier(attribute_name) = &attribute.name else {
-                return;
-            };
-            self.output.edits.push(Edit {
-                span: attribute_name.span,
-                replacement: "className".to_owned(),
-            });
-            return;
-        }
-        let cx_transform = self.output.cx_elements.get(&element.span.start);
-        let (class_name, css_content) = match &container.expression {
             JSXExpression::TemplateLiteral(template) => {
                 if cx_transform.is_none()
                     && let Some(index) = self.output.id_starts.get(&element.span.start)
@@ -217,6 +203,7 @@ impl JsxCssVisitor<'_> {
                     &TemplateContext {
                         variable_name: None,
                         tag_type: "css",
+                        style_flags: &[],
                     },
                 ) {
                     Ok(content) => clean_css(&content),
@@ -228,8 +215,7 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     for (original, hashed, should_rewrite) in &cx.mappings {
                         if *should_rewrite {
-                            content =
-                                content.replace(&format!("&.{original}"), &format!("&.{hashed}"));
+                            content = replace_modifier_selector(&content, original, hashed);
                         }
                     }
                 }
@@ -249,8 +235,22 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     *self.output.id_index = cx.next_index;
                 }
-                let content = self.process_css_prop_scoped_variables(&content, attribute);
-                (name, Some(content))
+                let rules = match self
+                    .process_css_prop_scoped_variables(&content, attribute, template.span)
+                    .and_then(|content| generate_class_rules(&name, &content))
+                {
+                    Ok(rules) => rules,
+                    Err(error) => {
+                        self.diagnostic = Some(css_error_diagnostic(
+                            self.output.file_path,
+                            self.output.source,
+                            template.span,
+                            error,
+                        ));
+                        return;
+                    }
+                };
+                (name, rules)
             }
             expression => {
                 if is_custom_component(&element.opening_element.name) {
@@ -261,13 +261,7 @@ impl JsxCssVisitor<'_> {
             }
         };
 
-        if let Some(content) = css_content
-            && !content.is_empty()
-        {
-            self.output
-                .css_rules
-                .push(format!(".{class_name} {{\n  {content}\n}}"));
-        }
+        self.output.css_rules.extend(css_rules);
 
         let component = styled_component(element, self.output.styled_components);
         if is_custom_component(&element.opening_element.name) && component.is_none() {
@@ -281,35 +275,46 @@ impl JsxCssVisitor<'_> {
             return;
         }
 
-        let mut dynamic_color_parts = vec![ClassPart::Literal(class_name.clone())];
-        dynamic_color_parts.extend(cx_transform.map(|cx| ClassPart::Expression(cx.call.clone())));
-        if self.merge_into_dynamic_color(element, attribute, dynamic_color_parts) {
-            return;
-        }
-
         let complete_class = component.map_or(class_name.clone(), |styled| {
             format!("{} {class_name}", styled.class_name)
         });
         let complete_expression =
             cx_transform.map(|cx| format!("\"{complete_class} \" + {}", cx.call));
-        let spreads = spread_sources(element, self.output.source);
-        if !spreads.is_empty() {
+        if has_spread_attribute(element) {
+            if let Err(spread) = styled_spread_sources(element, self.output.source) {
+                self.diagnostic = Some(CompilerDiagnostic::error(
+                    self.output.file_path,
+                    self.output.source,
+                    spread.span,
+                    unsupported_spread_message(&spread, "an element with vindur css or cx props"),
+                ));
+                return;
+            }
+            let (inputs, replaced_attributes) = merge_class_name_inputs(
+                element,
+                self.output.source,
+                self.output.constants,
+                self.output.scoping,
+            );
             *self.output.needs_merge_helper = true;
-            self.output.edits.push(Edit {
-                span: attribute.span,
-                replacement: String::new(),
-            });
+            for span in replaced_attributes.into_iter().chain([attribute.span]) {
+                self.output.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
             let insertion_offset = opening_attribute_insertion_offset(element, self.output.source);
-            self.output.edits.push(Edit {
-                span: oxc_span::Span::new(insertion_offset, insertion_offset),
-                replacement: format!(
-                    " className={{mergeClassNames([{}], {})}}",
-                    spreads.join(", "),
-                    complete_expression
-                        .as_deref()
-                        .unwrap_or(&format!("\"{complete_class}\""))
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Insert(insertion_offset),
+                format!(
+                    "mergeClassNames([{}], {})",
+                    inputs.join(", "),
+                    complete_expression.unwrap_or_else(|| js_string_literal(&complete_class))
                 ),
-            });
+            );
             return;
         }
         if let Some(class_attribute) = find_last_attribute(element, "className") {
@@ -317,15 +322,25 @@ impl JsxCssVisitor<'_> {
                 span: attribute.span,
                 replacement: String::new(),
             });
-            self.merge_class_attribute(class_attribute, &complete_class);
-        } else {
+            self.merge_class_attribute(
+                element,
+                class_attribute,
+                &complete_class,
+                cx_transform.map(|cx| cx.call.as_str()),
+            );
+        } else if complete_expression.is_none() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
                 span: attribute.span,
-                replacement: complete_expression.map_or_else(
-                    || format!("className=\"{complete_class}\""),
-                    |expression| format!("className={{{expression}}}"),
-                ),
+                replacement: format!("className=\"{complete_class}\""),
             });
+        } else {
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Replace(attribute.span),
+                complete_expression.unwrap_or_else(|| js_string_literal(&complete_class)),
+            );
         }
     }
 
@@ -336,10 +351,11 @@ impl JsxCssVisitor<'_> {
         &mut self,
         content: &str,
         attribute: &JSXAttribute<'_>,
-    ) -> String {
+        span: oxc_span::Span,
+    ) -> Result<String, CssError> {
         let new_names = scoped_variable_names(content)
             .into_iter()
-            .filter(|name| !self.output.scoped_variables.contains_key(*name))
+            .filter(|name| !self.output.scoped_variables.generated.contains_key(*name))
             .collect::<FxHashSet<_>>()
             .len();
         let reserved = css_attribute_scoped_variable_count(attribute);
@@ -350,6 +366,8 @@ impl JsxCssVisitor<'_> {
         };
         process_scoped_variables(
             content,
+            BlockKind::Style,
+            span,
             self.output.file_hash,
             self.output.dev,
             index,
@@ -357,48 +375,55 @@ impl JsxCssVisitor<'_> {
         )
     }
 
-    /// The dynamic color pass merges the classes into its `_sp` call, whose spread would
-    /// override a `className` prop
-    fn merge_into_dynamic_color(
+    fn merge_class_attribute(
         &mut self,
         element: &JSXElement<'_>,
         attribute: &JSXAttribute<'_>,
-        parts: Vec<ClassPart>,
-    ) -> bool {
-        if find_attribute(element, "dynamicColor").is_none() {
-            return false;
-        }
-        self.output
-            .dynamic_color_classes
-            .entry(element.span.start)
-            .or_default()
-            .extend(parts);
-        self.output.edits.push(Edit {
-            span: attribute.span,
-            replacement: String::new(),
-        });
-        true
-    }
-
-    fn merge_class_attribute(&mut self, attribute: &JSXAttribute<'_>, class_name: &str) {
-        if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
-            self.output.edits.push(Edit {
-                span: value.span,
-                replacement: jsx_attribute_string(&format!("{} {class_name}", value.value)),
-            });
-            return;
-        }
-        let value_source = attribute.value.as_ref().map_or("undefined", |value| {
-            let span = value.span();
-            &self.output.source[span.start as usize..span.end as usize]
-        });
-        self.output.edits.push(Edit {
-            span: attribute.span,
-            replacement: format!(
-                "className={{[{}, \"{class_name}\"].filter(Boolean).join(\" \")}}",
-                value_source.trim_matches(['{', '}'])
-            ),
-        });
+        class_name: &str,
+        cx_call: Option<&str>,
+    ) {
+        let expression = if let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value {
+            if cx_call.is_none() && !has_dynamic_color_attribute(element) {
+                self.output.edits.push(Edit {
+                    span: value.span,
+                    replacement: wrap_jsx_string(
+                        value,
+                        self.output.source,
+                        "",
+                        &format!(" {class_name}"),
+                    ),
+                });
+                return;
+            }
+            let existing = decode_jsx_entities(&value.value);
+            cx_call.map_or_else(
+                || js_string_literal(&format!("{existing} {class_name}")),
+                |cx_call| {
+                    format!(
+                        "{} + {cx_call}",
+                        js_string_literal(&format!("{existing} {class_name} "))
+                    )
+                },
+            )
+        } else {
+            let existing = class_name_concat_source(
+                attribute,
+                self.output.source,
+                self.output.constants,
+                self.output.scoping,
+            );
+            cx_call.map_or_else(
+                || format!("{existing} + \" {class_name}\""),
+                |cx_call| format!("{existing} + \" {class_name} \" + {cx_call}"),
+            )
+        };
+        emit_class_name(
+            self.output.edits,
+            self.output.class_expressions,
+            element,
+            ClassNameTarget::Replace(attribute.span),
+            expression,
+        );
     }
 
     fn invalid_value(&mut self, span: oxc_span::Span) {
@@ -410,49 +435,6 @@ impl JsxCssVisitor<'_> {
                 .to_owned(),
         ));
     }
-}
-
-fn find_attribute<'a>(element: &'a JSXElement<'a>, name: &str) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            attribute_name(attribute)
-                .is_some_and(|attribute_name| attribute_name == name)
-                .then_some(attribute)
-        })
-        .map(|attribute| &**attribute)
-}
-
-fn find_last_attribute<'a>(
-    element: &'a JSXElement<'a>,
-    name: &str,
-) -> Option<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .rev()
-        .find_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            attribute_name(attribute)
-                .is_some_and(|attribute_name| attribute_name == name)
-                .then_some(attribute)
-        })
-        .map(|attribute| &**attribute)
-}
-
-fn attribute_name<'a>(attribute: &'a JSXAttribute<'a>) -> Option<&'a str> {
-    let JSXAttributeName::Identifier(identifier) = &attribute.name else {
-        return None;
-    };
-    Some(identifier.name.as_str())
 }
 
 fn styled_component<'a>(
@@ -473,28 +455,4 @@ fn is_custom_component(name: &JSXElementName<'_>) -> bool {
         _ => return true,
     };
     identifier.chars().next().is_some_and(char::is_uppercase)
-}
-
-fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<String> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
-            let span = spread.argument.span();
-            Some(source[span.start as usize..span.end as usize].to_owned())
-        })
-        .collect()
-}
-
-fn opening_attribute_insertion_offset(element: &JSXElement<'_>, source: &str) -> u32 {
-    let end = element.opening_element.span.end.saturating_sub(1);
-    if source.as_bytes().get(end.saturating_sub(1) as usize) == Some(&b'/') {
-        end.saturating_sub(1)
-    } else {
-        end
-    }
 }

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::normalize::normalize_code;
 use crate::passes::transform_program;
+use crate::resolved_imports::remove_resolved_imports;
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
@@ -150,6 +151,11 @@ impl Compiler {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
+        let edited_code =
+            match remove_resolved_imports(file_path, edited_code, source_type, &imported_values) {
+                Ok(code) => code,
+                Err(diagnostic) => return failed_output(source, diagnostic),
+            };
         let code = if options.normalize_code {
             match normalize_code(file_path, &edited_code, source_type) {
                 Ok(code) => code,
@@ -253,6 +259,37 @@ impl Compiler {
             let Some(specifiers) = &import.specifiers else {
                 continue;
             };
+            // Namespace member references can't be checked by the vindurFn runtime guard
+            if !import.import_kind.is_type()
+                && let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
+                    specifiers.iter().find(|specifier| {
+                        matches!(
+                            specifier,
+                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                        )
+                    })
+                && let Some(function_name) = facts
+                    .exports
+                    .iter()
+                    .filter(|(_, value)| {
+                        matches!(
+                            value,
+                            StaticValue::Function(_) | StaticValue::ImportedFunction(_)
+                        )
+                    })
+                    .map(|(name, _)| name)
+                    .min()
+            {
+                return Err(CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    namespace.span,
+                    format!(
+                        "vindurFn exports of \"{}\" can't be imported with a namespace import, import them by name, e.g. import {{ {function_name} }} from \"{}\"",
+                        import.source.value, import.source.value
+                    ),
+                ));
+            }
             let mut needs_dependency = false;
             for specifier in specifiers {
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {

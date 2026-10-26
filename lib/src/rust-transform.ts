@@ -111,11 +111,7 @@ export function transformWithRust({
       && !isInvalidFunctionDiagnostic ?
         `${diagnosticFile}: `
       : '';
-    const shouldAttachDependencyLocation = (isDependencyDiagnostic
-      && isMissingImportDiagnostic)
-      || (isDependencyDiagnostic && isInvalidFunctionDiagnostic)
-      || (isDependencyDiagnostic
-        && diagnostic.message.includes('= vindurFn('))
+    const shouldAttachDependencyLocation = isDependencyDiagnostic
       || diagnostic.message.startsWith('vindurFn "');
     const shouldAttachRootLocation = diagnostic.message.startsWith(
       'Forward reference to undefined styled component:',
