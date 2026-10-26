@@ -7,7 +7,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const pixelSize = vindurFn((size: number) => 'width: \${size}px;')
+      export const pixelSize = vindurFn((size: number) => \`width: \${size}px;\`)
     `;
 
     const result = await transformWithFormat({
@@ -81,7 +81,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const colorize = vindurFn((color: string) => 'color: \${color};')
+      export const colorize = vindurFn((color: string) => \`color: \${color};\`)
     `;
 
     const result = await transformWithFormat({
@@ -155,7 +155,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const content = vindurFn((text: string) => 'content: "\${text}";')
+      export const content = vindurFn((text: string) => \`content: "\${text}";\`)
     `;
 
     const result = await transformWithFormat({

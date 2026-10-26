@@ -761,3 +761,18 @@ test('should error on map callbacks with block bodies without return', async () 
     loc: /test.tsx|3:70]
   `);
 });
+
+test('should error on interpolation syntax in plain strings in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const width = vindurFn((size: number) => 'width: \${size}px;');
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "width" contains "\${" in a plain string, which is not interpolated - use a template literal (\`...\`) instead
+    loc: /test.tsx|3:48]
+  `);
+});

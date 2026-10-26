@@ -195,6 +195,14 @@ fn validate_expression(
                     )
                 })
         }
+        Expression::StringLiteral(literal) if literal.value.contains("${") => {
+            Some(FunctionValidationError {
+                message: format!(
+                    "vindurFn \"{name}\" contains \"${{\" in a plain string, which is not interpolated - use a template literal (`...`) instead"
+                ),
+                span: literal.span,
+            })
+        }
         Expression::TemplateLiteral(template) => template.expressions.iter().find_map(|value| {
             validate_expression(name, value, parameters, source, ValidationPosition::Body)
         }),

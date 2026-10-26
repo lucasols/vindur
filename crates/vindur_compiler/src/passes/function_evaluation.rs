@@ -232,13 +232,7 @@ fn evaluate_function_expression(
                 .collect::<Option<FxHashMap<_, _>>>()?,
         )),
         FunctionExpression::Parameter { name } => bindings.get(name).cloned(),
-        FunctionExpression::String { value } => {
-            let mut output = value.clone();
-            for (name, binding) in bindings {
-                output = output.replace(&format!("${{{name}}}"), &static_value_to_string(binding));
-            }
-            Some(StaticValue::String(output))
-        }
+        FunctionExpression::String { value } => Some(StaticValue::String(value.clone())),
         FunctionExpression::Undefined => Some(StaticValue::Undefined),
         FunctionExpression::Binary {
             left,
