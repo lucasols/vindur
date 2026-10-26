@@ -341,6 +341,22 @@ pub(super) fn process_variable_declaration(
                     "createGlobalStyle can't be exported, global styles have no runtime value, use it as a module level statement, e.g. \"createGlobalStyle`...`\"".to_owned(),
                 ));
             }
+            // The declaration is removed, so any reference would be undefined
+            if identifier
+                .symbol_id
+                .get()
+                .is_some_and(|symbol_id| !transform.scoping.symbol_is_unused(symbol_id))
+            {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    format!(
+                        "\"{}\" can't be referenced, global styles have no runtime value, use createGlobalStyle as a module level statement, e.g. \"createGlobalStyle`...`\"",
+                        identifier.name
+                    ),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,

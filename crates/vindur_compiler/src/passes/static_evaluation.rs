@@ -114,30 +114,9 @@ pub(super) fn evaluate_expression(
                 }
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-                let amount = call.arguments.first().and_then(|argument| match argument {
-                    Argument::NumericLiteral(value) => Some(value.value),
-                    Argument::ObjectExpression(object) => {
-                        let StaticValue::Object(properties) =
-                            evaluate_object(object, constants, scoping)?
-                        else {
-                            return None;
-                        };
-                        let StaticValue::Number(value) = properties.get("alpha")? else {
-                            return None;
-                        };
-                        Some(*value)
-                    }
-                    _ => None,
-                });
-                dynamic_color_method(&receiver, callee.property.name.as_str(), amount).or_else(
-                    || {
-                        theme_method(
-                            &receiver,
-                            callee.property.name.as_str(),
-                            amount.unwrap_or(0.0),
-                        )
-                    },
-                )
+                let amount = color_method_amount(&call.arguments, constants, scoping).ok()?;
+                dynamic_color_method(&receiver, callee.property.name.as_str(), amount)
+                    .or_else(|| theme_method(&receiver, callee.property.name.as_str(), amount))
             } else {
                 None
             }
@@ -178,6 +157,28 @@ pub(super) fn evaluate_expression(
             evaluate_expression(&parenthesized.expression, constants, scoping)
         }
         _ => None,
+    }
+}
+
+/// The amount of a color method call, e.g. `0.5` in `color.alpha(0.5)` or
+/// `color.contrast.optimal({ alpha: 0.5 })`, an error if it isn't a static number
+pub(super) fn color_method_amount(
+    arguments: &[Argument<'_>],
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Result<Option<f64>, ()> {
+    let Some(argument) = arguments.first() else {
+        return Ok(None);
+    };
+    let expression = argument.as_expression().ok_or(())?;
+    match evaluate_expression(expression, constants, scoping).ok_or(())? {
+        StaticValue::Number(value) => Ok(Some(value)),
+        StaticValue::Object(properties) => match properties.get("alpha") {
+            Some(StaticValue::Number(value)) => Ok(Some(*value)),
+            Some(_) => Err(()),
+            None => Ok(None),
+        },
+        _ => Err(()),
     }
 }
 
@@ -275,7 +276,7 @@ fn evaluate_template_value(
         if let Some(expression) = template.expressions.get(index) {
             output.push_str(&static_value_to_string(&evaluate_expression(
                 expression, constants, scoping,
-            )?));
+            )?)?);
         }
     }
     Some(output)
@@ -355,39 +356,44 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
     }
 }
 
-pub(super) fn static_value_to_string(value: &StaticValue) -> String {
+/// The CSS text of a value, `None` for values without a CSS representation, e.g. functions,
+/// objects or colors without `.var`
+pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
     if let Some(value) = oxc_constant_value(value)
         && let Some(value) = value.to_js_string(&WithoutGlobalReferenceInformation)
     {
-        return value.into_owned();
+        return Some(value.into_owned());
     }
     match value {
-        StaticValue::Array(values) => values
-            .iter()
-            .map(static_value_to_string)
-            .collect::<Vec<_>>()
-            .join(","),
-        StaticValue::Boolean(_) => unreachable!(),
-        StaticValue::ClassName(value) => format!(".{value}"),
-        StaticValue::CssClass { css, .. } => css.clone(),
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. } => {
-            "[dynamic color]".to_owned()
-        }
-        StaticValue::Keyframes(value) => value.clone(),
-        StaticValue::LayerFunction => String::new(),
-        StaticValue::MissingImport { .. } => String::new(),
-        StaticValue::InvalidFunction { .. } => String::new(),
-        StaticValue::InvalidObject { .. } => String::new(),
+        StaticValue::Array(values) => Some(
+            values
+                .iter()
+                .map(static_value_to_string)
+                .collect::<Option<Vec<_>>>()?
+                .join(","),
+        ),
+        StaticValue::ClassName(value) => Some(format!(".{value}")),
+        StaticValue::CssClass { css, .. } => Some(css.clone()),
+        StaticValue::Keyframes(value) => Some(value.clone()),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
-        StaticValue::Function(_) | StaticValue::ImportedFunction(_) => "[vindurFn]".to_owned(),
-        StaticValue::Number(_) => unreachable!(),
-        StaticValue::Object(_) | StaticValue::ImportedObject { .. } => "[object Object]".to_owned(),
-        StaticValue::String(_) => unreachable!(),
-        StaticValue::ThemeColor { .. }
+        StaticValue::Boolean(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => unreachable!(),
+        StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::LayerFunction
+        | StaticValue::MissingImport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. }
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::Object(_)
+        | StaticValue::ImportedObject { .. }
+        | StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
         | StaticValue::ThemeColors(_)
-        | StaticValue::UnexportedThemeColors(_) => "[theme color]".to_owned(),
-        StaticValue::Undefined => unreachable!(),
+        | StaticValue::UnexportedThemeColors(_) => None,
     }
 }
 

@@ -546,4 +546,27 @@ describe('Exported styled components', () => {
       }"
     `);
   });
+
+  test('should import the styled helper when it is only imported as a type', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import type { _vSC as StyledFactory } from 'vindur';
+
+        export type Factory = typeof StyledFactory;
+
+        export default styled.div\`
+          color: red;
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import type { _vSC as StyledFactory } from "vindur";
+      export type Factory = typeof StyledFactory;
+      export default _vSC("div", "v1560qbr-1");
+      "
+    `);
+  });
 });

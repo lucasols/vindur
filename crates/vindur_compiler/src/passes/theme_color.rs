@@ -84,12 +84,18 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
 pub(super) fn theme_method(
     receiver: &StaticValue,
     method: &str,
-    amount: f64,
+    amount: Option<f64>,
 ) -> Option<StaticValue> {
     let (name, hex, prefix) = match receiver {
         StaticValue::ThemeColor { name, hex } => (name, hex, ""),
         StaticValue::ThemeColorContrast { name, hex } => (name, hex, "contrast-"),
         _ => return None,
+    };
+    // `optimal` options don't change the static fallback, the other methods need an amount
+    let amount = if method == "optimal" {
+        0.0
+    } else {
+        amount?
     };
     let escaped_amount = amount.to_string().replace('.', "\\.");
     let result = match method {

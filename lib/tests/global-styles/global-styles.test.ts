@@ -419,4 +419,23 @@ describe('createGlobalStyle', () => {
       loc: 3:27]
     `);
   });
+
+  test('should error when a createGlobalStyle variable is referenced', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`;
+
+          export const App = () => <GlobalStyle />;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "GlobalStyle" can't be referenced, global styles have no runtime value, use createGlobalStyle as a module level statement, e.g. "createGlobalStyle\`...\`"
+      loc: 3:6]
+    `);
+  });
 });

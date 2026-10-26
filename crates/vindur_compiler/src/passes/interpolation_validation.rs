@@ -10,7 +10,7 @@ use crate::{
 
 use super::css_syntax::is_layer_name;
 use super::function_evaluation::evaluate_argument;
-use super::static_evaluation::{evaluate_expression, resolved_constant};
+use super::static_evaluation::{color_method_amount, evaluate_expression, resolved_constant};
 
 pub(super) fn invalid_layer_error(
     expression: &Expression<'_>,
@@ -54,7 +54,7 @@ pub(super) fn invalid_layer_error(
     ))
 }
 
-pub(super) fn invalid_dynamic_color_method_error(
+pub(super) fn invalid_color_method_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -74,9 +74,14 @@ pub(super) fn invalid_dynamic_color_method_error(
     let receiver = evaluate_expression(&callee.object, constants, scoping)?;
     if !matches!(
         receiver,
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
-    ) || matches!(call.arguments.as_slice(), [Argument::NumericLiteral(_)])
-    {
+        StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
+    ) || matches!(
+        color_method_amount(&call.arguments, constants, scoping),
+        Ok(Some(_))
+    ) {
         return None;
     }
     Some(CompilerDiagnostic::error(
@@ -165,7 +170,9 @@ pub(super) fn unevaluable_import_error(
     ))
 }
 
-pub(super) fn invalid_function_argument_error(
+/// Errors for a vindurFn call that can't be evaluated, on the first argument that can't be
+/// evaluated or, when all can, on the call
+pub(super) fn vindur_function_call_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -178,29 +185,87 @@ pub(super) fn invalid_function_argument_error(
     let Expression::Identifier(callee) = &call.callee else {
         return None;
     };
-    if !matches!(
-        resolved_constant(callee, constants, scoping)?,
-        StaticValue::Function(_) | StaticValue::ImportedFunction(_)
-    ) {
+    let (StaticValue::Function(function) | StaticValue::ImportedFunction(function)) =
+        resolved_constant(callee, constants, scoping)?
+    else {
         return None;
+    };
+    for argument in &call.arguments {
+        let value = evaluate_argument(argument, constants, scoping);
+        if value.as_ref().is_some_and(is_plain_data) {
+            continue;
+        }
+        if value.is_none()
+            && let Some(expression) = argument.as_expression()
+            && let Some(diagnostic) =
+                unevaluable_import_error(expression, constants, scoping, file_path, source)
+        {
+            return Some(diagnostic);
+        }
+        let message = if value.is_some() {
+            format!(
+                "Argument of vindurFn \"{}\" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use `.var` to pass a color",
+                callee.name
+            )
+        } else {
+            format!(
+                "Argument of vindurFn \"{}\" can't be evaluated at compile time, only literals, module constants, and arrays or objects of them are supported",
+                callee.name
+            )
+        };
+        return Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            argument.span(),
+            message,
+        ));
     }
-    let argument = call
-        .arguments
-        .iter()
-        .find(|argument| evaluate_argument(argument, constants, scoping).is_none())?;
-    if let Some(expression) = argument.as_expression()
-        && let Some(diagnostic) =
-            unevaluable_import_error(expression, constants, scoping, file_path, source)
-    {
-        return Some(diagnostic);
-    }
+    let message = if call.arguments.len() > function.parameters.len() {
+        format!(
+            "vindurFn \"{}\" accepts {} argument(s) but was called with {}",
+            callee.name,
+            function.parameters.len(),
+            call.arguments.len()
+        )
+    } else {
+        format!(
+            "vindurFn \"{}\" can't be evaluated with these arguments, check that they match its parameters",
+            callee.name
+        )
+    };
     Some(CompilerDiagnostic::error(
         file_path,
         source,
-        argument.span(),
-        format!(
-            "Argument of vindurFn \"{}\" can't be evaluated at compile time, only literals, module constants, and arrays or objects of them are supported",
-            callee.name
-        ),
+        call.span,
+        message,
     ))
+}
+
+/// Values a vindurFn can receive, colors, functions and layers have no value inside it
+fn is_plain_data(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Array(values) => values.iter().all(is_plain_data),
+        StaticValue::Object(properties) => properties.values().all(is_plain_data),
+        StaticValue::ImportedValue { value, .. } => is_plain_data(value),
+        StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. }
+        | StaticValue::ThemeColors(_)
+        | StaticValue::UnexportedThemeColors(_)
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::LayerFunction
+        | StaticValue::MissingImport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. }
+        | StaticValue::ImportedObject { .. } => false,
+        StaticValue::Boolean(_)
+        | StaticValue::ClassName(_)
+        | StaticValue::CssClass { .. }
+        | StaticValue::Keyframes(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => true,
+    }
 }

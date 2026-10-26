@@ -510,12 +510,13 @@ fn vindur_import_quote(program: &Program<'_>, source: &str) -> char {
         .unwrap_or('"')
 }
 
+/// A value import of `name`, type-only imports are erased and can't provide runtime helpers
 fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
     program.body.iter().any(|statement| {
         let Statement::ImportDeclaration(import) = statement else {
             return false;
         };
-        if import.source.value.as_str() != "vindur" {
+        if import.source.value.as_str() != "vindur" || import.import_kind.is_type() {
             return false;
         }
         import.specifiers.as_ref().is_some_and(|specifiers| {
@@ -525,7 +526,9 @@ fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
                 else {
                     return false;
                 };
-                specifier.imported.name().as_str() == name
+                !specifier.import_kind.is_type()
+                    && specifier.imported.name().as_str() == name
+                    && specifier.local.name.as_str() == name
             })
         })
     })

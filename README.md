@@ -889,7 +889,7 @@ createGlobalStyle`
 `;
 ```
 
-`createGlobalStyle` must be used as a module level statement and can't be exported.
+`createGlobalStyle` must be used at module level. It has no runtime value, so it can't be exported or referenced, e.g. as `<GlobalStyle />`.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 

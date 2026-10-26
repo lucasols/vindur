@@ -1,4 +1,4 @@
-use oxc_ast::ast::{Argument, BindingPattern, Expression, Statement};
+use oxc_ast::ast::{Argument, BindingPattern, Expression, FormalParameter, Statement};
 use oxc_span::{GetSpan, Span};
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashSet;
@@ -17,9 +17,9 @@ pub(super) fn validate_vindur_function(
         return None;
     };
     let argument = call.arguments.first()?;
-    let (parameters, body, function_span, body_span, is_async, is_generator) = match argument {
+    let (params, body, function_span, body_span, is_async, is_generator) = match argument {
         Argument::ArrowFunctionExpression(function) => (
-            parameter_names(&function.params.items),
+            &function.params.items,
             arrow_body_expression(function),
             function.span,
             function.body.span,
@@ -36,7 +36,7 @@ pub(super) fn validate_vindur_function(
                 .as_ref()
                 .map_or(function.span, |body| body.span);
             (
-                parameter_names(&function.params.items),
+                &function.params.items,
                 body,
                 function.span,
                 body_span,
@@ -77,7 +77,34 @@ pub(super) fn validate_vindur_function(
             span: body_span,
         });
     };
-    validate_expression(name, body, &parameters, source, ValidationPosition::Body)
+    let parameters = parameter_names(params);
+    params
+        .iter()
+        .flat_map(parameter_defaults)
+        .find_map(|default| {
+            validate_expression(
+                name,
+                default,
+                &parameters,
+                source,
+                ValidationPosition::ParameterDefault,
+            )
+        })
+        .or_else(|| validate_expression(name, body, &parameters, source, ValidationPosition::Body))
+}
+
+/// Default values of a parameter, e.g. `1` and `2` in `({ a = 1 } = { a: 2 })`
+fn parameter_defaults<'a>(parameter: &'a FormalParameter<'a>) -> Vec<&'a Expression<'a>> {
+    let mut defaults = parameter.initializer.as_deref().into_iter().collect::<Vec<_>>();
+    if let BindingPattern::ObjectPattern(object) = &parameter.pattern {
+        defaults.extend(object.properties.iter().filter_map(|property| {
+            let BindingPattern::AssignmentPattern(assignment) = &property.value else {
+                return None;
+            };
+            Some(&assignment.right)
+        }));
+    }
+    defaults
 }
 
 fn arrow_body_expression<'a>(
@@ -127,6 +154,7 @@ fn collect_binding_names(pattern: &BindingPattern<'_>, names: &mut FxHashSet<Str
 #[derive(Clone, Copy)]
 enum ValidationPosition {
     Body,
+    ParameterDefault,
     ConditionalBranch,
     ConditionalTest,
 }
@@ -139,6 +167,19 @@ fn validate_expression(
     position: ValidationPosition,
 ) -> Option<FunctionValidationError> {
     match expression {
+        Expression::Identifier(identifier)
+            if !parameters.contains(identifier.name.as_str())
+                && identifier.name.as_str() != "undefined"
+                && matches!(position, ValidationPosition::ParameterDefault) =>
+        {
+            Some(FunctionValidationError {
+                message: format!(
+                    "vindurFn \"{name}\" parameter defaults can only use literals and other parameters, \"{}\" is not supported",
+                    identifier.name
+                ),
+                span: expression.span(),
+            })
+        }
         Expression::Identifier(identifier)
             if !parameters.contains(identifier.name.as_str())
                 && identifier.name.as_str() != "undefined" =>

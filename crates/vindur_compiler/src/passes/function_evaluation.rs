@@ -265,17 +265,17 @@ fn evaluate_function_expression(
             // Like in JS, an undefined separator joins with commas
             let separator = match evaluate_function_expression(separator, bindings)? {
                 StaticValue::Undefined => ",".to_owned(),
-                separator => static_value_to_string(&separator),
+                separator => static_value_to_string(&separator)?,
             };
             Some(StaticValue::String(
                 values
                     .iter()
                     // Like in JS, undefined elements are joined as empty strings
                     .map(|value| match value {
-                        StaticValue::Undefined => String::new(),
+                        StaticValue::Undefined => Some(String::new()),
                         value => static_value_to_string(value),
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Option<Vec<_>>>()?
                     .join(&separator),
             ))
         }
@@ -307,7 +307,7 @@ fn evaluate_function_expression(
                 if let Some(expression) = expressions.get(index) {
                     output.push_str(&static_value_to_string(&evaluate_function_expression(
                         expression, bindings,
-                    )?));
+                    )?)?);
                 }
             }
             Some(StaticValue::String(output))

@@ -7,8 +7,8 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
-    invalid_array_argument_error, invalid_dynamic_color_method_error,
-    invalid_function_argument_error, invalid_layer_error, unevaluable_import_error,
+    invalid_array_argument_error, invalid_color_method_error,
+    vindur_function_call_error, invalid_layer_error, unevaluable_import_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
@@ -111,7 +111,7 @@ fn build_template_css(
             continue;
         };
         if let Some(diagnostic) =
-            invalid_dynamic_color_method_error(expression, constants, scoping, file_path, source)
+            invalid_color_method_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -203,7 +203,7 @@ fn build_template_css(
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
                     .or_else(|| {
-                        invalid_function_argument_error(
+                        vindur_function_call_error(
                             expression, constants, scoping, file_path, source,
                         )
                     })
@@ -212,17 +212,6 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        // Functions and objects have no CSS representation
-        if matches!(
-            value,
-            StaticValue::LayerFunction
-                | StaticValue::Function(_)
-                | StaticValue::ImportedFunction(_)
-                | StaticValue::Object(_)
-                | StaticValue::ImportedObject { .. }
-        ) {
-            return Err(interpolation_error(expression, file_path, source, context));
-        }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value
                 .cooked
@@ -253,7 +242,9 @@ fn build_template_css(
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
             StaticValue::CssClass { name, .. } => format!(".{name}"),
-            value => static_value_to_string(value),
+            // Functions, objects and colors without `.var` have no CSS representation
+            value => static_value_to_string(value)
+                .ok_or_else(|| interpolation_error(expression, file_path, source, context))?,
         };
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
