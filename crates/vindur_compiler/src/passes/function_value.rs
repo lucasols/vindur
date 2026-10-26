@@ -278,8 +278,6 @@ fn compile_operator(operator: BinaryOperator) -> Option<FunctionOperator> {
         BinaryOperator::Subtraction => Some(FunctionOperator::Subtraction),
         BinaryOperator::Multiplication => Some(FunctionOperator::Multiplication),
         BinaryOperator::Division => Some(FunctionOperator::Division),
-        BinaryOperator::Equality => Some(FunctionOperator::Equality),
-        BinaryOperator::Inequality => Some(FunctionOperator::Inequality),
         BinaryOperator::StrictEquality => Some(FunctionOperator::StrictEquality),
         BinaryOperator::StrictInequality => Some(FunctionOperator::StrictInequality),
         BinaryOperator::LessThan => Some(FunctionOperator::LessThan),

@@ -388,3 +388,51 @@ test('should allow vindurFn usage in templates of the global styled', async () =
     "
   `);
 });
+
+test('should error on indirect references to vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const spacing = (vindurFn)((size: number) => \`padding: \${size}px;\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn is not supported here, vindur functions must be declared with "export const name = vindurFn((...) => ...)"
+    loc: 3:24]
+  `);
+});
+
+test('should error on destructured vindurFn declarations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const { length } = vindurFn((size: number) => \`padding: \${size}px;\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn is not supported here, vindur functions must be declared with "export const name = vindurFn((...) => ...)"
+    loc: 3:26]
+  `);
+});
+
+test('should error on vindurFn usage in templates of tags that are not imported', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { transition } from '#/transition';
+
+        export const box = css\`
+          \${transition('opacity')};
+        \`;
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    loc: /test.tsx|4:4]
+  `);
+});

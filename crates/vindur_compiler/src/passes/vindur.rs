@@ -33,7 +33,7 @@ use super::{
         transform_stable_declaration,
     },
     static_value::{TemplateContext, collect_constants, evaluate_template},
-    styled::{resolve_styled_references, styled_tag_element},
+    styled::{is_styled_tag, resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
     vindur_fn_references::runtime_vindur_fn_reference_error,
@@ -561,15 +561,3 @@ fn scoped_variable_warnings(
 #[cfg(test)]
 #[path = "vindur_tests.rs"]
 mod tests;
-
-/// Whether a tag expression starts with `styled`, e.g. `styled(A).attrs({})`
-fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
-    match tag {
-        Expression::Identifier(identifier) => {
-            imports.matches_import_or_global(identifier, "styled")
-        }
-        Expression::StaticMemberExpression(member) => is_styled_tag(&member.object, imports),
-        Expression::CallExpression(call) => is_styled_tag(&call.callee, imports),
-        _ => false,
-    }
-}

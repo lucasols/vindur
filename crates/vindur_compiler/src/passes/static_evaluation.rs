@@ -289,6 +289,12 @@ pub(super) fn evaluate_binary(
         {
             None
         }
+        // Objects and arrays are compared by identity, which static values don't have
+        (left, BinaryOperator::StrictEquality | BinaryOperator::StrictInequality, right)
+            if !is_primitive(&left) || !is_primitive(&right) =>
+        {
+            None
+        }
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }
@@ -322,6 +328,16 @@ fn same_primitive_type(left: &StaticValue, right: &StaticValue) -> bool {
             | (StaticValue::Number(_), StaticValue::Number(_))
             | (StaticValue::String(_), StaticValue::String(_))
             | (StaticValue::Undefined, StaticValue::Undefined)
+    )
+}
+
+fn is_primitive(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::Boolean(_)
+            | StaticValue::Number(_)
+            | StaticValue::String(_)
+            | StaticValue::Undefined
     )
 }
 

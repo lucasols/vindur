@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    CallExpression, Declaration, ExportDefaultDeclaration, ExportNamedDeclaration, Expression,
-    IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue, JSXExpression,
-    ModuleExportName, Program, Statement, TSTypeQuery, TaggedTemplateExpression,
+    BindingPattern, CallExpression, Declaration, ExportDefaultDeclaration, ExportNamedDeclaration,
+    Expression, IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue,
+    JSXExpression, ModuleExportName, Program, Statement, TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -10,7 +10,7 @@ use rustc_hash::FxHashSet;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
-const VINDUR_TEMPLATE_TAGS: &[&str] = &["css", "styled", "keyframes", "createGlobalStyle"];
+const VINDUR_FN_DECLARATION_ERROR: &str = "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"";
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
 /// they can only be referenced in vindur templates and css props, or re-exported by name.
@@ -52,7 +52,16 @@ struct RuntimeReferenceVisitor<'s, 'i, 'n> {
 }
 
 impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
+    // Direct `vindurFn(...)` callees are not visited, so any other reference is indirect, e.g.
+    // `(vindurFn)(...)` or `const create = vindurFn`
     fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self.first_error.is_none()
+            && self
+                .imports
+                .matches_import_or_global(identifier, "vindurFn")
+        {
+            self.first_error = Some((identifier.span, VINDUR_FN_DECLARATION_ERROR.to_owned()));
+        }
         if self.first_error.is_none() && self.is_vindur_fn_value_reference(identifier) {
             self.first_error = Some((
                 identifier.span,
@@ -64,12 +73,12 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
         }
     }
 
+    // Vindur templates are compiled away or rejected, `styled` is the only tag also compiled
+    // when it isn't imported
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         let is_vindur_template = tag_root(&tagged.tag).is_some_and(|identifier| {
             self.imports.get_identifier(identifier).is_some()
-                || VINDUR_TEMPLATE_TAGS
-                    .iter()
-                    .any(|tag| self.imports.matches_import_or_global(identifier, tag))
+                || self.imports.matches_import_or_global(identifier, "styled")
         });
         if is_vindur_template {
             self.visit_runtime_tag_arguments(&tagged.tag);
@@ -149,10 +158,7 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
             return;
         }
         if self.first_error.is_none() && !self.declaration_spans.contains(&call.span) {
-            self.first_error = Some((
-                call.span,
-                "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"".to_owned(),
-            ));
+            self.first_error = Some((call.span, VINDUR_FN_DECLARATION_ERROR.to_owned()));
         }
     }
 
@@ -197,7 +203,7 @@ impl RuntimeReferenceVisitor<'_, '_, '_> {
 }
 
 /// vindurFn calls initializing module level variables, which are checked by the vindurFn
-/// declaration validation
+/// declaration validation, destructured declarations are not supported
 fn vindur_fn_declaration_spans(program: &Program<'_>) -> FxHashSet<Span> {
     program
         .body
@@ -211,6 +217,7 @@ fn vindur_fn_declaration_spans(program: &Program<'_>) -> FxHashSet<Span> {
             _ => None,
         })
         .flat_map(|declaration| &declaration.declarations)
+        .filter(|declarator| matches!(declarator.id, BindingPattern::BindingIdentifier(_)))
         .filter_map(
             |declarator| match declarator.init.as_ref()?.get_inner_expression() {
                 Expression::CallExpression(call) => Some(call.span),

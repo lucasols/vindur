@@ -11,7 +11,7 @@ use super::{
     css_syntax::{BlockKind, css_error_diagnostic},
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
-    styled::styled_tag_element,
+    styled::is_styled_tag,
 };
 
 pub(crate) struct DirectTransform<'a> {
@@ -55,7 +55,8 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             return;
         }
 
-        if styled_tag_element(&tagged.tag, self.output.imports).is_some() {
+        // Styled components and global styles are only compiled in module level declarations
+        if is_styled_tag(&tagged.tag, self.output.imports) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.output.file_path,
                 self.output.source,
@@ -70,6 +71,16 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             walk::walk_tagged_template_expression(self, tagged);
             return;
         };
+        if tag_name == "createGlobalStyle" {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                tagged.span,
+                "createGlobalStyle is only supported as a module level statement, e.g. \"createGlobalStyle`...`\""
+                    .to_owned(),
+            ));
+            return;
+        }
         if !matches!(tag_name, "css" | "keyframes") {
             walk::walk_tagged_template_expression(self, tagged);
             return;

@@ -162,10 +162,8 @@ pub struct FunctionObjectExpressionProperty {
 pub enum FunctionOperator {
     Addition,
     Division,
-    Equality,
     GreaterEqualThan,
     GreaterThan,
-    Inequality,
     LessEqualThan,
     LessThan,
     Multiplication,

@@ -66,6 +66,18 @@ pub(crate) fn styled_tag_element(
     Some(member.property.name.to_string())
 }
 
+/// Whether a tag expression starts with `styled`, e.g. `styled(A).attrs({})`
+pub(crate) fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    match tag {
+        Expression::Identifier(identifier) => {
+            imports.matches_import_or_global(identifier, "styled")
+        }
+        Expression::StaticMemberExpression(member) => is_styled_tag(&member.object, imports),
+        Expression::CallExpression(call) => is_styled_tag(&call.callee, imports),
+        _ => false,
+    }
+}
+
 pub(crate) fn styled_tag_component(
     tag: &Expression<'_>,
     imports: &VindurImports<'_>,

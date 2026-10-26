@@ -141,7 +141,17 @@ fn binary_expression_error(
         return Some("division by zero".to_owned());
     }
     if apply_operator(left_value, operator, right_value).is_none() {
-        return Some("operands must be numbers".to_owned());
+        return Some(
+            if matches!(
+                operator,
+                FunctionOperator::StrictEquality | FunctionOperator::StrictInequality
+            ) {
+                "only strings, numbers, booleans and undefined can be compared"
+            } else {
+                "operands must be numbers"
+            }
+            .to_owned(),
+        );
     }
     None
 }
@@ -318,8 +328,6 @@ fn apply_operator(
         FunctionOperator::Subtraction => BinaryOperator::Subtraction,
         FunctionOperator::Multiplication => BinaryOperator::Multiplication,
         FunctionOperator::Division => BinaryOperator::Division,
-        FunctionOperator::Equality => BinaryOperator::Equality,
-        FunctionOperator::Inequality => BinaryOperator::Inequality,
         FunctionOperator::StrictEquality => BinaryOperator::StrictEquality,
         FunctionOperator::StrictInequality => BinaryOperator::StrictInequality,
         FunctionOperator::LessThan => return compare_numbers(left, right, |l, r| l < r),

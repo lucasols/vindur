@@ -141,6 +141,8 @@ export default function App() {
 }
 ```
 
+Import vindur functions by name, e.g. `import { css, styled } from 'vindur'`. Aliased (`import { css as c }`), namespace (`import * as v`) and default imports from `vindur` are compile errors.
+
 ## Core Features
 
 ### CSS Function
@@ -187,6 +189,8 @@ const Container = styled.main`
   padding: 20px;
 `;
 ```
+
+Styled components must be declared in module level variables. `export default styled.tag`...`` is also supported, other default exported forms (`styled(Component)`, `.attrs()` or type arguments) must be declared as a variable first.
 
 ### Variable Interpolation
 
@@ -883,6 +887,8 @@ createGlobalStyle`
 `;
 ```
 
+`createGlobalStyle` must be used as a module level statement and can't be exported.
+
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
 ### Mixins and Functions
@@ -923,6 +929,8 @@ const Button = styled.button`
 ```
 
 `vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
+
+`vindurFn` functions must be declared in a module level variable, e.g. `export const name = vindurFn(...)`, and imported by name. Default exports, renamed re-exports (`export { fn as other }`) and namespace imports (`import * as styles`) of modules that export them are compile errors.
 
 ### JSX CSS Prop
 

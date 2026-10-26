@@ -332,6 +332,15 @@ pub(super) fn process_variable_declaration(
             continue;
         };
         if tag_name == "createGlobalStyle" {
+            // The declaration is removed, so an exported name would be undefined
+            if transform.is_exported {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    tagged.span,
+                    "createGlobalStyle can't be exported, global styles have no runtime value, use it as a module level statement, e.g. \"createGlobalStyle`...`\"".to_owned(),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,

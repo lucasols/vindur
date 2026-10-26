@@ -210,6 +210,13 @@ fn validate_expression(
             source,
             position,
         ),
+        // `.map()` callbacks, their parameters are also available in the body
+        Expression::ArrowFunctionExpression(function) => {
+            let mut scoped = parameters.clone();
+            scoped.extend(parameter_names(&function.params.items));
+            arrow_body_expression(function)
+                .and_then(|body| validate_expression(name, body, &scoped, source, position))
+        }
         Expression::ArrayExpression(array) => array.elements.iter().find_map(|element| {
             element
                 .as_expression()
