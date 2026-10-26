@@ -601,7 +601,7 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
   `);
 });
 
-test('should leave cx classes of relative nested rules and rewrite rootless and escaped @scope', async () => {
+test('should leave cx classes of relative nested rules and rootless @scope and rewrite escaped @scope', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
@@ -630,7 +630,7 @@ test('should leave cx classes of relative nested rules and rewrite rootless and 
         }
       }
       @scope to (& .stop) {
-        &.v1560qbr-2-active {
+        &.active {
           color: green;
         }
       }

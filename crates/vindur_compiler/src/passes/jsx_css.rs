@@ -232,7 +232,6 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     *self.output.id_index = cx.next_index;
                 }
-                // Modifiers are rewritten before scoped names, so `---name` cx keys keep matching
                 let rewritten = match cx_transform {
                     Some(cx) => rewrite_modifiers(&content, ModifierCss::Block, &cx.mappings),
                     None => Ok(content),

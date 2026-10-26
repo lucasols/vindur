@@ -533,6 +533,12 @@ fn invalid_cx_key_message(key: &str) -> Option<String> {
             )
         });
     }
+    // `---name` classes would be renamed as scoped variables
+    if key.starts_with("---") {
+        return Some(format!(
+            "cx prop key \"{key}\" must not start with ---, which is reserved for scoped variables, eg. {{ active: on }}"
+        ));
+    }
     let mut characters = key.chars();
     let is_identifier = characters
         .next()

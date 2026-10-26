@@ -63,7 +63,7 @@ pub(super) fn rewrite_modifiers(
             continue;
         };
         result.push_str(&css[last..class.start]);
-        result.push_str(&escape_identifier(hashed));
+        result.push_str(hashed);
         last = class.end;
     }
     result.push_str(&css[last..]);
@@ -76,6 +76,7 @@ fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, Cs
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
         scope_root_is_element: false,
+        nesting_is_element: true,
     };
     match kind {
         ModifierCss::Block => {
@@ -99,6 +100,8 @@ struct ElementClassCollector {
     classes: Vec<ElementClass>,
     /// In a `@scope` whose root is the element, so `:scope` is the element too
     scope_root_is_element: bool,
+    /// `&` is the element, false in the selectors of rules nested in other elements
+    nesting_is_element: bool,
 }
 
 impl ElementClassCollector {
@@ -109,7 +112,10 @@ impl ElementClassCollector {
                     let nested = match context {
                         Context::Outer => Context::Element,
                         Context::Element => self.selector_list(&rule.selector),
-                        Context::Other => Context::Other,
+                        Context::Other => {
+                            self.other_selector_list(&rule.selector);
+                            Context::Other
+                        }
                     };
                     self.statements(&rule.block.statements, nested);
                 }
@@ -131,8 +137,8 @@ impl ElementClassCollector {
 
     /// Returns the context of the at-rule body and if its scope root is the element. Grouping
     /// rules like `@media` keep both. In a `@scope` body `&` and `:scope` are the scope root, so
-    /// they're still the element only when every start selector is, e.g. `@scope (&.a)`, or when
-    /// there is no start selector, e.g. `@scope to (.x)`
+    /// they're still the element only when every start selector is, e.g. `@scope (&.a)`. Without
+    /// a start selector, e.g. `@scope to (.x)`, the root is the parent of the stylesheet owner
     fn at_rule(&mut self, rule: &AtRule<'_>, context: Context) -> (Context, bool) {
         let is_scope = rule.name.name.eq_ignore_ascii_case("scope");
         let prelude = match &rule.prelude {
@@ -149,7 +155,6 @@ impl ElementClassCollector {
         let body = match (context, start.map(|start| &start.selector)) {
             (Context::Outer, _) => Context::Outer,
             (Context::Element, Some(Some(list))) => self.selector_list(list),
-            (Context::Element, None) => Context::Element,
             _ => Context::Other,
         };
         let scope_root_is_element = body == Context::Element;
@@ -179,14 +184,27 @@ impl ElementClassCollector {
         }
     }
 
+    /// In rules nested in other elements only `:scope` can still be the element, e.g.
+    /// `:scope.active &` in `@scope (&) { & .child { ... } }`
+    fn other_selector_list(&mut self, list: &SelectorList<'_>) {
+        if !self.scope_root_is_element {
+            return;
+        }
+        let outer_nesting = std::mem::replace(&mut self.nesting_is_element, false);
+        for selector in &list.selectors {
+            self.selector(selector, false);
+        }
+        self.nesting_is_element = outer_nesting;
+    }
+
     /// Collects the classes of the compounds that are the element, returns if the subject is
     fn selector(&mut self, selector: &ComplexSelector<'_>, subject_is_element: bool) -> bool {
         let compounds = compounds(selector);
         let mut subject = false;
         for (index, compound) in compounds.iter().enumerate() {
             let is_subject = index + 1 == compounds.len();
-            let is_element = (is_subject && subject_is_element)
-                || is_element_compound(compound, self.scope_root_is_element);
+            let is_element =
+                (is_subject && subject_is_element) || self.is_element_compound(compound);
             self.compound(compound, is_element);
             if is_subject {
                 subject = is_element;
@@ -217,8 +235,7 @@ impl ElementClassCollector {
                             }
                             SelectorArgument::Compound(compound) => self.compound(
                                 compound,
-                                subject_is_element
-                                    || is_element_compound(compound, self.scope_root_is_element),
+                                subject_is_element || self.is_element_compound(compound),
                             ),
                         }
                     }
@@ -227,6 +244,23 @@ impl ElementClassCollector {
             }
         }
     }
+
+    fn is_element_compound(&self, compound: &CompoundSelector<'_>) -> bool {
+        is_element_compound(
+            compound,
+            ElementRefs {
+                nesting: self.nesting_is_element,
+                scope: self.scope_root_is_element,
+            },
+        )
+    }
+}
+
+/// Which of `&` and `:scope` are the element
+#[derive(Clone, Copy)]
+struct ElementRefs {
+    nesting: bool,
+    scope: bool,
 }
 
 enum SelectorArgument<'s, 'a> {
@@ -295,13 +329,13 @@ fn pseudo_class_name_is(pseudo: &PseudoClassSelector<'_>, names: &[&str]) -> boo
         .any(|matching| name.name.eq_ignore_ascii_case(matching))
 }
 
-/// A compound with `&` (or `:scope` when the scope root is the element), or one that only
-/// matches what its `&` arguments match, e.g. `:is(&.a)`
-fn is_element_compound(compound: &CompoundSelector<'_>, scope_root_is_element: bool) -> bool {
+/// A compound with `&` or `:scope` when they're the element, or one that only matches what its
+/// `&` arguments match, e.g. `:is(&.a)`
+fn is_element_compound(compound: &CompoundSelector<'_>, refs: ElementRefs) -> bool {
     compound.children.iter().any(|simple| match simple {
-        SimpleSelector::Nesting(_) => true,
+        SimpleSelector::Nesting(_) => refs.nesting,
         SimpleSelector::PseudoClass(pseudo)
-            if scope_root_is_element && pseudo_class_name_is(pseudo, &["scope"]) =>
+            if refs.scope && pseudo_class_name_is(pseudo, &["scope"]) =>
         {
             true
         }
@@ -311,10 +345,8 @@ fn is_element_compound(compound: &CompoundSelector<'_>, scope_root_is_element: b
                 && arguments.iter().all(|argument| match argument {
                     SelectorArgument::Complex(selector) => compounds(selector)
                         .last()
-                        .is_some_and(|subject| is_element_compound(subject, scope_root_is_element)),
-                    SelectorArgument::Compound(compound) => {
-                        is_element_compound(compound, scope_root_is_element)
-                    }
+                        .is_some_and(|subject| is_element_compound(subject, refs)),
+                    SelectorArgument::Compound(compound) => is_element_compound(compound, refs),
                 })
         }
         _ => false,
@@ -330,34 +362,6 @@ fn compounds<'s, 'a>(selector: &'s ComplexSelector<'a>) -> Vec<&'s CompoundSelec
             ComplexSelectorChild::Combinator(_) => None,
         })
         .collect()
-}
-
-/// Serializes a class name as a CSS identifier, like `CSS.escape`
-fn escape_identifier(name: &str) -> String {
-    let mut escaped = String::with_capacity(name.len());
-    let first = name.chars().next();
-    for (index, character) in name.chars().enumerate() {
-        let starts_with_digit =
-            character.is_ascii_digit() && (index == 0 || (index == 1 && first == Some('-')));
-        if character == '\0' {
-            escaped.push('\u{FFFD}');
-        } else if character.is_control() || starts_with_digit {
-            escaped.push_str(&format!("\\{:x} ", u32::from(character)));
-        } else if character.is_ascii_alphanumeric()
-            || character == '-'
-            || character == '_'
-            || !character.is_ascii()
-        {
-            if index == 0 && character == '-' && name.len() == 1 {
-                escaped.push('\\');
-            }
-            escaped.push(character);
-        } else {
-            escaped.push('\\');
-            escaped.push(character);
-        }
-    }
-    escaped
 }
 
 #[cfg(test)]
@@ -396,12 +400,10 @@ mod tests {
                 block(".x:not(&.active) { color: red; }"),
                 block("&:nth-child(1 of .active):nth-last-child(2 of &.disabled) { color: red; }"),
                 block("@scope (&.active) { &.disabled { color: red; } }"),
-                block("@scope to (.x) { &.active { color: red; } }"),
                 block("@scope (&) { :scope.active { color: red; } }"),
                 block("@scope (&) { :scope { &.active { color: red; } } }"),
-                block("@scope { :scope.active { color: red; } }"),
                 block("@scope (&) to (&.active > *) { .child { color: red; } }"),
-                block("@scope to (:scope.disabled > *) { color: red; }"),
+                block("@scope (&) { & .child { :scope.active & { color: red; } } }"),
             ],
             [
                 "&.h-active { color: red; }",
@@ -417,12 +419,10 @@ mod tests {
                 ".x:not(&.h-active) { color: red; }",
                 "&:nth-child(1 of .h-active):nth-last-child(2 of &.h-disabled) { color: red; }",
                 "@scope (&.h-active) { &.h-disabled { color: red; } }",
-                "@scope to (.x) { &.h-active { color: red; } }",
                 "@scope (&) { :scope.h-active { color: red; } }",
                 "@scope (&) { :scope { &.h-active { color: red; } } }",
-                "@scope { :scope.h-active { color: red; } }",
                 "@scope (&) to (&.h-active > *) { .child { color: red; } }",
-                "@scope to (:scope.h-disabled > *) { color: red; }",
+                "@scope (&) { & .child { :scope.h-active & { color: red; } } }",
             ]
         );
     }
@@ -445,23 +445,14 @@ mod tests {
             "@scope (.x) { :scope.active { color: red; } }",
             ":scope.active { color: red; }",
             "& .child { @scope (&) { :scope.active { color: red; } } }",
+            "@scope to (.x) { &.active { color: red; } }",
+            "@scope { :scope.active { color: red; } }",
+            "@scope to (:scope.active > *) { color: red; }",
             "content: \"&.active\"; /* &.active */",
             "---x: &.active;",
         ] {
             assert_eq!(block(css), css);
         }
-    }
-
-    #[test]
-    fn escapes_hashed_names() {
-        let mappings = [("is:on".to_owned(), "h-1-is:on".to_owned(), true)];
-        let rewrite = |css: &str| {
-            rewrite_modifiers(css, ModifierCss::Block, &mappings).map_err(|error| error.message)
-        };
-        assert_eq!(
-            rewrite("&.is\\:on, &:focus { color: red; }"),
-            Ok("&.h-1-is\\:on, &:focus { color: red; }".to_owned())
-        );
     }
 
     #[test]
