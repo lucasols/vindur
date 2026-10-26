@@ -74,6 +74,9 @@ function main(): void {
       '--platform',
       '--target',
       target.name,
+      // A shared cargo target dir keeps one unhashed cdylib for every checkout
+      '--target-dir',
+      resolve(repositoryRoot, 'target'),
       '--manifest-path',
       '../crates/vindur_node/Cargo.toml',
       '--output-dir',
