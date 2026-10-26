@@ -183,3 +183,44 @@ test('should resolve values exported with an alias', async () => {
     "
   `);
 });
+
+test('should keep imports moved into generated code', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { INSET, color } from '#/styles';
+
+      const Box = styled.div\`
+        top: \${INSET}px;
+      \`;
+
+      export const Page = () => (
+        <Box dynamicColor={color.set('red')} style={{ padding: INSET }} />
+      );
+    `,
+    overrideDefaultFs: createFsMock({
+      'styles.ts': dedent`
+        import { createDynamicCssColor } from 'vindur';
+
+        export const INSET = 8;
+
+        export const color = createDynamicCssColor();
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { INSET, color } from "#/styles";
+    export const Page = () => (
+      <div
+        {...color._sp("red", {
+          className: "v1560qbr-1-Box",
+          style: {
+            padding: INSET,
+          },
+        })}
+      />
+    );
+    "
+  `);
+});
