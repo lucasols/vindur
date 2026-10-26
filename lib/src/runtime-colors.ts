@@ -13,14 +13,14 @@ import {
 } from './color-math';
 
 export type StaticColor<D extends string> = {
-  var: string;
+  value: string;
   defaultHex: D;
   alpha: (alpha: number) => string;
   darker: (amount: number) => string;
   lighter: (amount: number) => string;
   saturatedDarker: (amount: number) => string;
   contrast: {
-    var: string;
+    value: string;
     optimal: (options?: { alpha?: number }) => string;
     alpha: (alpha: number) => string;
   };
@@ -199,7 +199,7 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
 
     const rgb = parseHex(hexColor);
 
-    // Only hex colors can be analyzed, other css colors still work with `var`,
+    // Only hex colors can be analyzed, other css colors still work with `value`,
     // `alpha`, `darker` and `lighter`
     if (!rgb) {
       if (devMode) {
@@ -280,13 +280,13 @@ function staticColorOps(hex: string): ColorOps {
   const optimalRgb = parseHex(optimalHex) ?? rgb;
 
   return {
-    var: hex,
+    value: hex,
     alpha: (alpha) => alphaHex(rgb, alpha),
     darker: (amount) => toHex(mix(rgb, 0, amount)),
     lighter: (amount) => toHex(mix(rgb, 255, amount)),
     saturatedDarker: (amount) => toHex(saturatedDarker(rgb, amount)),
     contrast: {
-      var: contrastHex,
+      value: contrastHex,
       optimal: (options) =>
         options?.alpha === undefined ?
           optimalHex
@@ -310,13 +310,13 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 }
 
 export type ContrastOps = {
-  var: string;
+  value: string;
   optimal: (options?: { alpha?: number }) => string;
   alpha: (alpha: number) => string;
 };
 
 export type ColorOps = {
-  var: string;
+  value: string;
   alpha: (alpha: number) => string;
   darker: (amount: number) => string;
   lighter: (amount: number) => string;
@@ -340,7 +340,7 @@ export function buildColorOps({
   saturatedDarker: (amount: number) => string;
 }): ColorOps {
   return {
-    var: base,
+    value: base,
     alpha: (alpha: number) =>
       `color-mix(in srgb, ${base} ${colorMixPercentage(alpha)}, transparent)`,
     darker: (amount: number) =>
@@ -349,7 +349,7 @@ export function buildColorOps({
       `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #fff)`,
     saturatedDarker: saturatedDarkerOp,
     contrast: {
-      var: contrastBase,
+      value: contrastBase,
       optimal: (options?: { alpha?: number }) => {
         if (options?.alpha !== undefined) {
           return `color-mix(in srgb, ${contrastOptimalBase} ${colorMixPercentage(options.alpha)}, transparent)`;

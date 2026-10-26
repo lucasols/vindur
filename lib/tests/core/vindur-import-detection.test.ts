@@ -76,7 +76,7 @@ test('should error on aliased vindur imports', async () => {
         const bg = dynamicColor();
 
         export const box = css\`
-          background: \${bg.var};
+          background: \${bg.value};
         \`;
       `,
     }),

@@ -52,8 +52,8 @@ const ColorCard = styled.div`
   padding: 4px;
   border-radius: 3px;
   text-align: center;
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
   aspect-ratio: 1;
   display: flex;
   flex-direction: column;
@@ -87,8 +87,8 @@ const ContrastValue = styled.div`
   font-weight: bold;
   padding: 1px 2px;
   border-radius: 2px;
-  background: ${dynamicColor.contrast.var};
-  color: ${dynamicColor.var};
+  background: ${dynamicColor.contrast.value};
+  color: ${dynamicColor.value};
   margin-top: 1px;
   white-space: nowrap;
 `;
@@ -97,7 +97,7 @@ const OptimalContrastCard = styled.div`
   padding: 4px;
   border-radius: 3px;
   text-align: center;
-  background: ${dynamicColor.var};
+  background: ${dynamicColor.value};
   color: ${dynamicColor.contrast.optimal()};
   border: 1px solid #4ecdc4;
   aspect-ratio: 1;
@@ -332,7 +332,7 @@ export function ContrastTestDemo() {
         `}
       >
         <strong>About Contrast:</strong>
-        <br />• <strong>Auto Contrast (.contrast.var):</strong> Standard
+        <br />• <strong>Auto Contrast (.contrast.value):</strong> Standard
         contrast calculation based on luminance
         <br />• <strong>Optimal Contrast (.contrast.optimal):</strong> Enhanced
         contrast for better accessibility

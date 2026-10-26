@@ -405,7 +405,7 @@ test('should concat className expressions on styled components', async () => {
       const color = createDynamicCssColor();
 
       const Box = styled.div\`
-        color: \${color.var};
+        color: \${color.value};
       \`;
 
       const Btn = styled.button<{ active: boolean }>\`

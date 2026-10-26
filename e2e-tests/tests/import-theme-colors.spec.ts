@@ -39,14 +39,14 @@ test.beforeAll(async ({ browser }) => {
         padding: 12px 24px;
         border: none;
         border-radius: 4px;
-        background: \${brandColors.primary.var};
-        color: \${brandColors.primary.contrast.var};
+        background: \${brandColors.primary.value};
+        color: \${brandColors.primary.contrast.value};
         border: 1px solid \${brandColors.primary.alpha(0.2)};
 
         &.danger {
           background: \${brandColors.danger.alpha(0.1)};
-          border: 2px solid \${brandColors.danger.var};
-          color: \${brandColors.danger.var};
+          border: 2px solid \${brandColors.danger.value};
+          color: \${brandColors.danger.value};
         }
 
         &:hover {
@@ -55,11 +55,11 @@ test.beforeAll(async ({ browser }) => {
       \`;
 
       const Card = styled.div\`
-        background: \${uiColors.surface.var};
+        background: \${uiColors.surface.value};
         border-radius: 8px;
         padding: 20px;
         margin: 16px 0;
-        border-left: 4px solid \${brandColors.success.var};
+        border-left: 4px solid \${brandColors.success.value};
       \`;
 
       const textStyles = css\`
@@ -67,8 +67,8 @@ test.beforeAll(async ({ browser }) => {
         color: \${brandColors.secondary.darker(0.2)};
       \`;
 
-      if (typeof brandColors.primary.var !== 'string') {
-        throw new Error('brandColors.primary.var is not a string');
+      if (typeof brandColors.primary.value !== 'string') {
+        throw new Error('brandColors.primary.value is not a string');
       }
 
       export default function App() {

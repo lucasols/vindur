@@ -61,7 +61,7 @@ fn preserves_legacy_unexported_theme_color_extraction() {
             "import { createStaticThemeColors } from 'vindur'; const colors = createStaticThemeColors({ primary: '#ff0000' });".to_owned(),
         )]),
     };
-    let source = "import { css } from 'vindur'; import { colors } from '#/theme'; const style = css`background: ${colors.primary.var};`;";
+    let source = "import { css } from 'vindur'; import { colors } from '#/theme'; const style = css`background: ${colors.primary.value};`;";
 
     let output = compiler.transform_with_loader("/App.ts", source, &options(), &mut loader);
 

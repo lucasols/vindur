@@ -10,7 +10,7 @@ use super::{static_evaluation::evaluate_expression, styled::strip_css_comments};
 pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
         StaticValue::DynamicColor { id, dev } => match property {
-            "var" => Some(StaticValue::String(format!("var(--{id})"))),
+            "value" => Some(StaticValue::String(format!("var(--{id})"))),
             "contrast" | "self" | "container" => Some(StaticValue::DynamicColorPath {
                 id: id.clone(),
                 path: property.to_owned(),
@@ -19,7 +19,7 @@ pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Optio
             _ => None,
         },
         StaticValue::DynamicColorPath { id, path, .. }
-            if path == "contrast" && property == "var" =>
+            if path == "contrast" && property == "value" =>
         {
             Some(StaticValue::String(format!("var(--{id}-c)")))
         }

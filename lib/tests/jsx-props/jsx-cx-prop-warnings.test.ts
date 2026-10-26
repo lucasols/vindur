@@ -435,7 +435,7 @@ describe('Warnings for Missing CSS Classes', () => {
           height: 36px;
           border: none;
           background: transparent;
-          color: \${colors.deprecated_text.var};
+          color: \${colors.deprecated_text.value};
           text-align: left;
           cursor: pointer;
           font-size: 16px;
@@ -444,7 +444,7 @@ describe('Warnings for Missing CSS Classes', () => {
           \${transition()};
 
           &.active {
-            color: \${colors.lime.var};
+            color: \${colors.lime.value};
             opacity: 1;
           }
 

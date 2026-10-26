@@ -20,8 +20,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -61,8 +61,8 @@ describe('createStaticThemeColors', () => {
       })
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -112,8 +112,8 @@ describe('createStaticThemeColors', () => {
       import { theme } from '#/theme'
 
       const Button = styled.button\`
-        background: \${theme.primary.var};
-        color: \${theme.primary.contrast.var};
+        background: \${theme.primary.value};
+        color: \${theme.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -163,7 +163,7 @@ describe('createStaticThemeColors', () => {
       const Alert = styled.div\`
         background: \${colors.danger.alpha(0.1)};
         border: 1px solid \${colors.danger.alpha(0.3)};
-        color: \${colors.danger.var};
+        color: \${colors.danger.value};
       \`
 
       const Component = () => {
@@ -210,7 +210,7 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
+        background: \${colors.primary.value};
   
         &:hover {
           background: \${colors.primary.darker(0.1)};
@@ -273,12 +273,12 @@ describe('createStaticThemeColors', () => {
       })
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
         border: 1px solid \${colors.primary.contrast.alpha(0.2)};
   
         &.light {
-          background: \${colors.light.var};
+          background: \${colors.light.value};
           color: \${colors.light.contrast.optimal()};
         }
       \`
@@ -345,13 +345,13 @@ describe('createStaticThemeColors', () => {
       import { statusColors } from '#/status-colors'
 
       const SuccessButton = styled.button\`
-        background: \${statusColors.success.var};
-        color: \${statusColors.success.contrast.var};
+        background: \${statusColors.success.value};
+        color: \${statusColors.success.contrast.value};
       \`
 
       const PrimaryButton = styled.button\`
-        background: \${brandColors.primary.var};
-        color: \${brandColors.primary.contrast.var};
+        background: \${brandColors.primary.value};
+        color: \${brandColors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -417,12 +417,12 @@ describe('createStaticThemeColors', () => {
         padding: 12px 24px;
         border: none;
         border-radius: 4px;
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
   
         &.warning {
-          background: \${colors.warning.var};
-          color: \${colors.warning.contrast.var};
+          background: \${colors.warning.value};
+          color: \${colors.warning.contrast.value};
         }
       \`
 
@@ -552,8 +552,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/colors'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
   
         &:hover {
           background: \${colors.primary.darker(0.1)};
@@ -622,8 +622,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
         border: 1px solid \${colors.primary.alpha(0.2)};
   
         &:hover {
@@ -631,7 +631,7 @@ describe('createStaticThemeColors', () => {
         }
   
         &.danger {
-          background: \${colors.danger.var};
+          background: \${colors.danger.value};
           color: \${colors.danger.contrast.alpha(0.9)};
         }
       \`

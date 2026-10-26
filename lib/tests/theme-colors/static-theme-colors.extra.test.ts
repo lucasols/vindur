@@ -45,7 +45,7 @@ describe('createStaticThemeColors', () => {
       `);
     });
 
-    test('should output minified 3-character hex codes for .var properties', async () => {
+    test('should output minified 3-character hex codes for .value properties', async () => {
       const source = dedent`
         import { createStaticThemeColors, styled } from 'vindur'
 
@@ -58,11 +58,11 @@ describe('createStaticThemeColors', () => {
         })
 
         const Component = styled.div\`
-          color: \${colors.red.var};
-          background: \${colors.green.var};
-          border-color: \${colors.blue.var};
-          outline-color: \${colors.white.var};
-          text-shadow: 1px 1px \${colors.black.var};
+          color: \${colors.red.value};
+          background: \${colors.green.value};
+          border-color: \${colors.blue.value};
+          outline-color: \${colors.white.value};
+          text-shadow: 1px 1px \${colors.black.value};
         \`
       `;
 
@@ -90,8 +90,8 @@ describe('createStaticThemeColors', () => {
         })
 
         const Component = styled.div\`
-          color: \${colors.primary.contrast.var};
-          background: \${colors.light.contrast.var};
+          color: \${colors.primary.contrast.value};
+          background: \${colors.light.contrast.value};
           border: 1px solid \${colors.primary.contrast.alpha(0.2)};
         \`
       `;

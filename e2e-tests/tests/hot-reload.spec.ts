@@ -378,7 +378,7 @@ test('should update imported theme colors when external file changes', async ({
       import { colors } from "#src/theme";
 
       const themeStyles = css\`
-        background: \${colors.primary.var};
+        background: \${colors.primary.value};
         color: white;
         padding: 20px;
         border-radius: 8px;
@@ -386,7 +386,7 @@ test('should update imported theme colors when external file changes', async ({
       \`;
 
       const secondaryStyles = css\`
-        background: \${colors.secondary.var};
+        background: \${colors.secondary.value};
         color: black;
         padding: 15px;
       \`;

@@ -1245,8 +1245,8 @@ const colors = createStaticThemeColors({
 
 // Each color provides a complete theming API
 const Button = styled.button`
-  background: ${colors.primary.var};
-  color: ${colors.primary.contrast.var};
+  background: ${colors.primary.value};
+  color: ${colors.primary.contrast.value};
 
   &:hover {
     background: ${colors.primary.darker(0.1)};
@@ -1296,13 +1296,13 @@ In dev mode, the output will show the color name for easier debugging:
 
 Each color in your theme provides:
 
-- **`var`**: CSS variable reference for the color
+- **`value`**: CSS variable reference for the color
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
 - **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
 - **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
 - **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
-- **`contrast.var`**: Black or white, picked with APCA
+- **`contrast.value`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
@@ -1318,8 +1318,8 @@ import { createDynamicCssColor } from 'vindur';
 const dynamicColor = createDynamicCssColor();
 
 const Container = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   /* use self selectors to conditionally style the component that is setting the color */
   ${dynamicColor.self.isDark} {
@@ -1328,8 +1328,8 @@ const Container = styled.div`
 `;
 
 const Card = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   &:hover {
     background: ${dynamicColor.darker(0.1)};
@@ -1342,8 +1342,8 @@ const Card = styled.div`
 `;
 
 const ChildElement = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 `;
 
 // for dom elements and styled components, use the dynamicColor prop to set the color
@@ -1384,7 +1384,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
 #### Color Setting
 
 - **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
-  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `var` and `contrast.var` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `var` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
+  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `value` and `contrast.value` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `value` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
   - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
@@ -1420,8 +1420,8 @@ const { className, style } = dynamicColor.setProps('#007bff', {
 
 // Conditional styling based on color properties
 const AdaptiveButton = styled.button`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   /* Different styles for dark vs light colors */
   ${dynamicColor.self.isDark} {

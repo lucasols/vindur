@@ -215,7 +215,7 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        // Colors and palettes are objects, only their `.var` and methods are CSS values
+        // Colors and palettes are objects, only their `.value` and methods are CSS values
         if matches!(
             value,
             StaticValue::LayerFunction

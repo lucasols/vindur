@@ -11,7 +11,7 @@ describe('dynamic color imports', () => {
         import { themeColor } from '#/colors'
 
         const styles = css\`
-          color: \${themeColor.var};
+          color: \${themeColor.value};
         \`
 
         const App = () => <div className={styles} dynamicColor={themeColor.set('#ff0000')} />
@@ -57,9 +57,9 @@ describe('dynamic color imports', () => {
         const localColor = createDynamicCssColor()
 
         const styles = css\`
-          color: \${primaryColor.var};
-          background: \${secondaryColor.var};  
-          border: 1px solid \${localColor.var};
+          color: \${primaryColor.value};
+          background: \${secondaryColor.value};  
+          border: 1px solid \${localColor.value};
         \`
       `,
       overrideDefaultFs: createFsMock({
@@ -94,7 +94,7 @@ describe('dynamic color imports', () => {
         import { brandColor } from '#/theme'
 
         const styles = css\`
-          color: \${brandColor.var};
+          color: \${brandColor.value};
         \`
 
         const App = () => <div className={styles} dynamicColor={brandColor.set('#3b82f6')} />
@@ -204,7 +204,7 @@ test('should not reuse dev ids of imported dynamic colors in production with a s
         import { themeColor } from '#/colors';
 
         const styles = css\`
-          color: \${themeColor.var};
+          color: \${themeColor.value};
         \`;
       `,
       dev,

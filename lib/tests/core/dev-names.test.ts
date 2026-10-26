@@ -10,7 +10,7 @@ test('should replace `$` of variable names in dev class and variable names', asy
       const $bg = createDynamicCssColor()
 
       const $Box = styled.div\`
-        background: \${$bg.var};
+        background: \${$bg.value};
 
         \${$bg.self.isDark} {
           color: white;

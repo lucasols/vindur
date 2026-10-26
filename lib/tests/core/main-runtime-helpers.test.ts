@@ -64,7 +64,7 @@ describe('createDynamicCssColor', () => {
   test('should create color object with proper methods in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color.var).toBe('var(--test-hash)');
+    expect(color.value).toBe('var(--test-hash)');
     expect(color.alpha(0.5)).toBe(
       'color-mix(in srgb, var(--test-hash) 50%, transparent)',
     );
@@ -78,7 +78,7 @@ describe('createDynamicCssColor', () => {
       'hsl(var(--test-hash-h), var(--test-hash-sds), calc(var(--test-hash-l) * 0.6))',
     );
 
-    expect(color.contrast.var).toBe('var(--test-hash-c)');
+    expect(color.contrast.value).toBe('var(--test-hash-c)');
     expect(color.contrast.optimal()).toBe('var(--test-hash-c-optimal)');
     expect(color.contrast.optimal({ alpha: 0.8 })).toBe(
       'color-mix(in srgb, var(--test-hash-c-optimal) 80%, transparent)',

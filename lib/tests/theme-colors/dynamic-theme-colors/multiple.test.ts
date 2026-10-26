@@ -11,9 +11,9 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const color2 = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color1.var};
-        color: \${color1.contrast.var};
-        border: 2px solid \${color2.var};
+        background: \${color1.value};
+        color: \${color1.contrast.value};
+        border: 2px solid \${color2.value};
       \`
 
       const Component = () => {
@@ -61,7 +61,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const secondaryColor = createDynamicCssColor()
 
       const Card = styled.div\`
-        border: 2px solid \${secondaryColor.var};
+        border: 2px solid \${secondaryColor.value};
 
         \${primaryColor.self.isDark} {
           border-style: dashed;
@@ -125,8 +125,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const secondaryColor = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${primaryColor.var};
-        border: 2px solid \${secondaryColor.var};
+        background: \${primaryColor.value};
+        border: 2px solid \${secondaryColor.value};
       \`
 
       const Component = () => {
