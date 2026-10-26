@@ -922,6 +922,8 @@ const Button = styled.button`
 `;
 ```
 
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
+
 ### JSX CSS Prop
 
 Apply styles directly to JSX elements using the `css` prop, similar to styled-components and emotion:
@@ -1456,10 +1458,6 @@ Compiles to:
   }
 }
 ```
-
-## Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for upcoming features and development plans.
 
 ## License
 

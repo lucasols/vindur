@@ -31,6 +31,7 @@ mod theme_color;
 mod transform_support;
 mod unsupported_css_syntax;
 mod vindur;
+mod vindur_fn_references;
 mod with_component;
 
 pub(crate) use vindur::transform_program;

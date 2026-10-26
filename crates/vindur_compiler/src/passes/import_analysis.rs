@@ -3,6 +3,7 @@ use oxc_span::GetSpan;
 use rustc_hash::FxHashSet;
 
 use crate::{
+    diagnostic::CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
     semantic::VindurImports,
 };
@@ -15,7 +16,6 @@ const COMPILE_TIME_IMPORTS: &[&str] = &[
     "layer",
     "stableId",
     "styled",
-    "vindurFn",
 ];
 
 pub(super) fn is_compile_time_import(name: &str) -> bool {
@@ -46,8 +46,10 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
-                if let oxc_ast::ast::ExportDefaultDeclarationKind::Identifier(identifier) =
-                    &export.declaration
+                if let Some(Expression::Identifier(identifier)) = export
+                    .declaration
+                    .as_expression()
+                    .map(Expression::get_inner_expression)
                 {
                     names.insert(identifier.name.to_string());
                 }
@@ -114,10 +116,11 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
 
 pub(super) fn collect_vindur_imports(
     program: &Program<'_>,
+    file_path: &str,
     source: &str,
     imports: &mut VindurImports<'_>,
     edits: &mut Vec<Edit>,
-) {
+) -> Result<(), CompilerDiagnostic> {
     for statement in &program.body {
         let Statement::ImportDeclaration(declaration) = statement else {
             continue;
@@ -134,8 +137,23 @@ pub(super) fn collect_vindur_imports(
                 specifier_count += 1;
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
+                    let is_type_import =
+                        declaration.import_kind.is_type() || named.import_kind.is_type();
+                    if !is_type_import && imported.as_str() != named.local.name.as_str() {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            named.span,
+                            format!(
+                                "aliased vindur imports are not supported, import \"{imported}\" without the \"{}\" alias",
+                                named.local.name
+                            ),
+                        ));
+                    }
+                    // Runtime imports are tracked too, so vindur utilities are detected by
+                    // their import instead of their name
+                    imports.insert(&named.local, imported.as_str());
                     if is_compile_time_import(imported.as_str()) {
-                        imports.insert(&named.local, imported.as_str());
                         compile_time_count += 1;
                         continue;
                     }
@@ -163,4 +181,5 @@ pub(super) fn collect_vindur_imports(
             });
         }
     }
+    Ok(())
 }

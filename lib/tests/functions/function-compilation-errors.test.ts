@@ -1,7 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
 import { transform } from '../../src/transform';
-import { createFsMock } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 const importAliases = { '#/': '/' };
 
@@ -564,4 +564,111 @@ describe('function compilation errors', () => {
       );
     });
   });
+});
+
+test('should error on vindurFn declared with let', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export let transition = vindurFn((property: string) => \`transition: \${property};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:11]
+  `);
+});
+
+test('should error on vindurFn declared with a function expression', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const transition = vindurFn(function (property: string) {
+          return \`transition: \${property};\`;
+        });
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:13]
+  `);
+});
+
+test('should error at the unsupported syntax of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const columns = vindurFn((count: number) => \`--odd: \${count % 2};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "columns" contains unsupported syntax "count % 2", it can't be evaluated at compile time
+    loc: /test.tsx|3:61]
+  `);
+});
+
+test('should error on wrapped vindurFn declarations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const transition = (vindurFn((property: string) => \`transition: \${property};\`));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" is not supported, vindur functions must be declared with "export const transition = vindurFn((...) => ...)"
+    loc: /test.tsx|3:13]
+  `);
+});
+
+test('should validate vindurFn bodies wrapped in type assertions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const match = vindurFn((n: number) => \`--match: \${n == 10 ? 1 : 0};\` as const);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "match" contains unsupported comparison operator "==" - only ===, !==, >, <, >=, <= are supported
+    loc: /test.tsx|3:57]
+  `);
+});
+
+test('should error on map callbacks with default parameters', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const sizes = vindurFn((values: number[]) => values.map((n = 10) => \`\${n}px\`).join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "sizes" contains unsupported syntax "n = 10", it can't be evaluated at compile time
+    loc: /test.tsx|3:64]
+  `);
+});
+
+test('should error on loose inequality in vindurFn conditions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const color = vindurFn((value: string) => \`color: \${value != '0' ? 'red' : 'blue'};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "color" contains unsupported comparison operator "!=" - only ===, !==, >, <, >=, <= are supported
+    loc: /test.tsx|3:59]
+  `);
 });
