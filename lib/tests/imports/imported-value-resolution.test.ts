@@ -2,11 +2,13 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
-const fs = createFsMock({
+const createCycleFs = (typeModifier: 'type ' | '') => createFsMock({
   'Button.tsx': dedent`
     import { styled } from 'vindur';
     import { bgColor, INSET } from '#/styles';
-    import type { ButtonVariant } from '#/types';
+    import ${typeModifier}{ ButtonVariant } from '#/types';
+
+    export const BUTTON_INSET = INSET;
 
     const Container = styled.button\`
       top: \${INSET}px;
@@ -22,8 +24,8 @@ const fs = createFsMock({
   `,
   'styles.ts': dedent`
     import { createDynamicCssColor } from 'vindur';
-    import type { Theme } from '#/types';
-    import { type ButtonVariant, DEFAULT_INSET } from '#/constants';
+    import ${typeModifier}{ Theme } from '#/types';
+    import { ${typeModifier}ButtonVariant, DEFAULT_INSET } from '#/constants';
 
     export const bgColor = createDynamicCssColor();
 
@@ -32,14 +34,14 @@ const fs = createFsMock({
     export type StylesTheme = Theme | ButtonVariant;
   `,
   'types.ts': dedent`
-    import type { StylesTheme } from '#/styles';
+    import ${typeModifier}{ StylesTheme } from '#/styles';
 
     export type Theme = 'light' | 'dark';
 
     export type ButtonVariant = StylesTheme;
   `,
   'constants.ts': dedent`
-    import type { StylesTheme } from '#/styles';
+    import ${typeModifier}{ StylesTheme } from '#/styles';
 
     export const DEFAULT_INSET = 8;
 
@@ -47,21 +49,52 @@ const fs = createFsMock({
   `,
 });
 
-test('should resolve imported values of a dependency whose type-only imports form a cycle', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { Button } from '#/Button';
+const fs = createCycleFs('type ');
 
-      export const Page = () => <Button variant="light" />;
+const transformCyclePage = (typeModifier: 'type ' | '') =>
+  transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Button, BUTTON_INSET } from '#/Button';
+
+      const Wrapper = styled.div\`
+        padding: \${BUTTON_INSET}px;
+      \`;
+
+      export const Page = () => (
+        <Wrapper>
+          <Button variant="light" />
+        </Wrapper>
+      );
     `,
-    overrideDefaultFs: fs,
+    overrideDefaultFs: createCycleFs(typeModifier),
   });
+
+test('should resolve imported values of a dependency whose type-only imports form a cycle', async () => {
+  const result = await transformCyclePage('type ');
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { Button } from "#/Button";
-    export const Page = () => <Button variant="light" />;
+    export const Page = () => (
+      <div className="v1560qbr-1-Wrapper">
+        <Button variant="light" />
+      </div>
+    );
     "
   `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Wrapper {
+      padding: 8px;
+    }
+    "
+  `);
+});
+
+test('should treat imports only used as types as type-only imports', async () => {
+  expect(await transformCyclePage('')).toEqual(
+    await transformCyclePage('type '),
+  );
 });
 
 test('should compile the dependency itself', async () => {
@@ -121,30 +154,5 @@ test('should resolve constants that re-export imported values', async () => {
       left: 16px;
     }
     "
-  `);
-});
-
-test('should error on imported values that are not static', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur';
-        import { INSET } from '#/styles';
-
-        export const Box = styled.div\`
-          top: \${INSET}px;
-        \`;
-      `,
-      overrideDefaultFs: createFsMock({
-        'styles.ts': dedent`
-          const getInset = () => 8;
-
-          export const INSET = getInset();
-        `,
-      }),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "INSET" imported from /styles.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
-    loc: 5:9]
   `);
 });

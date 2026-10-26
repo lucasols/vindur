@@ -455,7 +455,8 @@ pub(crate) fn transform_program(
         source_hash: hasher.finish(),
         constants,
         exports,
-        dependencies: Vec::new(),
+        // Filled in by the compiler from the loaded imports
+        ..ModuleFacts::default()
     };
     if let Some(reference) = resolve_styled_references(&mut css_rules, &styled_components) {
         return Err(CompilerDiagnostic::error(

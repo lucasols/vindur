@@ -60,12 +60,7 @@ pub(super) fn evaluate_expression(
         Expression::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
             Some(StaticValue::Undefined)
         }
-        Expression::Identifier(identifier) => {
-            match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
-                value => Some(value.clone()),
-            }
-        }
+        Expression::Identifier(identifier) => evaluate_identifier(identifier, constants, scoping),
         Expression::ArrayExpression(array) => evaluate_array(array, constants, scoping),
         Expression::StaticMemberExpression(member) => {
             let analysis = StaticAnalysisContext { constants, scoping };
@@ -376,6 +371,22 @@ pub(super) fn static_value_to_boolean(value: &StaticValue) -> bool {
     oxc_constant_value(value)
         .and_then(|value| value.to_boolean(&WithoutGlobalReferenceInformation))
         .unwrap_or(true)
+}
+
+pub(super) fn evaluate_identifier(
+    identifier: &IdentifierReference<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<StaticValue> {
+    match resolved_constant(identifier, constants, scoping)? {
+        StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
+        // Unresolved imports are reported when interpolated directly, values derived
+        // from them, e.g. `${INSET}px`, are not static
+        StaticValue::MissingImport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. } => None,
+        value => Some(value.clone()),
+    }
 }
 
 pub(super) fn resolved_constant<'a>(

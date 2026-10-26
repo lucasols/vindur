@@ -15,6 +15,9 @@ pub struct ModuleFacts {
     pub constants: FxHashMap<String, StaticValue>,
     pub exports: FxHashMap<String, StaticValue>,
     pub dependencies: Vec<String>,
+    /// Modules whose facts were read directly, including ones whose values aren't static
+    #[serde(default)]
+    pub fact_dependencies: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
