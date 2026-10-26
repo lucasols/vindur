@@ -126,7 +126,8 @@ pub(crate) fn transform_program(
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
-    let value_referenced_names = collect_value_referenced_names(program, scoping, &imports);
+    let value_referenced_names =
+        collect_value_referenced_names(program, scoping, &imports, file_path, source)?;
     let exported_object_names = collect_exported_object_names(program);
     let jsx_id_events = collect_jsx_id_events(program);
     let mut jsx_event_index = 0_usize;

@@ -479,6 +479,29 @@ describe('styled components - attrs functionality', () => {
     );
   });
 
+  test('should throw error for JSX in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Icon = styled.span\`
+            color: red;
+          \`
+
+          export const Button = styled.button.attrs({ children: <Icon /> })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered
+      loc: 7:54]
+    `,
+    );
+  });
+
   test('should handle function calls and expressions in attrs', async () => {
     const source = dedent`
       import { styled } from 'vindur'

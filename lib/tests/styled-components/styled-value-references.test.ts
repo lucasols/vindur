@@ -141,3 +141,125 @@ test('should reference the component of an exported styled component extension',
     "
   `);
 });
+
+test('should keep local styled components referenced in attrs', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Menu } from '#/components';
+
+      const Trigger = styled.button\`
+        color: red;
+      \`;
+
+      export const StyledMenu = styled(Menu).attrs({ trigger: Trigger })\`
+        color: blue;
+      \`;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { Menu } from "#/components";
+    const Trigger = _vSC("button", "v1560qbr-1-Trigger");
+    export const StyledMenu = _vSC(Menu, "v1560qbr-2-StyledMenu", {
+      trigger: Trigger,
+    });
+    "
+  `);
+});
+
+test('should keep local styled components passed as a non-template css value of a custom component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Chart } from '#/components';
+
+      const Tooltip = styled.div\`
+        color: red;
+      \`;
+
+      export const A = () => <Chart css={Tooltip} />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { Chart } from "#/components";
+    const Tooltip = _vSC("div", "v1560qbr-1-Tooltip");
+    export const A = () => <Chart css={Tooltip} />;
+    "
+  `);
+});
+
+test('should not make extensions of a styled component referenced as a value runtime components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { MoreMenu } from '#/components';
+
+      const Button = styled.button\`
+        color: red;
+      \`;
+
+      const LinkButton = styled(Button)\`
+        text-decoration: none;
+      \`;
+
+      const DivButton = Button.withComponent('div');
+
+      export const A = () => (
+        <>
+          <LinkButton />
+          <DivButton />
+          <MoreMenu buttonContainer={Button} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { MoreMenu } from "#/components";
+    const Button = _vSC("button", "v1560qbr-1-Button");
+    export const A = () => (
+      <>
+        <button className="v1560qbr-1-Button v1560qbr-2-LinkButton" />
+        <div className="v1560qbr-1-Button" />
+        <MoreMenu buttonContainer={Button} />
+      </>
+    );
+    "
+  `);
+});
+
+test('should not keep styled components only referenced in templates of an unimported styled', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      const Icon = styled.span\`
+        color: red;
+      \`;
+
+      const Button = styled.button\`
+        \${Icon} {
+          color: blue;
+        }
+      \`;
+
+      export const A = () => (
+        <Button>
+          <Icon />
+        </Button>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const A = () => (
+      <button className="v1560qbr-2-Button">
+        <span className="v1560qbr-1-Icon" />
+      </button>
+    );
+    "
+  `);
+});

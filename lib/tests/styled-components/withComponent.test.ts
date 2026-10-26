@@ -239,6 +239,52 @@ describe('withComponent', () => {
     );
   });
 
+  test('should throw error when withComponent is not the initializer of a top-level variable', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Menu } from '#/components'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export const App = () => <Menu container={Container.withComponent('span')} />
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 8:42]
+    `,
+    );
+  });
+
+  test('should throw error when withComponent is called inside a function', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export function App() {
+            const Link = Container.withComponent('a')
+            return <Link />
+          }
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 8:15]
+    `,
+    );
+  });
+
   test('should work with extended styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`

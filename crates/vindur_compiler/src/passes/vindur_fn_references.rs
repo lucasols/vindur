@@ -174,7 +174,9 @@ impl RuntimeReferenceVisitor<'_, '_, '_> {
 }
 
 /// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
-fn tag_root<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e IdentifierReference<'a>> {
+pub(super) fn tag_root<'e, 'a>(
+    expression: &'e Expression<'a>,
+) -> Option<&'e IdentifierReference<'a>> {
     match expression {
         Expression::Identifier(identifier) => Some(identifier),
         Expression::StaticMemberExpression(member) => tag_root(&member.object),

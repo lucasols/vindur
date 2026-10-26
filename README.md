@@ -190,6 +190,13 @@ const Container = styled.main`
 `;
 ```
 
+Styled components used as JSX elements compile to the plain element with its class name. A styled component that is exported or referenced as a value (passed as a prop, picked in a conditional) is kept as a lightweight runtime component instead:
+
+```tsx
+<Card>...</Card>; // compiles to <div className="...">
+<Menu container={Card} />; // Card is kept as a runtime component
+```
+
 ### Variable Interpolation
 
 Interpolate JavaScript variables into your styles:
@@ -258,6 +265,8 @@ const Div = Button.withComponent('div'); // Same styles, <div> element
 const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
 ```
 
+`withComponent` must be the initializer of a top-level variable, like the examples above.
+
 ### Default Attributes
 
 Set default attributes on styled components using `attrs`:
@@ -284,7 +293,7 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` can also be used with styled extensions:
+`attrs` values can't contain JSX. `attrs` can also be used with styled extensions:
 
 ```tsx
 const StyledDiv = styled(Component).attrs({

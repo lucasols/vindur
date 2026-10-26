@@ -60,7 +60,7 @@ pub(super) fn process_with_component(
     }
     let runtime = transform.is_exported
         || transform.value_referenced_names.contains(variable_name)
-        || base.runtime;
+        || base.attrs.is_some();
     let component = StyledComponent {
         attrs: base.attrs.clone(),
         class_name: base.class_name.clone(),

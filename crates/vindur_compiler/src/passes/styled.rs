@@ -1,4 +1,9 @@
-use oxc_ast::ast::{Argument, Expression, Program, Statement, TSTypeParameterInstantiation};
+use oxc_ast::ast::{
+    Argument, Expression, JSXElement, JSXFragment, ObjectExpression, Program, Statement,
+    TSTypeParameterInstantiation,
+};
+use oxc_ast_visit::Visit;
+use oxc_span::Span;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
@@ -155,6 +160,16 @@ pub(crate) fn styled_tag_component_with_attrs(
                     .to_owned(),
             ));
         };
+        // The object is copied as written, so it can't hold JSX the JSX passes rewrite
+        if let Some(jsx_span) = first_jsx_span(object) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                jsx_span,
+                "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered"
+                    .to_owned(),
+            ));
+        }
         let span = object.span;
         return Ok(Some(StyledDefinition {
             base_component: component,
@@ -403,4 +418,24 @@ pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &st
     }
     output.push_str(rest);
     output
+}
+
+fn first_jsx_span(object: &ObjectExpression<'_>) -> Option<Span> {
+    let mut visitor = JsxFinder { span: None };
+    visitor.visit_object_expression(object);
+    visitor.span
+}
+
+struct JsxFinder {
+    span: Option<Span>,
+}
+
+impl<'a> Visit<'a> for JsxFinder {
+    fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        self.span.get_or_insert(element.span);
+    }
+
+    fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
+        self.span.get_or_insert(fragment.span);
+    }
 }

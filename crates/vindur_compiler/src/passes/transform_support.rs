@@ -280,8 +280,7 @@ pub(super) fn process_variable_declaration(
             let attrs = own_attrs.or_else(|| base_component.attrs.clone());
             let runtime = transform.is_exported
                 || transform.value_referenced_names.contains(variable_name)
-                || attrs.is_some()
-                || base_component.runtime;
+                || attrs.is_some();
             if runtime {
                 let attrs_argument = attrs
                     .as_ref()
