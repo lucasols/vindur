@@ -4,6 +4,8 @@ This file provides guidance to Code Agents when working with code in this reposi
 
 Vindur is a compiler, and compilers have endless edge cases. Do not try to cover them all: support a small, well-defined set of patterns and reject everything else.
 
+Vindur is experimental (0.x): breaking changes are acceptable and don't need deprecation paths or compatibility shims. Prefer the right design over backwards compatibility.
+
 ## Restricted feature set, fail fast
 
 - Prefer a restricted set of supported syntax and patterns over handling every corner case. A narrow feature that is always correct beats a broad one with gaps
