@@ -140,19 +140,6 @@ fn build_template_css(
                 ),
             ));
         }
-        if let Expression::Identifier(identifier) = expression
-            && let Some(StaticValue::MissingImport {
-                imported_name,
-                source_path,
-            }) = resolved_constant(identifier, constants, scoping)
-        {
-            return Err(CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                format!("Function \"{imported_name}\" not found in {source_path}"),
-            ));
-        }
         if let Some(diagnostic) =
             unevaluable_import_error(expression, constants, scoping, file_path, source)
         {

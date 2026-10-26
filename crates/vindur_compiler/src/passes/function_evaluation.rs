@@ -140,6 +140,9 @@ fn binary_expression_error(
     {
         return Some("division by zero".to_owned());
     }
+    let is_string_concatenation = matches!(operator, FunctionOperator::Addition)
+        && (matches!(left_value, StaticValue::String(_))
+            || matches!(right_value, StaticValue::String(_)));
     if apply_operator(left_value, operator, right_value).is_none() {
         return Some(
             if matches!(
@@ -147,6 +150,8 @@ fn binary_expression_error(
                 FunctionOperator::StrictEquality | FunctionOperator::StrictInequality
             ) {
                 "only strings, numbers, booleans and undefined can be compared"
+            } else if is_string_concatenation {
+                "strings can only be concatenated with other strings, use a template literal instead, e.g. `${size}px`"
             } else {
                 "operands must be numbers"
             }

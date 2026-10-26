@@ -239,3 +239,28 @@ test('should error on rest properties in vindurFn object parameters', async () =
     loc: /test.tsx|3:38]
   `);
 });
+
+test('should error when a vindurFn concatenates a string with a number', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { width } from '#/functions';
+
+        const style = css\`
+          \${width(10)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const width = vindurFn((size: number) => 'width: ' + size + 'px;');
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Binary expression evaluation failed: strings can only be concatenated with other strings, use a template literal instead, e.g. \`\${size}px\`
+    loc: 5:4]
+  `);
+});

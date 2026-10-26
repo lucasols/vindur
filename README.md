@@ -930,7 +930,7 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur style templates (`css`, `styled`, `keyframes`, `createGlobalStyle` and `css` prop template literals, e.g. ``css={`${spacing(16)}`}``). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
 
 `vindurFn` functions must be declared in a module level variable, e.g. `export const name = vindurFn(...)`, and imported by name. Default exports, renamed re-exports (`export { fn as other }`) and namespace imports (`import * as styles`) of modules that export them are compile errors.
 

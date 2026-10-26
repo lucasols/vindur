@@ -348,7 +348,13 @@ impl Compiler {
                 }
             }
             if needs_dependency {
-                dependencies.push(resolved);
+                // Imported values can be computed from the dependency's own imports, so its
+                // dependencies are watched too
+                for dependency in std::iter::once(&resolved).chain(&facts.dependencies) {
+                    if !dependencies.contains(dependency) {
+                        dependencies.push(dependency.clone());
+                    }
+                }
             }
         }
         Ok(Some((values, dependencies)))
@@ -400,6 +406,8 @@ impl Compiler {
             .write()
             .unwrap_or_else(|error| error.into_inner());
         facts.remove(file_path);
+        // Dependencies are transitive, so this also drops modules that use the file indirectly
+        facts.retain(|_, module| !module.dependencies.iter().any(|path| path == file_path));
     }
 
     pub fn clear(&self) {
@@ -651,5 +659,43 @@ const App = ({ hasSubtasks, isExpanded }) => (
         assert!(first.css.contains("gap: 12px;"));
         assert!(second.css.contains("gap: 12px;"));
         assert_eq!(loader.reads, 1);
+    }
+
+    #[test]
+    fn invalidates_modules_that_use_a_changed_file_indirectly() {
+        let compiler = Compiler::new();
+        let mut loader = MemoryLoader {
+            files: FxHashMap::from_iter([
+                (
+                    "/constants.ts".to_owned(),
+                    "export const UNIT = 4;".to_owned(),
+                ),
+                (
+                    "/derived.ts".to_owned(),
+                    "import { UNIT } from '#/constants'; export const GAP = UNIT * 2;".to_owned(),
+                ),
+            ]),
+            reads: 0,
+        };
+        let options = TransformOptions {
+            import_aliases: FxHashMap::from_iter([("#/".to_owned(), "/".to_owned())]),
+            ..TransformOptions::default()
+        };
+        let source = "import { css } from 'vindur'; import { GAP } from '#/derived'; const style = css`gap: ${GAP}px;`;";
+
+        let first = compiler.transform_with_loader("/app.ts", source, &options, &mut loader);
+        assert!(first.css.contains("gap: 8px;"));
+        assert_eq!(
+            first.style_dependencies,
+            vec!["/derived.ts".to_owned(), "/constants.ts".to_owned()]
+        );
+
+        loader.files.insert(
+            "/constants.ts".to_owned(),
+            "export const UNIT = 8;".to_owned(),
+        );
+        compiler.invalidate("/constants.ts");
+        let second = compiler.transform_with_loader("/app.ts", source, &options, &mut loader);
+        assert!(second.css.contains("gap: 16px;"));
     }
 }

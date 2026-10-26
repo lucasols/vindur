@@ -1,4 +1,6 @@
-use oxc_ast::ast::{Argument, Expression, Program, Statement, TSTypeParameterInstantiation};
+use oxc_ast::ast::{
+    Argument, Expression, IdentifierReference, Program, Statement, TSTypeParameterInstantiation,
+};
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
@@ -68,13 +70,18 @@ pub(crate) fn styled_tag_element(
 
 /// Whether a tag expression starts with `styled`, e.g. `styled(A).attrs({})`
 pub(crate) fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
-    match tag {
-        Expression::Identifier(identifier) => {
-            imports.matches_import_or_global(identifier, "styled")
-        }
-        Expression::StaticMemberExpression(member) => is_styled_tag(&member.object, imports),
-        Expression::CallExpression(call) => is_styled_tag(&call.callee, imports),
-        _ => false,
+    tag_root(tag).is_some_and(|identifier| imports.matches_import_or_global(identifier, "styled"))
+}
+
+/// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
+pub(crate) fn tag_root<'e, 'a>(
+    expression: &'e Expression<'a>,
+) -> Option<&'e IdentifierReference<'a>> {
+    match expression {
+        Expression::Identifier(identifier) => Some(identifier),
+        Expression::StaticMemberExpression(member) => tag_root(&member.object),
+        Expression::CallExpression(call) => tag_root(&call.callee),
+        _ => None,
     }
 }
 

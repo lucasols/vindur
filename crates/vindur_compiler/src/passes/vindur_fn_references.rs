@@ -10,6 +10,8 @@ use rustc_hash::FxHashSet;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
+use super::styled::tag_root;
+
 const VINDUR_FN_DECLARATION_ERROR: &str = "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"";
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
@@ -66,8 +68,8 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
             self.first_error = Some((
                 identifier.span,
                 format!(
-                    "vindurFn \"{}\" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime",
-                    identifier.name
+                    "vindurFn \"{name}\" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={{`${{{name}(...)}}`}}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime",
+                    name = identifier.name
                 ),
             ));
         }
@@ -227,14 +229,4 @@ fn vindur_fn_declaration_spans(program: &Program<'_>) -> FxHashSet<Span> {
             },
         )
         .collect()
-}
-
-/// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
-fn tag_root<'e, 'a>(expression: &'e Expression<'a>) -> Option<&'e IdentifierReference<'a>> {
-    match expression {
-        Expression::Identifier(identifier) => Some(identifier),
-        Expression::StaticMemberExpression(member) => tag_root(&member.object),
-        Expression::CallExpression(call) => tag_root(&call.callee),
-        _ => None,
-    }
 }

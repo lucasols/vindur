@@ -95,7 +95,7 @@ test('should error when an imported vindurFn is called at runtime', async () => 
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|3:49]
   `);
 });
@@ -111,7 +111,7 @@ test('should error when a vindurFn is passed around as a value', async () => {
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|3:24]
   `);
 });
@@ -130,7 +130,7 @@ test('should error when a vindurFn is used in attrs', async () => {
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|4:57]
   `);
 });
@@ -147,7 +147,7 @@ test('should error when a vindurFn is called at runtime in the module that decla
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|5:30]
   `);
 });
@@ -164,7 +164,7 @@ test('should error when a vindurFn is passed through the css prop of a custom co
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|4:34]
   `);
 });
@@ -273,7 +273,7 @@ test('should error when a vindurFn is used as a styled component', async () => {
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|4:26]
   `);
 });
@@ -432,7 +432,7 @@ test('should error on vindurFn usage in templates of tags that are not imported'
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|4:4]
   `);
 });
@@ -466,7 +466,7 @@ test('should error on vindurFn usage in templates of runtime vindur imports', as
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur styles (css, styled, keyframes, createGlobalStyle and the css prop), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
+    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
     loc: /test.tsx|4:30]
   `);
 });
