@@ -91,29 +91,35 @@ pub(super) fn theme_method(
         StaticValue::ThemeColorContrast { name, hex } => (name, hex, "contrast-"),
         _ => return None,
     };
-    // `optimal` options don't change the static fallback, the other methods need an amount
-    let amount = if method == "optimal" {
-        0.0
-    } else {
-        amount?
-    };
-    let escaped_amount = amount.to_string().replace('.', "\\.");
+    // `optimal` only takes an optional `alpha`, the other methods need an amount
+    if method == "optimal" {
+        let (operation, result) = match amount {
+            Some(alpha) => (
+                format!("{prefix}optimal-alpha-{}", escape_amount(alpha)),
+                alpha_hex(hex, alpha),
+            ),
+            None => (format!("{prefix}optimal"), hex.clone()),
+        };
+        return Some(StaticValue::String(format!(
+            "var(--stc-{name}-{operation}, {result})"
+        )));
+    }
+    let amount = amount?;
     let result = match method {
         "alpha" => alpha_hex(hex, amount),
         "darker" => adjust_lightness(hex, -amount),
         "lighter" => adjust_lightness(hex, amount),
         "saturatedDarker" => adjust_lightness(hex, -amount),
-        "optimal" => hex.clone(),
         _ => return None,
     };
-    let operation = if method == "optimal" {
-        format!("{prefix}optimal")
-    } else {
-        format!("{prefix}{method}-{escaped_amount}")
-    };
+    let operation = format!("{prefix}{method}-{}", escape_amount(amount));
     Some(StaticValue::String(format!(
         "var(--stc-{name}-{operation}, {result})"
     )))
+}
+
+fn escape_amount(amount: f64) -> String {
+    amount.to_string().replace('.', "\\.")
 }
 
 pub(super) fn static_color_fallbacks(css: &str) -> String {

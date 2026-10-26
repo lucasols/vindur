@@ -431,6 +431,20 @@ pub(crate) fn transform_program(
         runtime_helpers.push("mergeStyles");
     }
     runtime_helpers.retain(|helper| !has_named_vindur_import(program, helper));
+    if let Some((helper, symbol)) = runtime_helpers.iter().find_map(|helper| {
+        scoping
+            .get_root_binding((*helper).into())
+            .map(|symbol| (helper, symbol))
+    }) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            scoping.symbol_span(symbol),
+            format!(
+                "\"{helper}\" is already declared, vindur needs this name for its runtime helper, rename it or import it as a value with import {{ {helper} }} from \"vindur\""
+            ),
+        ));
+    }
     if !runtime_helpers.is_empty() {
         let quote = vindur_import_quote(program, source);
         edits.push(Edit {

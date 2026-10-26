@@ -2,7 +2,8 @@ use std::borrow::Cow;
 
 use oxc_ast::ast::{
     Argument, ArrayExpression, BindingPattern, Expression, IdentifierReference, ObjectExpression,
-    ObjectPropertyKind, TemplateLiteral, VariableDeclaration, VariableDeclarationKind,
+    ObjectProperty, ObjectPropertyKind, TemplateLiteral, VariableDeclaration,
+    VariableDeclarationKind,
 };
 use oxc_ecmascript::{
     GlobalContext, ToBoolean, ToJsString, ToNumber, WithoutGlobalReferenceInformation,
@@ -229,11 +230,24 @@ fn evaluate_object(
         let ObjectPropertyKind::ObjectProperty(property) = property else {
             return None;
         };
+        if is_prototype_setter(property) {
+            return None;
+        }
         let name = property.key.static_name()?.into_owned();
         let value = evaluate_expression(&property.value, constants, scoping)?;
         properties.insert(name, value);
     }
     Some(StaticValue::Object(properties))
+}
+
+/// `{ __proto__: value }` sets the prototype instead of defining a property
+pub(super) fn is_prototype_setter(property: &ObjectProperty<'_>) -> bool {
+    !property.computed
+        && !property.shorthand
+        && property
+            .key
+            .static_name()
+            .is_some_and(|name| name == "__proto__")
 }
 
 fn evaluate_array(
@@ -359,6 +373,10 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
 /// The CSS text of a value, `None` for values without a CSS representation, e.g. functions,
 /// objects or colors without `.var`
 pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
+    // `undefined` is never a valid CSS value, e.g. an optional vindurFn parameter without a default
+    if matches!(value, StaticValue::Undefined) {
+        return None;
+    }
     if let Some(value) = oxc_constant_value(value)
         && let Some(value) = value.to_js_string(&WithoutGlobalReferenceInformation)
     {
@@ -373,14 +391,16 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
                 .join(","),
         ),
         StaticValue::ClassName(value) => Some(format!(".{value}")),
-        StaticValue::CssClass { css, .. } => Some(css.clone()),
         StaticValue::Keyframes(value) => Some(value.clone()),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
         StaticValue::Boolean(_)
         | StaticValue::Number(_)
         | StaticValue::String(_)
         | StaticValue::Undefined => unreachable!(),
-        StaticValue::DynamicColor { .. }
+        // A css class is a selector or its styles depending on where it's interpolated, only
+        // css templates can tell which
+        StaticValue::CssClass { .. }
+        | StaticValue::DynamicColor { .. }
         | StaticValue::DynamicColorPath { .. }
         | StaticValue::LayerFunction
         | StaticValue::MissingImport { .. }

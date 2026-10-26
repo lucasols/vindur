@@ -214,3 +214,22 @@ test('should error on default imports from vindur', async () => {
     loc: 1:7]
   `);
 });
+
+test('should error when a name needed for a runtime helper is already declared', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import type { cx } from 'vindur';
+
+        export type Cx = typeof cx;
+
+        export const Component = ({ active }: { active: boolean }) => (
+          <div cx={{ $active: active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "cx" is already declared, vindur needs this name for its runtime helper, rename it or import it as a value with import { cx } from "vindur"
+    loc: 1:14]
+  `);
+});

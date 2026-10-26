@@ -202,7 +202,12 @@ pub(super) fn vindur_function_call_error(
         {
             return Some(diagnostic);
         }
-        let message = if value.is_some() {
+        let message = if value.as_ref().is_some_and(is_css_class) {
+            format!(
+                "Argument of vindurFn \"{}\" is a css style, which can't be passed to a vindurFn, extend it in the calling template with `${{style}};` instead",
+                callee.name
+            )
+        } else if value.is_some() {
             format!(
                 "Argument of vindurFn \"{}\" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use `.var` to pass a color",
                 callee.name
@@ -227,6 +232,23 @@ pub(super) fn vindur_function_call_error(
             function.parameters.len(),
             call.arguments.len()
         )
+    } else if function
+        .parameters
+        .iter()
+        .skip(call.arguments.len())
+        .any(|parameter| {
+            matches!(
+                parameter,
+                FunctionParameter::Identifier { default: None, .. }
+            )
+        })
+    {
+        format!(
+            "vindurFn \"{}\" was called with {} of its {} argument(s), a missing argument is undefined and can't be used in CSS, pass it or give its parameter a default",
+            callee.name,
+            call.arguments.len(),
+            function.parameters.len()
+        )
     } else {
         format!(
             "vindurFn \"{}\" can't be evaluated with these arguments, check that they match its parameters",
@@ -234,14 +256,19 @@ pub(super) fn vindur_function_call_error(
         )
     };
     Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        message,
+        file_path, source, call.span, message,
     ))
 }
 
-/// Values a vindurFn can receive, colors, functions and layers have no value inside it
+fn is_css_class(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::CssClass { .. } => true,
+        StaticValue::ImportedValue { value, .. } => is_css_class(value),
+        _ => false,
+    }
+}
+
+/// Values a vindurFn can receive, colors, css styles, functions and layers have no value inside it
 fn is_plain_data(value: &StaticValue) -> bool {
     match value {
         StaticValue::Array(values) => values.iter().all(is_plain_data),
@@ -259,10 +286,10 @@ fn is_plain_data(value: &StaticValue) -> bool {
         | StaticValue::MissingImport { .. }
         | StaticValue::InvalidFunction { .. }
         | StaticValue::InvalidObject { .. }
-        | StaticValue::ImportedObject { .. } => false,
+        | StaticValue::ImportedObject { .. }
+        | StaticValue::CssClass { .. } => false,
         StaticValue::Boolean(_)
         | StaticValue::ClassName(_)
-        | StaticValue::CssClass { .. }
         | StaticValue::Keyframes(_)
         | StaticValue::Number(_)
         | StaticValue::String(_)

@@ -1,4 +1,6 @@
-use oxc_ast::ast::{Argument, BindingPattern, Expression, FormalParameter, Statement};
+use oxc_ast::ast::{
+    Argument, BindingPattern, Expression, FormalParameter, FormalParameters, Statement,
+};
 use oxc_span::{GetSpan, Span};
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashSet;
@@ -19,7 +21,7 @@ pub(super) fn validate_vindur_function(
     let argument = call.arguments.first()?;
     let (params, body, function_span, body_span, is_async, is_generator) = match argument {
         Argument::ArrowFunctionExpression(function) => (
-            &function.params.items,
+            &*function.params,
             arrow_body_expression(function),
             function.span,
             function.body.span,
@@ -36,7 +38,7 @@ pub(super) fn validate_vindur_function(
                 .as_ref()
                 .map_or(function.span, |body| body.span);
             (
-                &function.params.items,
+                &*function.params,
                 body,
                 function.span,
                 body_span,
@@ -69,6 +71,15 @@ pub(super) fn validate_vindur_function(
             span: function_span,
         });
     }
+    if let Some(span) = rest_parameter_span(params) {
+        return Some(FunctionValidationError {
+            message: format!(
+                "vindurFn \"{name}\" rest parameters are not supported, declare each parameter"
+            ),
+            span,
+        });
+    }
+    let params = &params.items;
     let Some(body) = body else {
         return Some(FunctionValidationError {
             message: format!(
@@ -93,9 +104,25 @@ pub(super) fn validate_vindur_function(
         .or_else(|| validate_expression(name, body, &parameters, source, ValidationPosition::Body))
 }
 
+/// `...rest` in the parameters or in an object parameter, e.g. `({ a, ...rest }) => ...`
+fn rest_parameter_span(params: &FormalParameters<'_>) -> Option<Span> {
+    params.rest.as_ref().map(|rest| rest.span()).or_else(|| {
+        params.items.iter().find_map(|parameter| {
+            let BindingPattern::ObjectPattern(object) = &parameter.pattern else {
+                return None;
+            };
+            object.rest.as_ref().map(|rest| rest.span)
+        })
+    })
+}
+
 /// Default values of a parameter, e.g. `1` and `2` in `({ a = 1 } = { a: 2 })`
 fn parameter_defaults<'a>(parameter: &'a FormalParameter<'a>) -> Vec<&'a Expression<'a>> {
-    let mut defaults = parameter.initializer.as_deref().into_iter().collect::<Vec<_>>();
+    let mut defaults = parameter
+        .initializer
+        .as_deref()
+        .into_iter()
+        .collect::<Vec<_>>();
     if let BindingPattern::ObjectPattern(object) = &parameter.pattern {
         defaults.extend(object.properties.iter().filter_map(|property| {
             let BindingPattern::AssignmentPattern(assignment) = &property.value else {

@@ -10,6 +10,8 @@ use crate::facts::{
 };
 use crate::semantic::VindurImports;
 
+use super::static_evaluation::is_prototype_setter;
+
 pub(super) fn compile_vindur_function(
     expression: &Expression<'_>,
     imports: &VindurImports<'_>,
@@ -39,6 +41,9 @@ fn compile_function(call: &CallExpression<'_>) -> Result<StaticValue, Span> {
     let [Argument::ArrowFunctionExpression(function)] = call.arguments.as_slice() else {
         return Err(call.span);
     };
+    if let Some(rest) = &function.params.rest {
+        return Err(rest.span());
+    }
     let parameters = function
         .params
         .items
@@ -152,7 +157,7 @@ fn compile_function_expression(expression: &Expression<'_>) -> Result<FunctionEx
                     let ObjectPropertyKind::ObjectProperty(property) = property else {
                         return Err(property.span());
                     };
-                    if property.computed {
+                    if property.computed || is_prototype_setter(property) {
                         return Err(property.span);
                     }
                     Ok(FunctionObjectExpressionProperty {

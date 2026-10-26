@@ -126,3 +126,116 @@ test('should error on a parameter default referencing a module constant', async 
     loc: /test.tsx|5:46]
   `);
 });
+
+test('should error when an imported object with a __proto__ setter is passed to a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { size } from '#/functions';
+        import { VALUES } from '#/values';
+
+        const style = css\`
+          \${size(VALUES)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const size = vindurFn(({ width = 4 }: { width?: number }) => \`width: \${width}px;\`);
+        `,
+        'values.ts': dedent`
+          export const VALUES = { __proto__: { width: 8 } };
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "VALUES" from /values.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
+    loc: 6:9]
+  `);
+});
+
+test('should error when a css style is passed to a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { hover } from '#/functions';
+
+        const base = css\`
+          color: red;
+        \`;
+
+        const style = css\`
+          \${hover(base)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const hover = vindurFn((selector: string) => \`\${selector}:hover { color: blue; }\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Argument of vindurFn "hover" is a css style, which can't be passed to a vindurFn, extend it in the calling template with \`\${style};\` instead
+    loc: 9:10]
+  `);
+});
+
+test('should error when a missing vindurFn argument is used in CSS', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { margin } from '#/functions';
+
+        const style = css\`
+          \${margin(1)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const margin = vindurFn((top: number, bottom?: number) => \`margin: \${top}px \${bottom};\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "margin" was called with 1 of its 2 argument(s), a missing argument is undefined and can't be used in CSS, pass it or give its parameter a default
+    loc: /test.tsx|5:4]
+  `);
+});
+
+test('should error on rest parameters in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const sizes = vindurFn((...values: number[]) => values.join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "sizes" rest parameters are not supported, declare each parameter
+    loc: /test.tsx|3:31]
+  `);
+});
+
+test('should error on rest properties in vindurFn object parameters', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const box = vindurFn(({ width, ...rest }: { width: number; height: number }) => \`width: \${width}px;\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "box" rest parameters are not supported, declare each parameter
+    loc: /test.tsx|3:38]
+  `);
+});

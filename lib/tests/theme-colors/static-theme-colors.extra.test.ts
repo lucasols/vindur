@@ -254,5 +254,26 @@ describe('createStaticThemeColors', () => {
         loc: 6:11]
       `);
     });
+
+    test('should apply the alpha option of contrast.optimal', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { createStaticThemeColors, css } from 'vindur';
+
+          const colors = createStaticThemeColors({ primary: '#007bff' });
+
+          const style = css\`
+            color: \${colors.primary.contrast.optimal({ alpha: 0.5 })};
+          \`;
+        `,
+      });
+
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-style {
+          color: var(--stc-primary-contrast-optimal-alpha-0\\.5, #ffffff80);
+        }
+        "
+      `);
+    });
   });
 });

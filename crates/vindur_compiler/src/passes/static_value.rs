@@ -7,8 +7,8 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
-    invalid_array_argument_error, invalid_color_method_error,
-    vindur_function_call_error, invalid_layer_error, unevaluable_import_error,
+    invalid_array_argument_error, invalid_color_method_error, invalid_layer_error,
+    unevaluable_import_error, vindur_function_call_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
