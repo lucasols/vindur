@@ -340,7 +340,9 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
         }
         StaticValue::Keyframes(value) => value.clone(),
         StaticValue::LayerFunction => String::new(),
-        StaticValue::MissingImport { .. } => String::new(),
+        StaticValue::MissingImport { .. } | StaticValue::UnsupportedReExport { .. } => {
+            String::new()
+        }
         StaticValue::InvalidFunction { .. } => String::new(),
         StaticValue::InvalidObject { .. } => String::new(),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
@@ -383,6 +385,7 @@ pub(super) fn evaluate_identifier(
         // Unresolved imports are reported when interpolated directly, values derived
         // from them, e.g. `${INSET}px`, are not static
         StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. }
         | StaticValue::InvalidFunction { .. }
         | StaticValue::InvalidObject { .. } => None,
         value => Some(value.clone()),

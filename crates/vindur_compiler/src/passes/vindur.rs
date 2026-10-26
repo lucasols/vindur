@@ -23,7 +23,7 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_vindur_imports,
+        collect_re_exports, collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
@@ -161,13 +161,13 @@ pub(crate) fn transform_program(
                         styled_components: &mut styled_components,
                         file_path,
                         source,
-                        is_exported: exported_names.contains(
+                        is_exported: exported_names.values().any(|local| {
                             declaration
                                 .declarations
                                 .first()
                                 .and_then(|declarator| declarator.id.get_binding_identifier())
-                                .map_or("", |identifier| identifier.name.as_str()),
-                        ),
+                                .is_some_and(|identifier| identifier.name == local.as_str())
+                        }),
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
                         scoped_variables: &mut scoped_variables,
@@ -442,19 +442,22 @@ pub(crate) fn transform_program(
     source.hash(&mut hasher);
     let exports = exported_names
         .iter()
-        .filter_map(|name| {
+        .filter_map(|(name, local)| {
             constants
-                .get(name)
+                .get(local)
                 .cloned()
                 .map(|value| (name.clone(), value))
         })
         .collect();
+    let (re_exports, star_re_exports) = collect_re_exports(program);
     let facts = ModuleFacts {
-        declared_exports: exported_names.iter().cloned().collect(),
+        declared_exports: exported_names.into_keys().collect(),
         declared_object_exports: exported_object_names.iter().cloned().collect(),
         source_hash: hasher.finish(),
         constants,
         exports,
+        re_exports,
+        star_re_exports,
         // Filled in by the compiler from the loaded imports
         ..ModuleFacts::default()
     };

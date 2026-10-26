@@ -31,6 +31,8 @@ struct LoadedImports {
     /// Modules whose facts were read directly, including ones whose values aren't static,
     /// changing any of them can change this module's facts
     fact_dependencies: Vec<String>,
+    /// Modules skipped because they're in an import cycle with this module
+    cyclic_dependencies: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -187,6 +189,7 @@ impl Compiler {
             .dependencies
             .clone_from(&imports.style_dependencies);
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
+        pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -238,6 +241,7 @@ impl Compiler {
         let mut values = FxHashMap::default();
         let mut dependencies = DependencyList::new(file_path);
         let mut fact_dependencies = DependencyList::new(file_path);
+        let mut cyclic_dependencies = DependencyList::new(file_path);
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
@@ -301,6 +305,7 @@ impl Compiler {
                 }
                 // Breaking the cycle changes this module's facts
                 fact_dependencies.insert(&resolved);
+                cyclic_dependencies.insert(&resolved);
                 continue;
             };
             let Some(specifiers) = &import.specifiers else {
@@ -381,6 +386,7 @@ impl Compiler {
                     {
                         StaticValue::InvalidObject {
                             source_path: resolved.clone(),
+                            cyclic_imports: facts.cyclic_dependencies.clone(),
                         }
                     } else if facts
                         .declared_exports
@@ -389,6 +395,31 @@ impl Compiler {
                     {
                         StaticValue::InvalidFunction {
                             source_path: resolved.clone(),
+                            cyclic_imports: facts.cyclic_dependencies.clone(),
+                        }
+                    } else if let Some(re_export_source) = facts.re_exports.get(imported_name) {
+                        StaticValue::UnsupportedReExport {
+                            imported_name: imported_name.to_owned(),
+                            source_path: resolved.clone(),
+                            // Relative to the re-exporting module, not to this one
+                            re_export_source: Some(
+                                if re_export_source.starts_with('.') {
+                                    unresolved_import_path(
+                                        &resolved,
+                                        re_export_source,
+                                        &options.import_aliases,
+                                    )
+                                } else {
+                                    None
+                                }
+                                .unwrap_or_else(|| re_export_source.clone()),
+                            ),
+                        }
+                    } else if !facts.star_re_exports.is_empty() {
+                        StaticValue::UnsupportedReExport {
+                            imported_name: imported_name.to_owned(),
+                            source_path: resolved.clone(),
+                            re_export_source: None,
                         }
                     } else {
                         StaticValue::MissingImport {
@@ -407,6 +438,7 @@ impl Compiler {
             values,
             style_dependencies: dependencies.paths,
             fact_dependencies: fact_dependencies.paths,
+            cyclic_dependencies: cyclic_dependencies.paths,
         }))
     }
 

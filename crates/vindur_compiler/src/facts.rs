@@ -18,6 +18,16 @@ pub struct ModuleFacts {
     /// Modules whose facts were read directly, including ones whose values aren't static
     #[serde(default)]
     pub fact_dependencies: Vec<String>,
+    /// Modules skipped while collecting facts because they're in an import cycle with
+    /// this module, their values are missing from it
+    #[serde(default)]
+    pub cyclic_dependencies: Vec<String>,
+    /// Names re-exported with `export { name } from 'source'`, keyed by exported name
+    #[serde(default)]
+    pub re_exports: FxHashMap<String, String>,
+    /// Sources of `export * from 'source'`
+    #[serde(default)]
+    pub star_re_exports: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -58,11 +68,22 @@ pub enum StaticValue {
     },
     InvalidFunction {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     InvalidObject {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     Number(f64),
+    /// Imported name that only exists through a re-export, `re_export_source` is `None`
+    /// when it may come from `export * from`
+    UnsupportedReExport {
+        imported_name: String,
+        source_path: String,
+        re_export_source: Option<String>,
+    },
     Object(FxHashMap<String, StaticValue>),
     String(String),
     ThemeColor {

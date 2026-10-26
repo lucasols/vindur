@@ -59,6 +59,7 @@ fn is_runtime_value(value: &StaticValue) -> bool {
     matches!(
         value,
         StaticValue::MissingImport { .. }
+            | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
             | StaticValue::ClassName(_)

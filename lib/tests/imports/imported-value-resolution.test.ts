@@ -156,3 +156,30 @@ test('should resolve constants that re-export imported values', async () => {
     "
   `);
 });
+
+test('should resolve values exported with an alias', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { INSET } from '#/styles';
+
+      export const style = css\`
+        top: \${INSET}px;
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'styles.ts': dedent`
+        const inset = 8;
+
+        export { inset as INSET };
+      `,
+    }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      top: 8px;
+    }
+    "
+  `);
+});

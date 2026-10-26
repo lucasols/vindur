@@ -15,6 +15,7 @@ mod function_validation;
 mod function_value;
 mod id_order;
 mod import_analysis;
+mod import_errors;
 mod interpolation_validation;
 mod jsx_attributes;
 mod jsx_class_name;
