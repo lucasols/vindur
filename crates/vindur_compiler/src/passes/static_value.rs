@@ -7,9 +7,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
-use super::dynamic_color_value::{
-    color_interpolation_error, container_selector_error, invalid_color_method_error,
-};
+use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
@@ -217,11 +215,19 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        if matches!(value, StaticValue::LayerFunction) || is_unresolved_import(&value) {
+        // Colors and palettes are objects, only their `.var` and methods are CSS values
+        if matches!(
+            value,
+            StaticValue::LayerFunction
+                | StaticValue::DynamicColor { .. }
+                | StaticValue::DynamicColorPath { .. }
+                | StaticValue::ThemeColor { .. }
+                | StaticValue::ThemeColorContrast { .. }
+                | StaticValue::ThemeColors(_)
+                | StaticValue::UnexportedThemeColors(_)
+        ) || is_unresolved_import(&value)
+        {
             return Err(interpolation_error(expression, file_path, source, context));
-        }
-        if let Some(diagnostic) = color_interpolation_error(&value, expression, file_path, source) {
-            return Err(diagnostic);
         }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value

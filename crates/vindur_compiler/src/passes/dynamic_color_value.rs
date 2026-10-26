@@ -172,33 +172,6 @@ pub(super) fn container_selector_error(
     ))
 }
 
-/// A color object interpolated as is would print a placeholder instead of a CSS value
-pub(super) fn color_interpolation_error(
-    value: &StaticValue,
-    expression: &Expression<'_>,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let span = expression.span();
-    let interpolation = &source[span.start as usize..span.end as usize];
-    let message = match value {
-        StaticValue::ThemeColors(_) | StaticValue::UnexportedThemeColors(_) => format!(
-            "`${{{interpolation}}}` is a color palette, not a CSS value. Use one of its colors, e.g. `${{{interpolation}.name.var}}`"
-        ),
-        StaticValue::DynamicColorPath { path, .. } if path != "contrast" => format!(
-            "`${{{interpolation}}}` is a group of selectors, not a CSS value. Use one of them, e.g. `${{{interpolation}.isDark}}`"
-        ),
-        StaticValue::DynamicColor { .. }
-        | StaticValue::DynamicColorPath { .. }
-        | StaticValue::ThemeColor { .. }
-        | StaticValue::ThemeColorContrast { .. } => format!(
-            "`${{{interpolation}}}` is a color, not a CSS value. Use its `.var` or a color method, e.g. `${{{interpolation}.var}}`"
-        ),
-        _ => return None,
-    };
-    Some(CompilerDiagnostic::error(file_path, source, span, message))
-}
-
 /// The methods each kind of color has at runtime, see `ColorOps` and `ContrastOps` in
 /// lib/src/runtime-colors.ts
 pub(super) fn is_color_method(contrast: bool, method: &str) -> bool {

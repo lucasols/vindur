@@ -2,7 +2,7 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
-test('should throw when a color is interpolated instead of its value', async () => {
+test('should fail on colors interpolated without a CSS value', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -16,43 +16,7 @@ test('should throw when a color is interpolated instead of its value', async () 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`\${colors.primary}\` is a color, not a CSS value. Use its \`.var\` or a color method, e.g. \`\${colors.primary.var}\`
-    loc: 6:11]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { createDynamicCssColor, css } from 'vindur'
-
-        const color = createDynamicCssColor()
-
-        export const a = css\`
-          color: \${color.contrast};
-        \`
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`\${color.contrast}\` is a color, not a CSS value. Use its \`.var\` or a color method, e.g. \`\${color.contrast.var}\`
-    loc: 6:11]
-  `);
-});
-
-test('should throw when a color palette or a selector group is interpolated', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { createStaticThemeColors, css } from 'vindur'
-
-        const colors = createStaticThemeColors({ primary: '#007bff' })
-
-        export const a = css\`
-          color: \${colors};
-        \`
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`\${colors}\` is a color palette, not a CSS value. Use one of its colors, e.g. \`\${colors.name.var}\`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... a = css\` ... \${colors.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
     loc: 6:11]
   `);
 
@@ -71,7 +35,7 @@ test('should throw when a color palette or a selector group is interpolated', as
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`\${color.self}\` is a group of selectors, not a CSS value. Use one of them, e.g. \`\${color.self.isDark}\`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... A = styled\` ... \${color.self}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
     loc: 6:4]
   `);
 });
