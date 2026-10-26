@@ -29,6 +29,15 @@ describe('createStaticThemeColors runtime', () => {
   });
 });
 
+test('keeps the deprecated `var` property as an alias of `value`', () => {
+  const colors = createStaticThemeColors({ primary: '#007bff' });
+
+  expect(colors.primary).toMatchObject({
+    var: '#007bff',
+    contrast: { var: '#fff' },
+  });
+});
+
 test('runtime color operations match the compiled production output', () => {
   const palette = {
     primary: '#007bff',

@@ -1296,7 +1296,7 @@ In dev mode, the output will show the color name for easier debugging:
 
 Each color in your theme provides:
 
-- **`value`**: CSS variable reference for the color
+- **`value`**: CSS variable reference for the color. `var` (and `contrast.var`) still works as a deprecated alias
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
 - **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
