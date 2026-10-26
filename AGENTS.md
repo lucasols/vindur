@@ -106,14 +106,10 @@ When implementing features:
 
 # Feature implementation guidelines
 
-1. Add or adjust documentation in README.md
-2. If the feature has complex implementation, document it in SPEC.md
-3. Implement the tests
-   - The feature may be already implemented, so run the tests first
-4. If the feature is not simple, wait me for review the tests first
-5. Implement the feature
-6. Ensure all tests pass and no other features are broken
-7. Run tsc and lint and fix all errors
+1. Add or adjust documentation in README.md, it is the only documentation to change. Describe the behavior for users, implementation details are not relevant
+2. Implement the feature and its tests
+3. Ensure all tests pass and no other features are broken
+4. Run tsc and lint and fix all errors
 
 # Static Analysis and Template Literals
 
