@@ -119,42 +119,84 @@ test('should keep the native cx attribute of styled svg elements', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur'
-      import { Pie } from 'recharts'
-      import { motion } from 'motion/react'
 
       const Dot = styled.circle\`
         fill: red;
       \`
 
-      const StyledPie = styled(Pie)\`
-        opacity: 0.5;
-      \`
-
-      const Ring = styled(motion.circle)\`
-        stroke: red;
-      \`
-
       export const Chart = () => (
         <svg>
           <Dot cx="50" cy="50" r="4" />
-          <StyledPie cx="50%" css="pie" />
-          <Ring cx={50} />
+          <Dot cx={50} />
         </svg>
       )
     `,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { Pie } from "recharts";
-    import { motion } from "motion/react";
-    export const Chart = () => (
+    "export const Chart = () => (
       <svg>
         <circle cx="50" cy="50" r="4" className="v1560qbr-1-Dot" />
-        <Pie cx="50%" css="pie" className="v1560qbr-2-StyledPie" />
-        <motion.circle cx={50} className="v1560qbr-3-Ring" />
+        <circle cx={50} className="v1560qbr-1-Dot" />
       </svg>
     );
     "
+  `);
+});
+
+test('should throw for non object cx and string css on styled custom components', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Pie } from 'recharts'
+
+        const StyledPie = styled(Pie)\`
+          opacity: 0.5;
+        \`
+
+        export const Chart = () => <StyledPie cx="50%" />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop must be an expression container with an object
+    loc: 8:38]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { motion } from 'motion/react'
+
+        const Ring = styled(motion.circle)\`
+          stroke: red;
+        \`
+
+        export const Chart = () => <Ring cx={50} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop only accepts object expressions
+    loc: 8:37]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Pie } from 'recharts'
+
+        const StyledPie = styled(Pie)\`
+          opacity: 0.5;
+        \`
+
+        export const Chart = () => <StyledPie css="pie" />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid css prop value. Only template literals and references to css function calls are supported
+    loc: 8:38]
   `);
 });
 
@@ -246,7 +288,7 @@ test('should not allocate a class index for custom component cx with a string cs
   `);
 });
 
-test('should apply cx classes of styled custom components with their own css prop', async () => {
+test('should apply cx classes of styled custom components with a forwarded css prop', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur'
@@ -262,9 +304,7 @@ test('should apply cx classes of styled custom components with their own css pro
 
       export const Chart = ({ active, label }: { active: boolean; label: string }) => (
         <>
-          <StyledPie cx={{ active }} css="pie" />
           <StyledPie cx={{ active }} css={label} />
-          <StyledPie cx={{ active }} css />
           <div css={\`color: blue;\`} />
         </>
       )
@@ -283,25 +323,7 @@ test('should apply cx classes of styled custom components with their own css pro
     }) => (
       <>
         <Pie
-          css="pie"
-          className={
-            "v1560qbr-1-StyledPie " +
-            cx({
-              "v1560qbr-2-active": active,
-            })
-          }
-        />
-        <Pie
           css={label}
-          className={
-            "v1560qbr-1-StyledPie " +
-            cx({
-              "v1560qbr-2-active": active,
-            })
-          }
-        />
-        <Pie
-          css
           className={
             "v1560qbr-1-StyledPie " +
             cx({
@@ -346,7 +368,7 @@ test('should import mergeClassNames for cx on styled custom components with spre
       \`
 
       export const Chart = ({ active, ...props }: { active: boolean }) => (
-        <StyledPie {...props} css="pie" cx={{ active }} />
+        <StyledPie {...props} cx={{ active }} />
       )
     `,
   });
@@ -357,7 +379,6 @@ test('should import mergeClassNames for cx on styled custom components with spre
     export const Chart = ({ active, ...props }: { active: boolean }) => (
       <Pie
         {...props}
-        css="pie"
         className={mergeClassNames(
           [props],
           "v1560qbr-1-StyledPie " +

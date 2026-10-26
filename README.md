@@ -991,7 +991,7 @@ const CustomComponent = ({
 <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
 ```
 
-Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop, including on styled custom components like `styled(Pie)`. Styled native elements like `styled.div` render a DOM element, so any other `css` value on them is a compile error.
+Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop. On styled components `css` is vindur's: a styled custom component like `styled(Pie)` only forwards references to non-css values, and any other `css` value is a compile error.
 
 ### JSX CX Prop
 
@@ -1050,7 +1050,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On other elements `cx` must be an object literal:
+On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
 
 ```tsx
 <circle cx="50" cy="50" r="10" />

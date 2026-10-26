@@ -59,22 +59,11 @@ export interface VindurAttributes extends VindurClassNameBasedAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
-// A non-object `cx` stays the native attribute or component prop, eg. `<Dot cx="50" />` on a styled circle
-type WithVindurAttributes<
-  Props,
-  Attributes extends VindurClassNameBasedAttributes,
-> =
-  Props extends unknown ?
-    'cx' extends keyof Props ?
-      {} extends Pick<Props, 'cx'> ?
-        Omit<Props, 'cx'>
-          & Omit<Attributes, 'cx'> & {
-            cx?: Props['cx'] | NonNullable<Attributes['cx']>;
-          }
-      : // cx classes would remove a required `cx`, so only the native value is allowed
-        Props & Omit<Attributes, 'cx'>
-    : Props & Attributes
-  : never;
+// A non-object `cx` stays the native attribute, eg. `<Dot cx="50" />` on a styled circle
+type WithNativeCx<Props extends { cx?: unknown }> = Omit<Props, 'cx'>
+  & Omit<VindurAttributes, 'cx'> & {
+    cx?: Props['cx'] | NonNullable<VindurAttributes['cx']>;
+  };
 
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 
@@ -82,8 +71,7 @@ type IntrinsicElementType = keyof JSX.IntrinsicElements;
 type NativeCxTag = 'circle' | 'ellipse' | 'radialGradient';
 
 type StyledComponentProps<Tag extends IntrinsicElementType> =
-  Tag extends NativeCxTag ?
-    WithVindurAttributes<JSX.IntrinsicElements[Tag], VindurAttributes>
+  Tag extends NativeCxTag ? WithNativeCx<JSX.IntrinsicElements[Tag]>
   : 'cx' extends keyof JSX.IntrinsicElements[Tag] ?
     Omit<JSX.IntrinsicElements[Tag], 'cx'> & VindurAttributes
   : JSX.IntrinsicElements[Tag] & VindurAttributes;
@@ -127,13 +115,35 @@ type StyledFnReturn<T extends {}> = {
   (strings: TemplateStringsArray, ...values: StyleInterpolationValues[]): FC<T>;
 };
 
+// Vindur's attributes replace a custom component's own props of the same name
+type WithVindurComponentAttributes<
+  Props,
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  Props extends unknown ?
+    [Extract<keyof Props, keyof Attributes>] extends [never] ?
+      Props & Attributes
+    : Omit<Props, keyof Attributes> & Attributes
+  : never;
+
+// A required `cx` prop can't be passed, `cx` is always vindur's on styled components
+type StyledComponentFnReturn<
+  Props extends {},
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  'cx' extends keyof Props ?
+    {} extends Pick<Props, 'cx'> ?
+      StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>
+    : never
+  : StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>;
+
 type StyledFn = <T extends {}>(
   component: ComponentType<T>,
 ) => keyof VindurAttributes extends keyof T ? StyledFnReturn<T>
 : 'className' | 'style' extends keyof T ?
-  StyledFnReturn<WithVindurAttributes<T, VindurAttributes>>
+  StyledComponentFnReturn<T, VindurAttributes>
 : 'className' extends keyof T ?
-  StyledFnReturn<WithVindurAttributes<T, VindurClassNameBasedAttributes>>
+  StyledComponentFnReturn<T, VindurClassNameBasedAttributes>
 : never;
 
 interface Styled extends StyledTags, StyledFn {}
@@ -373,7 +383,8 @@ export function mergeStyles(
       && isSpreadProperty(prop, 'style')
     ) {
       const style = prop.style;
-      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
+      finalStyle =
+        typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 

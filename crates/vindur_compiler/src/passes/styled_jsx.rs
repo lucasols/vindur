@@ -12,7 +12,6 @@ use super::{
         ClassNameMerge, ClassNameSources, class_name_concat_source, class_name_merge,
         merge_class_name_inputs, wrap_class_concat, wrap_class_expression,
     },
-    jsx_css::is_foreign_styled_css_attribute,
     jsx_cx_attribute::is_foreign_styled_cx_attribute,
     runtime_helpers::RuntimeHelperNames,
     styled::StyledComponent,
@@ -120,14 +119,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 };
                 match name.name.as_str() {
                     "cx" => !is_foreign_styled_cx_attribute(component, attribute),
-                    "css" => {
-                        !is_foreign_styled_css_attribute(component, attribute)
-                            && css_attribute_is_compile_time(
-                                attribute,
-                                self.constants,
-                                self.scoping,
-                            )
-                    }
+                    "css" => css_attribute_is_compile_time(attribute, self.constants, self.scoping),
                     _ => false,
                 }
             });

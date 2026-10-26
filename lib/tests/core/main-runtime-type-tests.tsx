@@ -203,7 +203,7 @@ test('styled components from custom components with style and className', () => 
   );
 });
 
-test('styled components keep native cx values', () => {
+test('styled svg components keep native cx values', () => {
   const Dot = styled.circle`
     fill: red;
   `;
@@ -236,6 +236,7 @@ test('styled components keep native cx values', () => {
 
   const pieElements = (
     <>
+      {/* @ts-expect-error cx is always vindur's on styled custom components */}
       <StyledPie cx="50%" />
       <StyledPie cx={{ active: true }} />
     </>
@@ -250,19 +251,10 @@ test('styled components keep native cx values', () => {
     );
   }
 
+  // @ts-expect-error a required cx prop can't be passed to a styled custom component
   const StyledMarker = styled(Marker)`
     opacity: 0.5;
   `;
-
-  type MarkerProps = ComponentProps<typeof StyledMarker>;
-
-  expectTypesAre<MarkerProps['cx'], number>('equal');
-  expectTypesAre<
-    Partial<Pick<MarkerProps, 'cx'>> extends Pick<MarkerProps, 'cx'> ?
-      'optional'
-    : 'required',
-    'required'
-  >('equal');
 
   // only circle, ellipse and radialGradient keep a native cx
   const Rect = styled.rect`

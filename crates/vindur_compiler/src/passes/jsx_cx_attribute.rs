@@ -24,13 +24,15 @@ pub(super) fn is_component_name(element: &JSXElementName<'_>) -> bool {
     !matches!(element, JSXElementName::Identifier(_))
 }
 
+// On styled custom components `cx` is always vindur's, only styled svg elements
+// keep their native attribute
 pub(super) fn is_foreign_styled_cx_attribute(
     component: &StyledComponent,
     attribute: &JSXAttribute<'_>,
 ) -> bool {
-    let accepts_native_cx =
-        component.element_is_identifier || SVG_CX_ELEMENTS.contains(&component.element.as_str());
-    accepts_native_cx && !is_object_attribute(attribute)
+    !component.element_is_identifier
+        && SVG_CX_ELEMENTS.contains(&component.element.as_str())
+        && !is_object_attribute(attribute)
 }
 
 fn is_object_attribute(attribute: &JSXAttribute<'_>) -> bool {

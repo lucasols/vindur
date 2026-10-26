@@ -436,7 +436,9 @@ fn class_name_sources<'a>(output: &JsxCssTransform<'a>) -> ClassNameSources<'a> 
     }
 }
 
-// `css` values vindur doesn't transform are the custom component's own prop
+// `css` values vindur doesn't transform are the custom component's own prop. On
+// styled custom components only unknown references are forwarded, other values
+// are vindur's
 pub(super) fn is_foreign_css_attribute(
     element: &JSXElement<'_>,
     attribute: &JSXAttribute<'_>,
@@ -444,39 +446,26 @@ pub(super) fn is_foreign_css_attribute(
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> bool {
-    let is_custom = is_component_name(&element.opening_element.name);
-    let styled = styled_component(element, styled_components);
-    // Styled native elements render a DOM node, so any css value there is vindur's
-    if styled.is_some_and(|styled| !styled.element_is_identifier) {
+    if !is_component_name(&element.opening_element.name) {
         return false;
     }
-    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-        return styled.map_or(is_custom, |styled| {
-            is_foreign_styled_css_attribute(styled, attribute)
-        });
+    let Some(styled) = styled_component(element, styled_components) else {
+        return !matches!(
+            &attribute.value,
+            Some(JSXAttributeValue::ExpressionContainer(container))
+                if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+        );
     };
-    match &container.expression {
-        JSXExpression::TemplateLiteral(_) => false,
-        JSXExpression::Identifier(identifier) => {
-            is_custom
-                && (styled.is_none()
-                    || !matches!(
-                        resolved_constant(identifier, constants, scoping),
-                        Some(StaticValue::CssClass { .. })
-                    ))
-        }
-        _ => is_custom,
-    }
-}
-
-// A string `css` on a custom component is that component's own prop
-pub(super) fn is_foreign_styled_css_attribute(
-    component: &StyledComponent,
-    attribute: &JSXAttribute<'_>,
-) -> bool {
-    component.element_is_identifier
-        && !matches!(
-            attribute.value,
-            Some(JSXAttributeValue::ExpressionContainer(_))
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return false;
+    };
+    styled.element_is_identifier
+        && matches!(
+            &container.expression,
+            JSXExpression::Identifier(identifier)
+                if !matches!(
+                    resolved_constant(identifier, constants, scoping),
+                    Some(StaticValue::CssClass { .. })
+                )
         )
 }
