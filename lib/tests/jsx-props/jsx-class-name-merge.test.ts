@@ -278,10 +278,7 @@ test('should merge spread props with explicit className and import mergeClassNam
             }),
           )}
         />
-        <div
-          {...props}
-          className={mergeClassNames([props, "explicit"], "v1560qbr-1-css-prop-1")}
-        />
+        <div {...props} className="explicit v1560qbr-1-css-prop-1" />
       </>
     );
     "

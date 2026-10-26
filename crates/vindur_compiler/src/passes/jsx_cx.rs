@@ -1,26 +1,38 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeValue, JSXElement, JSXExpression, ObjectPropertyKind, Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind,
+    Program, PropertyKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
+use crate::{
+    CompilerDiagnostic,
+    edit::{Edit, take_edited_source},
+    facts::StaticValue,
+};
 
 use super::{
+    cx_selectors::contains_class_selector,
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
+    jsx_class_name::{
+        ClassNameMerge, ClassNameSources, class_name_merge, emit_class_concat,
+        merge_class_name_inputs,
+    },
+    jsx_css::is_foreign_css_attribute,
+    jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
     jsx_cx_css_references::{
         css_references, rewrite_class_rules, rewrite_css_references,
         unsupported_css_reference_modifiers,
     },
+    runtime_helpers::RuntimeHelperNames,
     styled::StyledComponent,
     styled_jsx_helpers::{
-        ClassNameTarget, class_name_concat_source, contains_modifier_selector, decode_jsx_entities,
-        emit_class_name, has_spread_attribute, is_class_rule, js_string_literal,
-        merge_class_name_inputs, styled_spread_sources, unsupported_spread_message,
+        ClassNameTarget, decode_jsx_entities, emit_class_name, is_class_rule, js_string_literal,
+        unsupported_spread_message, validate_styled_spreads,
     },
 };
 
@@ -48,6 +60,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
+    pub helper_names: &'a RuntimeHelperNames,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -93,11 +106,20 @@ impl JsxCxVisitor<'_> {
         if let Some(index) = self.output.id_starts.get(&element.span.start) {
             *self.output.id_index = *index;
         }
-        let Some(element_name) = jsx_name(&element.opening_element.name) else {
+        let name = &element.opening_element.name;
+        let styled = jsx_name(name)
+            .and_then(|name| self.output.styled_components.get(name))
+            .cloned();
+        let is_foreign = styled.as_ref().map_or_else(
+            || is_foreign_cx_attribute(name, attribute),
+            |component| is_foreign_styled_cx_attribute(component, attribute),
+        );
+        if is_foreign {
             return;
-        };
-        let styled = self.output.styled_components.get(element_name).cloned();
-        let native = element_name.chars().next().is_some_and(char::is_lowercase);
+        }
+        let source = self.output.source;
+        let element_name = &source[name.span().start as usize..name.span().end as usize];
+        let native = matches!(name, JSXElementName::Identifier(_));
         if !native && styled.is_none() {
             self.set_error(
                 element.opening_element.span,
@@ -122,10 +144,18 @@ impl JsxCxVisitor<'_> {
             return;
         };
 
+        // A foreign `css` is left as is by the css pass, so cx takes the className path
+        let has_vindur_css = find_attribute(element, "css").is_some_and(|css| {
+            !is_foreign_css_attribute(
+                element,
+                css,
+                self.output.styled_components,
+                self.output.constants,
+                self.output.scoping,
+            )
+        });
         let css_references = css_references(element, self.output.constants, self.output.scoping);
-        let has_css_context = styled.is_some()
-            || find_attribute(element, "css").is_some()
-            || !css_references.is_empty();
+        let has_css_context = styled.is_some() || has_vindur_css || !css_references.is_empty();
         // Css reference rules are rewritten in place and can be combined in any way across
         // elements, so all of them share a single file-wide index per modifier name
         let context_key = match (&styled, css_references.is_empty()) {
@@ -133,7 +163,7 @@ impl JsxCxVisitor<'_> {
             (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
-        let css_index = if find_attribute(element, "css").is_some() {
+        let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
             Some(index)
@@ -157,6 +187,14 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             }
+            if property.kind != PropertyKind::Init || property.method {
+                self.set_error(
+                    property.span,
+                    "cx prop object must only contain `key: value` properties, not methods, getters or setters"
+                        .to_owned(),
+                );
+                return;
+            }
             let Some(class_name) = property.key.static_name().map(|name| name.into_owned()) else {
                 self.set_error(
                     property.span,
@@ -164,6 +202,10 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             };
+            if let Some(message) = invalid_cx_key_message(&class_name) {
+                self.set_error(property.key.span(), message);
+                return;
+            }
             if !has_css_context && !class_name.starts_with('$') {
                 self.set_error(
                     attribute.span,
@@ -190,8 +232,10 @@ impl JsxCxVisitor<'_> {
                     (hashed, true)
                 };
             let value_span = property.value.span();
-            let value = &self.output.source[value_span.start as usize..value_span.end as usize];
-            properties.push(format!("\"{output_name}\": {value}"));
+            // The value is copied into the generated call, with the edits of other passes inside
+            // it, like a `stableId()` call
+            let value = take_edited_source(self.output.source, value_span, self.output.edits);
+            properties.push(format!("{}: {value}", js_string_literal(&output_name)));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
         if let Some((span, message)) = unsupported_css_reference_modifiers(
@@ -264,7 +308,7 @@ impl JsxCxVisitor<'_> {
         } else {
             format!("{{\n{},\n}}", properties.join(",\n"))
         };
-        let cx_call = format!("cx({object_source})");
+        let cx_call = format!("{}({object_source})", self.output.helper_names.cx);
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
@@ -280,8 +324,9 @@ impl JsxCxVisitor<'_> {
             });
             return;
         }
-        if has_spread_attribute(element) {
-            if let Err(spread) = styled_spread_sources(element, self.output.source) {
+        // A className after every spread overrides them, so it's merged in place
+        if matches!(class_name_merge(element), ClassNameMerge::Runtime) {
+            if let Err(spread) = validate_styled_spreads(element, self.output.source) {
                 self.set_error(
                     spread.span,
                     unsupported_spread_message(&spread, "an element with vindur css or cx props"),
@@ -293,9 +338,8 @@ impl JsxCxVisitor<'_> {
             });
             let (inputs, replaced_attributes) = merge_class_name_inputs(
                 element,
-                self.output.source,
-                self.output.constants,
-                self.output.scoping,
+                &class_name_sources(&self.output),
+                self.output.edits,
             );
             *self.output.needs_merge_helper = true;
             for span in replaced_attributes.into_iter().chain([attribute.span]) {
@@ -310,7 +354,11 @@ impl JsxCxVisitor<'_> {
                 self.output.class_expressions,
                 element,
                 ClassNameTarget::Insert(offset),
-                format!("mergeClassNames([{}], {complete})", inputs.join(", ")),
+                format!(
+                    "{}([{}], {complete})",
+                    self.output.helper_names.merge_class_names,
+                    inputs.join(", ")
+                ),
             );
             return;
         }
@@ -334,35 +382,34 @@ impl JsxCxVisitor<'_> {
             );
             return;
         };
-        let value = match &class_attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => {
-                let existing = decode_jsx_entities(&value.value);
-                let prefix = component.map_or_else(
-                    || format!("{existing} "),
-                    |component| format!("{existing} {} ", component.class_name),
-                );
-                format!("{} + {cx_call}", js_string_literal(&prefix))
-            }
-            _ => {
-                let existing = class_name_concat_source(
-                    class_attribute,
-                    self.output.source,
-                    self.output.constants,
-                    self.output.scoping,
-                );
-                let separator = component.map_or_else(
-                    || " ".to_owned(),
-                    |component| format!(" {} ", component.class_name),
-                );
-                format!("{existing} + \"{separator}\" + {cx_call}")
-            }
-        };
-        emit_class_name(
+        if let Some(JSXAttributeValue::StringLiteral(value)) = &class_attribute.value {
+            let existing = decode_jsx_entities(&value.value);
+            let prefix = component.map_or_else(
+                || format!("{existing} "),
+                |component| format!("{existing} {} ", component.class_name),
+            );
+            emit_class_name(
+                self.output.edits,
+                self.output.class_expressions,
+                element,
+                ClassNameTarget::Replace(class_attribute.span),
+                format!("{} + {cx_call}", js_string_literal(&prefix)),
+            );
+            return;
+        }
+        let separator = component.map_or_else(
+            || " ".to_owned(),
+            |component| format!(" {} ", component.class_name),
+        );
+        let sources = class_name_sources(&self.output);
+        emit_class_concat(
             self.output.edits,
             self.output.class_expressions,
             element,
-            ClassNameTarget::Replace(class_attribute.span),
-            value,
+            class_attribute,
+            &sources,
+            "",
+            &format!(" + {} + {cx_call}", js_string_literal(&separator)),
         );
     }
 
@@ -388,11 +435,9 @@ impl JsxCxVisitor<'_> {
         mappings
             .iter()
             .filter_map(|(original, hashed, should_rewrite)| {
-                // Only `&.modifier` selectors are rewritten, so other forms (e.g. `&:not(.active)`)
-                // don't count as declared and get reported instead of silently not matching
+                // Only selectors the cx rewriting matches count, others would silently not match
                 let declared = searched_css.iter().any(|css| {
-                    contains_modifier_selector(css, original)
-                        || contains_modifier_selector(css, hashed)
+                    contains_class_selector(css, original) || contains_class_selector(css, hashed)
                 });
                 (*should_rewrite && !declared).then_some(original.clone())
             })
@@ -418,4 +463,41 @@ impl JsxCxVisitor<'_> {
             message,
         ));
     }
+}
+
+fn class_name_sources<'a>(output: &JsxCxTransform<'a>) -> ClassNameSources<'a> {
+    ClassNameSources {
+        source: output.source,
+        constants: output.constants,
+        scoping: output.scoping,
+    }
+}
+
+// Hashed keys become part of class names and `&.key` selectors, so they must be plain CSS
+// identifiers. `$` keys are external classes, like Tailwind's `hover:underline`, so only a
+// single class is required
+fn invalid_cx_key_message(key: &str) -> Option<String> {
+    if let Some(external) = key.strip_prefix('$') {
+        let is_single_class = !external.is_empty()
+            && !external.chars().any(char::is_whitespace)
+            && external != "__proto__";
+        return (!is_single_class).then(|| {
+            format!(
+                "cx prop key \"{key}\" must be a single class name, use one key per class, eg. {{ $first: on, $second: on }}"
+            )
+        });
+    }
+    let mut characters = key.chars();
+    let is_identifier = characters
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
+        && key != "__proto__";
+    (!is_identifier).then(|| {
+        format!(
+            "cx prop key \"{key}\" must be a plain class name with letters, digits, - and _, not starting with a digit, eg. {{ active: on }}, or a $-prefixed external class"
+        )
+    })
 }

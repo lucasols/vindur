@@ -78,14 +78,22 @@ const App = ({ active }) => <div className={cx('base', { active })} css={`color:
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());
 
     assert!(output.diagnostics.is_empty());
-    assert!(output.code.contains("cx('base', { active })"));
+    // The css class is merged around the className expression, so the cx call inside is still optimized
+    assert!(
+        output
+            .code
+            .contains(r#"(("base" + (active ? " active" : "")) || "") + " "#),
+        "{}",
+        output.code
+    );
     assert!(output.css.contains("color: red;"));
 }
 
 #[test]
 fn merges_mixed_vindur_import_cleanup_after_cx_optimization() {
     let source = r#"import { cx, styled } from 'vindur';
-const Box = styled.div<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
+import { Card } from 'ui';
+const Box = styled(Card)<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
 const App = ({ active, css }) => <Box tone="soft" css={css} className={cx({ active })} />;"#;
 
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());

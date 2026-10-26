@@ -1,58 +1,117 @@
 use oxc_ast::ast::{
-    Argument, Expression, ImportDeclarationSpecifier, ObjectPropertyKind, Program, Statement,
+    Argument, Expression, IdentifierReference, ImportDeclarationSpecifier, ObjectProperty,
+    ObjectPropertyKind, Program, PropertyKind, Statement,
 };
 use oxc_ast_visit::{Visit, walk};
+use oxc_semantic::{Scoping, SymbolId};
 use oxc_span::GetSpan;
 use oxc_syntax::operator::LogicalOperator;
 
 use crate::edit::{Edit, expand_removal_to_line};
 
-use super::import_analysis::is_compile_time_import;
+use super::{import_analysis::is_compile_time_import, styled_jsx_helpers::js_string_literal};
 
-pub(crate) fn optimize_cx_calls(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) {
+pub(crate) fn optimize_cx_calls(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    source: &str,
+    edits: &mut Vec<Edit>,
+    calls_user_cx: bool,
+) {
+    let cx_symbols = vindur_cx_symbols(program);
     let mut visitor = CxCallVisitor {
+        scoping,
+        cx_symbols: &cx_symbols,
         source,
         edits,
-        found_calls: 0,
         optimized_calls: 0,
+        inside_spread: false,
     };
     visitor.visit_program(program);
-    if visitor.found_calls > 0 && visitor.found_calls == visitor.optimized_calls {
+    // Generated code may still call the user's `cx` import, which suppressed
+    // injecting the runtime helper. Other references are rejected before, so
+    // only calls that weren't optimized (and `typeof cx`) keep the import
+    let references = cx_symbols
+        .iter()
+        .map(|symbol| scoping.get_resolved_reference_ids(*symbol).len())
+        .sum::<usize>();
+    if !calls_user_cx && references > 0 && references == visitor.optimized_calls {
         remove_cx_import(program, source, visitor.edits);
     }
 }
 
+pub(super) fn vindur_cx_symbols(program: &Program<'_>) -> Vec<SymbolId> {
+    program
+        .body
+        .iter()
+        .filter_map(|statement| {
+            let Statement::ImportDeclaration(declaration) = statement else {
+                return None;
+            };
+            (declaration.source.value.as_str() == "vindur").then_some(declaration)
+        })
+        .flat_map(|declaration| declaration.specifiers.iter().flatten())
+        .filter_map(|specifier| {
+            let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
+                return None;
+            };
+            (specifier.imported.name().as_str() == "cx").then(|| specifier.local.symbol_id())
+        })
+        .collect()
+}
+
 struct CxCallVisitor<'a> {
+    scoping: &'a Scoping,
+    cx_symbols: &'a [SymbolId],
     source: &'a str,
     edits: &'a mut Vec<Edit>,
-    found_calls: usize,
     optimized_calls: usize,
+    // Other passes copy JSX spread source into `mergeClassNames([...])`, and the copy still
+    // calls `cx`, so calls inside spreads don't count towards removing the import
+    inside_spread: bool,
 }
 
 impl<'a> Visit<'a> for CxCallVisitor<'_> {
+    fn visit_jsx_spread_attribute(&mut self, attribute: &oxc_ast::ast::JSXSpreadAttribute<'a>) {
+        let inside_spread = self.inside_spread;
+        self.inside_spread = true;
+        walk::walk_jsx_spread_attribute(self, attribute);
+        self.inside_spread = inside_spread;
+    }
+
     fn visit_call_expression(&mut self, call: &oxc_ast::ast::CallExpression<'a>) {
+        // Only calls of vindur's `cx` under its own name, a `cx` from another library may differ
         let Expression::Identifier(callee) = &call.callee else {
             walk::walk_call_expression(self, call);
             return;
         };
-        if callee.name.as_str() != "cx" {
+        let is_vindur_cx = callee.name.as_str() == "cx"
+            && self
+                .scoping
+                .get_reference(callee.reference_id())
+                .symbol_id()
+                .is_some_and(|symbol| self.cx_symbols.contains(&symbol));
+        if !is_vindur_cx {
             walk::walk_call_expression(self, call);
             return;
         }
-        self.found_calls += 1;
-        if self.edits.iter().any(|edit| {
-            edit.span.start <= call.span.start
-                && edit.span.end >= call.span.end
-                && edit.span.start < edit.span.end
-        }) {
+        // Skip calls another pass edits: around them, or inside them, since the replacement
+        // copies the call's source
+        if self
+            .edits
+            .iter()
+            .any(|edit| edit.span.start < call.span.end && edit.span.end > call.span.start)
+        {
             walk::walk_call_expression(self, call);
             return;
         }
-        if let Some(value) = optimized_cx_value(&call.arguments, self.source) {
-            self.optimized_calls += 1;
+        if let Some(value) = optimized_cx_value(&call.arguments, self.source, self.scoping) {
+            if !self.inside_spread {
+                self.optimized_calls += 1;
+            }
             self.edits.push(Edit {
                 span: call.span,
-                replacement: value,
+                replacement: value.into_replacement(),
             });
         } else if let Some(value) = format_computed_object_call(&call.arguments, self.source) {
             self.edits.push(Edit {
@@ -66,27 +125,58 @@ impl<'a> Visit<'a> for CxCallVisitor<'_> {
 
 #[derive(Debug)]
 enum CxToken {
-    Conditional { condition: String, value: String },
+    Conditional {
+        condition: String,
+        value: Vec<ClassPart>,
+    },
     Static(String),
 }
 
-fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String> {
-    if let Some(value) = static_cx_value(arguments) {
+// A piece of a conditional class value, `size-${size}` is the text `size-` and the expression
+// `size`
+#[derive(Debug)]
+enum ClassPart {
+    Text(String),
+    Expression(String),
+}
+
+// The expression replacing an optimized `cx(...)` call
+enum CxValue {
+    Literal(String),
+    Expression(String),
+}
+
+impl CxValue {
+    // Expressions are parenthesized, the call may be an operand, like `cx({ a }) + " b"`
+    fn into_replacement(self) -> String {
+        match self {
+            Self::Literal(value) => value,
+            Self::Expression(value) => format!("({value})"),
+        }
+    }
+}
+
+fn optimized_cx_value(
+    arguments: &[Argument<'_>],
+    source: &str,
+    scoping: &Scoping,
+) -> Option<CxValue> {
+    if let Some(value) = static_cx_value(arguments, scoping) {
         let object_index = arguments
             .iter()
             .position(|argument| matches!(argument, Argument::ObjectExpression(_)));
         if let Some(index) = object_index
             && index > 0
         {
-            let prefix = static_cx_value(&arguments[..index])?;
-            let suffix = static_cx_value(&arguments[index..])?;
-            return Some(format!(
+            let prefix = static_cx_value(&arguments[..index], scoping)?;
+            let suffix = static_cx_value(&arguments[index..], scoping)?;
+            return Some(CxValue::Expression(format!(
                 "{} + {}",
-                quoted(&prefix),
-                quoted(&format!(" {suffix}"))
-            ));
+                js_string_literal(&prefix),
+                js_string_literal(&format!(" {suffix}"))
+            )));
         }
-        return Some(quoted(&value));
+        return Some(CxValue::Literal(js_string_literal(&value)));
     }
 
     if let [
@@ -96,22 +186,25 @@ fn optimized_cx_value(arguments: &[Argument<'_>], source: &str) -> Option<String
     {
         let mut object_tokens = Vec::new();
         collect_object_tokens(object, source, &mut object_tokens)?;
-        return Some(format!(
-            "{} + ({})",
-            quoted(prefix.value.as_str()),
-            render_tokens(object_tokens, true)?
-        ));
+        let rendered = match render_tokens(object_tokens, true) {
+            CxValue::Literal(value) | CxValue::Expression(value) => value,
+        };
+        return Some(CxValue::Expression(format!(
+            "{} + ({rendered})",
+            js_string_literal(prefix.value.as_str()),
+        )));
     }
 
     let mut tokens = Vec::new();
     for argument in arguments {
-        collect_argument_tokens(argument, source, &mut tokens)?;
+        collect_argument_tokens(argument, source, scoping, &mut tokens)?;
     }
-    render_tokens(tokens, false)
+    Some(render_tokens(tokens, false))
 }
 
-fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
+fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> CxValue {
     let mut parts = Vec::new();
+    let mut only_static = true;
     for token in tokens {
         match token {
             CxToken::Static(value) => {
@@ -123,7 +216,7 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                parts.push(quoted(&spaced));
+                parts.push(js_string_literal(&spaced));
                 has_prior = true;
             }
             CxToken::Conditional { condition, value } => {
@@ -132,16 +225,24 @@ fn render_tokens(tokens: Vec<CxToken>, mut has_prior: bool) -> Option<String> {
                 } else {
                     value
                 };
-                let value_expression = dynamic_class_expression(&value)?;
+                let value_expression = class_parts_expression(value);
                 parts.push(format!("({condition} ? {value_expression} : \"\")"));
                 has_prior = true;
+                only_static = false;
             }
         }
     }
     match parts.as_slice() {
-        [] => Some(quoted("")),
-        [single] => Some(single.trim_matches(['(', ')']).to_owned()),
-        _ => Some(parts.join(" + ")),
+        [] => CxValue::Literal(js_string_literal("")),
+        [single] if only_static => CxValue::Literal(single.clone()),
+        [single] => CxValue::Expression(
+            single
+                .strip_prefix('(')
+                .and_then(|inner| inner.strip_suffix(')'))
+                .unwrap_or(single)
+                .to_owned(),
+        ),
+        _ => CxValue::Expression(parts.join(" + ")),
     }
 }
 
@@ -171,6 +272,7 @@ fn format_computed_object_call(arguments: &[Argument<'_>], source: &str) -> Opti
 fn collect_argument_tokens(
     argument: &Argument<'_>,
     source: &str,
+    scoping: &Scoping,
     tokens: &mut Vec<CxToken>,
 ) -> Option<()> {
     match argument {
@@ -179,13 +281,12 @@ fn collect_argument_tokens(
         }
         Argument::BooleanLiteral(literal) if !literal.value => {}
         Argument::NullLiteral(_) => {}
-        Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {}
+        Argument::Identifier(identifier) if is_global_undefined(identifier, scoping) => {}
         Argument::ObjectExpression(object) => collect_object_tokens(object, source, tokens)?,
         Argument::LogicalExpression(logical) if logical.operator == LogicalOperator::And => {
-            let value = class_value_source(&logical.right, source)?;
-            let span = logical.left.span();
+            let value = class_value_parts(&logical.right, source)?;
             tokens.push(CxToken::Conditional {
-                condition: source[span.start as usize..span.end as usize].to_owned(),
+                condition: condition_source(&logical.left, source),
                 value,
             });
         }
@@ -205,7 +306,12 @@ fn collect_object_tokens(
         let ObjectPropertyKind::ObjectProperty(property) = property else {
             return None;
         };
-        if property.computed {
+        // Getters, setters, methods and prototype setters are kept as a runtime call
+        if property.computed
+            || property.kind != PropertyKind::Init
+            || property.method
+            || is_prototype_setter(property)
+        {
             return None;
         }
         let name = property.key.static_name()?.into_owned();
@@ -215,10 +321,9 @@ fn collect_object_tokens(
             }
             Expression::BooleanLiteral(_) => {}
             expression => {
-                let span = expression.span();
                 dynamic_properties.push(CxToken::Conditional {
-                    condition: source[span.start as usize..span.end as usize].to_owned(),
-                    value: name,
+                    condition: condition_source(expression, source),
+                    value: vec![ClassPart::Text(name)],
                 });
             }
         }
@@ -228,51 +333,122 @@ fn collect_object_tokens(
     Some(())
 }
 
-fn class_value_source(expression: &Expression<'_>, source: &str) -> Option<String> {
+// The condition of a generated `condition ? class : ""`, parenthesized when its own operator
+// binds looser than `?:` or would nest into it
+fn condition_source(expression: &Expression<'_>, source: &str) -> String {
+    let span = expression.span();
+    let text = &source[span.start as usize..span.end as usize];
+    if matches!(
+        expression,
+        Expression::ConditionalExpression(_)
+            | Expression::AssignmentExpression(_)
+            | Expression::SequenceExpression(_)
+            | Expression::ArrowFunctionExpression(_)
+            | Expression::YieldExpression(_)
+    ) {
+        format!("({text})")
+    } else {
+        text.to_owned()
+    }
+}
+
+// The class of a `condition && class` argument, read from the AST so template expressions keep
+// their own grouping, like `${mode ? "lg" : "sm"}`
+fn class_value_parts(expression: &Expression<'_>, source: &str) -> Option<Vec<ClassPart>> {
     match expression {
-        Expression::StringLiteral(literal) => Some(literal.value.to_string()),
+        Expression::StringLiteral(literal) => {
+            Some(vec![ClassPart::Text(literal.value.to_string())])
+        }
         Expression::TemplateLiteral(template) => {
-            let span = template.span;
-            Some(source[span.start as usize..span.end as usize].to_owned())
+            let mut parts = Vec::new();
+            for (index, quasi) in template.quasis.iter().enumerate() {
+                parts.push(ClassPart::Text(quasi.value.cooked?.to_string()));
+                if let Some(expression) = template.expressions.get(index) {
+                    let span = expression.span();
+                    parts.push(ClassPart::Expression(
+                        source[span.start as usize..span.end as usize].to_owned(),
+                    ));
+                }
+            }
+            Some(parts)
         }
         _ => None,
     }
 }
 
-fn add_leading_space(value: String) -> String {
-    value
-        .strip_prefix('`')
-        .map_or_else(|| format!(" {value}"), |template| format!("` {template}"))
+fn add_leading_space(mut parts: Vec<ClassPart>) -> Vec<ClassPart> {
+    match parts.first_mut() {
+        Some(ClassPart::Text(text)) => text.insert(0, ' '),
+        _ => parts.insert(0, ClassPart::Text(" ".to_owned())),
+    }
+    parts
 }
 
-fn dynamic_class_expression(value: &str) -> Option<String> {
-    let Some(template_source) = value.strip_prefix('`') else {
-        return Some(quoted(value));
-    };
-    let template_source = template_source.strip_suffix('`')?;
-    let mut parts = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(relative_start) = template_source[cursor..].find("${") {
-        let start = cursor + relative_start;
-        if start > cursor {
-            parts.push(quoted(&template_source[cursor..start]));
+// A class value with expressions stays a template literal, so `${value}` converts with the
+// "string" hint like the runtime call, unlike `+`
+fn class_parts_expression(parts: Vec<ClassPart>) -> String {
+    if !parts
+        .iter()
+        .any(|part| matches!(part, ClassPart::Expression(_)))
+    {
+        let text = parts
+            .into_iter()
+            .map(|part| match part {
+                ClassPart::Text(text) | ClassPart::Expression(text) => text,
+            })
+            .collect::<String>();
+        return js_string_literal(&text);
+    }
+    let mut template = String::from("`");
+    for part in parts {
+        match part {
+            ClassPart::Text(text) => template.push_str(&template_text(&text)),
+            ClassPart::Expression(expression) => {
+                template.push_str("${");
+                template.push_str(&expression);
+                template.push('}');
+            }
         }
-        let expression_start = start + 2;
-        let relative_end = template_source[expression_start..].find('}')?;
-        let end = expression_start + relative_end;
-        parts.push(template_source[expression_start..end].to_owned());
-        cursor = end + 1;
     }
-    if cursor < template_source.len() {
-        parts.push(quoted(&template_source[cursor..]));
-    }
-    if parts.is_empty() {
-        return Some(quoted(template_source));
-    }
-    Some(parts.join(" + "))
+    template.push('`');
+    template
 }
 
-fn static_cx_value(arguments: &[Argument<'_>]) -> Option<String> {
+// `text` escaped for a template literal
+fn template_text(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    let mut characters = text.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '`' => escaped.push_str("\\`"),
+            '\r' => escaped.push_str("\\r"),
+            '$' if characters.peek() == Some(&'{') => escaped.push_str("\\$"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+// `undefined` that isn't shadowed by a local binding
+fn is_global_undefined(identifier: &IdentifierReference<'_>, scoping: &Scoping) -> bool {
+    identifier.name.as_str() == "undefined"
+        && scoping
+            .get_reference(identifier.reference_id())
+            .symbol_id()
+            .is_none()
+}
+
+// `{ __proto__: value }` sets the prototype instead of adding a key
+fn is_prototype_setter(property: &ObjectProperty<'_>) -> bool {
+    !property.shorthand
+        && property
+            .key
+            .static_name()
+            .is_some_and(|name| name == "__proto__")
+}
+
+fn static_cx_value(arguments: &[Argument<'_>], scoping: &Scoping) -> Option<String> {
     let mut classes = Vec::new();
     for argument in arguments {
         match argument {
@@ -283,13 +459,13 @@ fn static_cx_value(arguments: &[Argument<'_>]) -> Option<String> {
             }
             Argument::BooleanLiteral(literal) if !literal.value => {}
             Argument::NullLiteral(_) => {}
-            Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {}
+            Argument::Identifier(identifier) if is_global_undefined(identifier, scoping) => {}
             Argument::ObjectExpression(object) => {
                 for property in &object.properties {
                     let ObjectPropertyKind::ObjectProperty(property) = property else {
                         return None;
                     };
-                    if property.computed {
+                    if property.computed || is_prototype_setter(property) {
                         return None;
                     }
                     let Expression::BooleanLiteral(value) = &property.value else {
@@ -358,8 +534,4 @@ fn remove_cx_import(program: &Program<'_>, source: &str, edits: &mut Vec<Edit>) 
             edits.push(Edit { span, replacement });
         }
     }
-}
-
-fn quoted(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }

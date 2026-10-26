@@ -5,9 +5,10 @@ use rustc_hash::FxHashMap;
 use crate::facts::StaticValue;
 
 use super::{
+    cx_selectors::{contains_class_selector_in_body, rewrite_cx_selectors},
     jsx_attributes::find_last_attribute,
     static_evaluation::resolved_constant,
-    styled_jsx_helpers::{contains_modifier_selector, is_class_rule, replace_modifier_selector},
+    styled_jsx_helpers::is_class_rule,
 };
 
 pub(super) struct CssReference {
@@ -65,7 +66,7 @@ pub(super) fn unsupported_css_reference_modifiers(
 ) -> Option<(oxc_span::Span, String)> {
     let declares_rewritten_modifier = |reference: &&CssReference| {
         mappings.iter().any(|(original, _, should_rewrite)| {
-            *should_rewrite && contains_modifier_selector(&reference.css, original)
+            *should_rewrite && contains_class_selector_in_body(&reference.css, original)
         })
     };
     if let Some(reference) = css_references
@@ -116,10 +117,6 @@ pub(super) fn rewrite_class_rules(
             .iter()
             .any(|class_name| is_class_rule(rule, class_name))
     }) {
-        for (original, hashed, should_rewrite) in mappings {
-            if *should_rewrite {
-                *rule = replace_modifier_selector(rule, original, hashed);
-            }
-        }
+        *rule = rewrite_cx_selectors(rule, mappings);
     }
 }

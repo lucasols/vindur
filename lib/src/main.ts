@@ -59,10 +59,22 @@ export interface VindurAttributes extends VindurClassNameBasedAttributes {
   dynamicColor?: DynamicColorSet;
 }
 
+// A non-object `cx` stays the native attribute, eg. `<Dot cx="50" />` on a styled circle
+type WithNativeCx<Props extends { cx?: unknown }> = Omit<Props, 'cx'>
+  & Omit<VindurAttributes, 'cx'> & {
+    cx?: Props['cx'] | NonNullable<VindurAttributes['cx']>;
+  };
+
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 
+// The compiler only keeps a native, non-object `cx` on these elements
+type NativeCxTag = 'circle' | 'ellipse' | 'radialGradient';
+
 type StyledComponentProps<Tag extends IntrinsicElementType> =
-  JSX.IntrinsicElements[Tag] & VindurAttributes;
+  Tag extends NativeCxTag ? WithNativeCx<JSX.IntrinsicElements[Tag]>
+  : 'cx' extends keyof JSX.IntrinsicElements[Tag] ?
+    Omit<JSX.IntrinsicElements[Tag], 'cx'> & VindurAttributes
+  : JSX.IntrinsicElements[Tag] & VindurAttributes;
 
 type ValidExtraProps = Record<string, string | boolean>;
 
@@ -72,7 +84,7 @@ type StyledComponent<
 > = FC<StyledComponentProps<Tag> & ExtraProps> & {
   withComponent<NewTag extends keyof JSX.IntrinsicElements>(
     tag: NewTag,
-  ): FC<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+  ): FC<StyledComponentProps<NewTag>>;
 
   withComponent<C extends ComponentType<any>>(component: C): C;
 };
@@ -103,12 +115,35 @@ type StyledFnReturn<T extends {}> = {
   (strings: TemplateStringsArray, ...values: StyleInterpolationValues[]): FC<T>;
 };
 
+// Vindur's attributes replace a custom component's own props of the same name
+type WithVindurComponentAttributes<
+  Props,
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  Props extends unknown ?
+    [Extract<keyof Props, keyof Attributes>] extends [never] ?
+      Props & Attributes
+    : Omit<Props, keyof Attributes> & Attributes
+  : never;
+
+// A required `cx` prop can't be passed, `cx` is always vindur's on styled components
+type StyledComponentFnReturn<
+  Props extends {},
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  'cx' extends keyof Props ?
+    {} extends Pick<Props, 'cx'> ?
+      StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>
+    : never
+  : StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>;
+
 type StyledFn = <T extends {}>(
   component: ComponentType<T>,
 ) => keyof VindurAttributes extends keyof T ? StyledFnReturn<T>
-: 'className' | 'style' extends keyof T ? StyledFnReturn<T & VindurAttributes>
+: 'className' | 'style' extends keyof T ?
+  StyledComponentFnReturn<T, VindurAttributes>
 : 'className' extends keyof T ?
-  StyledFnReturn<T & VindurClassNameBasedAttributes>
+  StyledComponentFnReturn<T, VindurClassNameBasedAttributes>
 : never;
 
 interface Styled extends StyledTags, StyledFn {}
@@ -285,6 +320,9 @@ export function cx(
 
 /**
  * Merge classNames from spread props with vindur-generated classNames
+ *
+ * Inputs are spread props and explicit `className` values in source order. Like
+ * JSX, the last input that sets `className` wins, even when it's nullish
  */
 export function mergeClassNames(
   spreadProps: (Record<string, unknown> | string | null | undefined)[],
@@ -297,10 +335,10 @@ export function mergeClassNames(
     if (typeof prop === 'string') {
       finalClassName = prop;
     } else if (
-      prop &&
-      typeof prop === 'object' &&
+      prop
+      && typeof prop === 'object'
       // JSX spreads only copy own enumerable properties
-      Object.prototype.propertyIsEnumerable.call(prop, 'className')
+      && Object.prototype.propertyIsEnumerable.call(prop, 'className')
     ) {
       const className = prop.className;
       finalClassName = typeof className === 'string' ? className : '';
@@ -325,13 +363,14 @@ export function mergeStyles(
 
   for (const prop of spreadProps) {
     if (
-      prop &&
-      typeof prop === 'object' &&
+      prop
+      && typeof prop === 'object'
       // JSX spreads only copy own enumerable properties
-      Object.prototype.propertyIsEnumerable.call(prop, 'style')
+      && Object.prototype.propertyIsEnumerable.call(prop, 'style')
     ) {
       const style = prop.style;
-      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
+      finalStyle =
+        typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 

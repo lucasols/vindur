@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
- 
+
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
 import {
   forwardRef,
@@ -201,6 +201,70 @@ test('styled components from custom components with style and className', () => 
       dynamicColor={dynamicColor.set('red')}
     />
   );
+});
+
+test('styled svg components keep native cx values', () => {
+  const Dot = styled.circle`
+    fill: red;
+  `;
+
+  const circleElements = (
+    <>
+      <Dot
+        cx="50"
+        cy="50"
+        r="4"
+      />
+      <Dot cx={50} />
+      <Dot cx={{ active: true }} />
+    </>
+  );
+
+  function Pie({
+    className,
+    cx,
+  }: {
+    className?: string;
+    cx?: string | number;
+  }) {
+    return <div className={className} />;
+  }
+
+  const StyledPie = styled(Pie)`
+    opacity: 0.5;
+  `;
+
+  const pieElements = (
+    <>
+      {/* @ts-expect-error cx is always vindur's on styled custom components */}
+      <StyledPie cx="50%" />
+      <StyledPie cx={{ active: true }} />
+    </>
+  );
+
+  function Marker({ className, cx }: { className?: string; cx: number }) {
+    return (
+      <div
+        className={className}
+        data-cx={cx}
+      />
+    );
+  }
+
+  // @ts-expect-error a required cx prop can't be passed to a styled custom component
+  const StyledMarker = styled(Marker)`
+    opacity: 0.5;
+  `;
+
+  // only circle, ellipse and radialGradient keep a native cx
+  const Rect = styled.rect`
+    fill: red;
+  `;
+
+  expectTypesAre<
+    ComponentProps<typeof Rect>['cx'],
+    Record<string, unknown> | undefined
+  >('equal');
 });
 
 test('styled components from custom components without className should not be supported', () => {
