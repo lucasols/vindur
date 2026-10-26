@@ -477,40 +477,20 @@ test('should not let a cx prop variable shadow the cx helper', async () => {
   `);
 });
 
-test('should pick an unused alias when the cx helper alias is taken', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur';
+test('should throw when a binding takes the reserved cx helper alias', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const _vCx = 1;
 
-      const _vCx = 1;
-      const Dot = styled.circle<{ active: boolean }>\`
-        fill: red;
-        &.active { fill: blue; }
-      \`;
-
-      export function Point({ cx, active, p }) {
-        return <Dot {...p} cx={cx} active={active} data-x={_vCx} />;
-      }
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as _vCx2, mergeClassNames } from "vindur";
-    const _vCx = 1;
-    export function Point({ cx, active, p }) {
-      return (
-        <circle
-          {...p}
-          cx={cx}
-          data-x={_vCx}
-          className={_vCx2(
-            mergeClassNames([p], "v1560qbr-1-Dot"),
-            active && "voctcyj-active",
-          )}
-        />
-      );
-    }
-    "
+        export function Point({ cx, active }) {
+          return <circle cx={cx} data-x={_vCx} cx={{ $active: active }} />;
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "_vCx" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved
+    loc: 1:6]
   `);
 });
 

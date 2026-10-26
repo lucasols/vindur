@@ -319,20 +319,13 @@ export function cx(
 }
 
 /**
- * JSX spreads only copy own enumerable properties
- */
-function isSpreadProperty(prop: object, key: string): boolean {
-  return Object.prototype.propertyIsEnumerable.call(prop, key);
-}
-
-/**
  * Merge classNames from spread props with vindur-generated classNames
  *
  * Inputs are spread props and explicit `className` values in source order. Like
  * JSX, the last input that sets `className` wins, even when it's nullish
  */
 export function mergeClassNames(
-  spreadProps: unknown[],
+  spreadProps: (Record<string, unknown> | string | null | undefined)[],
   vindurClassName: string,
 ): string {
   let finalClassName = '';
@@ -342,19 +335,13 @@ export function mergeClassNames(
     if (typeof prop === 'string') {
       finalClassName = prop;
     } else if (
-      // Like JSX, functions spread their own properties too
-      ((typeof prop === 'object' && prop !== null)
-        || typeof prop === 'function')
-      && 'className' in prop
-      && isSpreadProperty(prop, 'className')
+      prop
+      && typeof prop === 'object'
+      // JSX spreads only copy own enumerable properties
+      && Object.prototype.propertyIsEnumerable.call(prop, 'className')
     ) {
-      const className: unknown = prop.className;
-      // Like React, numbers render as a class, nullish and boolean values as none
-      finalClassName =
-        typeof className === 'string' ? className
-        : typeof className === 'number' || typeof className === 'bigint' ?
-          String(className)
-        : '';
+      const className = prop.className;
+      finalClassName = typeof className === 'string' ? className : '';
     }
   }
 
@@ -369,18 +356,17 @@ export function mergeClassNames(
  * overrides earlier ones like in JSX
  */
 export function mergeStyles(
-  spreadProps: unknown[],
+  spreadProps: (Record<string, unknown> | null | undefined)[],
   baseStyle: object | undefined = undefined,
 ): object | undefined {
   let finalStyle = baseStyle;
 
   for (const prop of spreadProps) {
     if (
-      // Like JSX, functions spread their own properties too
-      ((typeof prop === 'object' && prop !== null)
-        || typeof prop === 'function')
-      && 'style' in prop
-      && isSpreadProperty(prop, 'style')
+      prop
+      && typeof prop === 'object'
+      // JSX spreads only copy own enumerable properties
+      && Object.prototype.propertyIsEnumerable.call(prop, 'style')
     ) {
       const style = prop.style;
       finalStyle =

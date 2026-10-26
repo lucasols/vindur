@@ -101,6 +101,8 @@ export default defineConfig({
 
 The vindur transform runs before other `enforce: 'pre'` transforms (e.g. the React Compiler), so the compiler receives the vindur output regardless of plugin order.
 
+Import vindur's exports by name, eg. `import { styled } from 'vindur'`. Aliased, namespace and default imports are not supported, and names starting with `_v` are reserved for generated code.
+
 ## Quick Start
 
 ```tsx
@@ -997,7 +999,7 @@ Other `css` values on custom components (strings or non-vindur values) are left 
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`), and each `$` key must be a single class.
 
 ```tsx
 const Container = styled.div`
@@ -1205,7 +1207,7 @@ The CSS classes are automatically applied based on prop values:
 #### Supported Prop Types
 
 - **Boolean props**: `active: boolean` → applies class when `true`
-- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix
+- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
 #### CSS Selector Patterns
 

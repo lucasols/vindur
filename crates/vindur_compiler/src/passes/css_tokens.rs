@@ -127,19 +127,3 @@ pub(super) fn unescape(identifier: &str) -> String {
     }
     value
 }
-
-// `class_name` as a CSS identifier, like `md:active` as `md\:active`
-pub(super) fn css_escape(class_name: &str) -> String {
-    let mut escaped = String::with_capacity(class_name.len());
-    for character in class_name.chars() {
-        if is_class_name_character(character) {
-            escaped.push(character);
-        } else if character.is_whitespace() || character.is_control() {
-            escaped.push_str(&format!("\\{:x} ", u32::from(character)));
-        } else {
-            escaped.push('\\');
-            escaped.push(character);
-        }
-    }
-    escaped
-}

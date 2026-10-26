@@ -202,6 +202,10 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             };
+            if let Some(message) = invalid_cx_key_message(&class_name) {
+                self.set_error(property.key.span(), message);
+                return;
+            }
             if !has_css_context && !class_name.starts_with('$') {
                 self.set_error(
                     attribute.span,
@@ -221,9 +225,7 @@ impl JsxCxVisitor<'_> {
                         index
                     });
                     let hashed = if self.output.dev {
-                        // Whitespace would split the dev class name into several classes
-                        let readable_name = class_name.replace(char::is_whitespace, "_");
-                        format!("{}-{index}-{readable_name}", self.output.file_hash)
+                        format!("{}-{index}-{class_name}", self.output.file_hash)
                     } else {
                         format!("{}-{index}", self.output.file_hash)
                     };
@@ -233,13 +235,7 @@ impl JsxCxVisitor<'_> {
             // The value is copied into the generated call, with the edits of other passes inside
             // it, like a `stableId()` call
             let value = take_edited_source(self.output.source, value_span, self.output.edits);
-            // A `"__proto__"` key would set the prototype instead of adding the class
-            let key = if output_name == "__proto__" {
-                format!("[{}]", js_string_literal(&output_name))
-            } else {
-                js_string_literal(&output_name)
-            };
-            properties.push(format!("{key}: {value}"));
+            properties.push(format!("{}: {value}", js_string_literal(&output_name)));
             mappings.push((class_name, output_name, should_rewrite_css));
         }
         if let Some((span, message)) = unsupported_css_reference_modifiers(
@@ -475,4 +471,33 @@ fn class_name_sources<'a>(output: &JsxCxTransform<'a>) -> ClassNameSources<'a> {
         constants: output.constants,
         scoping: output.scoping,
     }
+}
+
+// Hashed keys become part of class names and `&.key` selectors, so they must be plain CSS
+// identifiers. `$` keys are external classes, like Tailwind's `hover:underline`, so only a
+// single class is required
+fn invalid_cx_key_message(key: &str) -> Option<String> {
+    if let Some(external) = key.strip_prefix('$') {
+        let is_single_class = !external.is_empty()
+            && !external.chars().any(char::is_whitespace)
+            && external != "__proto__";
+        return (!is_single_class).then(|| {
+            format!(
+                "cx prop key \"{key}\" must be a single class name, use one key per class, eg. {{ $first: on, $second: on }}"
+            )
+        });
+    }
+    let mut characters = key.chars();
+    let is_identifier = characters
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
+        && key != "__proto__";
+    (!is_identifier).then(|| {
+        format!(
+            "cx prop key \"{key}\" must be a plain class name with letters, digits, - and _, not starting with a digit, eg. {{ active: on }}, or a $-prefixed external class"
+        )
+    })
 }

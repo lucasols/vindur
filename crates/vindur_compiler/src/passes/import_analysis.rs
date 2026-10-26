@@ -114,6 +114,14 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
     spans
 }
 
+fn unsupported_import_kind(specifier: &ImportDeclarationSpecifier<'_>) -> Option<&'static str> {
+    match specifier {
+        ImportDeclarationSpecifier::ImportSpecifier(_) => None,
+        ImportDeclarationSpecifier::ImportDefaultSpecifier(_) => Some("default"),
+        ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => Some("namespace"),
+    }
+}
+
 pub(super) fn collect_vindur_imports(
     program: &Program<'_>,
     file_path: &str,
@@ -135,6 +143,18 @@ pub(super) fn collect_vindur_imports(
         if let Some(specifiers) = &declaration.specifiers {
             for specifier in specifiers {
                 specifier_count += 1;
+                if !declaration.import_kind.is_type()
+                    && let Some(kind) = unsupported_import_kind(specifier)
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        specifier.span(),
+                        format!(
+                            "{kind} vindur imports are not supported, import the names you use, eg. import {{ styled }} from \"vindur\""
+                        ),
+                    ));
+                }
                 if let ImportDeclarationSpecifier::ImportSpecifier(named) = specifier {
                     let imported = named.imported.name();
                     let is_type_import =

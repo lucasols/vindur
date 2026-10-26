@@ -74,11 +74,9 @@ pub(super) fn collect_flag_class(
             _ => {}
         },
         StyleFlagKind::StringUnion(_) => match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(value)) => static_classes.push(format!(
-                "{}-{}",
-                flag.hashed_class_name,
-                decode_jsx_entities(&value.value)
-            )),
+            Some(JSXAttributeValue::StringLiteral(value)) => {
+                static_classes.push(format!("{}-{}", flag.hashed_class_name, value.value))
+            }
             Some(JSXAttributeValue::ExpressionContainer(container)) => {
                 match &container.expression {
                     oxc_ast::ast::JSXExpression::StringLiteral(value) => {

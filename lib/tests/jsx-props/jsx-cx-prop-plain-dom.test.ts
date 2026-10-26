@@ -142,32 +142,45 @@ test('should throw for getters and methods in cx objects', async () => {
   `);
 });
 
-test('should handle empty cx objects and __proto__ class names', async () => {
+test('should handle empty cx objects', async () => {
   const result = await transformWithFormat({
     source: dedent`
-      export const App = ({ active }) => (
-        <>
-          <div cx={{}} />
-          <div cx={{ $__proto__: active, $other: true }} />
-        </>
-      );
+      export const App = () => <div cx={{}} />;
     `,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { cx } from "vindur";
-    export const App = ({ active }) => (
-      <>
-        <div className={cx({})} />
-        <div
-          className={cx({
-            ["__proto__"]: active,
-            other: true,
-          })}
-        />
-      </>
-    );
+    export const App = () => <div className={cx({})} />;
     "
+  `);
+});
+
+test('should throw for cx keys that are not plain class names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const App = ({ active }) => <div cx={{ $__proto__: active }} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop key "$__proto__" must be a single class name, use one key per class, eg. { $first: on, $second: on }
+    loc: 1:46]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        export const App = ({ active }) => (
+          <div css={\`color: red;\`} cx={{ 'is active': active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop key "is active" must be a plain class name with letters, digits, - and _, not starting with a digit, eg. { active: on }, or a $-prefixed external class
+    loc: 4:33]
   `);
 });
 

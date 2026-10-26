@@ -2,33 +2,31 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { transformWithFormat } from '../testUtils';
 
-test('should keep namespace vindur imports separate from helper imports', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import * as vindur from 'vindur';
-      import { css } from 'vindur';
+test('should throw for namespace and default vindur imports', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import * as vindur from 'vindur';
 
-      export const App = ({ on }) => (
-        <div css={\`color: red;\`} cx={{ on }} title={vindur.version} />
-      );
-    `,
-  });
+        export const App = ({ on }) => <div cx={{ $on: on }} title={vindur.version} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: namespace vindur imports are not supported, import the names you use, eg. import { styled } from "vindur"
+    loc: 1:7]
+  `);
 
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import * as vindur from "vindur";
-    export const App = ({ on }) => (
-      <div
-        className={
-          "v1560qbr-1-css-prop-1 " +
-          cx({
-            "v1560qbr-2-on": on,
-          })
-        }
-        title={vindur.version}
-      />
-    );
-    "
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import vindur from 'vindur';
+
+        export const App = () => <div title={vindur.version} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: default vindur imports are not supported, import the names you use, eg. import { styled } from "vindur"
+    loc: 1:7]
   `);
 });
 

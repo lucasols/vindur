@@ -84,8 +84,8 @@ fn merge_vindur_imports(program: &Program<'_>, source: &str, edits: &mut Vec<cra
             let Statement::ImportDeclaration(import) = statement else {
                 return None;
             };
-            // Type-only, namespace and default imports are left alone, they can't be merged
-            // into a named value import
+            // Type-only imports are left alone, and namespace and default ones too so the
+            // transform rejects them with a located error instead of failing on merged syntax
             let only_named = import.specifiers.as_ref().is_some_and(|specifiers| {
                 specifiers.iter().all(|specifier| {
                     matches!(specifier, ImportDeclarationSpecifier::ImportSpecifier(_))

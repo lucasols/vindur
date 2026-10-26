@@ -444,10 +444,9 @@ test('should keep rewriting cx classes of nested rules that may match the styled
         &:hover, & .child { &.active { color: red; } }
         & /* note */ .tab { &.active { color: blue; } }
         &:hover /* note */ { &.active { right: 0; } }
-        &.md\\:active { bottom: 0; }
       \`;
 
-      export const App = ({ a, b }) => <Box cx={{ active: a, 'md:active': b }} />;
+      export const App = ({ a }) => <Box cx={{ active: a }} />;
     `,
   });
 
@@ -480,9 +479,6 @@ test('should keep rewriting cx classes of nested rules that may match the styled
           right: 0;
         }
       }
-      &.v1560qbr-3-md\\:active {
-        bottom: 0;
-      }
     }
     "
   `);
@@ -500,13 +496,12 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
         & a[href*="&"] { &:not(.disabled) { color: green; } }
         &/* c */.active { top: 0; }
         &.active/* c */.done { left: 0; }
-        &.md\\3a active { bottom: 0; }
         &.a\\63 tive { right: 0; }
         \${layer('base')} { &.done { margin: 0; } }
       \`;
 
-      export const App = ({ a, b, c, d }) => (
-        <Box cx={{ active: a, disabled: b, done: c, 'md:active': d }} />
+      export const App = ({ a, b, c }) => (
+        <Box cx={{ active: a, disabled: b, done: c }} />
       );
     `,
     onWarning: (warning) => {
@@ -532,9 +527,6 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
       &.v1560qbr-2-active/* c */.v1560qbr-4-done {
         left: 0;
       }
-      &.v1560qbr-5-md\\:active {
-        bottom: 0;
-      }
       &.v1560qbr-2-active {
         right: 0;
       }
@@ -554,40 +546,34 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
     "
     - TransformWarning#:
         message: 'Warning: Missing CSS classes for cx modifiers in Box: disabled'
-        loc: 'current_file:14:2'
+        loc: 'current_file:13:2'
     "
   `);
 });
 
-test('should rewrite escaped commas, uppercase of and scoped roots on the styled element', async () => {
+test('should rewrite uppercase of and scoped roots on the styled element', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        &.foo\\,bar { color: red; }
         &:nth-child(2n OF .active) { top: 0; }
         @scope (& .child) { &.active { left: 0; } }
         @scope (&.active) { & { right: 0; } }
-        &.a\\20 b { bottom: 0; }
       \`;
 
-      export const App = ({ a, b, c }) => (
-        <Box cx={{ 'foo,bar': a, active: b, 'a b': c }} />
-      );
+      export const App = ({ b }) => <Box cx={{ active: b }} />;
     `,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { cx } from "vindur";
-    export const App = ({ a, b, c }) => (
+    export const App = ({ b }) => (
       <div
         className={
           "v1560qbr-1-Box " +
           cx({
-            "v1560qbr-2-foo,bar": a,
-            "v1560qbr-3-active": b,
-            "v1560qbr-4-a_b": c,
+            "v1560qbr-2-active": b,
           })
         }
       />
@@ -597,10 +583,7 @@ test('should rewrite escaped commas, uppercase of and scoped roots on the styled
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
-      &.v1560qbr-2-foo\\,bar {
-        color: red;
-      }
-      &:nth-child(2n OF .v1560qbr-3-active) {
+      &:nth-child(2n OF .v1560qbr-2-active) {
         top: 0;
       }
       @scope (& .child) {
@@ -608,13 +591,10 @@ test('should rewrite escaped commas, uppercase of and scoped roots on the styled
           left: 0;
         }
       }
-      @scope (&.v1560qbr-3-active) {
+      @scope (&.v1560qbr-2-active) {
         & {
           right: 0;
         }
-      }
-      &.v1560qbr-4-a_b {
-        bottom: 0;
       }
     }
     "

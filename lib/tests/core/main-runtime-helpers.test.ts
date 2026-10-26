@@ -284,7 +284,8 @@ describe('mergeClassNames', () => {
   });
 
   test('should ignore className properties a JSX spread does not copy', () => {
-    const inherited: unknown = Object.create({ className: undefined });
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { className: undefined });
     const hidden = Object.defineProperty({}, 'className', {
       value: undefined,
       enumerable: false,
@@ -298,13 +299,13 @@ describe('mergeClassNames', () => {
     expect(result).toBe('visible vindur-class');
   });
 
-  test('should stringify non-string class names like React', () => {
+  test('should treat a later non-string className as none', () => {
     const result = mergeClassNames(
       [{ className: 'hidden' }, { className: 5 }],
       'vindur-class',
     );
 
-    expect(result).toBe('5 vindur-class');
+    expect(result).toBe('vindur-class');
   });
 
   test('should drop boolean class names like React', () => {
@@ -314,15 +315,6 @@ describe('mergeClassNames', () => {
     );
 
     expect(result).toBe('vindur-class');
-  });
-
-  test('should read class names of spread functions like JSX', () => {
-    const result = mergeClassNames(
-      [Object.assign(() => null, { className: 'user' })],
-      'vindur-class',
-    );
-
-    expect(result).toBe('user vindur-class');
   });
 
   test('should ignore null and undefined spread props', () => {
@@ -361,20 +353,26 @@ describe('mergeStyles', () => {
     expect(mergeStyles([{ id: 'x' }], { display: 'none' })).toEqual({
       display: 'none',
     });
-    expect(mergeStyles([{ style: { color: 'red' } }], { display: 'none' })).toEqual({
+    expect(
+      mergeStyles([{ style: { color: 'red' } }], { display: 'none' }),
+    ).toEqual({
       color: 'red',
     });
   });
 
   test('should clear the style when a later spread has an undefined style', () => {
-    expect(mergeStyles([{ style: undefined }], { display: 'none' })).toBeUndefined();
+    expect(
+      mergeStyles([{ style: undefined }], { display: 'none' }),
+    ).toBeUndefined();
   });
 
   test('should ignore inherited style properties', () => {
     const inherited: Record<string, unknown> = {};
     Object.setPrototypeOf(inherited, { style: { display: 'none' } });
 
-    expect(mergeStyles([inherited], { color: 'red' })).toEqual({ color: 'red' });
+    expect(mergeStyles([inherited], { color: 'red' })).toEqual({
+      color: 'red',
+    });
   });
 
   test('should handle empty props', () => {
@@ -400,14 +398,6 @@ describe('mergeStyles', () => {
     const result = mergeStyles([{ className: 'test' }, { id: 'test-id' }]);
 
     expect(result).toBeUndefined();
-  });
-
-  test('should read styles of spread functions like JSX', () => {
-    const result = mergeStyles([
-      Object.assign(() => null, { style: { color: 'red' } }),
-    ]);
-
-    expect(result).toEqual({ color: 'red' });
   });
 });
 

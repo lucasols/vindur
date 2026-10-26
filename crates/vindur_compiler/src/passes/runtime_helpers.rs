@@ -1,66 +1,97 @@
-use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast::ast::{IdentifierReference, ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast_visit::Visit;
 use oxc_semantic::{Scoping, SymbolId};
+use oxc_span::Span;
 
-use crate::edit::Edit;
+use crate::{CompilerDiagnostic, edit::Edit};
 
 // The names generated code calls the runtime helpers by. A helper keeps its own name unless
 // another binding in the file uses it, like `import cx from 'classnames'` or a `cx` parameter of
-// an SVG component, which would shadow it, then it's imported under an unused alias
+// an SVG component, which would shadow it, then it's imported under its `_v` alias. Names
+// starting with `_v` are reserved by vindur, so a binding using the alias is an error
 pub(crate) struct RuntimeHelperNames {
     pub cx: String,
     pub merge_class_names: String,
     pub merge_styles: String,
 }
 
-const HELPERS: [(&str, &str); 3] = [
-    ("cx", "_vCx"),
-    ("mergeClassNames", "_vMergeClassNames"),
-    ("mergeStyles", "_vMergeStyles"),
-];
-
 impl RuntimeHelperNames {
-    pub(super) fn new(program: &Program<'_>, scoping: &Scoping) -> Self {
-        let [cx, merge_class_names, merge_styles] = HELPERS.map(|(helper, alias)| {
-            let own_imports = vindur_value_imports(program, helper, helper);
-            // A global reference, like a `cx` from a script tag, would be captured by the import
-            let shadowed = scoping.symbol_ids().any(|symbol| {
-                scoping.symbol_name(symbol) == helper && !own_imports.contains(&symbol)
-            }) || scoping.root_unresolved_references().contains_key(helper);
-            if shadowed {
-                unused_name(scoping, alias)
-            } else {
-                helper.to_owned()
-            }
-        });
-        Self {
-            cx,
-            merge_class_names,
-            merge_styles,
-        }
+    pub(super) fn new(
+        program: &Program<'_>,
+        scoping: &Scoping,
+        file_path: &str,
+        source: &str,
+    ) -> Result<Self, CompilerDiagnostic> {
+        let name = |helper: &str, alias: &str| {
+            helper_name(program, scoping, helper, alias).map_err(|span| {
+                CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    span,
+                    format!(
+                        "\"{alias}\" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved"
+                    ),
+                )
+            })
+        };
+        Ok(Self {
+            cx: name("cx", "_vCx")?,
+            merge_class_names: name("mergeClassNames", "_vMergeClassNames")?,
+            merge_styles: name("mergeStyles", "_vMergeStyles")?,
+        })
     }
 }
 
-// `alias`, or `alias2`, `alias3`... when a binding or a global reference already uses it
-fn unused_name(scoping: &Scoping, alias: &str) -> String {
-    let is_used = |name: &str| {
-        scoping
-            .symbol_ids()
-            .any(|symbol| scoping.symbol_name(symbol) == name)
-            || scoping
-                .root_unresolved_references()
-                .keys()
-                .any(|reference| reference.as_str() == name)
-    };
-    (1..)
-        .map(|suffix| {
-            if suffix == 1 {
-                alias.to_owned()
-            } else {
-                format!("{alias}{suffix}")
-            }
-        })
-        .find(|name| !is_used(name))
-        .unwrap_or_else(|| alias.to_owned())
+// `helper`, or `alias` when another binding or a global reference shadows it. Errors with the
+// span of a binding or global reference that already uses `alias`
+fn helper_name(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    helper: &str,
+    alias: &str,
+) -> Result<String, Span> {
+    let own_imports = vindur_value_imports(program, helper, helper);
+    // A global reference, like a `cx` from a script tag, would be captured by the import
+    let shadowed = scoping
+        .symbol_ids()
+        .any(|symbol| scoping.symbol_name(symbol) == helper && !own_imports.contains(&symbol))
+        || scoping.root_unresolved_references().contains_key(helper);
+    if !shadowed {
+        return Ok(helper.to_owned());
+    }
+    match name_use_span(program, scoping, alias) {
+        Some(span) => Err(span),
+        None => Ok(alias.to_owned()),
+    }
+}
+
+// Where the file binds or references `name` as a global, the generated alias would clash with it
+fn name_use_span(program: &Program<'_>, scoping: &Scoping, name: &str) -> Option<Span> {
+    if let Some(symbol) = scoping
+        .symbol_ids()
+        .find(|symbol| scoping.symbol_name(*symbol) == name)
+    {
+        return Some(scoping.symbol_span(symbol));
+    }
+    if !scoping.root_unresolved_references().contains_key(name) {
+        return None;
+    }
+    let mut finder = GlobalReferenceFinder { name, span: None };
+    finder.visit_program(program);
+    finder.span
+}
+
+struct GlobalReferenceFinder<'n> {
+    name: &'n str,
+    span: Option<Span>,
+}
+
+impl<'a> Visit<'a> for GlobalReferenceFinder<'_> {
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self.span.is_none() && identifier.name.as_str() == self.name {
+            self.span = Some(identifier.span);
+        }
+    }
 }
 
 // The import of the helpers generated code calls, skipping the ones the file already imports
@@ -106,7 +137,7 @@ pub(super) fn runtime_helper_import(
         .or_else(|| program.hashbang.as_ref().map(|hashbang| hashbang.span.end))
         .unwrap_or(0);
     Some(Edit {
-        span: oxc_span::Span::new(prologue_end, prologue_end),
+        span: Span::new(prologue_end, prologue_end),
         replacement: if prologue_end == 0 {
             format!("{import}\n")
         } else {

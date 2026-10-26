@@ -1,8 +1,6 @@
 use super::{
     css::LAYER_MARKER_PREFIX,
-    css_tokens::{
-        css_escape, escape_end, identifier, is_css_whitespace, skipped_end, type_selector, unescape,
-    },
+    css_tokens::{escape_end, identifier, is_css_whitespace, skipped_end, type_selector, unescape},
 };
 
 // Rewrites the classes of the compound selectors that match the styled element, like
@@ -53,7 +51,7 @@ fn mapping_class(mappings: &[(String, String, bool)]) -> impl Fn(&str) -> Option
         mappings
             .iter()
             .find(|(original, _, should_rewrite)| *should_rewrite && original == class_name)
-            .map(|(_, hashed, _)| css_escape(hashed))
+            .map(|(_, hashed, _)| hashed.clone())
     }
 }
 
