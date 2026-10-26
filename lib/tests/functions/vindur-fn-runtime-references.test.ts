@@ -10,7 +10,7 @@ const transitionFs = createFsMock({
   `,
 });
 
-test('should allow vindurFn references in vindur styles, re-exports and types', async () => {
+test('should allow vindurFn references in vindur styles and types', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { css, styled } from 'vindur';
@@ -26,8 +26,6 @@ test('should allow vindurFn references in vindur styles, re-exports and types', 
         \${transition('color')};
       \`;
 
-      export { transition };
-
       export const A = () => (
         <Box className={fade} css={\`\${transition('width')};\`} />
       );
@@ -39,7 +37,6 @@ test('should allow vindurFn references in vindur styles, re-exports and types', 
     "import { transition } from "#/transition";
     type Transition = typeof transition;
     const fade = "v1560qbr-2-fade";
-    export { transition };
     export const A = () => (
       <div className={fade + " v1560qbr-1-Box v1560qbr-3-css-prop-3"} />
     );
@@ -185,19 +182,94 @@ test('should error on default exports of a vindurFn', async () => {
   `);
 });
 
-test('should error on aliased re-exports of a vindurFn', async () => {
+test('should error on aliased exports of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        const transition = vindurFn((property: string) => \`transition: \${property} 0.2s;\`);
+
+        export { transition as fade };
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be exported as "fade", vindurFn functions can only be exported with their own name
+    loc: /test.tsx|5:9]
+  `);
+});
+
+test('should error on re-exports of an imported vindurFn', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
         import { transition } from '#/transition';
 
-        export { transition as fade };
+        export { transition };
       `,
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can't be exported as "fade", vindurFn functions can only be exported with their own name
+    [TransformError: /test.tsx: vindurFn "transition" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/transition"
     loc: /test.tsx|3:9]
+  `);
+});
+
+test('should error on re-exports of an imported vindurFn in an import cycle', async () => {
+  await expect(
+    transformWithFormat({
+      sourcePath: '/b.ts',
+      source: dedent`
+        import { f } from '#/c';
+
+        export { f };
+      `,
+      overrideDefaultFs: createFsMock({
+        'a.tsx': dedent`
+          import { f } from '#/b';
+
+          export const value = f(1);
+        `,
+        'c.ts': dedent`
+          import { vindurFn } from 'vindur';
+          import { value } from '#/a';
+
+          export const usesA = value;
+          export const f = vindurFn((n: number) => \`width: \${n}px;\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /b.ts: vindurFn "f" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/c"
+    loc: /b.ts|3:9]
+  `);
+});
+
+test('should error on export from of a vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export { transition } from '#/transition';
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/transition"
+    loc: /test.tsx|1:9]
+  `);
+});
+
+test('should error on export all of a module that declares vindurFns', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export * from '#/transition';
+      `,
+      overrideDefaultFs: transitionFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/transition"
+    loc: /test.tsx|1:0]
   `);
 });
 
@@ -232,13 +304,16 @@ test('should ignore type references with the name of a vindurFn', async () => {
   `);
 });
 
-test('should error on namespace imports of modules that re-export vindurFns', async () => {
+test('should error on vindurFn re-exports in imported modules', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
-        import * as mixins from '#/barrel';
+        import { css } from 'vindur';
+        import { transition } from '#/barrel';
 
-        export const value = mixins.transition('opacity');
+        export const box = css\`
+          \${transition('opacity')};
+        \`;
       `,
       overrideDefaultFs: createFsMock({
         'transition.ts': dedent`
@@ -254,8 +329,8 @@ test('should error on namespace imports of modules that re-export vindurFns', as
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn exports of "#/barrel" can't be imported with a namespace import, import them by name, e.g. import { transition } from "#/barrel"
-    loc: 1:7]
+    [TransformError: /test.tsx: /barrel.ts: vindurFn "transition" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/transition"
+    loc: /barrel.ts|3:9]
   `);
 });
 

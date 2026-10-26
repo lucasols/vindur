@@ -35,3 +35,4 @@ mod vindur_fn_references;
 mod with_component;
 
 pub(crate) use vindur::transform_program;
+pub(crate) use vindur_fn_references::re_exported_vindur_fn_error;

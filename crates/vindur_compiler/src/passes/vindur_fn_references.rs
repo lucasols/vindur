@@ -1,12 +1,13 @@
 use oxc_ast::ast::{
     BindingPattern, CallExpression, Declaration, ExportDefaultDeclaration, ExportNamedDeclaration,
-    Expression, IdentifierReference, JSXAttribute, JSXAttributeName, JSXAttributeValue,
-    JSXExpression, ModuleExportName, Program, Statement, TSTypeQuery, TaggedTemplateExpression,
+    Expression, IdentifierReference, ImportDeclarationSpecifier, JSXAttribute, JSXAttributeName,
+    JSXAttributeValue, JSXExpression, ModuleExportName, Program, Statement, TSTypeQuery,
+    TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::Span;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
@@ -15,7 +16,8 @@ use super::styled::tag_root;
 const VINDUR_FN_DECLARATION_ERROR: &str = "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"";
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
-/// they can only be referenced in vindur templates and css props, or re-exported by name.
+/// they can only be referenced in vindur templates and css props, or exported by the module
+/// that declares them.
 pub(super) fn runtime_vindur_fn_reference_error(
     program: &Program<'_>,
     scoping: &Scoping,
@@ -38,6 +40,7 @@ pub(super) fn runtime_vindur_fn_reference_error(
         imports,
         function_names,
         declaration_spans: vindur_fn_declaration_spans(program),
+        import_sources: import_sources(program),
         first_error: None,
     };
     visitor.visit_program(program);
@@ -45,15 +48,16 @@ pub(super) fn runtime_vindur_fn_reference_error(
     Some(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
-struct RuntimeReferenceVisitor<'s, 'i, 'n> {
+struct RuntimeReferenceVisitor<'s, 'i, 'n, 'p> {
     scoping: &'s Scoping,
     imports: &'i VindurImports<'i>,
     function_names: &'n FxHashSet<&'n str>,
     declaration_spans: FxHashSet<Span>,
+    import_sources: FxHashMap<&'p str, &'p str>,
     first_error: Option<(Span, String)>,
 }
 
-impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
+impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_, '_> {
     // Direct `vindurFn(...)` callees are not visited, so any other reference is indirect, e.g.
     // `(vindurFn)(...)` or `const create = vindurFn`
     fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
@@ -105,8 +109,8 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
         }
     }
 
-    // Re-exports keep the function available to other vindur styles, but only named imports
-    // of the exported name are resolved
+    // Exports keep the function available to other vindur styles, but only named imports of
+    // the exported name from the declaring module are resolved
     fn visit_export_named_declaration(&mut self, export: &ExportNamedDeclaration<'a>) {
         if let Some(declaration) = &export.declaration {
             self.visit_declaration(declaration);
@@ -115,11 +119,16 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
             let ModuleExportName::IdentifierReference(local) = &specifier.local else {
                 continue;
             };
+            if self.first_error.is_some() || !self.is_vindur_fn_value_reference(local) {
+                continue;
+            }
             let exported = specifier.exported.name();
-            if self.first_error.is_none()
-                && exported.as_str() != local.name.as_str()
-                && self.is_vindur_fn_value_reference(local)
-            {
+            if let Some(source) = self.import_sources.get(local.name.as_str()) {
+                self.first_error = Some((
+                    specifier.span,
+                    re_exported_vindur_fn_error(&local.name, source),
+                ));
+            } else if exported.as_str() != local.name.as_str() {
                 self.first_error = Some((
                     specifier.span,
                     format!(
@@ -170,7 +179,7 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
 }
 
-impl RuntimeReferenceVisitor<'_, '_, '_> {
+impl RuntimeReferenceVisitor<'_, '_, '_, '_> {
     /// A value reference to a module level vindurFn, shadowing bindings and types are ignored
     fn is_vindur_fn_value_reference(&self, identifier: &IdentifierReference<'_>) -> bool {
         if !self.function_names.contains(identifier.name.as_str()) {
@@ -204,6 +213,39 @@ impl RuntimeReferenceVisitor<'_, '_, '_> {
             _ => {}
         }
     }
+}
+
+pub(crate) fn re_exported_vindur_fn_error(name: &str, source: &str) -> String {
+    format!(
+        "vindurFn \"{name}\" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from \"{source}\""
+    )
+}
+
+/// The import sources of the module's imported bindings, by local name
+fn import_sources<'a>(program: &Program<'a>) -> FxHashMap<&'a str, &'a str> {
+    program
+        .body
+        .iter()
+        .filter_map(|statement| match statement {
+            Statement::ImportDeclaration(import) => Some(import),
+            _ => None,
+        })
+        .flat_map(|import| {
+            import
+                .specifiers
+                .iter()
+                .flatten()
+                .map(move |specifier| (specifier, import.source.value.as_str()))
+        })
+        .map(|(specifier, source)| {
+            let local = match specifier {
+                ImportDeclarationSpecifier::ImportSpecifier(specifier) => &specifier.local,
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => &specifier.local,
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(specifier) => &specifier.local,
+            };
+            (local.name.as_str(), source)
+        })
+        .collect()
 }
 
 /// vindurFn calls initializing module level variables, which are checked by the vindurFn
