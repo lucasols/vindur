@@ -449,3 +449,129 @@ test('should concat className expressions on styled components', async () => {
     "
   `);
 });
+
+test('should merge a css call in the className of a styled component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, css, cx } from 'vindur';
+
+      const Box = styled.div\`
+        color: red;
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <>
+          <Box className={css\`height: 100%;\`} />
+          <Box className={cx(css\`width: 100%;\`, on && 'x')} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({ on }: { on: boolean }) => (
+      <>
+        <div className={"v1560qbr-1-Box " + ("v1560qbr-2" || "")} />
+        <div className={"v1560qbr-1-Box " + (cx("v1560qbr-3", on && "x") || "")} />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      color: red;
+    }
+
+    .v1560qbr-2 {
+      height: 100%;
+    }
+
+    .v1560qbr-3 {
+      width: 100%;
+    }
+    "
+  `);
+});
+
+test('should merge a css call in the className with the cx prop and style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, css } from 'vindur';
+
+      const Box = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Item = styled.div\`
+        &.selected {
+          color: blue;
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <>
+          <Box active={on} className={css\`height: 100%;\`} />
+          <Item className={css\`width: 100%;\`} cx={{ selected: on }} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({ on }: { on: boolean }) => (
+      <>
+        <div
+          className={
+            "v1560qbr-1-Box " + ("v1560qbr-4" || "") + (on ? " voctcyj-active" : "")
+          }
+        />
+        <div
+          className={
+            ("v1560qbr-5" || "") +
+            " v1560qbr-2-Item " +
+            cx({
+              "v1560qbr-3-selected": on,
+            })
+          }
+        />
+      </>
+    );
+    "
+  `);
+});
+
+test('should merge a css call in the className with the dynamicColor prop', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, css, createDynamicCssColor } from 'vindur';
+
+      const color = createDynamicCssColor();
+
+      const Box = styled.div\`
+        background: \${color.value};
+      \`;
+
+      export const A = () => (
+        <Box className={css\`height: 100%;\`} dynamicColor={color.set('#fff')} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
+    export const A = () => (
+      <div
+        {...color._sp("#fff", {
+          className: "v1560qbr-2-Box " + ("v1560qbr-3" || ""),
+        })}
+      />
+    );
+    "
+  `);
+});
