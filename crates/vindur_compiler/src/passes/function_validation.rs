@@ -88,20 +88,56 @@ pub(super) fn validate_vindur_function(
             span: body_span,
         });
     };
-    let parameters = parameter_names(params);
-    params
-        .iter()
-        .flat_map(parameter_defaults)
-        .find_map(|default| {
-            validate_expression(
-                name,
-                default,
-                &parameters,
-                source,
-                ValidationPosition::ParameterDefault,
-            )
-        })
-        .or_else(|| validate_expression(name, body, &parameters, source, ValidationPosition::Body))
+    validate_parameter_defaults(name, params, source).or_else(|| {
+        validate_expression(
+            name,
+            body,
+            &parameter_names(params),
+            source,
+            ValidationPosition::Body,
+        )
+    })
+}
+
+/// Like in JS, a parameter default can only use the parameters bound before it, e.g. `b` is
+/// not yet initialized in `(a = b, b = 1) => ...`
+fn validate_parameter_defaults(
+    name: &str,
+    params: &[FormalParameter<'_>],
+    source: &str,
+) -> Option<FunctionValidationError> {
+    let mut bound = FxHashSet::default();
+    let validate_default = |default: &Expression<'_>, bound: &FxHashSet<String>| {
+        validate_expression(
+            name,
+            default,
+            bound,
+            source,
+            ValidationPosition::ParameterDefault,
+        )
+    };
+    for parameter in params {
+        if let Some(error) = parameter
+            .initializer
+            .as_deref()
+            .and_then(|default| validate_default(default, &bound))
+        {
+            return Some(error);
+        }
+        let BindingPattern::ObjectPattern(object) = &parameter.pattern else {
+            collect_binding_names(&parameter.pattern, &mut bound);
+            continue;
+        };
+        for property in &object.properties {
+            if let BindingPattern::AssignmentPattern(assignment) = &property.value
+                && let Some(error) = validate_default(&assignment.right, &bound)
+            {
+                return Some(error);
+            }
+            collect_binding_names(&property.value, &mut bound);
+        }
+    }
+    None
 }
 
 /// `...rest` in the parameters or in an object parameter, e.g. `({ a, ...rest }) => ...`
@@ -114,24 +150,6 @@ fn rest_parameter_span(params: &FormalParameters<'_>) -> Option<Span> {
             object.rest.as_ref().map(|rest| rest.span)
         })
     })
-}
-
-/// Default values of a parameter, e.g. `1` and `2` in `({ a = 1 } = { a: 2 })`
-fn parameter_defaults<'a>(parameter: &'a FormalParameter<'a>) -> Vec<&'a Expression<'a>> {
-    let mut defaults = parameter
-        .initializer
-        .as_deref()
-        .into_iter()
-        .collect::<Vec<_>>();
-    if let BindingPattern::ObjectPattern(object) = &parameter.pattern {
-        defaults.extend(object.properties.iter().filter_map(|property| {
-            let BindingPattern::AssignmentPattern(assignment) = &property.value else {
-                return None;
-            };
-            Some(&assignment.right)
-        }));
-    }
-    defaults
 }
 
 fn arrow_body_expression<'a>(
@@ -201,7 +219,7 @@ fn validate_expression(
         {
             Some(FunctionValidationError {
                 message: format!(
-                    "vindurFn \"{name}\" parameter defaults can only use literals and other parameters, \"{}\" is not supported",
+                    "vindurFn \"{name}\" parameter defaults can only use literals and earlier parameters, \"{}\" is not supported",
                     identifier.name
                 ),
                 span: expression.span(),

@@ -466,3 +466,60 @@ test('should evaluate module constants computed from imported values', async () 
     "
   `);
 });
+
+test('should resolve imported constants by their exported name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { PRIMARY } from '#/colors'
+
+      const style = css\`
+        color: \${PRIMARY};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'colors.ts': dedent`
+        const COLOR = 'red'
+
+        export { COLOR as PRIMARY }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: red;
+    }
+    "
+  `);
+});
+
+test('should not resolve named imports of a default exported constant', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { COLOR } from '#/colors'
+
+        const style = css\`
+          color: \${COLOR};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          const COLOR = 'red'
+
+          export default COLOR
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "COLOR" not found in /colors.ts
+    loc: 5:11]
+  `);
+});

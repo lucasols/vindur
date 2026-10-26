@@ -272,4 +272,39 @@ describe('keyframes cross-file imports', () => {
     `,
     );
   });
+
+  test('should error on imported constants built from keyframes', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { animation } from '#/derived'
+          import { styled } from 'vindur'
+
+          const Component = styled.div\`
+            animation: \${animation};
+          \`
+        `,
+        overrideDefaultFs: createFsMock({
+          'animations.ts': dedent`
+            import { keyframes } from 'vindur'
+
+            export const fadeIn = keyframes\`
+              from { opacity: 0; }
+              to { opacity: 1; }
+            \`
+          `,
+          'derived.ts': dedent`
+            import { fadeIn } from '#/animations'
+
+            export const animation = \`\${fadeIn} 1s ease\`
+          `,
+        }),
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "animation" from /derived.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
+      loc: 5:15]
+    `,
+    );
+  });
 });

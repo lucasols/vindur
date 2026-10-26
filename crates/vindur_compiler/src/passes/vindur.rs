@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use oxc_ast::ast::{Expression, Program, Statement};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::{
     CompilerDiagnostic, ModuleFacts, TransformOptions,
@@ -21,7 +21,7 @@ use super::{
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
-        assigned_tag_spans, collect_exported_names, collect_exported_object_names,
+        assigned_tag_spans, collect_export_bindings, collect_exported_object_names,
         collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
@@ -58,7 +58,12 @@ pub(crate) fn transform_program(
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
-    let exported_names = collect_exported_names(program);
+    let export_bindings = collect_export_bindings(program);
+    // Local bindings exported by the module, under any name
+    let exported_names = export_bindings
+        .iter()
+        .filter_map(|(_, local)| local.as_deref())
+        .collect::<FxHashSet<_>>();
 
     // Imported values come first, so module constants can be computed from them
     let mut constants = imported_values
@@ -464,17 +469,20 @@ pub(crate) fn transform_program(
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
-    let exports = exported_names
+    let exports = export_bindings
         .iter()
-        .filter_map(|name| {
+        .filter_map(|(exported, local)| {
             constants
-                .get(name)
+                .get(local.as_deref()?)
                 .cloned()
-                .map(|value| (name.clone(), value))
+                .map(|value| (exported.clone(), value))
         })
         .collect();
     let facts = ModuleFacts {
-        declared_exports: exported_names.iter().cloned().collect(),
+        declared_exports: export_bindings
+            .iter()
+            .map(|(exported, _)| exported.clone())
+            .collect(),
         declared_object_exports: exported_object_names.iter().cloned().collect(),
         source_hash: hasher.finish(),
         constants,

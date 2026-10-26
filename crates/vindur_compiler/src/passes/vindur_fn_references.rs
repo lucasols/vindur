@@ -148,13 +148,14 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_, '_> {
             && self.first_error.is_none()
             && self.is_vindur_fn_value_reference(identifier)
         {
-            self.first_error = Some((
-                identifier.span,
-                format!(
+            let message = match self.import_sources.get(identifier.name.as_str()) {
+                Some(source) => re_exported_vindur_fn_error(&identifier.name, source),
+                None => format!(
                     "vindurFn \"{}\" can't be default exported, vindurFn functions can only be imported by name, use a named export",
                     identifier.name
                 ),
-            ));
+            };
+            self.first_error = Some((identifier.span, message));
             return;
         }
         walk::walk_export_default_declaration(self, export);

@@ -5,6 +5,7 @@ use oxc_ast::ast::{
     ObjectProperty, ObjectPropertyKind, TemplateLiteral, VariableDeclaration,
     VariableDeclarationKind,
 };
+use oxc_ast_visit::Visit;
 use oxc_ecmascript::{
     GlobalContext, ToBoolean, ToJsString, ToNumber, WithoutGlobalReferenceInformation,
     constant_evaluation::{ConstantValue, ValueType},
@@ -44,9 +45,45 @@ pub(super) fn collect_declaration_constants(
         if let Some(value) = compile_vindur_function(initializer, imports)
             .or_else(|| evaluate_expression(initializer, constants, scoping))
         {
+            if !matches!(value, StaticValue::Keyframes(_))
+                && references_keyframes(initializer, constants, scoping)
+            {
+                continue;
+            }
             constants.insert(identifier.name.to_string(), value);
         }
     }
+}
+
+/// Keyframes names can't be folded into other constants, e.g. `${spin} 1s`: the folded value
+/// loses the keyframes CSS, so an importer of the constant would not load it
+fn references_keyframes(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    struct KeyframesReferenceVisitor<'c> {
+        constants: &'c FxHashMap<String, StaticValue>,
+        scoping: &'c Scoping,
+        found: bool,
+    }
+
+    impl<'a> Visit<'a> for KeyframesReferenceVisitor<'_> {
+        fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+            self.found |= matches!(
+                resolved_constant(identifier, self.constants, self.scoping),
+                Some(StaticValue::Keyframes(_))
+            );
+        }
+    }
+
+    let mut visitor = KeyframesReferenceVisitor {
+        constants,
+        scoping,
+        found: false,
+    };
+    visitor.visit_expression(expression);
+    visitor.found
 }
 
 pub(super) fn evaluate_expression(

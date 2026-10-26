@@ -170,6 +170,23 @@ test('should error on default exports of a vindurFn', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const transition = vindurFn((property: string) => \`transition: \${property} 0.2s;\`);
+
+        export default (transition);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "transition" can't be default exported, vindurFn functions can only be imported by name, use a named export
+    loc: /test.tsx|5:16]
+  `);
+});
+
+test('should error on default exports of an imported vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
         import { transition } from '#/transition';
 
         export default (transition);
@@ -177,7 +194,7 @@ test('should error on default exports of a vindurFn', async () => {
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can't be default exported, vindurFn functions can only be imported by name, use a named export
+    [TransformError: /test.tsx: vindurFn "transition" can't be re-exported, vindurFn functions can only be imported from the module that declares them, import it directly from "#/transition"
     loc: /test.tsx|3:16]
   `);
 });

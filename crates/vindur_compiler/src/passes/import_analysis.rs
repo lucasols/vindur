@@ -21,27 +21,36 @@ pub(super) fn is_compile_time_import(name: &str) -> bool {
     COMPILE_TIME_IMPORTS.contains(&name)
 }
 
-pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String> {
-    let mut names = FxHashSet::default();
+/// The module's exports by exported name, with the local binding each one exports, `None` for
+/// `export { name } from` re-exports, e.g. `("PRIMARY", Some("COLOR"))` for
+/// `export { COLOR as PRIMARY }` and `("default", Some("Button"))` for `export default Button`
+pub(super) fn collect_export_bindings(program: &Program<'_>) -> Vec<(String, Option<String>)> {
+    let mut bindings = Vec::new();
     for statement in &program.body {
         match statement {
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    names.extend(declaration.declarations.iter().filter_map(|declarator| {
+                    bindings.extend(declaration.declarations.iter().filter_map(|declarator| {
                         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
                             return None;
                         };
-                        Some(identifier.name.to_string())
+                        Some((
+                            identifier.name.to_string(),
+                            Some(identifier.name.to_string()),
+                        ))
                     }));
                 } else {
-                    names.extend(
-                        export
-                            .specifiers
-                            .iter()
-                            .map(|specifier| specifier.local.name().to_string()),
-                    );
+                    bindings.extend(export.specifiers.iter().map(|specifier| {
+                        (
+                            specifier.exported.name().to_string(),
+                            export
+                                .source
+                                .is_none()
+                                .then(|| specifier.local.name().to_string()),
+                        )
+                    }));
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
@@ -50,13 +59,13 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                     .as_expression()
                     .map(Expression::get_inner_expression)
                 {
-                    names.insert(identifier.name.to_string());
+                    bindings.push(("default".to_owned(), Some(identifier.name.to_string())));
                 }
             }
             _ => {}
         }
     }
-    names
+    bindings
 }
 
 pub(super) fn collect_exported_object_names(program: &Program<'_>) -> FxHashSet<String> {

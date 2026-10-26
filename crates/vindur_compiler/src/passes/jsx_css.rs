@@ -12,7 +12,9 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
+    jsx_attributes::{
+        find_attribute, find_attributes, find_last_attribute, opening_attribute_insertion_offset,
+    },
     jsx_cx::CxElementTransform,
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
@@ -85,6 +87,16 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         }
         match self.pass {
             JsxCssPass::CssProps => {
+                // Only one css prop is compiled, a duplicate would be left as is
+                if let Some(duplicate) = find_attributes(element, "css").nth(1) {
+                    self.diagnostic = Some(CompilerDiagnostic::error(
+                        self.output.file_path,
+                        self.output.source,
+                        duplicate.span,
+                        "Duplicate css prop, an element can only have one css prop".to_owned(),
+                    ));
+                    return;
+                }
                 if let Some(css_attribute) = find_attribute(element, "css") {
                     self.process_css_attribute(element, css_attribute);
                 }

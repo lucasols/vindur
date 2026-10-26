@@ -122,8 +122,23 @@ test('should error on a parameter default referencing a module constant', async 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "size" parameter defaults can only use literals and other parameters, "SIZE" is not supported
+    [TransformError: /test.tsx: vindurFn "size" parameter defaults can only use literals and earlier parameters, "SIZE" is not supported
     loc: /test.tsx|5:46]
+  `);
+});
+
+test('should error on a parameter default referencing a later parameter', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const size = vindurFn(({ width = height, height = 4 }: { width?: number; height?: number }) => \`width: \${width}px;\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "size" parameter defaults can only use literals and earlier parameters, "height" is not supported
+    loc: /test.tsx|3:40]
   `);
 });
 
