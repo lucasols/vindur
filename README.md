@@ -758,6 +758,8 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
+import { createClassName } from 'vindur';
+
 export const elementClassName = createClassName('vhash-1');
 export const genericPurposeId = 'vhash-2';
 ```

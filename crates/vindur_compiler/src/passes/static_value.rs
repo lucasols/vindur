@@ -7,7 +7,8 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
-    invalid_array_argument_error, invalid_dynamic_color_method_error, invalid_layer_error,
+    invalid_array_argument_error, invalid_dynamic_color_method_error,
+    invalid_function_argument_error, invalid_layer_error, unevaluable_import_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
@@ -153,6 +154,11 @@ fn build_template_css(
                 format!("Function \"{imported_name}\" not found in {source_path}"),
             ));
         }
+        if let Some(diagnostic) =
+            unevaluable_import_error(expression, constants, scoping, file_path, source)
+        {
+            return Err(diagnostic);
+        }
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
             && let Some(StaticValue::InvalidFunction { .. }) =
@@ -196,12 +202,25 @@ fn build_template_css(
         let Some(value) = evaluate_expression(expression, constants, scoping) else {
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
+                    .or_else(|| {
+                        invalid_function_argument_error(
+                            expression, constants, scoping, file_path, source,
+                        )
+                    })
             {
                 return Err(diagnostic);
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        if matches!(value, StaticValue::LayerFunction) {
+        // Functions and objects have no CSS representation
+        if matches!(
+            value,
+            StaticValue::LayerFunction
+                | StaticValue::Function(_)
+                | StaticValue::ImportedFunction(_)
+                | StaticValue::Object(_)
+                | StaticValue::ImportedObject { .. }
+        ) {
             return Err(interpolation_error(expression, file_path, source, context));
         }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {

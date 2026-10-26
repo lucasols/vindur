@@ -46,7 +46,9 @@ fn compile_function(call: &CallExpression<'_>) -> Result<StaticValue, Span> {
         .map(compile_parameter)
         .collect::<Result<Vec<_>, _>>()?;
     let body = match function.body.statements.as_slice() {
-        [oxc_ast::ast::Statement::ExpressionStatement(body)] => &body.expression,
+        [oxc_ast::ast::Statement::ExpressionStatement(body)] if function.expression => {
+            &body.expression
+        }
         [oxc_ast::ast::Statement::ReturnStatement(statement)] => {
             statement.argument.as_ref().ok_or(statement.span)?
         }
@@ -262,6 +264,10 @@ fn compile_function_call(call: &CallExpression<'_>) -> Result<FunctionExpression
             else {
                 return Err(function.body.span);
             };
+            // A block body without `return` returns undefined
+            if !function.expression {
+                return Err(function.body.span);
+            }
             Ok(FunctionExpression::Map {
                 array: Box::new(compile_function_expression(&member.object)?),
                 parameter: identifier.name.to_string(),

@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::css_syntax::is_layer_name;
+use super::function_evaluation::evaluate_argument;
 use super::static_evaluation::{evaluate_expression, resolved_constant};
 
 pub(super) fn invalid_layer_error(
@@ -129,4 +130,77 @@ pub(super) fn invalid_array_argument_error(
         ));
     }
     None
+}
+
+/// Errors for imported names without a static value, e.g. `export const GAP = rem(4)`
+pub(super) fn unevaluable_import_error(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let Expression::Identifier(identifier) = expression else {
+        return None;
+    };
+    let message = match resolved_constant(identifier, constants, scoping)? {
+        StaticValue::MissingImport {
+            imported_name,
+            source_path,
+        } => format!("\"{imported_name}\" not found in {source_path}"),
+        StaticValue::InvalidFunction { source_path }
+        | StaticValue::InvalidObject { source_path } => {
+            format!(
+                "\"{}\" from {source_path} can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles",
+                identifier.name
+            )
+        }
+        _ => return None,
+    };
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        expression.span(),
+        message,
+    ))
+}
+
+pub(super) fn invalid_function_argument_error(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let Expression::CallExpression(call) = expression else {
+        return None;
+    };
+    let Expression::Identifier(callee) = &call.callee else {
+        return None;
+    };
+    if !matches!(
+        resolved_constant(callee, constants, scoping)?,
+        StaticValue::Function(_) | StaticValue::ImportedFunction(_)
+    ) {
+        return None;
+    }
+    let argument = call
+        .arguments
+        .iter()
+        .find(|argument| evaluate_argument(argument, constants, scoping).is_none())?;
+    if let Some(expression) = argument.as_expression()
+        && let Some(diagnostic) =
+            unevaluable_import_error(expression, constants, scoping, file_path, source)
+    {
+        return Some(diagnostic);
+    }
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        argument.span(),
+        format!(
+            "Argument of vindurFn \"{}\" can't be evaluated at compile time, only literals, module constants, and arrays or objects of them are supported",
+            callee.name
+        ),
+    ))
 }

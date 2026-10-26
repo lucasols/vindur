@@ -731,3 +731,33 @@ test('should error on comparing objects in vindurFn', async () => {
     loc: 7:4]
   `);
 });
+
+test('should error on block bodies without return in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const color = vindurFn((value: string) => { \`color: \${value};\` });
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "color" body is too complex - functions must contain only a single return statement or be arrow functions with template literals
+    loc: /test.tsx|3:49]
+  `);
+});
+
+test('should error on map callbacks with block bodies without return', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const sizes = vindurFn((values: number[]) => values.map((n) => { \`\${n}px\` }).join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "sizes" contains unsupported syntax "{ \`\${n}px\` }", it can't be evaluated at compile time
+    loc: /test.tsx|3:70]
+  `);
+});

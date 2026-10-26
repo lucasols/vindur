@@ -84,7 +84,9 @@ fn arrow_body_expression<'a>(
     function: &'a oxc_ast::ast::ArrowFunctionExpression<'a>,
 ) -> Option<&'a Expression<'a>> {
     match function.body.statements.as_slice() {
-        [Statement::ExpressionStatement(statement)] => Some(&statement.expression),
+        [Statement::ExpressionStatement(statement)] if function.expression => {
+            Some(&statement.expression)
+        }
         [Statement::ReturnStatement(statement)] => statement.argument.as_ref(),
         _ => None,
     }

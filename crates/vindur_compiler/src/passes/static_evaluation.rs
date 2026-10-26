@@ -63,6 +63,10 @@ pub(super) fn evaluate_expression(
         Expression::Identifier(identifier) => {
             match resolved_constant(identifier, constants, scoping)? {
                 StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
+                // Imports without a static value can't be evaluated
+                StaticValue::MissingImport { .. }
+                | StaticValue::InvalidFunction { .. }
+                | StaticValue::InvalidObject { .. } => None,
                 value => Some(value.clone()),
             }
         }
@@ -214,7 +218,7 @@ fn math_constant(name: &str) -> Option<f64> {
     }
 }
 
-pub(super) fn evaluate_object(
+fn evaluate_object(
     object: &ObjectExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -231,7 +235,7 @@ pub(super) fn evaluate_object(
     Some(StaticValue::Object(properties))
 }
 
-pub(super) fn evaluate_array(
+fn evaluate_array(
     array: &ArrayExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -291,7 +295,7 @@ pub(super) fn evaluate_binary(
         }
         // Objects and arrays are compared by identity, which static values don't have
         (left, BinaryOperator::StrictEquality | BinaryOperator::StrictInequality, right)
-            if !is_primitive(&left) || !is_primitive(&right) =>
+            if !is_primitive(&left) && !is_primitive(&right) =>
         {
             None
         }

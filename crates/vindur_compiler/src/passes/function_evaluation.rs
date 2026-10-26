@@ -1,4 +1,4 @@
-use oxc_ast::ast::Argument;
+use oxc_ast::ast::{Argument, Expression};
 use oxc_semantic::Scoping;
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashMap;
@@ -8,8 +8,8 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_array, evaluate_binary, evaluate_expression, evaluate_object, resolved_constant,
-    static_value_to_boolean, static_value_to_string,
+    evaluate_binary, evaluate_expression, resolved_constant, static_value_to_boolean,
+    static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -268,8 +268,11 @@ fn evaluate_function_expression(
             let StaticValue::Array(values) = evaluate_function_expression(array, bindings)? else {
                 return None;
             };
-            let separator =
-                static_value_to_string(&evaluate_function_expression(separator, bindings)?);
+            // Like in JS, an undefined separator joins with commas
+            let separator = match evaluate_function_expression(separator, bindings)? {
+                StaticValue::Undefined => ",".to_owned(),
+                separator => static_value_to_string(&separator),
+            };
             Some(StaticValue::String(
                 values
                     .iter()
@@ -356,29 +359,13 @@ pub(super) fn evaluate_argument(
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<StaticValue> {
-    match argument {
-        Argument::BooleanLiteral(literal) => Some(StaticValue::Boolean(literal.value)),
-        Argument::StringLiteral(literal) => Some(StaticValue::String(literal.value.to_string())),
-        Argument::NumericLiteral(literal) => Some(StaticValue::Number(literal.value)),
-        Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
-            Some(StaticValue::Undefined)
-        }
-        Argument::Identifier(identifier) => {
-            match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
-                StaticValue::ImportedObject { properties, .. } => {
-                    Some(StaticValue::Object(properties.clone()))
-                }
-                value => Some(value.clone()),
-            }
-        }
-        Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),
-        Argument::ObjectExpression(object) => evaluate_object(object, constants, scoping),
-        Argument::BinaryExpression(binary) => evaluate_binary(
-            evaluate_expression(&binary.left, constants, scoping)?,
-            binary.operator,
-            evaluate_expression(&binary.right, constants, scoping)?,
-        ),
-        _ => None,
+    let expression = argument.as_expression()?;
+    // Imported objects are passed by value so they can be destructured
+    if let Expression::Identifier(identifier) = expression
+        && let Some(StaticValue::ImportedObject { properties, .. }) =
+            resolved_constant(identifier, constants, scoping)
+    {
+        return Some(StaticValue::Object(properties.clone()));
     }
+    evaluate_expression(expression, constants, scoping)
 }

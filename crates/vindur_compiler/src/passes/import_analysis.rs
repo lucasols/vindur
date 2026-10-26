@@ -10,7 +10,6 @@ use crate::{
 
 const COMPILE_TIME_IMPORTS: &[&str] = &[
     "css",
-    "createClassName",
     "createGlobalStyle",
     "keyframes",
     "layer",
