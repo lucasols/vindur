@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXElement, JSXExpression, Program,
+    Argument, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
+    JSXElement, JSXExpression, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -80,16 +80,6 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
-        if let Some(identifier) = self.bare_color_identifier(&container.expression) {
-            self.error(
-                identifier.span,
-                format!(
-                    "dynamicColor requires a value, use `{}.set(value)`",
-                    identifier.name
-                ),
-            );
-            return;
-        }
         let Some(colors) = self.color_expressions(&container.expression) else {
             if let Some(message) = self.conditional_error_message(&container.expression) {
                 self.error(container.expression.span(), message);
@@ -249,34 +239,6 @@ impl DynamicColorVisitor<'_> {
                 })
                 .collect::<Option<Vec<_>>>()
                 .map(|groups| groups.into_iter().flatten().collect()),
-            _ => None,
-        }
-    }
-
-    /// A dynamic color passed without `.set()`, e.g. `dynamicColor={color}`, has no value
-    fn bare_color_identifier<'e, 'a>(
-        &self,
-        expression: &'e JSXExpression<'a>,
-    ) -> Option<&'e IdentifierReference<'a>> {
-        let is_color = |identifier: &IdentifierReference<'_>| {
-            matches!(
-                resolved_constant(identifier, self.output.constants, self.output.scoping),
-                Some(StaticValue::DynamicColor { .. })
-            )
-        };
-        match expression {
-            JSXExpression::Identifier(identifier) => is_color(identifier).then_some(&**identifier),
-            JSXExpression::ArrayExpression(array) => {
-                array
-                    .elements
-                    .iter()
-                    .find_map(|element| match element.as_expression()? {
-                        Expression::Identifier(identifier) if is_color(identifier) => {
-                            Some(&**identifier)
-                        }
-                        _ => None,
-                    })
-            }
             _ => None,
         }
     }

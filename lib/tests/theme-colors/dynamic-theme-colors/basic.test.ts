@@ -181,39 +181,4 @@ describe('Dynamic Colors - Basic Usage', () => {
     `,
     );
   });
-
-  test('should throw error when dynamicColor receives a color without a value', async () => {
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { createDynamicCssColor } from 'vindur'
-
-          const color = createDynamicCssColor()
-
-          const Component = () => <div dynamicColor={color} />
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: dynamicColor requires a value, use \`color.set(value)\`
-      loc: 5:43]
-    `);
-
-    await expect(
-      transformWithFormat({
-        source: dedent`
-          import { createDynamicCssColor } from 'vindur'
-
-          const color1 = createDynamicCssColor()
-          const color2 = createDynamicCssColor()
-
-          const Component = () => (
-            <div dynamicColor={[color1.set('#fff'), color2]} />
-          )
-        `,
-      }),
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: dynamicColor requires a value, use \`color2.set(value)\`
-      loc: 7:42]
-    `);
-  });
 });
