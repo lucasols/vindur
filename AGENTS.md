@@ -9,7 +9,7 @@ Vindur is a compiler, and compilers have endless edge cases. Do not try to cover
 - Prefer a restricted set of supported syntax and patterns over handling every corner case. A narrow feature that is always correct beats a broad one with gaps
 - When code falls outside the supported set, emit a clear error (or a warning when the output is still correct) that tells the user what to write instead. Never guess, fall back, or silently compile to something wrong
 - Do not add special-case handling for rare patterns (aliased imports, re-exports, indirect references, computed values, unusual module shapes, etc.) unless there is a real use case. Rejecting them with a good error is the default
-- When fixing a bug in an edge case, first consider whether the pattern should be unsupported instead of handled, even if it is already supported: removing support and erroring is preferred over complex handling. A pattern that builds without error and then breaks at runtime is never an acceptable "leave as is"
+- When fixing a bug in an edge case, first consider whether the pattern should be unsupported instead of handled, even if it is already supported: removing support and erroring is preferred over complex handling, but confirm with the user before removing support for an already supported pattern. A pattern that builds without error and then breaks at runtime is never an acceptable "leave as is"
 - Keep the supported surface easy to describe in the README. If a feature needs a long list of exceptions to explain, it is probably too broad
 
 ## Performance
