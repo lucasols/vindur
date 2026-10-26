@@ -3,7 +3,7 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part, replace_class_selector};
+use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -289,25 +289,4 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
         values.push(literal.value.to_string());
     }
     (!values.is_empty()).then_some(values)
-}
-
-pub(crate) fn rewrite_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> String {
-    let mut output = css.to_owned();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                output = replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name);
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    output = replace_class_selector(
-                        &output,
-                        &format!("{}-{value}", flag.prop_name),
-                        &format!("{}-{value}", flag.hashed_class_name),
-                    );
-                }
-            }
-        }
-    }
-    output
 }

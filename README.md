@@ -1248,6 +1248,8 @@ The CSS classes are automatically applied based on prop values:
 }
 ```
 
+Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written.
+
 ## Theme Colors
 
 Create type-safe theme color systems with `createStaticThemeColors`:

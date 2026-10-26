@@ -557,7 +557,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
       }
 
       /* Test :has() with flags */
-      &:has(.voctcyj-active) {
+      &:has(.active) {
         border-color: blue;
       }
 

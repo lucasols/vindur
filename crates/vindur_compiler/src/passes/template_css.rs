@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use oxc_ast::ast::{TemplateElement, TemplateLiteral};
 use oxc_span::{GetSpan, Span};
 
@@ -7,7 +5,7 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::styled::{StyleFlag, css_class_name_part, replace_class_selector};
+use super::style_flag_selectors::{flag_validation_css, misplaced_flag_class_at};
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -91,10 +89,21 @@ pub(crate) fn validate_template_css(
 ) -> Result<(), CompilerDiagnostic> {
     let kind = BlockKind::from_tag_type(context.tag_type);
     let validate =
-        |css: &str| validate_style_block(&validation_css(css, context.style_flags), kind);
+        |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags), kind);
     let Err(error) = validate(&evaluated.css) else {
         return Ok(());
     };
+    if let Some(class) = misplaced_flag_class_at(&evaluated.css, error.start, context.style_flags) {
+        let (span, _) = evaluated.source_span(&error, source, template);
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            format!(
+                "Style flag \"{class}\" can only be used in selectors of the element itself, e.g. \"&.{class}\""
+            ),
+        ));
+    }
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;
@@ -183,19 +192,4 @@ fn missing_extension(
         }
     }
     Ok(forced.first().copied())
-}
-
-/// Style flag selectors like `&.$active` are rewritten to hashed classes after validation. A `$` is
-/// not valid in a class name, so they are validated with `_`, which keeps the CSS offsets
-fn validation_css<'a>(css: &'a str, style_flags: &[StyleFlag]) -> Cow<'a, str> {
-    style_flags
-        .iter()
-        .filter(|flag| flag.prop_name.contains('$'))
-        .fold(Cow::Borrowed(css), |css, flag| {
-            Cow::Owned(replace_class_selector(
-                &css,
-                &flag.prop_name,
-                &css_class_name_part(&flag.prop_name),
-            ))
-        })
 }

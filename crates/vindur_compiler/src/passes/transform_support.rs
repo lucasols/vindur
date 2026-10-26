@@ -19,10 +19,12 @@ use super::{
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
-    style_flags::rewrite_style_flag_selectors,
+    style_flag_selectors::{
+        missing_style_flag_selectors, rewrite_style_flag_selectors, style_element_classes,
+        undeclared_style_classes,
+    },
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
-        styled_tag_component_with_attrs, undeclared_style_classes,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -197,9 +199,16 @@ pub(super) fn process_variable_declaration(
                 },
             )?;
             let content = clean_css(&content);
+            let element_classes = if transform.dev || !style_flags.is_empty() {
+                style_element_classes(&content, &style_flags).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
+            } else {
+                Vec::new()
+            };
             if transform.dev {
                 transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &style_flags)
+                    missing_style_flag_selectors(&element_classes, &style_flags)
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(
@@ -228,7 +237,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared_style_classes(&element_classes, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -249,7 +258,10 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content = rewrite_style_flag_selectors(&content, &element_classes, &style_flags)
+                .map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?;
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,

@@ -42,12 +42,12 @@ enum Subject {
 }
 
 /// A class selector that may apply to the element itself, `start..end` is the class name
-struct ElementClass {
-    start: usize,
-    end: usize,
-    name: String,
+pub(super) struct ElementClass {
+    pub start: usize,
+    pub end: usize,
+    pub name: String,
     /// Also applies to other elements, so it can't be hashed, e.g. `&.name` in `&:hover, & .child`
-    mixed: bool,
+    pub mixed: bool,
 }
 
 /// The classes used in selectors of the element itself, e.g. `name` in `&.name`, `&:not(.name)`
@@ -70,9 +70,25 @@ pub(super) fn rewrite_modifiers(
     if !rewrites_any(mappings) {
         return Ok(css.to_owned());
     }
+    rewrite_classes(css, &element_classes(css, kind)?, mappings, |name| {
+        format!(
+            "cx prop class \"{name}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${name})."
+        )
+    })
+}
+
+/// Renames the `classes` of `css` with the `(original, hashed, should_rewrite)` mappings. Fails
+/// with the `mixed_error` message of the class name for renamed classes of rules that match both
+/// the element and other elements
+pub(super) fn rewrite_classes(
+    css: &str,
+    classes: &[ElementClass],
+    mappings: &[(String, String, bool)],
+    mixed_error: impl Fn(&str) -> String,
+) -> Result<String, CssError> {
     let mut result = String::with_capacity(css.len());
     let mut last = 0;
-    for class in element_classes(css, kind)? {
+    for class in classes {
         let Some((_, hashed, _)) = mappings
             .iter()
             .find(|(original, _, should_rewrite)| *should_rewrite && *original == class.name)
@@ -81,10 +97,7 @@ pub(super) fn rewrite_modifiers(
         };
         if class.mixed {
             return Err(CssError::new(
-                format!(
-                    "cx prop class \"{0}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{0}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${0}).",
-                    class.name
-                ),
+                mixed_error(&class.name),
                 class.start,
                 class.end,
             ));
@@ -104,7 +117,8 @@ pub(super) fn rewrites_any(mappings: &[(String, String, bool)]) -> bool {
         .any(|(_, _, should_rewrite)| *should_rewrite)
 }
 
-fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
+/// The class selectors that may apply to the element itself, sorted by position
+pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
     let allocator = Allocator::default();
     let stylesheet = parse_style_block(&allocator, css)?;
     let mut collector = ElementClassCollector {
