@@ -12,7 +12,7 @@ pub(crate) fn clean_css(css: &str) -> String {
     collapse_double_semicolons(without_leading_semicolon)
 }
 
-const LAYER_MARKER_PREFIX: &str = "__VINDUR_LAYER_START__";
+pub(crate) const LAYER_MARKER_PREFIX: &str = "__VINDUR_LAYER_START__";
 const LAYER_MARKER_SUFFIX: &str = "__";
 
 /// `layer('name')` interpolations are replaced by a selector marker, the layer name is hex

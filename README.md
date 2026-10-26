@@ -101,6 +101,8 @@ export default defineConfig({
 
 The vindur transform runs before other `enforce: 'pre'` transforms (e.g. the React Compiler), so the compiler receives the vindur output regardless of plugin order.
 
+Import vindur's exports by name, eg. `import { styled } from 'vindur'`. Aliased, namespace and default imports are not supported, and names starting with `_v` are reserved for generated code.
+
 ## Quick Start
 
 ```tsx
@@ -991,11 +993,13 @@ const CustomComponent = ({
 <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
 ```
 
+Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop. On styled components `css` is vindur's: a styled custom component like `styled(Pie)` only forwards references to non-css values, and any other `css` value is a compile error.
+
 ### JSX CX Prop
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`), and each `$` key must be a single class.
 
 ```tsx
 const Container = styled.div`
@@ -1050,6 +1054,13 @@ const App = ({ isActive, isDisabled }) => (
 
 On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) are a compile error, use `$` keys or move them into the styled component.
 
+On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
+
+```tsx
+<circle cx="50" cy="50" r="10" />
+<Pie cx="50%" data={data} />
+```
+
 ### `cx` utility function
 
 In cases where you can't use the `cx` prop, you can use the `cx` utility function to merge classes. It works just like the `classnames` library.
@@ -1071,6 +1082,8 @@ const className = cx(
 // returns:
 ('class-1 class-2 merge short-circuit');
 ```
+
+`cx` must be called directly. Other references, like `const join = cx` or passing `cx` as a value, are a compile error.
 
 ### Automatic `cx()` Optimization
 
@@ -1196,7 +1209,7 @@ The CSS classes are automatically applied based on prop values:
 #### Supported Prop Types
 
 - **Boolean props**: `active: boolean` → applies class when `true`
-- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix
+- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
 #### CSS Selector Patterns
 

@@ -399,15 +399,8 @@ test('should keep explicit className on style flag components with spreads', asy
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
-    export const A = (props: { className?: string }) => (
-      <button
-        {...props}
-        className={cx(
-          mergeClassNames([props, "explicit"], "v1560qbr-1-Btn"),
-          "voctcyj-active",
-        )}
-      />
+    "export const A = (props: { className?: string }) => (
+      <button {...props} className={"v1560qbr-1-Btn explicit voctcyj-active"} />
     );
     "
   `);

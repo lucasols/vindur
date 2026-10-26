@@ -178,6 +178,27 @@ describe('createDynamicCssColor', () => {
     });
   });
 
+  test('should handle _sp method without props to merge', () => {
+    const color = createDynamicCssColor('test-hash', true);
+
+    expect(color._sp(null, undefined)).toEqual({
+      className: 'test-hash-self-isNotDefined test-hash-container-isNotDefined',
+      style: {},
+    });
+    expect(color._sp('#ff0000', undefined)).toEqual({
+      className:
+        'test-hash-self-isDark test-hash-container-isDark test-hash-self-isDefined test-hash-container-isDefined test-hash-self-isNotVeryDark test-hash-container-isNotVeryDark test-hash-self-isNotVeryLight test-hash-container-isNotVeryLight',
+      style: {
+        '--test-hash': '#ff0000',
+        '--test-hash-c': '#fff',
+        '--test-hash-c-optimal': '#fff',
+        '--test-hash-h': '0',
+        '--test-hash-sds': '100%',
+        '--test-hash-l': '50%',
+      },
+    });
+  });
+
   test('should handle set method with warning', () => {
     const color = createDynamicCssColor('test-hash', true);
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -281,6 +302,40 @@ describe('mergeClassNames', () => {
     expect(result).toBe('valid-class vindur-class');
   });
 
+  test('should ignore className properties a JSX spread does not copy', () => {
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { className: undefined });
+    const hidden = Object.defineProperty({}, 'className', {
+      value: undefined,
+      enumerable: false,
+    });
+
+    const result = mergeClassNames(
+      [{ className: 'visible' }, inherited, hidden],
+      'vindur-class',
+    );
+
+    expect(result).toBe('visible vindur-class');
+  });
+
+  test('should treat a later non-string className as none', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: 5 }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('vindur-class');
+  });
+
+  test('should drop boolean class names like React', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: false }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('vindur-class');
+  });
+
   test('should ignore null and undefined spread props', () => {
     const result = mergeClassNames(
       ['explicit', null, undefined],
@@ -295,13 +350,6 @@ describe('mergeClassNames', () => {
       'vindur-class',
     );
     expect(result).toBe('vindur-class');
-  });
-
-  test('should ignore inherited className properties', () => {
-    const inherited: Record<string, unknown> = {};
-    Object.setPrototypeOf(inherited, { className: undefined });
-    const result = mergeClassNames(['explicit', inherited], 'vindur-class');
-    expect(result).toBe('explicit vindur-class');
   });
 
   test('should not add a separator for an empty vindur className', () => {

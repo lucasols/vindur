@@ -312,15 +312,11 @@ test('reproduce bug', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ value, css }) {
+    "function Component({ value, css }) {
       return (
         <ButtonElement
           css={css}
-          className={cx(
-            \`v1560qbr-1-Btn \${"v1560qbr-1-Btn"}\`,
-            value && \`v3j7qq4-value-\${value}\`,
-          )}
+          className={"v1560qbr-1-Btn" + (value ? " v3j7qq4-value-" + value : "")}
         >
           Content
         </ButtonElement>

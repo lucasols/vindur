@@ -17,6 +17,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_optimize::optimize_cx_calls,
+    cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
@@ -26,7 +27,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
-    runtime_helpers::{has_named_vindur_import, runtime_helpers_import},
+    runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
     source_map::css_template_offsets,
     stable::{
@@ -84,6 +85,9 @@ pub(crate) fn transform_program(
         })
         .map(|(name, _)| name.as_str())
         .collect();
+    if let Some(diagnostic) = non_call_cx_reference_error(program, scoping, file_path, source) {
+        return Err(diagnostic);
+    }
     if let Some(diagnostic) = runtime_vindur_fn_reference_error(
         program,
         scoping,
@@ -104,6 +108,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
+    let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
@@ -349,6 +354,7 @@ pub(crate) fn transform_program(
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
         },
     )?;
 
@@ -367,6 +373,7 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
             cx_elements: &cx_elements,
             class_expressions: &mut class_expressions,
             scoped_variables: &mut scoped_variables,
@@ -382,6 +389,7 @@ pub(crate) fn transform_program(
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,
             needs_merge_styles: &mut needs_merge_styles_helper,
+            helper_names: &helper_names,
             source,
             styled_components: &styled_components,
             class_expressions: &class_expressions,
@@ -399,40 +407,31 @@ pub(crate) fn transform_program(
             source,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
         },
     )?;
 
-    let mut runtime_helpers = Vec::new();
-    if needs_styled_helper {
-        runtime_helpers.push("_vSC");
-    }
-    if needs_style_flags_helper {
-        runtime_helpers.push("_vCWM");
-    }
-    if needs_cx_helper {
-        runtime_helpers.push("cx");
-    }
-    if needs_merge_helper {
-        runtime_helpers.push("mergeClassNames");
-    }
-    if needs_merge_styles_helper {
-        runtime_helpers.push("mergeStyles");
-    }
-    edits.extend(runtime_helpers_import(
+    let needed_helpers = [
+        (needs_styled_helper, "_vSC"),
+        (needs_style_flags_helper, "_vCWM"),
+        (needs_cx_helper, "cx"),
+        (needs_merge_helper, "mergeClassNames"),
+        (needs_merge_styles_helper, "mergeStyles"),
+    ]
+    .into_iter()
+    .filter_map(|(needed, helper)| needed.then_some(helper))
+    .collect::<Vec<_>>();
+    edits.extend(runtime_helper_import(
         program,
-        scoping,
-        file_path,
         source,
-        &runtime_helpers,
-    )?);
+        &helper_names,
+        &needed_helpers,
+    ));
 
-    optimize_cx_calls(
-        program,
-        scoping,
-        source,
-        &mut edits,
-        needs_cx_helper && has_named_vindur_import(program, "cx"),
-    );
+    // The user's `cx` import is kept while generated code calls it under its own name
+    let calls_user_cx = needs_cx_helper && helper_names.cx == "cx";
+
+    optimize_cx_calls(program, scoping, source, &mut edits, calls_user_cx);
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);

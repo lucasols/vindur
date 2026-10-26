@@ -121,6 +121,7 @@ fn style_flag_from_property(
     let kind = match type_annotation {
         TSType::TSBooleanKeyword(_) => StyleFlagKind::Boolean,
         TSType::TSUnionType(union) => {
+            invalid_union_value_error(&union.types, &prop_name, file_path, source)?;
             let Some(values) = string_union_values(&union.types) else {
                 return Err(CompilerDiagnostic::error(
                     file_path,
@@ -156,6 +157,7 @@ fn style_flag_from_property(
             match resolved {
                 TSType::TSBooleanKeyword(_) => StyleFlagKind::Boolean,
                 TSType::TSUnionType(union) => {
+                    invalid_union_value_error(&union.types, &prop_name, file_path, source)?;
                     let Some(values) = string_union_values(&union.types) else {
                         return Err(CompilerDiagnostic::error(
                             file_path,
@@ -236,6 +238,42 @@ fn type_string(type_node: &TSType<'_>) -> String {
             .to_owned(),
         TSType::TSArrayType(array) => format!("{}[]", type_string(&array.element_type)),
         _ => "unknown".to_owned(),
+    }
+}
+
+// Union values become class names like `size-small` in the CSS and the generated code, so
+// they must be plain class name characters
+fn invalid_union_value_error(
+    types: &[TSType<'_>],
+    prop_name: &str,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    let invalid = types.iter().find_map(|union_type| {
+        let TSType::TSLiteralType(literal_type) = union_type else {
+            return None;
+        };
+        let TSLiteral::StringLiteral(literal) = &literal_type.literal else {
+            return None;
+        };
+        let value = literal.value.as_str();
+        let is_valid = !value.is_empty()
+            && value.chars().all(|character| {
+                character.is_ascii_alphanumeric() || character == '_' || character == '-'
+            });
+        (!is_valid).then_some(literal)
+    });
+    match invalid {
+        Some(literal) => Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            literal.span,
+            format!(
+                "Style flag \"{prop_name}\" value \"{}\" must only contain letters, digits, - and _, as it becomes part of a class name",
+                literal.value
+            ),
+        )),
+        None => Ok(()),
     }
 }
 

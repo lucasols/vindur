@@ -566,7 +566,7 @@ describe('Warnings for Missing CSS Classes', () => {
     `);
   });
 
-  test('should warn about cx modifiers only used in unsupported selector forms', async () => {
+  test('should warn about cx modifiers only used in selectors of other elements', async () => {
     const warnings: TransformWarning[] = [];
 
     const result = await transformWithFormat({
@@ -574,7 +574,7 @@ describe('Warnings for Missing CSS Classes', () => {
         import { styled } from 'vindur';
 
         const Box = styled.div\`
-          &:not(.active) {
+          & .active {
             opacity: 0.5;
           }
         \`;
@@ -596,7 +596,7 @@ describe('Warnings for Missing CSS Classes', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Box {
-        &:not(.active) {
+        & .active {
           opacity: 0.5;
         }
       }

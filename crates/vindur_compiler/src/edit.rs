@@ -28,28 +28,25 @@ pub(crate) fn expand_removal_to_line(source: &str, span: Span) -> Span {
     span
 }
 
-/// Returns the source of `span` with the edits inside it applied, and removes those edits.
-/// Used by passes that move an expression that earlier passes already edited, e.g. a
-/// `css` call inside a `className` value.
+/// The source of `span` with the edits inside it applied, taking them out of `edits`, for a
+/// replacement that copies source another pass already edits. Overlapping edits are left in
+/// `edits` so `apply_edits` reports them
 pub(crate) fn take_edited_source(source: &str, span: Span, edits: &mut Vec<Edit>) -> String {
-    let mut nested = edits
-        .iter()
-        .filter(|edit| edit.span.start >= span.start && edit.span.end <= span.end)
-        .cloned()
-        .collect::<Vec<_>>();
+    let (mut nested, rest): (Vec<Edit>, Vec<Edit>) = edits
+        .drain(..)
+        .partition(|edit| edit.span.start >= span.start && edit.span.end <= span.end);
+    *edits = rest;
     nested.sort_unstable_by_key(|edit| (edit.span.start, edit.span.end));
-    let overlapping = nested
+    if nested
         .windows(2)
-        .any(|pair| pair[1].span.start < pair[0].span.end);
-    let original = &source[span.start as usize..span.end as usize];
-    if overlapping {
-        // Left in place so `apply_edits` reports the overlap
-        return original.to_owned();
+        .any(|pair| pair[1].span.start < pair[0].span.end)
+    {
+        edits.extend(nested);
+        return source[span.start as usize..span.end as usize].to_owned();
     }
-    edits.retain(|edit| !(edit.span.start >= span.start && edit.span.end <= span.end));
-    let mut output = String::with_capacity(original.len());
+    let mut output = String::new();
     let mut cursor = span.start as usize;
-    for edit in &nested {
+    for edit in nested {
         output.push_str(&source[cursor..edit.span.start as usize]);
         output.push_str(&edit.replacement);
         cursor = edit.span.end as usize;
