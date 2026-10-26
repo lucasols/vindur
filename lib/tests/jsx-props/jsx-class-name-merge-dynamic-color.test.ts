@@ -22,7 +22,7 @@ test('should merge cx, className and the css prop into dynamicColor', async () =
           css={\`
             background: red;
           \`}
-          dynamicColor={dynamicColor}
+          dynamicColor={dynamicColor.set("#ff6b6b")}
         >
           Content
         </Container>
@@ -32,7 +32,7 @@ test('should merge cx, className and the css prop into dynamicColor', async () =
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
-    const dynamicColor = createDynamicCssColor("v1560qbr-1", true);
+    const dynamicColor = createDynamicCssColor("v1560qbr-1-dynamicColor", true);
     const App = ({ isActive }: { isActive: boolean }) => (
       <div
         {...dynamicColor._sp("#ff6b6b", {
@@ -82,7 +82,7 @@ test('should keep the css prop class of a styled component with dynamicColor', a
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = () => (
       <div
         {...color._sp("#f00", {
@@ -112,7 +112,7 @@ test('should keep cx classes of native elements with dynamicColor', async () => 
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <>
         <div
@@ -159,7 +159,7 @@ test('should merge spread props and the css prop into dynamicColor', async () =>
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = (props: { className?: string }) => (
       <>
         <div
@@ -205,7 +205,7 @@ test('should keep dynamicColor merges after every spread and css or cx prop', as
       mergeClassNames,
       mergeStyles,
     } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = ({ on, p }: { on: boolean; p: object }) => (
       <>
         <div
@@ -249,7 +249,7 @@ test('should keep an explicit style placed before spreads with dynamicColor', as
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = (props: { id: string }) => (
       <div
         {...props}

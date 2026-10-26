@@ -10,6 +10,7 @@ Vindur is a compiler, and compilers have endless edge cases. Do not try to cover
 - When code falls outside the supported set, emit a clear error (or a warning when the output is still correct) that tells the user what to write instead. Never guess, fall back, or silently compile to something wrong
 - Do not add special-case handling for rare patterns (aliased imports, re-exports, indirect references, computed values, unusual module shapes, etc.) unless there is a real use case. Rejecting them with a good error is the default
 - When fixing a bug in an edge case, first consider whether the pattern should be unsupported instead of handled
+- Do not add compiler checks or tailored error messages for misuse the public types already reject (e.g. passing the wrong value to a typed prop); a generic compile error for invalid input is enough
 - Keep the supported surface easy to describe in the README. If a feature needs a long list of exceptions to explain, it is probably too broad
 
 ## Performance

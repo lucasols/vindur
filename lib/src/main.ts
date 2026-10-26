@@ -56,7 +56,7 @@ interface VindurClassNameBasedAttributes {
 }
 
 export interface VindurAttributes extends VindurClassNameBasedAttributes {
-  dynamicColor?: DynamicColorSet;
+  dynamicColor?: DynamicColorSet | DynamicColorSet[];
 }
 
 // A non-object `cx` stays the native attribute, eg. `<Dot cx="50" />` on a styled circle

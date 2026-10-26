@@ -1,5 +1,9 @@
 import { format } from 'prettier';
-import { transform, type TransformFS, type TransformWarning } from '../src/transform';
+import {
+  transform,
+  type TransformFS,
+  type TransformWarning,
+} from '../src/transform';
 
 type FileTree = { [key: string]: string | FileTree };
 

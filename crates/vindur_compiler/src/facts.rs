@@ -29,10 +29,13 @@ pub enum StaticValue {
     },
     DynamicColor {
         id: String,
+        /// Dev selectors use readable class names, e.g. `{id}-self-isDark`
+        dev: bool,
     },
     DynamicColorPath {
         id: String,
         path: String,
+        dev: bool,
     },
     Keyframes(String),
     LayerFunction,
@@ -61,12 +64,17 @@ pub enum StaticValue {
     String(String),
     ThemeColor {
         name: String,
+        /// Normalized hex used for the compiled colors, e.g. `#f00`
         hex: String,
+        /// The hex as written in `createStaticThemeColors`, e.g. `#FF0000`
+        default_hex: String,
     },
     ThemeColorContrast {
         name: String,
         hex: String,
+        base_hex: String,
     },
+    /// Color names to their hex as written, validated by `parse_theme_colors`
     ThemeColors(FxHashMap<String, String>),
     UnexportedThemeColors(FxHashMap<String, String>),
     Undefined,

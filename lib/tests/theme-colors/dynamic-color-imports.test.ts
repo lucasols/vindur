@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
+import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('dynamic color imports', () => {
@@ -41,7 +42,7 @@ describe('dynamic color imports', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-styles {
-        color: var(--vip4ilp-1);
+        color: var(--vip4ilp-1-themeColor);
       }
       "
     `);
@@ -72,15 +73,15 @@ describe('dynamic color imports', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const localColor = createDynamicCssColor("v1560qbr-1", true);
+      const localColor = createDynamicCssColor("v1560qbr-1-localColor", true);
       const styles = "v1560qbr-2-styles";
       "
     `);
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-styles {
-        color: var(--vip4ilp-1);
-        background: var(--vip4ilp-2);
-        border: 1px solid var(--v1560qbr-1);
+        color: var(--vip4ilp-1-primaryColor);
+        background: var(--vip4ilp-2-secondaryColor);
+        border: 1px solid var(--v1560qbr-1-localColor);
       }
       "
     `);
@@ -131,4 +132,96 @@ describe('dynamic color imports', () => {
       "
     `);
   });
+});
+
+const colorsFs = createFsMock({
+  'colors.ts': dedent`
+    import { createDynamicCssColor } from 'vindur'
+    export const themeColor = createDynamicCssColor()
+  `,
+});
+
+test('should keep the import of a dynamic color used at runtime', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { themeColor } from '#/colors';
+
+      export const A = ({ color }: { color: string }) => (
+        <div {...themeColor.setProps(color)} />
+      );
+    `,
+    overrideDefaultFs: colorsFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { themeColor } from "#/colors";
+    export const A = ({ color }: { color: string }) => (
+      <div {...themeColor.setProps(color)} />
+    );
+    "
+  `);
+});
+
+test('should merge className and style of native elements with an imported dynamic color', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { themeColor } from '#/colors';
+
+      export const A = ({ color }: { color: string | null }) => (
+        <div
+          className="user"
+          style={{ padding: 4 }}
+          dynamicColor={themeColor.set(color)}
+        />
+      );
+    `,
+    overrideDefaultFs: colorsFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { themeColor } from "#/colors";
+    export const A = ({ color }: { color: string | null }) => (
+      <div
+        {...themeColor._sp(color, {
+          className: "user",
+          style: {
+            padding: 4,
+          },
+        })}
+      />
+    );
+    "
+  `);
+});
+
+test('should not reuse dev ids of imported dynamic colors in production with a shared cache', () => {
+  const transformFunctionCache = {};
+  const transformApp = (dev: boolean) =>
+    transform({
+      fileAbsPath: '/test.tsx',
+      source: dedent`
+        import { css } from 'vindur';
+        import { themeColor } from '#/colors';
+
+        const styles = css\`
+          color: \${themeColor.var};
+        \`;
+      `,
+      dev,
+      fs: colorsFs,
+      transformFunctionCache,
+      transformDynamicColorCache: {},
+      importAliases: { '#/': '/' },
+    });
+
+  expect(transformApp(true).css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      color: var(--vip4ilp-1-themeColor);
+    }"
+  `);
+  expect(transformApp(false).css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: var(--vip4ilp-1);
+    }"
+  `);
 });

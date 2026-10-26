@@ -41,6 +41,8 @@ pub(crate) struct CxElementTransform {
     pub call: String,
     pub mappings: Vec<(String, String, bool)>,
     pub css_index: u32,
+    /// The id after the hashed cx classes, where the css prop's scoped variables start
+    pub next_index: u32,
 }
 
 pub(crate) struct JsxCxTransform<'a> {
@@ -316,6 +318,7 @@ impl JsxCxVisitor<'_> {
                     call: cx_call,
                     mappings,
                     css_index,
+                    next_index: *self.output.id_index,
                 },
             );
             self.output.edits.push(Edit {

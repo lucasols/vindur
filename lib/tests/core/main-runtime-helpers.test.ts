@@ -54,7 +54,10 @@ describe('createDynamicCssColor', () => {
   test('should not require merge props in _sp', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color._sp(undefined, undefined)).toEqual({});
+    expect(color._sp(undefined, undefined)).toEqual({
+      className: 'test-hash-self-isNotDefined test-hash-container-isNotDefined',
+      style: {},
+    });
     expect(color._sp('#ff0000', undefined).className).toBeTypeOf('string');
   });
 
@@ -72,7 +75,7 @@ describe('createDynamicCssColor', () => {
       'color-mix(in srgb, var(--test-hash) 70%, #fff)',
     );
     expect(color.saturatedDarker(0.4)).toBe(
-      'color-mix(in srgb, var(--test-hash) 60%, hsl(from var(--test-hash) h 100% 20%))',
+      'hsl(var(--test-hash-h), var(--test-hash-sds), calc(var(--test-hash-l) * 0.6))',
     );
 
     expect(color.contrast.var).toBe('var(--test-hash-c)');
@@ -85,14 +88,14 @@ describe('createDynamicCssColor', () => {
     );
   });
 
-  test('should generate dev-mode class names', () => {
+  test('should generate readable class names in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color.self.isDark).toBe('&.test-hash-self-is-dark');
-    expect(color.self.isLight).toBe('&.test-hash-self-is-light');
-    expect(color.container.isDefined).toBe('.test-hash-container-is-defined &');
+    expect(color.self.isDark).toBe('&.test-hash-self-isDark');
+    expect(color.self.isLight).toBe('&.test-hash-self-isLight');
+    expect(color.container.isDefined).toBe('.test-hash-container-isDefined');
     expect(color.container.isNotDefined).toBe(
-      '.test-hash-container-is-not-defined &',
+      '.test-hash-container-isNotDefined',
     );
   });
 
@@ -101,81 +104,97 @@ describe('createDynamicCssColor', () => {
 
     expect(color.self.isDark).toBe('&.test-hash-s0');
     expect(color.self.isLight).toBe('&.test-hash-s1');
-    expect(color.container.isDefined).toBe('.test-hash-c2 &');
-    expect(color.container.isNotDefined).toBe('.test-hash-c3 &');
+    expect(color.container.isDefined).toBe('.test-hash-c2');
+    expect(color.container.isNotDefined).toBe('.test-hash-c3');
   });
 
   test('should handle setProps for light colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#ffffff', { className: 'user-class' });
 
-    expect(result.className).toContain('user-class');
-    expect(result.className).toContain('test-hash-self-is-light');
-    expect(result.className).toContain('test-hash-self-is-defined');
-    expect(result.className).toContain('test-hash-self-is-not-very-dark');
-    expect(result.className).toContain('test-hash-self-is-very-light');
+    expect(result.className).toBe(
+      'user-class test-hash-s1 test-hash-c1 test-hash-s2 test-hash-c2 test-hash-s5 test-hash-c5 test-hash-s6 test-hash-c6',
+    );
 
     expect(result.style).toEqual({
       '--test-hash': '#ffffff',
-      '--test-hash-c': '#000000',
-      '--test-hash-c-optimal': '#000000',
+      '--test-hash-c': '#000',
+      '--test-hash-c-optimal': '#242424',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '0%',
+      '--test-hash-l': '100%',
     });
   });
 
   test('should handle setProps for dark colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#000000');
 
-    expect(result.className).toContain('test-hash-self-is-dark');
-    expect(result.className).toContain('test-hash-self-is-defined');
-    expect(result.className).toContain('test-hash-self-is-very-dark');
-    expect(result.className).toContain('test-hash-self-is-not-very-light');
+    expect(result.className).toBe(
+      'test-hash-s0 test-hash-c0 test-hash-s2 test-hash-c2 test-hash-s4 test-hash-c4 test-hash-s7 test-hash-c7',
+    );
 
     expect(result.style).toEqual({
       '--test-hash': '#000000',
-      '--test-hash-c': '#ffffff',
-      '--test-hash-c-optimal': '#ffffff',
+      '--test-hash-c': '#fff',
+      '--test-hash-c-optimal': '#fff',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '0%',
+      '--test-hash-l': '0%',
     });
   });
 
   test('should handle _sp method with null color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp(null, {
       className: 'base',
       style: { margin: '10px' },
     });
 
-    expect(result).toEqual({ className: 'base', style: { margin: '10px' } });
+    expect(result).toEqual({
+      className: 'base test-hash-s3 test-hash-c3',
+      style: { margin: '10px' },
+    });
   });
 
   test('should handle _sp method with valid color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp('#ff0000', {
       className: 'base',
       style: { margin: '10px' },
     });
 
-    expect(result.className).toContain('base');
-    expect(result.className).toContain('test-hash-self-is-dark');
+    expect(result.className).toBe(
+      'base test-hash-s0 test-hash-c0 test-hash-s2 test-hash-c2 test-hash-s5 test-hash-c5 test-hash-s7 test-hash-c7',
+    );
     expect(result.style).toEqual({
       margin: '10px',
       '--test-hash': '#ff0000',
-      '--test-hash-c': '#ffffff',
-      '--test-hash-c-optimal': '#ffffff',
+      '--test-hash-c': '#fff',
+      '--test-hash-c-optimal': '#fff',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '100%',
+      '--test-hash-l': '50%',
     });
   });
 
   test('should handle _sp method without props to merge', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color._sp(null, undefined)).toEqual({});
+    expect(color._sp(null, undefined)).toEqual({
+      className: 'test-hash-self-isNotDefined test-hash-container-isNotDefined',
+      style: {},
+    });
     expect(color._sp('#ff0000', undefined)).toEqual({
       className:
-        'test-hash-self-is-dark test-hash-self-is-defined test-hash-self-is-not-very-dark test-hash-self-is-not-very-light',
+        'test-hash-self-isDark test-hash-container-isDark test-hash-self-isDefined test-hash-container-isDefined test-hash-self-isNotVeryDark test-hash-container-isNotVeryDark test-hash-self-isNotVeryLight test-hash-container-isNotVeryLight',
       style: {
         '--test-hash': '#ff0000',
-        '--test-hash-c': '#ffffff',
-        '--test-hash-c-optimal': '#ffffff',
+        '--test-hash-c': '#fff',
+        '--test-hash-c-optimal': '#fff',
+        '--test-hash-h': '0',
+        '--test-hash-sds': '100%',
+        '--test-hash-l': '50%',
       },
     });
   });

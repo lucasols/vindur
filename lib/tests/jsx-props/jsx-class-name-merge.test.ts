@@ -427,7 +427,7 @@ test('should concat className expressions on styled components', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <>
         <div className={"v1560qbr-2-Box " + (className || "")} />

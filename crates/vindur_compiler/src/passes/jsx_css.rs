@@ -232,6 +232,10 @@ impl JsxCssVisitor<'_> {
                 } else {
                     format!("{}-{index}", self.output.file_hash)
                 };
+                if let Some(cx) = cx_transform {
+                    *self.output.id_index = cx.next_index;
+                }
+                // The ids after the class are reserved for the scoped variables of the template
                 let rules = match process_scoped_variables(
                     &content,
                     BlockKind::Style,

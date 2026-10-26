@@ -730,6 +730,8 @@ Compiles to scoped CSS variables:
 }
 ```
 
+Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+
 #### Dynamic Variables
 
 Scoped variables can be set dynamically with the `style` prop:
@@ -1045,12 +1047,14 @@ const App = ({ isActive, isDisabled }) => (
       background: red;
     `}
     // cx can be used with the dynamicColor
-    dynamicColor={dynamicColor}
+    dynamicColor={dynamicColor.set('#ff6b6b')}
   >
     Content with conditional classes
   </Container>
 );
 ```
+
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) are a compile error, use `$` keys or move them into the styled component.
 
 On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
 
@@ -1262,11 +1266,11 @@ The generated css will be optimized with the values of the colors:
   color: #fff;
 
   &:hover {
-    background: #0056b3;
+    background: #006fe6;
   }
 
   &:active {
-    background: #0056b380;
+    background: #007bffcc;
   }
 }
 ```
@@ -1279,11 +1283,11 @@ In dev mode, the output will show the color name for easier debugging:
   color: var(--stc-primary-contrast-var, #fff);
 
   &:hover {
-    background: var(--stc-primary-darker-0\.1, #0056b3);
+    background: var(--stc-primary-darker-0\.1, #006fe6);
   }
 
   &:active {
-    background: var(--stc-primary-alpha-0\.8, #0056b380);
+    background: var(--stc-primary-alpha-0\.8, #007bffcc);
   }
 }
 ```
@@ -1295,11 +1299,14 @@ Each color in your theme provides:
 - **`var`**: CSS variable reference for the color
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
-- **`darker(amount)`**: Creates a darker variant (0-1 scale)
-- **`lighter(amount)`**: Creates a lighter variant (0-1 scale)
-- **`contrast.var`**: CSS variable for optimal contrast color
+- **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
+- **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
+- **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
+- **`contrast.var`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
+
+Amounts, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
 
 ## Dynamic Theme Colors
 
@@ -1329,7 +1336,7 @@ const Card = styled.div`
   }
 
   /* use container selectors to conditionally style child components */
-  ${dynamicColor.container.isLight} {
+  ${dynamicColor.container.isLight} & {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 `;
@@ -1339,10 +1346,11 @@ const ChildElement = styled.div`
   color: ${dynamicColor.contrast.var};
 `;
 
-// for dom elements, and styled components you can use the dynamicColors prop to set the color
-const MyComponent = () => {
+// for dom elements and styled components, use the dynamicColor prop to set the color
+// the value is required: `dynamicColor={dynamicColor}` is a compile error
+const MyComponent = ({ color }: { color: string | null }) => {
   return (
-    <div dynamicColor={dynamicColor}>
+    <div dynamicColor={dynamicColor.set(color)}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1360,7 +1368,9 @@ const MyComponent = () => {
 // multiple colors can be passed to dynamicColor prop
 const MyComponent = () => {
   return (
-    <div dynamicColor={[dynamicColor1, dynamicColor2]}>
+    <div
+      dynamicColor={[dynamicColor1.set('#ff6b6b'), dynamicColor2.set('#333')]}
+    >
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1374,15 +1384,18 @@ Dynamic colors provide the same color manipulation functions as static colors, p
 #### Color Setting
 
 - **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
-  - `hexColor`: The color to set
+  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `var` and `contrast.var` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `var` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
-  - `options.setColorScheme?`: Configure color scheme detection with fallback
+  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
+  - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
+
+Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3), and `isDark`/`isLight` follow it: a color is light when black text has more contrast. `contrast.optimal()` uses `saturatedDarker(0.86)` of the color on light colors instead of black. `saturatedDarker(amount)` moves the lightness toward 0% while forcing the saturation to 0% for near gray colors and 100% otherwise.
 
 #### Conditional Selectors
 
-- **`self.*`**: Selectors for the component that sets the color
-- **`container.*`**: Selectors for child components
+- **`self.*`**: Selectors for the component that sets the color, e.g. `${color.self.isDark} { ... }`
+- **`container.*`**: Selectors for descendants of the component that sets the color, used as an ancestor selector, e.g. `${color.container.isDark} & { ... }`. Using one as a rule selector without `&`, e.g. `${color.container.isDark} { ... }` or `${color.container.isDark}:hover { ... }`, is a compile error outside `createGlobalStyle`. When the same color is set on nested elements, a descendant matches the conditions of every ancestor that sets it, not only the nearest one
 
 Available conditional selectors:
 
@@ -1399,7 +1412,7 @@ Available conditional selectors:
 
 ```tsx
 // Color setting with additional styles
-const { className, style } = dynamicColor.setInComponent('#007bff', {
+const { className, style } = dynamicColor.setProps('#007bff', {
   style: { padding: '20px' },
   className: 'custom-card',
   setColorScheme: { fallback: 'dark' },
@@ -1411,11 +1424,11 @@ const AdaptiveButton = styled.button`
   color: ${dynamicColor.contrast.var};
 
   /* Different styles for dark vs light colors */
-  &${dynamicColor.self.isDark} {
+  ${dynamicColor.self.isDark} {
     border: 1px solid ${dynamicColor.lighter(0.2)};
   }
 
-  &${dynamicColor.self.isLight} {
+  ${dynamicColor.self.isLight} {
     border: 1px solid ${dynamicColor.darker(0.2)};
   }
 

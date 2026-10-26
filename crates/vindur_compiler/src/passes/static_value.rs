@@ -1,16 +1,20 @@
-use oxc_ast::ast::{Expression, IdentifierReference, Program, Statement, TemplateLiteral};
+use oxc_ast::ast::{
+    Expression, IdentifierReference, Program, Statement, TemplateElement, TemplateLiteral,
+};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
+use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::interpolation_validation::{
-    invalid_array_argument_error, invalid_dynamic_color_method_error, invalid_layer_error,
+    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
+    static_value_to_string,
 };
 use super::styled::{StyleFlag, styled_ref_placeholder};
 use super::template_css::{EvaluatedTemplate, validate_template_css};
@@ -97,25 +101,35 @@ fn build_template_css(
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
         let quasi_start = evaluated.css.len();
-        evaluated.css.push_str(
-            quasi
-                .value
-                .cooked
-                .as_ref()
-                .unwrap_or(&quasi.value.raw)
-                .as_str(),
-        );
+        evaluated.css.push_str(quasi_text(quasi));
         evaluated.map_quasi(quasi_start, quasi);
         let Some(expression) = template.expressions.get(index) else {
             continue;
         };
         if let Some(diagnostic) =
-            invalid_dynamic_color_method_error(expression, constants, scoping, file_path, source)
+            invalid_color_method_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
         if let Some(diagnostic) =
             invalid_layer_error(expression, constants, scoping, file_path, source)
+        {
+            return Err(diagnostic);
+        }
+        // Global styles have no `&`, a container selector there styles the elements under it
+        if context.tag_type != "createGlobalStyle"
+            && let Some(diagnostic) = container_selector_error(
+                expression,
+                // The evaluated CSS so far, so earlier interpolations count as part of the selector
+                (
+                    &evaluated.css,
+                    template.quasis.get(index + 1).map(quasi_text),
+                ),
+                constants,
+                scoping,
+                file_path,
+                source,
+            )
         {
             return Err(diagnostic);
         }
@@ -201,7 +215,18 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
-        if matches!(value, StaticValue::LayerFunction) {
+        // Colors and palettes are objects, only their `.var` and methods are CSS values
+        if matches!(
+            value,
+            StaticValue::LayerFunction
+                | StaticValue::DynamicColor { .. }
+                | StaticValue::DynamicColorPath { .. }
+                | StaticValue::ThemeColor { .. }
+                | StaticValue::ThemeColorContrast { .. }
+                | StaticValue::ThemeColors(_)
+                | StaticValue::UnexportedThemeColors(_)
+        ) || is_unresolved_import(&value)
+        {
             return Err(interpolation_error(expression, file_path, source, context));
         }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
@@ -234,7 +259,15 @@ fn build_template_css(
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
             StaticValue::CssClass { name, .. } => format!(".{name}"),
-            value => static_value_to_string(value),
+            value => {
+                let value = static_value_to_string(value);
+                if let Some(diagnostic) =
+                    interpolated_scoped_variable_error(&value, expression, file_path, source)
+                {
+                    return Err(diagnostic);
+                }
+                value
+            }
         };
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
@@ -451,4 +484,13 @@ fn interpolation_error(
     } else {
         diagnostic
     }
+}
+
+fn quasi_text<'q>(quasi: &'q TemplateElement<'_>) -> &'q str {
+    quasi
+        .value
+        .cooked
+        .as_ref()
+        .unwrap_or(&quasi.value.raw)
+        .as_str()
 }

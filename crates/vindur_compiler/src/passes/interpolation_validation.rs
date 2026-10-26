@@ -9,7 +9,27 @@ use crate::{
 };
 
 use super::css_syntax::is_layer_name;
-use super::static_evaluation::{evaluate_expression, resolved_constant};
+use super::id_order::scoped_variable_names;
+use super::static_evaluation::resolved_constant;
+
+/// Scoped variables must be written in the template text, values interpolated from constants or
+/// vindurFn calls can't add them
+pub(super) fn interpolated_scoped_variable_error(
+    value: &str,
+    expression: &Expression<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let name = scoped_variable_names(value).into_iter().next()?;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        expression.span(),
+        format!(
+            "Interpolated values can't contain scoped variables like \"---{name}\", write scoped variables directly in the template"
+        ),
+    ))
+}
 
 pub(super) fn invalid_layer_error(
     expression: &Expression<'_>,
@@ -50,39 +70,6 @@ pub(super) fn invalid_layer_error(
         source,
         span,
         "layer() must be called with a string literal layer name".to_owned(),
-    ))
-}
-
-pub(super) fn invalid_dynamic_color_method_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::StaticMemberExpression(callee) = &call.callee else {
-        return None;
-    };
-    let method = callee.property.name.as_str();
-    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
-        return None;
-    }
-    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-    if !matches!(
-        receiver,
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. }
-    ) || matches!(call.arguments.as_slice(), [Argument::NumericLiteral(_)])
-    {
-        return None;
-    }
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        format!("Method {method} requires a numeric argument"),
     ))
 }
 

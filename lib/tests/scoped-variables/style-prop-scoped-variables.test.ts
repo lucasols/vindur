@@ -26,7 +26,7 @@ test('should rename style prop variables read by css props', async () => {
         }}
         className="v1560qbr-1-css-prop-1"
       >
-        <span className="v1560qbr-2-css-prop-2" />
+        <span className="v1560qbr-3-css-prop-3" />
       </div>
     );
     "
@@ -37,7 +37,7 @@ test('should rename style prop variables read by css props', async () => {
       width: var(--v1560qbr-2-width);
     }
 
-    .v1560qbr-2-css-prop-2 {
+    .v1560qbr-3-css-prop-3 {
       height: var(--v1560qbr-2-width);
     }
     "
@@ -69,7 +69,7 @@ test('should rename style prop variables merged by dynamicColor', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ width }: { width: string }) => (
       <div
         {...color._sp("#fff", {

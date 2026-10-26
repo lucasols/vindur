@@ -86,7 +86,7 @@ impl<'a> Visit<'a> for JsxFeatureVisitor {
                         matches!(css.value, Some(JSXAttributeValue::ExpressionContainer(_)))
                     })
                     || css.is_some_and(css_attribute_allocates_class),
-            );
+            ) + css.map_or(0, css_attribute_scoped_variable_count);
             let context = jsx_name(&element.opening_element.name)
                 .filter(|name| name.chars().next().is_some_and(char::is_uppercase))
                 .map_or_else(
@@ -112,6 +112,35 @@ fn css_attribute_allocates_class(attribute: &JSXAttribute<'_>) -> bool {
         Some(JSXAttributeValue::ExpressionContainer(container))
             if matches!(&container.expression, JSXExpression::TemplateLiteral(_))
     )
+}
+
+// Scoped variables of a css prop take ids too, an upper bound since names declared
+// earlier in the file reuse theirs
+pub(crate) fn css_attribute_scoped_variable_count(attribute: &JSXAttribute<'_>) -> u32 {
+    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+        return 0;
+    };
+    let JSXExpression::TemplateLiteral(template) = &container.expression else {
+        return 0;
+    };
+    let names = template
+        .quasis
+        .iter()
+        .flat_map(|quasi| scoped_variable_names(quasi.value.raw.as_str()))
+        .collect::<FxHashSet<_>>();
+    u32::try_from(names.len()).unwrap_or(u32::MAX)
+}
+
+pub(crate) fn scoped_variable_names(css: &str) -> Vec<&str> {
+    css.match_indices("---")
+        .filter_map(|(start, _)| {
+            let name_start = start + 3;
+            let name_end = css[name_start..]
+                .find(|character: char| !character.is_ascii_alphanumeric() && character != '-')
+                .map_or(css.len(), |offset| name_start + offset);
+            (name_end > name_start).then(|| &css[name_start..name_end])
+        })
+        .collect()
 }
 
 fn cx_class_names(attribute: &JSXAttribute<'_>, context: &str) -> Vec<String> {

@@ -1,3 +1,17 @@
+import type { CSSProperties } from 'react';
+import {
+  OPTIMAL_CONTRAST_SATURATED_DARKER,
+  formatFactor,
+  mix,
+  parseHex,
+  prefersBlackText,
+  rgbToHsl,
+  saturatedDarker,
+  saturatedDarkerSaturation,
+  toHex,
+  type Rgb,
+} from './color-math';
+
 export type StaticColor<D extends string> = {
   var: string;
   defaultHex: D;
@@ -7,7 +21,7 @@ export type StaticColor<D extends string> = {
   saturatedDarker: (amount: number) => string;
   contrast: {
     var: string;
-    optimal: (options?: { saturation?: number; alpha?: number }) => string;
+    optimal: (options?: { alpha?: number }) => string;
     alpha: (alpha: number) => string;
   };
 };
@@ -17,216 +31,269 @@ export type DynamicColorSet = {
   __dynamicColorId: string;
 };
 
-export type DynamicCssColor = ColorOps & {
-  setProps: (
-    hexColor: string,
-    options?: {
-      style?: Record<string, unknown>;
-      className?: string;
-      setColorScheme?: { fallback: 'light' | 'dark' };
-    },
-  ) => { className: string; style: Record<string, unknown> };
-  set: (color: string | null | false | undefined) => DynamicColorSet;
-  _sp: (
-    color: string | null | false | undefined,
-    // Omitted by the compiler when the element has no className or style
-    mergeWith:
-      | { className?: string; style?: Record<string, unknown> }
-      | undefined,
-  ) => { className?: string; style?: Record<string, unknown> };
-  self: {
-    isDark: string;
-    isLight: string;
-    isDefined: string;
-    isNotDefined: string;
-    isVeryDark: string;
-    isNotVeryDark: string;
-    isVeryLight: string;
-    isNotVeryLight: string;
-  };
-  container: {
-    isDark: string;
-    isLight: string;
-    isDefined: string;
-    isNotDefined: string;
-    isVeryDark: string;
-    isNotVeryDark: string;
-    isVeryLight: string;
-    isNotVeryLight: string;
-  };
+type DynamicColorValue = string | null | false | undefined;
+
+type ColorConditions = {
+  isDark: string;
+  isLight: string;
+  isDefined: string;
+  isNotDefined: string;
+  isVeryDark: string;
+  isNotVeryDark: string;
+  isVeryLight: string;
+  isNotVeryLight: string;
 };
 
-function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
+/** React style props plus the dynamic color css variables */
+export type DynamicColorStyle = CSSProperties & Record<`--${string}`, string>;
 
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h: number;
-  let s: number;
-  const l = (max + min) / 2;
+/** A forwarded React style prop, or one that also sets css variables */
+type DynamicColorStyleInput = CSSProperties | DynamicColorStyle;
 
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = (g - b) / d + (g < b ? 6 : 0);
-        break;
-      case g:
-        h = (b - r) / d + 2;
-        break;
-      case b:
-        h = (r - g) / d + 4;
-        break;
-      default:
-        h = 0;
-    }
-    h /= 6;
-  }
+export type DynamicColorProps = { className: string; style: DynamicColorStyle };
 
-  return { h: h * 360, s: s * 100, l: l * 100 };
+export type DynamicColorSetPropsOptions = {
+  style?: DynamicColorStyleInput;
+  className?: string;
+  /** Sets `color-scheme` to match the color, `fallback` is used when no color is set */
+  setColorScheme?: { fallback: 'light' | 'dark' };
+  /** HSL lightness (0-1) below which the color is very dark, defaults to 0.25 */
+  veryDarkThreshold?: number;
+  /** HSL lightness (0-1) above which the color is very light, defaults to 0.85 */
+  veryLightThreshold?: number;
+};
+
+export type DynamicCssColor = ColorOps & {
+  setProps: (
+    hexColor: DynamicColorValue,
+    options?: DynamicColorSetPropsOptions,
+  ) => DynamicColorProps;
+  set: (color: DynamicColorValue) => DynamicColorSet;
+  // The compiler omits `mergeWith` when there is nothing to merge
+  _sp: (
+    color: DynamicColorValue,
+    mergeWith?: { className?: string; style?: DynamicColorStyleInput },
+  ) => DynamicColorProps;
+  self: ColorConditions;
+  container: ColorConditions;
+};
+
+const DEFAULT_VERY_DARK_THRESHOLD = 0.25;
+const DEFAULT_VERY_LIGHT_THRESHOLD = 0.85;
+
+// The index order matches the compiler's `selector_index` in dynamic_color_value.rs
+const CONDITIONS = [
+  'isDark',
+  'isLight',
+  'isDefined',
+  'isNotDefined',
+  'isVeryDark',
+  'isNotVeryDark',
+  'isVeryLight',
+  'isNotVeryLight',
+] as const;
+
+type Condition = (typeof CONDITIONS)[number];
+
+function getContrastHex(rgb: Rgb): string {
+  return prefersBlackText(rgb) ? '#000' : '#fff';
 }
 
-function isLightColor(hex: string): boolean {
-  const { l } = hexToHsl(hex);
-  return l > 50;
+// Light backgrounds use a saturated dark variant instead of plain black
+function getOptimalContrastHex(rgb: Rgb): string {
+  return prefersBlackText(rgb) ?
+      toHex(saturatedDarker(rgb, OPTIMAL_CONTRAST_SATURATED_DARKER))
+    : '#fff';
 }
 
-function isDarkColor(hex: string): boolean {
-  return !isLightColor(hex);
+function getColorConditions(
+  rgb: Rgb,
+  options: DynamicColorSetPropsOptions,
+): Condition[] {
+  const { l } = rgbToHsl(rgb);
+  const veryDarkThreshold =
+    options.veryDarkThreshold ?? DEFAULT_VERY_DARK_THRESHOLD;
+  const veryLightThreshold =
+    options.veryLightThreshold ?? DEFAULT_VERY_LIGHT_THRESHOLD;
+  return [
+    prefersBlackText(rgb) ? 'isLight' : 'isDark',
+    'isDefined',
+    l < veryDarkThreshold ? 'isVeryDark' : 'isNotVeryDark',
+    l > veryLightThreshold ? 'isVeryLight' : 'isNotVeryLight',
+  ];
 }
 
-function isVeryDark(hex: string): boolean {
-  const { l } = hexToHsl(hex);
-  return l < 20;
+function joinClassNames(...classNames: (string | undefined)[]): string {
+  return classNames.filter(Boolean).join(' ');
 }
 
-function isVeryLight(hex: string): boolean {
-  const { l } = hexToHsl(hex);
-  return l > 80;
-}
-
-function getContrastColor(hex: string): string {
-  return isLightColor(hex) ? '#000000' : '#ffffff';
-}
-
-export function createDynamicCssColor(hashId?: string, devMode?: boolean) {
+export function createDynamicCssColor(hashId?: string, devMode = false) {
   if (!hashId) {
     throw new Error(
       'createDynamicCssColor() cannot be called at runtime without compiler transformation. The ID is automatically generated by the compiler.',
     );
   }
 
-  const selfConditions = [
-    'is-dark',
-    'is-light',
-    'is-defined',
-    'is-not-defined',
-    'is-very-dark',
-    'is-not-very-dark',
-    'is-very-light',
-    'is-not-very-light',
-  ] as const;
-
-  function getClassName(
-    type: 'self' | 'container',
-    condition: (typeof selfConditions)[number],
-  ): string {
-    if (devMode) return `${hashId}-${type}-${condition}`;
-    const index = selfConditions.indexOf(condition);
-    const shortType = type === 'self' ? 's' : 'c';
-    return `${hashId}-${shortType}${index}`;
+  // Matches `selector_class_name` in dynamic_color_value.rs: readable
+  // `{id}-self-isDark` in dev, short `{id}-s0` in production
+  function getClassName(type: 's' | 'c', condition: Condition): string {
+    if (devMode) {
+      return `${hashId}-${type === 's' ? 'self' : 'container'}-${condition}`;
+    }
+    return `${hashId}-${type}${CONDITIONS.indexOf(condition)}`;
   }
 
-  const ops = buildColorOps(
-    `var(--${hashId})`,
-    `var(--${hashId}-c)`,
-    `var(--${hashId}-c-optimal)`,
-  );
+  function getConditionClassNames(conditions: Condition[]): string {
+    return conditions
+      .flatMap((condition) => [
+        getClassName('s', condition),
+        getClassName('c', condition),
+      ])
+      .join(' ');
+  }
+
+  function getSelectors(
+    selector: (className: string) => string,
+    type: 's' | 'c',
+  ): ColorConditions {
+    const get = (condition: Condition) =>
+      selector(getClassName(type, condition));
+    return {
+      isDark: get('isDark'),
+      isLight: get('isLight'),
+      isDefined: get('isDefined'),
+      isNotDefined: get('isNotDefined'),
+      isVeryDark: get('isVeryDark'),
+      isNotVeryDark: get('isNotVeryDark'),
+      isVeryLight: get('isVeryLight'),
+      isNotVeryLight: get('isNotVeryLight'),
+    };
+  }
+
+  const ops = buildColorOps({
+    base: `var(--${hashId})`,
+    contrastBase: `var(--${hashId}-c)`,
+    contrastOptimalBase: `var(--${hashId}-c-optimal)`,
+    saturatedDarker: (amount) =>
+      `hsl(var(--${hashId}-h), var(--${hashId}-sds), calc(var(--${hashId}-l) * ${formatFactor(1 - amount)}))`,
+  });
+
+  function setProps(
+    hexColor: DynamicColorValue,
+    options: DynamicColorSetPropsOptions = {},
+  ): DynamicColorProps {
+    if (!hexColor) {
+      return {
+        className: joinClassNames(
+          options.className,
+          getConditionClassNames(['isNotDefined']),
+        ),
+        style: {
+          ...(options.setColorScheme && {
+            colorScheme: options.setColorScheme.fallback,
+          }),
+          ...options.style,
+        },
+      };
+    }
+
+    const rgb = parseHex(hexColor);
+
+    // Only hex colors can be analyzed, other css colors still work with `var`,
+    // `alpha`, `darker` and `lighter`
+    if (!rgb) {
+      if (devMode) {
+        console.error(
+          `Dynamic color "${hexColor}" is not a 3 or 6 digit hex color. Only hex colors get contrast colors, saturatedDarker and the light/dark selectors`,
+        );
+      }
+      return {
+        className: joinClassNames(
+          options.className,
+          getConditionClassNames(['isDefined']),
+        ),
+        style: {
+          [`--${hashId}`]: hexColor,
+          ...(options.setColorScheme && {
+            colorScheme: options.setColorScheme.fallback,
+          }),
+          ...options.style,
+        },
+      };
+    }
+
+    const { h, s, l } = rgbToHsl(rgb);
+    const conditions = getColorConditions(rgb, options);
+
+    return {
+      className: joinClassNames(
+        options.className,
+        getConditionClassNames(conditions),
+      ),
+      style: {
+        [`--${hashId}`]: hexColor,
+        [`--${hashId}-c`]: getContrastHex(rgb),
+        [`--${hashId}-c-optimal`]: getOptimalContrastHex(rgb),
+        [`--${hashId}-h`]: formatFactor(h),
+        [`--${hashId}-sds`]: `${saturatedDarkerSaturation(s) * 100}%`,
+        [`--${hashId}-l`]: `${formatFactor(l * 100)}%`,
+        ...(options.setColorScheme && {
+          colorScheme: conditions.includes('isLight') ? 'light' : 'dark',
+        }),
+        ...options.style,
+      },
+    };
+  }
 
   const color: DynamicCssColor = {
     ...ops,
-    setProps: (hexColor: string, options = {}) => {
-      const colorClasses: string[] = [];
-
-      if (isDarkColor(hexColor)) {
-        colorClasses.push(getClassName('self', 'is-dark'));
-      } else {
-        colorClasses.push(getClassName('self', 'is-light'));
-      }
-
-      colorClasses.push(getClassName('self', 'is-defined'));
-
-      if (isVeryDark(hexColor)) {
-        colorClasses.push(getClassName('self', 'is-very-dark'));
-      } else {
-        colorClasses.push(getClassName('self', 'is-not-very-dark'));
-      }
-
-      if (isVeryLight(hexColor)) {
-        colorClasses.push(getClassName('self', 'is-very-light'));
-      } else {
-        colorClasses.push(getClassName('self', 'is-not-very-light'));
-      }
-
-      const userClassName = options.className || '';
-      const finalClassName =
-        userClassName ?
-          `${userClassName} ${colorClasses.join(' ')}`
-        : colorClasses.join(' ');
-
-      const contrastColor = getContrastColor(hexColor);
-      const colorStyle: Record<string, unknown> = {
-        [`--${hashId}`]: hexColor,
-        [`--${hashId}-c`]: contrastColor,
-        [`--${hashId}-c-optimal`]: contrastColor,
-        ...options.style,
-      };
-
-      return { className: finalClassName, style: colorStyle };
-    },
-    self: {
-      isDark: `&.${getClassName('self', 'is-dark')}`,
-      isLight: `&.${getClassName('self', 'is-light')}`,
-      isDefined: `&.${getClassName('self', 'is-defined')}`,
-      isNotDefined: `&.${getClassName('self', 'is-not-defined')}`,
-      isVeryDark: `&.${getClassName('self', 'is-very-dark')}`,
-      isNotVeryDark: `&.${getClassName('self', 'is-not-very-dark')}`,
-      isVeryLight: `&.${getClassName('self', 'is-very-light')}`,
-      isNotVeryLight: `&.${getClassName('self', 'is-not-very-light')}`,
-    },
-    container: {
-      isDark: `.${getClassName('container', 'is-dark')} &`,
-      isLight: `.${getClassName('container', 'is-light')} &`,
-      isDefined: `.${getClassName('container', 'is-defined')} &`,
-      isNotDefined: `.${getClassName('container', 'is-not-defined')} &`,
-      isVeryDark: `.${getClassName('container', 'is-very-dark')} &`,
-      isNotVeryDark: `.${getClassName('container', 'is-not-very-dark')} &`,
-      isVeryLight: `.${getClassName('container', 'is-very-light')} &`,
-      isNotVeryLight: `.${getClassName('container', 'is-not-very-light')} &`,
-    },
-    set: (colorValue: string | null | false | undefined) => {
+    setProps,
+    self: getSelectors((className) => `&.${className}`, 's'),
+    // Used as an ancestor selector: `${color.container.isLight} & { ... }`
+    container: getSelectors((className) => `.${className}`, 'c'),
+    set: (colorValue) => {
       console.error('color.set() should not be called at runtime');
       return { __color: colorValue, __dynamicColorId: hashId };
     },
-    _sp: (
-      colorValue: string | null | false | undefined,
-      mergeWith: { className?: string; style?: Record<string, unknown> } = {},
-    ) => {
-      if (!colorValue) return mergeWith;
-      const colorProps = color.setProps(colorValue, {
+    _sp: (colorValue, mergeWith = {}) =>
+      setProps(colorValue, {
         className: mergeWith.className,
-        style: mergeWith.style ? mergeWith.style : undefined,
-      });
-      return { className: colorProps.className, style: colorProps.style };
-    },
+        style: mergeWith.style,
+      }),
   };
 
   return color;
+}
+
+function staticColorOps(hex: string): ColorOps {
+  const rgb = parseHex(hex);
+  if (!rgb) {
+    throw new Error(
+      `Invalid color "${hex}". Theme colors must be valid hex colors without alpha (e.g., "#ff0000" or "#f00")`,
+    );
+  }
+  const alphaHex = (color: Rgb, alpha: number) =>
+    toHex(color, Math.round(Math.min(1, Math.max(0, alpha)) * 255));
+  const contrastHex = getContrastHex(rgb);
+  const contrastRgb = parseHex(contrastHex) ?? rgb;
+  const optimalHex = getOptimalContrastHex(rgb);
+  const optimalRgb = parseHex(optimalHex) ?? rgb;
+
+  return {
+    var: hex,
+    alpha: (alpha) => alphaHex(rgb, alpha),
+    darker: (amount) => toHex(mix(rgb, 0, amount)),
+    lighter: (amount) => toHex(mix(rgb, 255, amount)),
+    saturatedDarker: (amount) => toHex(saturatedDarker(rgb, amount)),
+    contrast: {
+      var: contrastHex,
+      optimal: (options) =>
+        options?.alpha === undefined ?
+          optimalHex
+        : alphaHex(optimalRgb, options.alpha),
+      alpha: (alpha) => alphaHex(contrastRgb, alpha),
+    },
+  };
 }
 
 export function createStaticThemeColors<const C extends Record<string, string>>(
@@ -235,17 +302,7 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
   const result: Record<string, StaticColor<string>> = {};
 
   for (const [name, hex] of Object.entries(colors)) {
-    const contrastHex = getContrastColor(hex);
-    const ops = buildColorOps(hex, contrastHex, contrastHex);
-    result[name] = {
-      defaultHex: hex,
-      var: ops.var,
-      alpha: ops.alpha,
-      darker: ops.darker,
-      lighter: ops.lighter,
-      saturatedDarker: ops.saturatedDarker,
-      contrast: ops.contrast,
-    };
+    result[name] = { defaultHex: hex, ...staticColorOps(hex) };
   }
 
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- this a legit use case
@@ -254,7 +311,7 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 
 export type ContrastOps = {
   var: string;
-  optimal: (options?: { saturation?: number; alpha?: number }) => string;
+  optimal: (options?: { alpha?: number }) => string;
   alpha: (alpha: number) => string;
 };
 
@@ -267,31 +324,40 @@ export type ColorOps = {
   contrast: ContrastOps;
 };
 
-export function buildColorOps(
-  base: string,
-  contrastBase: string,
-  contrastOptimalBase: string,
-): ColorOps {
+function colorMixPercentage(amount: number): string {
+  return `${formatFactor(amount * 100)}%`;
+}
+
+export function buildColorOps({
+  base,
+  contrastBase,
+  contrastOptimalBase,
+  saturatedDarker: saturatedDarkerOp,
+}: {
+  base: string;
+  contrastBase: string;
+  contrastOptimalBase: string;
+  saturatedDarker: (amount: number) => string;
+}): ColorOps {
   return {
     var: base,
     alpha: (alpha: number) =>
-      `color-mix(in srgb, ${base} ${alpha * 100}%, transparent)`,
+      `color-mix(in srgb, ${base} ${colorMixPercentage(alpha)}, transparent)`,
     darker: (amount: number) =>
-      `color-mix(in srgb, ${base} ${(1 - amount) * 100}%, #000)`,
+      `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #000)`,
     lighter: (amount: number) =>
-      `color-mix(in srgb, ${base} ${(1 - amount) * 100}%, #fff)`,
-    saturatedDarker: (amount: number) =>
-      `color-mix(in srgb, ${base} ${(1 - amount) * 100}%, hsl(from ${base} h 100% 20%))`,
+      `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #fff)`,
+    saturatedDarker: saturatedDarkerOp,
     contrast: {
       var: contrastBase,
-      optimal: (options?: { saturation?: number; alpha?: number }) => {
-        if (options?.alpha) {
-          return `color-mix(in srgb, ${contrastOptimalBase} ${options.alpha * 100}%, transparent)`;
+      optimal: (options?: { alpha?: number }) => {
+        if (options?.alpha !== undefined) {
+          return `color-mix(in srgb, ${contrastOptimalBase} ${colorMixPercentage(options.alpha)}, transparent)`;
         }
         return contrastOptimalBase;
       },
       alpha: (alpha: number) =>
-        `color-mix(in srgb, ${contrastBase} ${alpha * 100}%, transparent)`,
+        `color-mix(in srgb, ${contrastBase} ${colorMixPercentage(alpha)}, transparent)`,
     },
   };
 }

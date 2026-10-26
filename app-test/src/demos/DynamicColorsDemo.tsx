@@ -82,12 +82,12 @@ const ChildContainer = styled.div`
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
 
-  ${primaryColor.container.isDark} {
+  ${primaryColor.container.isDark} & {
     background: rgba(255, 255, 255, 0.1);
     color: white;
   }
 
-  ${primaryColor.container.isLight} {
+  ${primaryColor.container.isLight} & {
     background: rgba(0, 0, 0, 0.1);
     color: #333;
   }

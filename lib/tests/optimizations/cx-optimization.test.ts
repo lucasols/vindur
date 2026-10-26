@@ -738,4 +738,37 @@ describe('cx() optimization', () => {
       `);
     });
   });
+
+  test('should keep the cx import when cx props still use it', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { cx } from 'vindur'
+
+        export const App = ({ active }) => (
+          <>
+            <div className={cx('x', { y: true })} />
+            <div css={\`&.on { color: red; }\`} cx={{ on: active }} />
+          </>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      export const App = ({ active }) => (
+        <>
+          <div className={"x" + " y"} />
+          <div
+            className={
+              "v1560qbr-1-css-prop-1 " +
+              cx({
+                "v1560qbr-2-on": active,
+              })
+            }
+          />
+        </>
+      );
+      "
+    `);
+  });
 });

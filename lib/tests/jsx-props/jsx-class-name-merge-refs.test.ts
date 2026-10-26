@@ -421,7 +421,7 @@ test('should not pass undefined as the vindur class name when merging dynamic co
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = (props: { className?: string }) => (
       <div
         {...props}

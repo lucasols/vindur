@@ -25,7 +25,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const dynamicColor = createDynamicCssColor("v1560qbr-1", true);
+      const dynamicColor = createDynamicCssColor("v1560qbr-1-dynamicColor", true);
       const Component = () => {
         return (
           <div
@@ -42,8 +42,8 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Card {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-dynamicColor);
+        color: var(--v1560qbr-1-dynamicColor-c);
       }
       "
     `);
@@ -80,7 +80,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <div
@@ -101,8 +101,8 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Card {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -135,7 +135,7 @@ describe('Dynamic Colors - Basic Usage', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         return (
           <div
@@ -168,7 +168,7 @@ describe('Dynamic Colors - Basic Usage', () => {
       \`
 
       const Component = () => {
-        return <Button dynamicColor={color}>Button</Button>;
+        return <Button dynamicColor={color.set('#ff6b6b')}>Button</Button>;
       }
     `;
 

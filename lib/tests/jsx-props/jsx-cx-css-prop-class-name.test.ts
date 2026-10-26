@@ -473,7 +473,7 @@ test('should merge a cx prop after dynamicColor on a styled component with sprea
       mergeClassNames,
       mergeStyles,
     } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const App = ({ p, v, x }) => (
       <div
         {...p}
@@ -509,7 +509,7 @@ test('should keep a transformed style prop placed before spread props with dynam
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const App = ({ x, v, p }) => (
       <div
         {...p}

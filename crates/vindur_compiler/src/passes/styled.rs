@@ -358,7 +358,7 @@ fn ampersand_compound_classes(css: &str) -> Vec<&str> {
     names
 }
 
-fn strip_css_comments(css: &str) -> String {
+pub(super) fn strip_css_comments(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
     while let Some(start) = rest.find("/*") {
