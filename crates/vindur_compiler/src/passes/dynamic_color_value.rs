@@ -209,8 +209,9 @@ pub(super) fn is_color_method(contrast: bool, method: &str) -> bool {
     }
 }
 
-/// Color methods that take an amount need it to evaluate to a number between 0 and 1,
-/// `contrast.optimal` takes an optional `{ alpha }` object
+/// Amounts outside 0-1 make invalid CSS, the types can't reject them. Other misuse, like a
+/// missing argument or a method the color doesn't have, is a type error and fails as an invalid
+/// interpolation
 pub(super) fn invalid_color_method_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -228,71 +229,36 @@ pub(super) fn invalid_color_method_error(
     if !matches!(
         method,
         "alpha" | "darker" | "lighter" | "saturatedDarker" | "optimal"
+    ) || !matches!(
+        evaluate_expression(&callee.object, constants, scoping)?,
+        StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
     ) {
         return None;
     }
-    let contrast = match evaluate_expression(&callee.object, constants, scoping)? {
-        StaticValue::DynamicColor { .. } | StaticValue::ThemeColor { .. } => false,
-        StaticValue::DynamicColorPath { path, .. } if path == "contrast" => true,
-        StaticValue::ThemeColorContrast { .. } => true,
+    let [argument] = call.arguments.as_slice() else {
+        return None;
+    };
+    let argument = evaluate_expression(argument.as_expression()?, constants, scoping)?;
+    let (name, amount) = match (method, argument) {
+        (
+            "optimal",
+            StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. },
+        ) => match properties.get("alpha") {
+            Some(StaticValue::Number(alpha)) => ("optimal alpha".to_owned(), *alpha),
+            _ => return None,
+        },
+        (_, StaticValue::Number(amount)) => (format!("{method} amount"), amount),
         _ => return None,
     };
-    let error = |message: String| {
-        Some(CompilerDiagnostic::error(
-            file_path, source, call.span, message,
-        ))
-    };
-    if !is_color_method(contrast, method) {
-        return error(if contrast {
-            format!(
-                "Method {method} is not available on contrast colors, they only have `var`, `alpha` and `optimal`"
-            )
-        } else {
-            format!(
-                "Method {method} is only available on contrast colors, e.g. `color.contrast.{method}()`"
-            )
-        });
-    }
-    let argument = match call.arguments.as_slice() {
-        [] => None,
-        [argument] => match argument.as_expression() {
-            Some(expression) => evaluate_expression(expression, constants, scoping),
-            None => return error(format!("Method {method} doesn't accept spread arguments")),
-        },
-        _ => return error(format!("Method {method} takes a single argument")),
-    };
-    let amount = if method == "optimal" {
-        match argument {
-            None | Some(StaticValue::Undefined) => return None,
-            Some(
-                StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. },
-            ) => match properties.get("alpha") {
-                None | Some(StaticValue::Undefined) => return None,
-                Some(StaticValue::Number(alpha)) => *alpha,
-                Some(_) => return error("Method optimal alpha must be a number".to_owned()),
-            },
-            Some(_) => {
-                return error(
-                    "Method optimal takes an optional `{ alpha }` object, e.g. `optimal({ alpha: 0.5 })`"
-                        .to_owned(),
-                );
-            }
-        }
-    } else {
-        match argument {
-            Some(StaticValue::Number(amount)) => amount,
-            _ => return error(format!("Method {method} requires a numeric argument")),
-        }
-    };
-    if (0.0..=1.0).contains(&amount) {
-        return None;
-    }
-    let name = if method == "optimal" {
-        "optimal alpha".to_owned()
-    } else {
-        format!("{method} amount")
-    };
-    error(format!(
-        "Method {name} must be between 0 and 1, got {amount}"
-    ))
+    (!(0.0..=1.0).contains(&amount)).then(|| {
+        CompilerDiagnostic::error(
+            file_path,
+            source,
+            call.span,
+            format!("Method {name} must be between 0 and 1, got {amount}"),
+        )
+    })
 }

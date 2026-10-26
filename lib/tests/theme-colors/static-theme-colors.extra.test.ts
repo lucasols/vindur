@@ -237,7 +237,7 @@ test('should fail on static theme color method amounts that are not static', asy
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method darker requires a numeric argument
+    [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${colors.primary.darker(getAmount())}, function must be statically analyzable and correctly imported with the configured aliases
     loc: 6:11]
   `);
 });
@@ -382,25 +382,6 @@ test('should evaluate constant amounts of dynamic color methods', async () => {
       border-color: color-mix(in srgb, var(--v1560qbr-1) 20%, transparent);
     }
     "
-  `);
-});
-
-test('should throw error when a theme color method is called without amount', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { createStaticThemeColors, css } from 'vindur'
-
-        const colors = createStaticThemeColors({ primary: '#007bff' })
-
-        const style = css\`
-          color: \${colors.primary.darker()};
-        \`
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method darker requires a numeric argument
-    loc: 6:11]
   `);
 });
 

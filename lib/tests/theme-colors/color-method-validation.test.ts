@@ -13,33 +13,6 @@ const colorsSource = (styles: string) => dedent`
   \`
 `;
 
-test('should throw on color methods that runtime colors do not have', async () => {
-  await expect(
-    transformWithFormat({ source: colorsSource('${color.optimal()}') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method optimal is only available on contrast colors, e.g. \`color.contrast.optimal()\`
-    loc: 7:11]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: colorsSource('${color.contrast.darker(0.2)}'),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method darker is not available on contrast colors, they only have \`var\`, \`alpha\` and \`optimal\`
-    loc: 7:11]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: colorsSource('${colors.primary.contrast.saturatedDarker(0.2)}'),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method saturatedDarker is not available on contrast colors, they only have \`var\`, \`alpha\` and \`optimal\`
-    loc: 7:11]
-  `);
-});
-
 test('should validate the options of contrast.optimal', async () => {
   await expect(
     transformWithFormat({
@@ -56,15 +29,6 @@ test('should validate the options of contrast.optimal', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Method optimal alpha must be between 0 and 1, got 2
-    loc: 7:11]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: colorsSource('${colors.primary.contrast.optimal(0.5)}'),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Method optimal takes an optional \`{ alpha }\` object, e.g. \`optimal({ alpha: 0.5 })\`
     loc: 7:11]
   `);
 });
