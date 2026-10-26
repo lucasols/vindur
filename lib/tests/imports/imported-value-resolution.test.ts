@@ -2,52 +2,53 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
-const createCycleFs = (typeModifier: 'type ' | '') => createFsMock({
-  'Button.tsx': dedent`
-    import { styled } from 'vindur';
-    import { bgColor, INSET } from '#/styles';
-    import ${typeModifier}{ ButtonVariant } from '#/types';
+const createCycleFs = (typeModifier: 'type ' | '') =>
+  createFsMock({
+    'Button.tsx': dedent`
+      import { styled } from 'vindur';
+      import { bgColor, INSET } from '#/styles';
+      import ${typeModifier}{ ButtonVariant } from '#/types';
 
-    export const BUTTON_INSET = INSET;
+      export const BUTTON_INSET = INSET;
 
-    const Container = styled.button\`
-      top: \${INSET}px;
+      const Container = styled.button\`
+        top: \${INSET}px;
 
-      \${bgColor.container.isDark} & {
-        color: white;
-      }
-    \`;
+        \${bgColor.container.isDark} & {
+          color: white;
+        }
+      \`;
 
-    export const Button = ({ variant }: { variant: ButtonVariant }) => (
-      <Container data-variant={variant} />
-    );
-  `,
-  'styles.ts': dedent`
-    import { createDynamicCssColor } from 'vindur';
-    import ${typeModifier}{ Theme } from '#/types';
-    import { ${typeModifier}ButtonVariant, DEFAULT_INSET } from '#/constants';
+      export const Button = ({ variant }: { variant: ButtonVariant }) => (
+        <Container data-variant={variant} />
+      );
+    `,
+    'styles.ts': dedent`
+      import { createDynamicCssColor } from 'vindur';
+      import ${typeModifier}{ Theme } from '#/types';
+      import { ${typeModifier}ButtonVariant, DEFAULT_INSET } from '#/constants';
 
-    export const bgColor = createDynamicCssColor();
+      export const bgColor = createDynamicCssColor();
 
-    export const INSET = DEFAULT_INSET;
+      export const INSET = DEFAULT_INSET;
 
-    export type StylesTheme = Theme | ButtonVariant;
-  `,
-  'types.ts': dedent`
-    import ${typeModifier}{ StylesTheme } from '#/styles';
+      export type StylesTheme = Theme | ButtonVariant;
+    `,
+    'types.ts': dedent`
+      import ${typeModifier}{ StylesTheme } from '#/styles';
 
-    export type Theme = 'light' | 'dark';
+      export type Theme = 'light' | 'dark';
 
-    export type ButtonVariant = StylesTheme;
-  `,
-  'constants.ts': dedent`
-    import ${typeModifier}{ StylesTheme } from '#/styles';
+      export type ButtonVariant = StylesTheme;
+    `,
+    'constants.ts': dedent`
+      import ${typeModifier}{ StylesTheme } from '#/styles';
 
-    export const DEFAULT_INSET = 8;
+      export const DEFAULT_INSET = 8;
 
-    export type ButtonVariant = StylesTheme;
-  `,
-});
+      export type ButtonVariant = StylesTheme;
+    `,
+  });
 
 const fs = createCycleFs('type ');
 
@@ -108,7 +109,7 @@ test('should compile the dependency itself', async () => {
     ".v13zbx73-1-Container {
       top: 8px;
 
-      .v1s4vg6s-1-c0 & {
+      .v1s4vg6s-1-bgColor-container-isDark & {
         color: white;
       }
     }
