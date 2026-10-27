@@ -217,6 +217,29 @@ test('should warn about values a redeclared flag adds to the base flag', async (
   `);
 });
 
+test('should reject redeclaring a base flag with another type', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const ToggleButton = styled(Button)<{ active: 'on' | 'off' }>\`
+          color: blue;
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" is a boolean in the extended component, redeclare it with the same type
+    loc: 9:38]
+  `);
+});
+
 test('should not rewrite classes that start with a flag name', async () => {
   const result = await transformWithFormat({
     source: dedent`

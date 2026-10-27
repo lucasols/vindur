@@ -3,6 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
+use oxc_span::Span;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
@@ -178,7 +179,10 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             *transform.id_index += 1;
-            let style_flags = with_base_style_flags(own_style_flags, &base_component.style_flags);
+            let style_flags = with_base_style_flags(own_style_flags, &base_component.style_flags)
+                .map_err(|(span, message)| {
+                CompilerDiagnostic::error(transform.file_path, transform.source, span, message)
+            })?;
             let new_style_flags =
                 flags_without_base_styles(&style_flags, &base_component.style_flags);
             let content = evaluate_template(
@@ -548,28 +552,44 @@ fn validate_vindur_function_declaration(
 }
 
 /// A `styled(Base)` keeps the base flags, and flags it redeclares keep the base classes, so the
-/// base modifier styles still match
+/// base modifier styles still match. A redeclared flag must keep the base flag type, the classes
+/// of a boolean and a string union flag don't match each other
 fn with_base_style_flags(
     mut own_flags: Vec<StyleFlag>,
     base_flags: &[StyleFlag],
-) -> Vec<StyleFlag> {
-    let mut style_flags = base_flags
-        .iter()
-        .map(|base_flag| {
-            match own_flags
-                .iter()
-                .position(|flag| flag.prop_name == base_flag.prop_name)
-            {
-                Some(index) => StyleFlag {
-                    hashed_class_name: base_flag.hashed_class_name.clone(),
-                    ..own_flags.remove(index)
-                },
-                None => base_flag.clone(),
-            }
-        })
-        .collect::<Vec<_>>();
+) -> Result<Vec<StyleFlag>, (Span, String)> {
+    let mut style_flags = Vec::with_capacity(base_flags.len() + own_flags.len());
+    for base_flag in base_flags {
+        let Some(index) = own_flags
+            .iter()
+            .position(|flag| flag.prop_name == base_flag.prop_name)
+        else {
+            style_flags.push(base_flag.clone());
+            continue;
+        };
+        let flag = own_flags.remove(index);
+        let base_type = match (&flag.kind, &base_flag.kind) {
+            (StyleFlagKind::Boolean, StyleFlagKind::Boolean)
+            | (StyleFlagKind::StringUnion(_), StyleFlagKind::StringUnion(_)) => None,
+            (_, StyleFlagKind::Boolean) => Some("a boolean"),
+            (_, StyleFlagKind::StringUnion(_)) => Some("a string union"),
+        };
+        if let Some(base_type) = base_type {
+            return Err((
+                flag.span,
+                format!(
+                    "Style flag \"{}\" is {base_type} in the extended component, redeclare it with the same type",
+                    flag.prop_name
+                ),
+            ));
+        }
+        style_flags.push(StyleFlag {
+            hashed_class_name: base_flag.hashed_class_name.clone(),
+            ..flag
+        });
+    }
     style_flags.extend(own_flags);
-    style_flags
+    Ok(style_flags)
 }
 
 /// The base component styles its own flags, so only new flags and values need modifier styles

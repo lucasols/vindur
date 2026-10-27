@@ -1229,7 +1229,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: Apply the hashed class when `true` (e.g., `primary={true}` → `classHash-1`)
 - **String union props**: Apply the hashed class with the value suffix (e.g., `size="large"` → `classHash-2-large`)
 - **Dev class names**: In development the modifier class starts with the component class (e.g., `v1560qbr-1-Button-primary` and `v1560qbr-1-Button-size-large`). Production uses short hashes
-- **Extended components**: A `styled(Base)` keeps the flags of `Base` and can add its own. Flags of `Base` that it redeclares keep the base modifier class, so the base modifier styles still apply. A `Base` imported from another file is treated as a regular component, so its flags must be styled again in the extension
+- **Extended components**: A `styled(Base)` keeps the flags of `Base` and can add its own. Flags of `Base` that it redeclares must keep their type (boolean or string union) and keep the base modifier class, so the base modifier styles still apply. A `Base` imported from another file is treated as a regular component, so its flags must be styled again in the extension
 
 #### Supported Prop Types
 
@@ -1250,7 +1250,7 @@ The CSS classes are automatically applied based on prop values:
 }
 ```
 
-Flags chained to a component reference, like `${Menu}.open &` or `${Menu}:not(.$open) &`, select the flags of that component. Transient (`$`) flags of another component can only be selected in a styled component defined after it.
+Flags chained to a component reference in the same compound selector, like `${Menu}.open &`, `${Menu}:hover.open &` or `${Menu}:not(.$open) &`, select the flags of that component. `:not()`, `:is()` and `:where()` after a reference can only list its classes, and a compound can chain only one reference. `:has()` matches other elements, so `${Menu}:has(.open) &` selects the component's own `open` flag. Transient (`$`) flags of another component can only be selected in a styled component defined after it.
 
 ## Theme Colors
 

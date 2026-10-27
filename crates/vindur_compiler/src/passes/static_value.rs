@@ -235,6 +235,9 @@ fn build_template_css(
         if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
             evaluated.selector_classes.push(index);
         }
+        if let StaticValue::ClassName(class_name) = &value {
+            evaluated.component_references.push(class_name.clone());
+        }
         let is_css_extension =
             matches!(value, StaticValue::CssClass { .. }) && followed_by_semicolon;
         let static_before_expression = quasi

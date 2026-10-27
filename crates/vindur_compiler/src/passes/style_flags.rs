@@ -251,6 +251,7 @@ fn style_flag_from_property(
         hashed_class_name,
         kind,
         prop_name,
+        span: property.span,
     })
 }
 

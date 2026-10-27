@@ -7,13 +7,17 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::styled::{css_class_name_part, replace_class_selector, rewrite_class_chains};
+use super::styled::{
+    css_class_name_part, replace_class_selector, rewrite_class_chains, unsupported_class_chain,
+};
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
 #[derive(Default)]
 pub(crate) struct EvaluatedTemplate {
     pub css: String,
+    /// Classes of the interpolated components, like `${Menu}`
+    pub component_references: Vec<String>,
     /// Indices of the CSS class interpolations that were evaluated as selectors
     pub selector_classes: Vec<usize>,
     pub segments: Vec<TemplateSegment>,
@@ -89,6 +93,27 @@ pub(crate) fn validate_template_css(
     context: &TemplateContext<'_>,
     rebuild_with_extensions: impl Fn(&[usize]) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
+    if let Some(unsupported) = unsupported_class_chain(&evaluated.css, |class| {
+        evaluated
+            .component_references
+            .iter()
+            .any(|reference| reference == class)
+    }) {
+        let end = (unsupported.offset + 1).min(evaluated.css.len());
+        let span = template_source_span(
+            &evaluated.css,
+            source,
+            &evaluated.segments,
+            unsupported.offset..end,
+        )
+        .map_or(template.span, |(span, _)| span);
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            unsupported.message.to_owned(),
+        ));
+    }
     let kind = BlockKind::from_tag_type(context.tag_type);
     let validate = |css: &str| validate_style_block(&validation_css(css, context), kind);
     let Err(error) = validate(&evaluated.css) else {
