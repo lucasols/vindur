@@ -503,7 +503,6 @@ describe('Warnings for Missing CSS Classes', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import { cx } from "vindur";
       import { ButtonElement } from "#/button";
-      import { colors } from "#/colors";
       function Component({ isActive }) {
         return (
           <>

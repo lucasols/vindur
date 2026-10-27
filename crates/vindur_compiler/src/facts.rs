@@ -30,6 +30,11 @@ pub struct ModuleFacts {
     /// Sources of `export * from 'source'`
     #[serde(default)]
     pub star_re_exports: Vec<String>,
+    /// Loading the module can do more than declaring its exports: `createGlobalStyle` styles,
+    /// top-level code outside the side effect free set, value re-exports, or imports other
+    /// than vindur, types and modules without side effects
+    #[serde(default)]
+    pub has_side_effects: bool,
 }
 
 impl ModuleFacts {

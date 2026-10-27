@@ -31,6 +31,7 @@ use super::{
     jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
+    side_effects::has_top_level_side_effects,
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
@@ -121,6 +122,7 @@ pub(crate) fn transform_program(
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
+    let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
@@ -188,6 +190,7 @@ pub(crate) fn transform_program(
                         statement_start: declaration.span.start,
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
+                        has_side_effects: &mut has_side_effects,
                         scoped_variables: &mut scoped_variables,
                         warnings: &mut warnings,
                     },
@@ -231,6 +234,7 @@ pub(crate) fn transform_program(
                             statement_start: export.span.start,
                             needs_styled_helper: &mut needs_styled_helper,
                             needs_style_flags_helper: &mut needs_style_flags_helper,
+                            has_side_effects: &mut has_side_effects,
                             scoped_variables: &mut scoped_variables,
                             warnings: &mut warnings,
                         },
@@ -266,6 +270,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(content);
+                        has_side_effects = true;
                     }
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
@@ -487,6 +492,7 @@ pub(crate) fn transform_program(
         exports,
         re_exports,
         star_re_exports,
+        has_side_effects,
         // Filled in by the compiler from the loaded imports
         ..ModuleFacts::default()
     };
