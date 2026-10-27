@@ -50,7 +50,10 @@ pub(crate) fn transform_stable_declaration(
         } else {
             context.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(generated.clone()),
+                StaticValue::ClassName {
+                    name: generated.clone(),
+                    style_flags: Vec::new(),
+                },
             );
             let Expression::Identifier(callee) = &call.callee else {
                 continue;

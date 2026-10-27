@@ -3,6 +3,8 @@ use std::{borrow::Cow, ops::Range};
 use oxc_css_parser::Allocator;
 use rustc_hash::FxHashMap;
 
+use crate::facts::{StaticValue, StyleFlagClass};
+
 use super::css_syntax::{CssError, parse_style_block};
 use super::cx_modifier_selectors::{
     ElementClass, StyleBlockClasses, referenced_classes, rewrite_classes, style_block_classes,
@@ -10,24 +12,17 @@ use super::cx_modifier_selectors::{
 use super::styled::{StyleFlag, StyleFlagKind, StyledComponent};
 use super::styled_jsx_helpers::is_class_rule;
 
-/// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
-struct FlagClass {
-    /// The class as written in the CSS, e.g. `$size-small`
-    original: String,
-    hashed: String,
-}
-
-fn flag_classes(flags: &[StyleFlag]) -> Vec<FlagClass> {
+pub(crate) fn flag_classes(flags: &[StyleFlag]) -> Vec<StyleFlagClass> {
     flags
         .iter()
         .flat_map(|flag| match &flag.kind {
-            StyleFlagKind::Boolean => vec![FlagClass {
+            StyleFlagKind::Boolean => vec![StyleFlagClass {
                 original: flag.prop_name.clone(),
                 hashed: flag.hashed_class_name.clone(),
             }],
             StyleFlagKind::StringUnion(values) => values
                 .iter()
-                .map(|value| FlagClass {
+                .map(|value| StyleFlagClass {
                     original: format!("{}-{value}", flag.prop_name),
                     hashed: format!("{}-{value}", flag.hashed_class_name),
                 })
@@ -242,18 +237,18 @@ pub(crate) struct ReferencedFlagError {
 /// and other elements, renaming them would break the other elements
 pub(crate) fn hash_referenced_style_flags(
     css_rules: &mut [String],
+    constants: &FxHashMap<String, StaticValue>,
     components: &FxHashMap<String, StyledComponent>,
 ) -> Result<(), ReferencedFlagError> {
-    let references = components
+    // Imported styled components carry the flags hashed by their own module
+    let references = constants
         .iter()
-        .filter(|(_, component)| !component.style_flags.is_empty())
-        .filter_map(|(name, component)| {
-            let class_name = component.class_name.split_whitespace().last()?;
-            Some((
-                name.as_str(),
-                class_name.to_owned(),
-                flag_classes(&component.style_flags),
-            ))
+        .filter_map(|(name, value)| match value {
+            StaticValue::ClassName {
+                name: class_name,
+                style_flags,
+            } if !style_flags.is_empty() => Some((name.as_str(), class_name, style_flags)),
+            _ => None,
         })
         .collect::<Vec<_>>();
     for rule in css_rules.iter_mut() {

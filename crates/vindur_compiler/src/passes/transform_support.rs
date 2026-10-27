@@ -21,8 +21,8 @@ use super::{
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
-        missing_style_flag_classes, other_element_flag_classes, rewrite_style_flag_selectors,
-        style_classes, undeclared_style_classes,
+        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
     styled::{
         StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
@@ -341,7 +341,10 @@ pub(super) fn process_variable_declaration(
             };
             transform.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(generated_name.clone()),
+                StaticValue::ClassName {
+                    name: generated_name.clone(),
+                    style_flags: flag_classes(&style_flags),
+                },
             );
             let has_own_attrs = own_attrs.is_some();
             let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {

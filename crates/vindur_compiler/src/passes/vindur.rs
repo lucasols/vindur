@@ -513,7 +513,9 @@ pub(crate) fn transform_program(
             ),
         ));
     }
-    if let Err(error) = hash_referenced_style_flags(&mut css_rules, &styled_components) {
+    if let Err(error) =
+        hash_referenced_style_flags(&mut css_rules, &facts.constants, &styled_components)
+    {
         let span = scoping
             .get_root_binding(error.component.as_str().into())
             .map_or(oxc_span::Span::new(0, 0), |symbol| {
@@ -554,7 +556,7 @@ pub(crate) fn transform_program(
 fn is_style_value(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::ClassName(_)
+        StaticValue::ClassName { .. }
             | StaticValue::CssClass { .. }
             | StaticValue::DynamicColor { .. }
             | StaticValue::DynamicColorPath { .. }

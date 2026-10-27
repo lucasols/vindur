@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('should hash modifier class names in dev mode', async () => {
   const result = await transformWithFormat({
@@ -469,6 +469,71 @@ test('referencing styled component flags hashes flags of nested and scoped refer
       @scope (.v1560qbr-1) {
         :scope.voctcyj & {
           color: black;
+        }
+      }
+    }
+    "
+  `);
+});
+
+test('referencing imported styled component flags hashes them as the component module does', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Item } from '#/item';
+
+      const Child = styled.div\`
+        \${Item}.active & {
+          color: green;
+        }
+        .list \${Item} {
+          &.size-small .icon {
+            color: blue;
+          }
+        }
+      \`;
+
+      export const App = () => (
+        <Item active size="small">
+          <Child />
+        </Item>
+      );
+    `,
+    overrideDefaultFs: createFsMock({
+      'item.tsx': dedent`
+        import { styled } from 'vindur';
+
+        export const Item = styled.div<{ active: boolean; size: 'small' | 'large' }>\`
+          &.active {
+            color: red;
+          }
+          &.size-small {
+            padding: 4px;
+          }
+        \`;
+      `,
+    }),
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Item } from "#/item";
+    export const App = () => (
+      <Item active size="small">
+        <div className="v1560qbr-1" />
+      </Item>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      .v1llrsih-1.vum7ukr & {
+        color: green;
+      }
+      .list .v1llrsih-1 {
+        &.v397u9b-small .icon {
+          color: blue;
         }
       }
     }

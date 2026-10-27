@@ -1252,7 +1252,7 @@ Like `cx` classes, flag classes are only hashed where they apply to the element 
 
 A styled component extending one with flags, like `styled(Item)<{ big: boolean }>`, keeps the flags of `Item` and adds its own.
 
-Flags of another styled component are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. `$`-prefixed flags can't be selected through a reference, like `${Item}.$active`, use a flag without `$`.
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. `$`-prefixed flags can't be selected through a reference, like `${Item}.$active`, use a flag without `$`.
 
 ## Theme Colors
 
