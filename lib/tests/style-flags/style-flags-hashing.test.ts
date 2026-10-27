@@ -508,3 +508,55 @@ test('should throw for referenced styled component flags in rules that also matc
     loc: 9:6]
   `);
 });
+
+test('should throw for $ prefixed flags selected through a component reference', async () => {
+  const source = (childFlags: string, rule: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Item = styled.div<{ $active: boolean }>\`
+      &.$active {
+        color: red;
+      }
+    \`;
+
+    const Child = styled.div${childFlags}\`
+      ${rule}
+    \`;
+
+    export const App = () => (
+      <Item $active>
+        <Child />
+      </Item>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source('', '${Item}.$active & { color: blue; }'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:10]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<{ $active: boolean }>',
+        '&.$active { color: red; } ${Item}.$active & { color: blue; }',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:36]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source('', '${Item} { &.$active & { color: blue; } }'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:14]
+  `);
+});

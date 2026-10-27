@@ -50,6 +50,10 @@ fn parsable_css<'a>(css: &'a str, flags: &[StyleFlag]) -> Cow<'a, str> {
     if !flags.iter().any(|flag| flag.prop_name.contains('$')) {
         return Cow::Borrowed(css);
     }
+    Cow::Owned(dollar_classes_as_underscores(css))
+}
+
+fn dollar_classes_as_underscores(css: &str) -> String {
     let mut parsable = String::with_capacity(css.len());
     let mut in_class = false;
     for character in css.chars() {
@@ -60,7 +64,27 @@ fn parsable_css<'a>(css: &'a str, flags: &[StyleFlag]) -> Cow<'a, str> {
         in_class = character == '.' || (in_class && is_class_character(character));
         parsable.push(character);
     }
-    Cow::Owned(parsable)
+    parsable
+}
+
+/// The range of the first `$` class selected through a reference to a styled component, e.g.
+/// `$active` in `${Item}.$active &`. `$` flag classes are not valid CSS, so they can't be selected
+/// through a reference, only in selectors of the element itself
+pub(crate) fn referenced_dollar_class(
+    css: &str,
+    classes: &[String],
+    placeholders: &[String],
+) -> Option<Range<usize>> {
+    let parsable = dollar_classes_as_underscores(css);
+    let allocator = Allocator::default();
+    let stylesheet = parse_style_block(&allocator, &parsable).ok()?;
+    referenced_classes(&stylesheet.statements, classes, placeholders)
+        .into_iter()
+        .map(|class| class.start..class.end)
+        .find(|range| {
+            css.get(range.clone())
+                .is_some_and(|name| name.contains('$'))
+        })
 }
 
 /// The classes of the selectors of the element itself in a styled component CSS, named as written

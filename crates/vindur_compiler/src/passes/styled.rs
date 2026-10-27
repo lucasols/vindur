@@ -286,6 +286,10 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
+pub(crate) fn is_styled_ref_placeholder(text: &str) -> bool {
+    text.starts_with(STYLED_REF_PREFIX)
+}
+
 pub(super) fn strip_css_comments(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;

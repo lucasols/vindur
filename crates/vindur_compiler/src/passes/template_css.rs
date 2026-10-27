@@ -5,7 +5,8 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::style_flag_selectors::flag_validation_css;
+use super::style_flag_selectors::{flag_validation_css, referenced_dollar_class};
+use super::styled::is_styled_ref_placeholder;
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -86,6 +87,33 @@ impl EvaluatedTemplate {
         let end = error.end.max(error.start + 1).min(self.css.len());
         template_source_span(&self.css, source, &self.segments, error.start..end)
     }
+
+    /// An error for a `$` style flag selected through a component reference, e.g.
+    /// `${Item}.$active &`, which would otherwise fail as invalid CSS
+    fn referenced_dollar_flag_error(&self, source: &str) -> Option<CssError> {
+        self.segments.iter().find_map(|segment| {
+            let SegmentOrigin::Interpolation(span) = segment.origin else {
+                return None;
+            };
+            let value = self.css.get(segment.range.clone())?;
+            let (classes, placeholders) = if is_styled_ref_placeholder(value) {
+                (Vec::new(), vec![value.to_owned()])
+            } else {
+                let class_name = value.strip_prefix('.')?;
+                (vec![class_name.to_owned()], Vec::new())
+            };
+            let range = referenced_dollar_class(&self.css, &classes, &placeholders)?;
+            let reference = source.get(span.start as usize..span.end as usize)?;
+            let flag = &self.css[range.clone()];
+            Some(CssError::new(
+                format!(
+                    "Style flag \"{flag}\" can't be selected through a component reference like \"${{{reference}}}.{flag}\", use a flag without \"$\""
+                ),
+                range.start,
+                range.end,
+            ))
+        })
+    }
 }
 
 /// Fails with a source located error when the evaluated CSS is invalid. When treating CSS class
@@ -102,11 +130,21 @@ pub(crate) fn validate_template_css(
     let kind = BlockKind::from_tag_type(context.tag_type);
     let validate =
         |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags)?, kind);
-    let validation_css = flag_validation_css(&evaluated.css, context.style_flags)
-        .map_err(|error| evaluated.error_diagnostic(error, template, file_path, source))?;
+    let located = |error| evaluated.error_diagnostic(error, template, file_path, source);
+    let validation_css =
+        flag_validation_css(&evaluated.css, context.style_flags).map_err(|error| {
+            located(
+                evaluated
+                    .referenced_dollar_flag_error(source)
+                    .unwrap_or(error),
+            )
+        })?;
     let Err(error) = validate_style_block(&validation_css, kind) else {
         return Ok(());
     };
+    if let Some(error) = evaluated.referenced_dollar_flag_error(source) {
+        return Err(located(error));
+    }
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;
