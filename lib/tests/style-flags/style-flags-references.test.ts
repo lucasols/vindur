@@ -259,3 +259,260 @@ test('should not rewrite classes that start with a flag name', async () => {
     "
   `);
 });
+
+test('should resolve flags chained to a component reference through pseudo-classes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Menu = styled.div<{ active: boolean; $open: boolean }>\`
+        &.active {
+          color: red;
+        }
+
+        &.$open {
+          color: pink;
+        }
+      \`;
+
+      const Item = styled.span<{ active: boolean; $open: boolean }>\`
+        &.active {
+          color: blue;
+        }
+
+        &.$open {
+          color: gray;
+        }
+
+        \${Menu}:not(.active) & {
+          opacity: 0.5;
+        }
+
+        \${Menu}:hover.active & {
+          color: green;
+        }
+
+        \${Menu}.$open & {
+          display: block;
+        }
+      \`;
+
+      function Component({ active }: { active: boolean }) {
+        return (
+          <Menu active={active} $open>
+            <Item active={active} $open />
+          </Menu>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <div
+          className={
+            "v1560qbr-1-Menu v1560qbr-1-Menu-_open" +
+            (active ? " v1560qbr-1-Menu-active" : "")
+          }
+        >
+          <span
+            className={
+              "v1560qbr-2-Item v1560qbr-2-Item-_open" +
+              (active ? " v1560qbr-2-Item-active" : "")
+            }
+          />
+        </div>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Menu {
+      &.v1560qbr-1-Menu-active {
+        color: red;
+      }
+
+      &.v1560qbr-1-Menu-_open {
+        color: pink;
+      }
+    }
+
+    .v1560qbr-2-Item {
+      &.v1560qbr-2-Item-active {
+        color: blue;
+      }
+
+      &.v1560qbr-2-Item-_open {
+        color: gray;
+      }
+
+      .v1560qbr-1-Menu:not(.v1560qbr-1-Menu-active) & {
+        opacity: 0.5;
+      }
+
+      .v1560qbr-1-Menu:hover.v1560qbr-1-Menu-active & {
+        color: green;
+      }
+
+      .v1560qbr-1-Menu.v1560qbr-1-Menu-_open & {
+        display: block;
+      }
+    }
+    "
+  `);
+});
+
+test('should reject transient flags chained to a forward component reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Item = styled.span<{ $open: boolean }>\`
+          &.$open {
+            color: gray;
+          }
+
+          \${() => Menu}.$open & {
+            display: block;
+          }
+        \`;
+
+        const Menu = styled.div<{ $open: boolean }>\`
+          &.$open {
+            color: pink;
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: The transient style flag selector ".$open" can't follow a forward component reference, define the referenced component before this one
+    loc: 3:13]
+  `,
+  );
+});
+
+test('should warn about flags only styled through another component reference', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Menu = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Item = styled.span<{ active: boolean }>\`
+        \${Menu}.active & {
+          color: green;
+        }
+      \`;
+
+      function Component({ active }: { active: boolean }) {
+        return (
+          <Menu active={active}>
+            <Item active={active} />
+          </Menu>
+        );
+      }
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Warning: Missing modifier styles for "&.active" in Item'
+        loc: 'current_file:9:6'
+    "
+  `);
+});
+
+test('should support flag names with non-ASCII characters', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{ café: boolean }>\`
+        &.café {
+          color: brown;
+        }
+      \`;
+
+      function Component({ café }: { café: boolean }) {
+        return <Button café={café} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ café }: { café: boolean }) {
+      return (
+        <button
+          className={"v1560qbr-1-Button" + (café ? " v1560qbr-1-Button-café" : "")}
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.v1560qbr-1-Button-café {
+        color: brown;
+      }
+    }
+    "
+  `);
+});
+
+test('should not rewrite flag names inside strings and urls', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{ active: boolean }>\`
+        &.active {
+          background: url(icon.active.svg);
+        }
+
+        &.active::after {
+          content: ".active";
+        }
+      \`;
+
+      function Component({ active }: { active: boolean }) {
+        return <Button active={active} />;
+      }
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return <button className={"v1560qbr-1" + (active ? " voctcyj" : "")} />;
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.voctcyj {
+        background: url(icon.active.svg);
+      }
+
+      &.voctcyj::after {
+        content: ".active";
+      }
+    }
+    "
+  `);
+});

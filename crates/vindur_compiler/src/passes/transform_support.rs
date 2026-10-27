@@ -3,7 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::{
     CompilerDiagnostic,
@@ -188,9 +188,18 @@ pub(super) fn process_variable_declaration(
                 },
             )?;
             let content = clean_css(&content);
+            let referenced_components = transform
+                .styled_components
+                .values()
+                .filter_map(|component| {
+                    Some((component.class_name.split_whitespace().last()?, component))
+                })
+                .collect::<FxHashMap<_, _>>();
             if transform.dev {
                 transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &new_style_flags)
+                    missing_style_flag_selectors(&content, &new_style_flags, |class| {
+                        referenced_components.contains_key(class)
+                    })
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(
@@ -240,12 +249,16 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let reference_classes = transform
-                .styled_components
-                .values()
-                .filter_map(|component| component.class_name.split_whitespace().last())
-                .collect::<FxHashSet<_>>();
-            let content = rewrite_style_flag_selectors(&content, &style_flags, &reference_classes);
+            let content =
+                rewrite_style_flag_selectors(&content, &style_flags, &referenced_components)
+                    .map_err(|message| {
+                        CompilerDiagnostic::error(
+                            transform.file_path,
+                            transform.source,
+                            tagged.span,
+                            message,
+                        )
+                    })?;
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,

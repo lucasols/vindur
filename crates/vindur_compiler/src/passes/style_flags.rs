@@ -3,12 +3,13 @@ use oxc_ast::ast::{
     TSTypeName,
 };
 use oxc_span::GetSpan;
-use rustc_hash::FxHashSet;
+use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
 use super::styled::{
-    StyleFlag, StyleFlagKind, css_class_name_part, rewrite_class_chains, style_flag_classes,
+    StyleFlag, StyleFlagKind, StyledComponent, css_class_name_part, is_styled_ref_placeholder,
+    rewrite_class_chains, style_flag_class,
 };
 
 pub(super) fn extract_style_flags(
@@ -345,15 +346,34 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
 }
 
 /// Flags chained to another component's reference, like `${Parent}.active`, are that component's
-/// flags, they are rewritten with its classes once every component is known
+/// flags. Forward references are rewritten once every component is known, so their transient
+/// flags, which are not valid CSS until rewritten, are rejected
 pub(crate) fn rewrite_style_flag_selectors(
     css: &str,
     flags: &[StyleFlag],
-    reference_classes: &FxHashSet<&str>,
-) -> String {
-    let classes = style_flag_classes(flags);
-    rewrite_class_chains(css, reference_classes, |reference, class| match reference {
-        Some(_) => None,
-        None => classes.get(class).map(String::as_str),
-    })
+    referenced_components: &FxHashMap<&str, &StyledComponent>,
+) -> Result<String, String> {
+    let mut forward_transient_flag = None;
+    let css = rewrite_class_chains(
+        css,
+        |class| referenced_components.contains_key(class),
+        |reference, class| match reference {
+            Some(reference) if is_styled_ref_placeholder(reference) => {
+                if class.starts_with('$') && forward_transient_flag.is_none() {
+                    forward_transient_flag = Some(class.to_owned());
+                }
+                None
+            }
+            Some(reference) => {
+                style_flag_class(&referenced_components.get(reference)?.style_flags, class)
+            }
+            None => style_flag_class(flags, class),
+        },
+    );
+    match forward_transient_flag {
+        Some(class) => Err(format!(
+            "The transient style flag selector \".{class}\" can't follow a forward component reference, define the referenced component before this one"
+        )),
+        None => Ok(css),
+    }
 }

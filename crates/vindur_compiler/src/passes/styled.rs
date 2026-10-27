@@ -226,24 +226,30 @@ pub(crate) fn resolve_styled_references(
     css_rules: &mut [String],
     components: &FxHashMap<String, StyledComponent>,
 ) -> Option<String> {
-    let flag_classes = components
-        .values()
-        .filter_map(|component| {
-            let class_name = component.class_name.split_whitespace().last()?;
-            Some((class_name, style_flag_classes(&component.style_flags)))
-        })
-        .collect::<FxHashMap<_, _>>();
-    let reference_classes = flag_classes.keys().copied().collect::<FxHashSet<_>>();
+    let mut references = FxHashMap::default();
+    for (name, component) in components {
+        references.insert(styled_ref_placeholder(name), component);
+        if let Some(class_name) = component.class_name.split_whitespace().last() {
+            references.insert(class_name.to_owned(), component);
+        }
+    }
     for rule in css_rules.iter_mut() {
+        // Styled components already rewrote the flags chained to the components defined before
+        // them, see `rewrite_style_flag_selectors`, this also covers `css` and forward references
+        *rule = rewrite_class_chains(
+            rule,
+            |class| references.contains_key(class),
+            |reference, class| {
+                let component = references.get(reference?)?;
+                style_flag_class(&component.style_flags, class)
+            },
+        );
         for (name, component) in components {
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
             *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
         }
-        *rule = rewrite_class_chains(rule, &reference_classes, |reference, class| {
-            flag_classes.get(reference?)?.get(class).map(String::as_str)
-        });
     }
     css_rules.iter().find_map(|rule| {
         let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
@@ -252,67 +258,145 @@ pub(crate) fn resolve_styled_references(
     })
 }
 
-/// Maps flag selectors like `active` and `size-small` to their generated classes
-pub(crate) fn style_flag_classes(flags: &[StyleFlag]) -> FxHashMap<String, String> {
-    let mut classes = FxHashMap::default();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                classes.insert(flag.prop_name.clone(), flag.hashed_class_name.clone());
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    classes.insert(
-                        format!("{}-{value}", flag.prop_name),
-                        format!("{}-{value}", flag.hashed_class_name),
-                    );
-                }
-            }
+/// The generated class of a flag selector like `active` or `size-small`
+pub(crate) fn style_flag_class(flags: &[StyleFlag], selector: &str) -> Option<String> {
+    flags.iter().find_map(|flag| match &flag.kind {
+        StyleFlagKind::Boolean => {
+            (flag.prop_name == selector).then(|| flag.hashed_class_name.clone())
         }
-    }
-    classes
+        StyleFlagKind::StringUnion(values) => {
+            let value = selector
+                .strip_prefix(flag.prop_name.as_str())?
+                .strip_prefix('-')?;
+            values
+                .iter()
+                .any(|declared| declared == value)
+                .then(|| format!("{}-{value}", flag.hashed_class_name))
+        }
+    })
 }
 
+/// CSS identifiers also accept any non-ASCII character, `$` is the start of a transient flag
 fn is_class_name_char(character: char) -> bool {
-    character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '$')
+    !character.is_ascii()
+        || character.is_ascii_alphanumeric()
+        || matches!(character, '_' | '-' | '$')
 }
 
-/// Rewrites each `.class` selector with `rewrite`, which also gets the component reference the
-/// class is chained to, e.g. `Parent` for both flags in `.Parent.active.size-small` or
-/// `${() => Parent}.active`
-pub(crate) fn rewrite_class_chains<'m>(
-    css: &str,
-    reference_classes: &FxHashSet<&str>,
-    rewrite: impl Fn(Option<&str>, &str) -> Option<&'m str>,
-) -> String {
-    let mut output = String::with_capacity(css.len());
-    let mut reference: Option<&str> = None;
+enum CssToken<'a> {
+    Text(&'a str),
+    /// A `.class` selector and the component reference it is chained to
+    Class {
+        reference: Option<&'a str>,
+        name: &'a str,
+    },
+}
+
+/// Splits CSS into `.class` selectors and the text between them. A class is chained to a
+/// component reference (a component class matched by `is_reference` or a forward reference
+/// placeholder) when it is in the same compound selector, e.g. `Parent` for every flag in
+/// `.Parent.active.size-small`, `.Parent:hover.active` and `.Parent:not(.active)`.
+/// Strings and `url()` values are kept as text
+fn scan_class_chains<'a>(
+    css: &'a str,
+    is_reference: impl Fn(&str) -> bool,
+    mut visit: impl FnMut(CssToken<'a>),
+) {
+    // The reference and the parenthesis depth it was found at
+    let mut reference: Option<(&str, usize)> = None;
+    let mut depth = 0usize;
     let mut rest = css;
     while let Some(character) = rest.chars().next() {
         if let Some(placeholder) = leading_styled_ref_placeholder(rest) {
-            output.push_str(placeholder);
-            reference = Some(placeholder);
+            visit(CssToken::Text(placeholder));
+            reference = Some((placeholder, depth));
             rest = &rest[placeholder.len()..];
             continue;
         }
-        if character != '.' {
-            output.push(character);
-            reference = None;
-            rest = &rest[character.len_utf8()..];
+        if let Some(literal) = leading_css_literal(rest) {
+            visit(CssToken::Text(literal));
+            rest = &rest[literal.len()..];
             continue;
         }
-        let class_end = rest[1..]
-            .find(|character: char| !is_class_name_char(character))
-            .map_or(rest.len(), |index| index + 1);
-        let class = &rest[1..class_end];
-        output.push('.');
-        output.push_str(rewrite(reference, class).unwrap_or(class));
-        if reference.is_none() && reference_classes.contains(class) {
-            reference = Some(class);
+        if character == '.' {
+            let class_end = rest[1..]
+                .find(|character: char| !is_class_name_char(character))
+                .map_or(rest.len(), |index| index + 1);
+            let name = &rest[1..class_end];
+            visit(CssToken::Class {
+                reference: reference.map(|(reference, _)| reference),
+                name,
+            });
+            if reference.is_none() && is_reference(name) {
+                reference = Some((name, depth));
+            }
+            rest = &rest[class_end..];
+            continue;
         }
-        rest = &rest[class_end..];
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        let left_reference_scope = reference.is_some_and(|(_, reference_depth)| {
+            depth < reference_depth
+                || (depth == reference_depth
+                    && u8::try_from(character).is_ok_and(is_compound_boundary))
+        });
+        if left_reference_scope {
+            reference = None;
+        }
+        let character_end = character.len_utf8();
+        visit(CssToken::Text(&rest[..character_end]));
+        rest = &rest[character_end..];
     }
+}
+
+/// A leading string or `url()` value, their content is never a selector
+fn leading_css_literal(css: &str) -> Option<&str> {
+    if css.starts_with("url(") {
+        let end = css.find(')').map_or(css.len(), |index| index + 1);
+        return Some(&css[..end]);
+    }
+    let quote = css
+        .chars()
+        .next()
+        .filter(|character| matches!(character, '"' | '\''))?;
+    let mut escaped = false;
+    let end = css[1..]
+        .char_indices()
+        .find(|&(_, character)| {
+            let is_end = !escaped && character == quote;
+            escaped = !escaped && character == '\\';
+            is_end
+        })
+        .map_or(css.len(), |(index, _)| index + 2);
+    Some(&css[..end])
+}
+
+/// Rewrites each `.class` selector with `rewrite`, which also gets the component reference the
+/// class is chained to, see `scan_class_chains`
+pub(crate) fn rewrite_class_chains(
+    css: &str,
+    is_reference: impl Fn(&str) -> bool,
+    mut rewrite: impl FnMut(Option<&str>, &str) -> Option<String>,
+) -> String {
+    let mut output = String::with_capacity(css.len());
+    scan_class_chains(css, is_reference, |token| match token {
+        CssToken::Text(text) => output.push_str(text),
+        CssToken::Class { reference, name } => {
+            output.push('.');
+            match rewrite(reference, name) {
+                Some(rewritten) => output.push_str(&rewritten),
+                None => output.push_str(name),
+            }
+        }
+    });
     output
+}
+
+pub(crate) fn is_styled_ref_placeholder(reference: &str) -> bool {
+    reference.starts_with(STYLED_REF_PREFIX)
 }
 
 fn leading_styled_ref_placeholder(css: &str) -> Option<&str> {
@@ -330,14 +414,29 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
-pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {
+/// Flags chained to another component, like `${Parent}.active`, are not styles of the component
+pub(crate) fn missing_style_flag_selectors(
+    css: &str,
+    flags: &[StyleFlag],
+    is_reference: impl Fn(&str) -> bool,
+) -> Vec<String> {
     let css = strip_css_comments(css);
+    let mut own_classes = FxHashSet::default();
+    scan_class_chains(&css, is_reference, |token| {
+        if let CssToken::Class {
+            reference: None,
+            name,
+        } = token
+        {
+            own_classes.insert(name);
+        }
+    });
     let mut missing = Vec::new();
     for flag in flags {
         match &flag.kind {
             StyleFlagKind::Boolean => {
-                if !contains_class_selector(&css, &flag.prop_name)
-                    && !contains_class_selector(&css, &flag.hashed_class_name)
+                if !own_classes.contains(flag.prop_name.as_str())
+                    && !own_classes.contains(flag.hashed_class_name.as_str())
                 {
                     missing.push(format!("&.{}", flag.prop_name));
                 }
@@ -346,8 +445,8 @@ pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Ve
                 for value in values {
                     let original = format!("{}-{value}", flag.prop_name);
                     let hashed = format!("{}-{value}", flag.hashed_class_name);
-                    if !contains_class_selector(&css, &original)
-                        && !contains_class_selector(&css, &hashed)
+                    if !own_classes.contains(original.as_str())
+                        && !own_classes.contains(hashed.as_str())
                     {
                         missing.push(format!("&.{original}"));
                     }
@@ -406,15 +505,16 @@ fn ampersand_compound_classes(css: &str) -> Vec<&str> {
             let name_start = dot + 1;
             let name_end = compound[name_start..]
                 .find(|character: char| {
-                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
+                    character.is_ascii()
+                        && !character.is_ascii_alphanumeric()
+                        && character != '_'
+                        && character != '-'
                 })
                 .map_or(compound.len(), |index| name_start + index);
             let name = &compound[name_start..name_end];
-            if name
-                .chars()
-                .next()
-                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
-            {
+            if name.chars().next().is_some_and(|first| {
+                !first.is_ascii() || first.is_ascii_alphabetic() || first == '_' || first == '-'
+            }) {
                 names.push(name);
             }
         }
@@ -434,16 +534,6 @@ pub(super) fn strip_css_comments(css: &str) -> String {
     }
     output.push_str(rest);
     output
-}
-
-fn contains_class_selector(css: &str, name: &str) -> bool {
-    let needle = format!(".{name}");
-    css.match_indices(&needle).any(|(index, _)| {
-        css[index + needle.len()..]
-            .chars()
-            .next()
-            .is_none_or(|character| !is_class_name_char(character))
-    })
 }
 
 pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
