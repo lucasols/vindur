@@ -233,7 +233,23 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
     {
         return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
     }
+    if let Expression::CallExpression(call) = attrs_base(tag)
+        && let [Argument::CallExpression(_)] = call.arguments.as_slice()
+    {
+        return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
+    }
     "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
+}
+
+/// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
+fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+    {
+        return &member.object;
+    }
+    tag
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
@@ -252,6 +268,7 @@ fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
                         Expression::ArrowFunctionExpression(_)
                             | Expression::FunctionExpression(_)
                             | Expression::ClassExpression(_)
+                            | Expression::CallExpression(_)
                     )
                 })
         })
