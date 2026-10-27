@@ -195,6 +195,32 @@ test('should throw for $ prefixed style flags used by other elements', async () 
   `);
 });
 
+test('should reject style flags in rules that match both the element and other elements', async () => {
+  const styled = (selector: string, flag: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Button = styled.button<{ ${flag}: boolean }>\`
+      ${selector} { &.${flag} { color: red; } }
+    \`;
+
+    export const App = () => <Button ${flag} />;
+  `;
+
+  await expect(
+    transformWithFormat({ source: styled('&:hover, & .child', 'active') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    loc: 3:15]
+  `);
+
+  await expect(
+    transformWithFormat({ source: styled(':where(&, .x)', '$active') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be used in a rule that matches both the element and other elements, like "&.$active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    loc: 3:15]
+  `);
+});
+
 test('should warn about style flags only used by other elements', async () => {
   const warnings: TransformWarning[] = [];
 

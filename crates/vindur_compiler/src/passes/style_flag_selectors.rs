@@ -128,7 +128,7 @@ pub(crate) fn rewrite_style_flag_selectors(
             .find(|flag| flag.name == name)
             .map_or(name, |flag| flag.original.as_str());
         format!(
-            "style flag class \"{original}\" can't be used in a rule that matches both the element and other elements, like \"&.{original}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
+            "Style flag \"{original}\" can't be used in a rule that matches both the element and other elements, like \"&.{original}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
         )
     })
 }
