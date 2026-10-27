@@ -350,6 +350,56 @@ describe('keyframes cross-file imports', () => {
     `);
   });
 
+  test('should keep the module of a css mixin passing keyframes to a vindurFn', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { fadeMixin } from '#/mixins'
+
+        export const Card = styled.div\`
+          \${fadeMixin};
+          color: red;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'animate.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const animate = vindurFn((name: string) => \`animation: \${name} 1s;\`)
+        `,
+        'mixins.ts': dedent`
+          import { css, keyframes } from 'vindur'
+          import { animate } from '#/animate'
+
+          const fade = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
+
+          export const fadeMixin = css\`
+            \${animate(fade)};
+          \`
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import "#/mixins";
+      export const Card = _vSC("div", "v1560qbr-1-Card");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        animation: v1pkdo29-1-fade 1s;
+        color: red;
+      }
+      "
+    `);
+  });
+
   test('should throw error when imported keyframes is not found', async () => {
     await expect(async () => {
       await transformWithFormat({

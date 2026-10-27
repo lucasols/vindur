@@ -181,7 +181,8 @@ fn collect_resolved_import_edits(
         let has_side_effects = side_effect_sources.contains(declaration.source.value.as_str());
         // The module's CSS and side effects only run while the module itself is imported, so
         // keep it when its keyframes or an inlined class name are still used by this file, or
-        // when it has side effects, e.g. global styles, and its theme colors were consumed
+        // when it has side effects, e.g. global styles, and its theme colors were consumed.
+        // Unused imports are not consumed, TypeScript compilers would drop them with the module
         let mut keeps_module = false;
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
@@ -224,7 +225,6 @@ fn collect_resolved_import_edits(
                     uses_keyframes,
                     ..
                 } => *uses_keyframes || contains_class_name(source, name),
-                StaticValue::ThemeColors { .. } => has_side_effects,
                 _ => false,
             };
         }

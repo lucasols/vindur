@@ -433,6 +433,37 @@ test('should remove an import of a constant from a module with side effects', as
   `);
 });
 
+test('should remove an unused theme colors import of a module with side effects', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const styles = css\`
+        color: red;
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors, createGlobalStyle } from 'vindur';
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        createGlobalStyle\`
+          body {
+            margin: 0;
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const styles = "v1560qbr-1-styles";
+    "
+  `);
+});
+
 test('should not add a side effect import for an unused import of a module with side effects', async () => {
   const result = await transformWithFormat({
     source: dedent`
