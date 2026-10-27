@@ -39,7 +39,8 @@ struct LoadedImports {
     /// Import sources of modules with side effects, kept as side effect imports when all
     /// their imported values are resolved at compile time
     side_effect_sources: FxHashSet<String>,
-    /// Some import loads a module with side effects, or one whose facts aren't known
+    /// Some import loads a module with side effects, or one whose facts aren't known: bare
+    /// imports, packages, non-source files and modules in an import cycle
     has_side_effects: bool,
 }
 
@@ -204,13 +205,23 @@ impl Compiler {
             Ok(output) => output,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
+        pass_output.facts.has_side_effects |= imports.has_side_effects;
+        let mut style_dependencies = imports.style_dependencies;
+        // Importers drop a module without side effects, which stays correct only while its
+        // imports have none either, so changing them has to update the importers
+        if !pass_output.facts.has_side_effects {
+            for dependency in &imports.fact_dependencies {
+                if !style_dependencies.contains(dependency) {
+                    style_dependencies.push(dependency.clone());
+                }
+            }
+        }
         pass_output
             .facts
             .dependencies
-            .clone_from(&imports.style_dependencies);
+            .clone_from(&style_dependencies);
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
         pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
-        pass_output.facts.has_side_effects |= imports.has_side_effects;
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -245,7 +256,7 @@ impl Compiler {
         TransformOutput {
             code,
             css: pass_output.css,
-            style_dependencies: imports.style_dependencies,
+            style_dependencies,
             diagnostics: pass_output.warnings,
             css_source_offsets: pass_output.css_source_offsets,
         }
@@ -335,6 +346,8 @@ impl Compiler {
                         format!("File not found: {attempted}"),
                     ));
                 }
+                // Packages and non-source files can't be inspected, e.g. a CSS module
+                has_side_effects = true;
                 continue;
             };
             let Some(facts) = self.load_module_facts(&resolved, options, loader, traversal)? else {

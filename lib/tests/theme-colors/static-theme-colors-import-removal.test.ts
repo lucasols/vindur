@@ -178,10 +178,71 @@ test('should keep a side effect import of a colors module importing global style
   `);
 });
 
+test('should remove a colors module without side effects and depend on its imports', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const styles = css\`
+        color: \${colors.primary.var};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors, styled } from 'vindur';
+        import { BRAND } from './palette';
+        import { formatColor } from './format';
+
+        type Theme = { dark: boolean };
+
+        const RADIUS = 20;
+
+        export const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        export const Swatch = styled.div\`
+          color: \${colors.primary.var};
+        \`;
+
+        export function getTheme(dark: boolean): Theme {
+          return { dark };
+        }
+
+        export const format = () => formatColor(BRAND);
+      `,
+      'palette.ts': `export const BRAND = '#007bff';`,
+      'format.ts': `export const formatColor = (color: string) => color;`,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const styles = "v1560qbr-1-styles";
+    "
+  `);
+  expect(result.styleDependencies).toEqual([
+    '/theme.ts',
+    '/palette.ts',
+    '/format.ts',
+  ]);
+});
+
 test.each([
   ['a bare import', `import './reset.css';`],
   ['a top-level call', `registerTheme();`],
   ['a re-export', `export { FONT } from './fonts';`],
+  ['a call in a declaration', `export const ready = registerTheme();`],
+  ['a call in a default export', `export default registerTheme();`],
+  ['a class', `class Registry { static { registerTheme(); } }`],
+  [
+    'a package import',
+    `import { registry } from 'theme-registry'; export const r = registry;`,
+  ],
+  [
+    'a CSS module import',
+    `import cls from './theme.module.css'; export const c = cls;`,
+  ],
 ])(
   'should keep a side effect import of a colors module with %s',
   async (_, statement) => {

@@ -1311,7 +1311,7 @@ In dev mode, the output will show the color name for easier debugging:
 }
 ```
 
-An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. If the colors module has side effects, such as `createGlobalStyle` styles, bare imports (`import './reset.css'`), top-level calls, re-exports, or imports of modules with side effects, it is kept as a side effect import (`import './colors'`).
+An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. This only happens when the colors module contains just imports of `vindur`, types or other such modules, and declarations of literals, functions, static constants, objects or arrays of those, and vindur styles. Anything else, like `createGlobalStyle` styles, function calls, classes, re-exports or imports of packages and CSS files, keeps the module as a side effect import (`import './colors'`).
 
 ### Color API
 

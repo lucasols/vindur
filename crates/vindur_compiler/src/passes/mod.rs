@@ -26,6 +26,7 @@ mod jsx_cx_css_references;
 mod runtime_helpers;
 mod scoped;
 mod scoped_idents;
+mod side_effects;
 mod source_map;
 mod stable;
 mod static_evaluation;

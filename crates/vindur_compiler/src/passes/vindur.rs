@@ -23,13 +23,14 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_re_exports, collect_vindur_imports, has_top_level_side_effects,
+        collect_re_exports, collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
     jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
+    side_effects::has_top_level_side_effects,
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
@@ -120,7 +121,7 @@ pub(crate) fn transform_program(
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
-    let mut has_side_effects = has_top_level_side_effects(program, &imports);
+    let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
