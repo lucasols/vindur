@@ -376,6 +376,147 @@ describe('styled component extension', () => {
     `);
   });
 
+  test('extend local components created by a call with a type cast', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { forwardRef } from 'react'
+
+        const Inner = ({ className }: { className?: string }) => (
+          <button className={className} />
+        )
+
+        const Button = forwardRef(Inner) as typeof Inner
+
+        const StyledButton = styled(Button)\`
+          color: red;
+        \`
+
+        export const App = () => <StyledButton />
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { forwardRef } from "react";
+      const Inner = ({ className }: { className?: string }) => (
+        <button className={className} />
+      );
+      const Button = forwardRef(Inner) as typeof Inner;
+      export const App = () => <Button className="v1560qbr-1-StyledButton" />;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-StyledButton {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should throw error when extending a call-initialized local declared with let', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          let MemoButton = memo(Button)
+
+          const StyledButton = styled(MemoButton)\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "MemoButton": a component created by a call must be declared with const.
+      loc: 7:28]
+    `);
+  });
+
+  test('should throw error when extending a local declared after the styled component', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Button = styled.button\`
+            color: red;
+          \`
+
+          const StyledLink = styled(Link)\`
+            color: blue;
+          \`
+
+          const Link = Button.withComponent('a')
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "Link": declare it before extending it.
+      loc: 7:26
+      ignoreInLint: true]
+    `);
+  });
+
+  test('should throw error when a binding shadows the extended component where it is rendered', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          const MemoButton = memo(Button)
+
+          const StyledButton = styled(MemoButton)\`
+            color: red;
+          \`
+
+          export const App = ({ MemoButton }: { MemoButton: string }) => (
+            <div>
+              {MemoButton}
+              <StyledButton />
+            </div>
+          )
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "MemoButton" shadows the component "MemoButton" extended by "StyledButton", rename this binding
+      loc: 11:22]
+    `);
+  });
+
+  test('should not suggest a const for calls on the styled call', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Button } from './Button'
+
+          const config = () => ({})
+
+          const StyledButton = styled(Button).withConfig(config())\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Unsupported styled component definition, use styled.tag\`...\`, styled(Component)\`...\` or add a single .attrs({...}) to them
+      loc: 6:21]
+    `);
+  });
+
   test('extend motion lib elements', async () => {
     const result = await transformWithFormat({
       source: dedent`

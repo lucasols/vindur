@@ -1,4 +1,6 @@
-use oxc_ast::ast::{JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement};
+use oxc_ast::ast::{
+    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, JSXElementName,
+};
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
@@ -62,6 +64,28 @@ struct StyledJsxVisitor<'c, 'e, 's> {
     diagnostic: Option<CompilerDiagnostic>,
 }
 
+impl StyledJsxVisitor<'_, '_, '_> {
+    /// The element is replaced by the base component's name, which must resolve to the same
+    /// module level binding where the styled component is rendered
+    fn shadowed_base<'n>(
+        &self,
+        element: &JSXElement<'_>,
+        component: &'n StyledComponent,
+    ) -> Option<(oxc_span::Span, &'n str)> {
+        if !component.element_is_identifier {
+            return None;
+        }
+        let JSXElementName::IdentifierReference(name) = &element.opening_element.name else {
+            return None;
+        };
+        let base_name = component.element.split('.').next()?;
+        let scope_id = self.scoping.get_reference(name.reference_id()).scope_id();
+        let symbol_id = self.scoping.find_binding(scope_id, base_name.into())?;
+        (self.scoping.symbol_scope_id(symbol_id) != self.scoping.root_scope_id())
+            .then(|| (self.scoping.symbol_span(symbol_id), base_name))
+    }
+}
+
 impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
         if self.diagnostic.is_some() {
@@ -99,6 +123,18 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.source,
                 spread.span,
                 unsupported_spread_message(&spread, "vindur styled component"),
+            ));
+            return;
+        }
+
+        if let Some((span, base_name)) = self.shadowed_base(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "\"{base_name}\" shadows the component \"{base_name}\" extended by \"{component_name}\", rename this binding"
+                ),
             ));
             return;
         }
