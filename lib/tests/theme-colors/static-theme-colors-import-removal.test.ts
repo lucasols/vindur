@@ -243,6 +243,18 @@ test.each([
     'a CSS module import',
     `import cls from './theme.module.css'; export const c = cls;`,
   ],
+  [
+    'a runtime helper call',
+    `import { cx } from 'vindur'; const flags = { get a() { return registerTheme(); } }; export const c = cx(flags);`,
+  ],
+  [
+    'an interpolated value',
+    'const token = { toString: () => registerTheme() }; export const label = `${token}`;',
+  ],
+  [
+    'a computed key',
+    'const token = { toString: () => registerTheme() }; export const map = { [token]: 1 };',
+  ],
 ])(
   'should keep a side effect import of a colors module with %s',
   async (_, statement) => {
@@ -272,3 +284,68 @@ test.each([
     );
   },
 );
+
+test('should keep a side effect import next to type-only specifiers of a module with side effects', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors, type Theme, Mode } from '#/theme';
+
+      export const styles = css\`
+        color: \${colors.primary.var};
+      \`;
+
+      export const getMode = (theme: Theme): Mode => theme.mode;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors, createGlobalStyle } from 'vindur';
+
+        export type Mode = 'light' | 'dark';
+
+        export type Theme = { mode: Mode };
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        createGlobalStyle\`
+          body {
+            background: \${colors.primary.var};
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import "#/theme";
+    import { type Theme, Mode } from "#/theme";
+    export const styles = "v1560qbr-1-styles";
+    export const getMode = (theme: Theme): Mode => theme.mode;
+    "
+  `);
+});
+
+test('should not depend on the runtime imports of a module without side effects', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { formatColor } from '#/format';
+
+      export const styles = css\`
+        color: red;
+      \`;
+
+      export const color = formatColor('red');
+    `,
+    overrideDefaultFs: createFsMock({
+      'format.ts': dedent`
+        import { BRAND } from './palette';
+
+        export const formatColor = (color: string) => color || BRAND;
+      `,
+      'palette.ts': `export const BRAND = '#007bff';`,
+    }),
+  });
+
+  expect(result.styleDependencies).toEqual([]);
+});

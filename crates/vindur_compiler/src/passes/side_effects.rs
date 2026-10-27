@@ -121,10 +121,10 @@ impl PurityCheck<'_> {
             | Expression::Identifier(_)
             | Expression::ArrowFunctionExpression(_)
             | Expression::FunctionExpression(_) => true,
-            Expression::TemplateLiteral(template) => template
-                .expressions
-                .iter()
-                .all(|expression| self.is_pure_expression(expression)),
+            // Converting other values to strings can call a user-defined `toString`
+            Expression::TemplateLiteral(template) => {
+                template.expressions.iter().all(is_primitive_literal)
+            }
             Expression::UnaryExpression(unary) => {
                 unary.operator == UnaryOperator::UnaryNegation
                     && matches!(
@@ -139,7 +139,7 @@ impl PurityCheck<'_> {
                             || property
                                 .key
                                 .as_expression()
-                                .is_some_and(|key| self.is_pure_expression(key)))
+                                .is_some_and(is_primitive_literal))
                             && self.is_pure_expression(&property.value)
                     }
                     ObjectPropertyKind::SpreadProperty(_) => false,
@@ -171,12 +171,25 @@ impl PurityCheck<'_> {
     /// vindur imports and their chains, e.g. `styled.button.attrs({ type: 'button' })`
     fn is_vindur_callee(&self, expression: &Expression<'_>) -> bool {
         match expression.get_inner_expression() {
-            identifier @ Expression::Identifier(_) => {
-                self.imports.get_expression(identifier).is_some()
-            }
+            // Runtime helpers read their arguments, which can run getters
+            identifier @ Expression::Identifier(_) => self
+                .imports
+                .get_expression(identifier)
+                .is_some_and(|name| !matches!(name, "cx" | "mergeClassNames" | "mergeStyles")),
             Expression::StaticMemberExpression(member) => self.is_vindur_callee(&member.object),
             call @ Expression::CallExpression(_) => self.is_pure_expression(call),
             _ => false,
         }
     }
+}
+
+fn is_primitive_literal(expression: &Expression<'_>) -> bool {
+    matches!(
+        expression.get_inner_expression(),
+        Expression::BooleanLiteral(_)
+            | Expression::NullLiteral(_)
+            | Expression::NumericLiteral(_)
+            | Expression::BigIntLiteral(_)
+            | Expression::StringLiteral(_)
+    )
 }

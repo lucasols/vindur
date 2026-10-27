@@ -94,6 +94,7 @@ fn collect_resolved_import_edits(
         let mut keeps_module = side_effect_sources.contains(declaration.source.value.as_str());
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
+        let mut has_value_specifiers = false;
         for specifier in specifiers {
             let compile_time_value = match specifier {
                 ImportDeclarationSpecifier::ImportSpecifier(named) => imported_values
@@ -109,6 +110,7 @@ fn collect_resolved_import_edits(
                 _ => None,
             };
             let Some(value) = compile_time_value else {
+                has_value_specifiers |= is_value_specifier(specifier, scoping);
                 let span = specifier.span();
                 let specifier_source = source[span.start as usize..span.end as usize].to_owned();
                 if matches!(
@@ -139,7 +141,15 @@ fn collect_resolved_import_edits(
                 expand_removal_to_line(source, declaration.span)
             },
             replacement: if has_runtime_specifiers {
-                rebuilt_import(declaration, source, default_specifier, &runtime_specifiers)
+                let rebuilt =
+                    rebuilt_import(declaration, source, default_specifier, &runtime_specifiers);
+                // Type-only and unused specifiers are dropped by TypeScript compilers, which
+                // would drop the module too
+                if keeps_module && !has_value_specifiers {
+                    format!("import \"{}\";\n{rebuilt}", declaration.source.value)
+                } else {
+                    rebuilt
+                }
             } else if keeps_module {
                 format!("import \"{}\";", declaration.source.value)
             } else {
@@ -181,6 +191,19 @@ fn rebuilt_import(
         "import {kind}{bindings} from \"{}\"{attributes};\n",
         declaration.source.value
     )
+}
+
+fn is_value_specifier(specifier: &ImportDeclarationSpecifier<'_>, scoping: &Scoping) -> bool {
+    if let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier
+        && specifier.import_kind.is_type()
+    {
+        return false;
+    }
+    specifier.local().symbol_id.get().is_some_and(|symbol_id| {
+        scoping
+            .get_resolved_references(symbol_id)
+            .any(|reference| reference.is_value())
+    })
 }
 
 fn contains_class_name(code: &str, class_name: &str) -> bool {
