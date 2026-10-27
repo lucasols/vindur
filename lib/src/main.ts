@@ -165,12 +165,18 @@ export function _vSC(
   // Runtime helper for exported styled components
 
   const Component = forwardRef<any, any>((props, ref) => {
-    const { className: userClassName, ...rest } = props;
-    const finalClassName =
-      userClassName ? `${className} ${userClassName}` : className;
-
     // Merge attrs with user props, giving user props precedence
-    const finalProps = attrs ? { ...attrs, ...rest } : rest;
+    const {
+      className: userClassName,
+      css: cssClassName,
+      ...finalProps
+    } = attrs ? { ...attrs, ...props } : props;
+
+    // A compiled `css` prop passed to a styled component the compiler
+    // couldn't see as styled carries the generated class name
+    let finalClassName = className;
+    if (cssClassName) finalClassName += ` ${cssClassName}`;
+    if (userClassName) finalClassName += ` ${userClassName}`;
 
     return createElement(tagOrComponent, {
       ...finalProps,
@@ -206,7 +212,12 @@ export function _vCWM(
   const modifierEntries = Array.from(modifierMap.entries());
 
   const Component = forwardRef<any, any>((props, ref) => {
-    const { className: userClassName, ...otherProps } = props;
+    // Merge attrs with user props first, so attrs can set default style flags
+    const {
+      className: userClassName,
+      css: cssClassName,
+      ...otherProps
+    } = attrs ? { ...attrs, ...props } : props;
 
     // Separate style flag props from other props
     const styleProps: Record<string, boolean | string> = {};
@@ -242,16 +253,18 @@ export function _vCWM(
       }
     }
 
+    // Add the class name of a compiled `css` prop
+    if (cssClassName) {
+      finalClassName += ` ${cssClassName}`;
+    }
+
     // Add user className if provided
     if (userClassName) {
       finalClassName += ` ${userClassName}`;
     }
 
-    // Merge attrs with finalProps, giving finalProps precedence
-    const propsWithAttrs = attrs ? { ...attrs, ...finalProps } : finalProps;
-
     return createElement(elementType, {
-      ...propsWithAttrs,
+      ...finalProps,
       className: finalClassName,
       ref,
     });

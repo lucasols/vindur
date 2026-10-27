@@ -426,6 +426,8 @@ impl JsxCxVisitor<'_> {
             });
             return;
         }
+        // Runtime styled components already add their own class name
+        let inlined_component = styled.as_ref().filter(|component| !component.runtime);
         // A className after every spread overrides them, so it's merged in place
         if matches!(class_name_merge(element), ClassNameMerge::Runtime) {
             if let Err(spread) = validate_styled_spreads(element, self.output.source) {
@@ -435,7 +437,7 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             }
-            let complete = styled.as_ref().map_or(cx_call.clone(), |component| {
+            let complete = inlined_component.map_or(cx_call.clone(), |component| {
                 format!("\"{} \" + {cx_call}", component.class_name)
             });
             let (inputs, replaced_attributes) = merge_class_name_inputs(
@@ -468,9 +470,8 @@ impl JsxCxVisitor<'_> {
             span: attribute.span,
             replacement: String::new(),
         });
-        let component = styled.as_ref();
         let Some(class_attribute) = find_last_attribute(element, "className") else {
-            let class_name = component.map_or_else(
+            let class_name = inlined_component.map_or_else(
                 || cx_call.clone(),
                 |component| format!("\"{} \" + {cx_call}", component.class_name),
             );
@@ -486,7 +487,7 @@ impl JsxCxVisitor<'_> {
         };
         if let Some(JSXAttributeValue::StringLiteral(value)) = &class_attribute.value {
             let existing = decode_jsx_entities(&value.value);
-            let prefix = component.map_or_else(
+            let prefix = inlined_component.map_or_else(
                 || format!("{existing} "),
                 |component| format!("{existing} {} ", component.class_name),
             );
@@ -499,7 +500,7 @@ impl JsxCxVisitor<'_> {
             );
             return;
         }
-        let separator = component.map_or_else(
+        let separator = inlined_component.map_or_else(
             || " ".to_owned(),
             |component| format!(" {} ", component.class_name),
         );

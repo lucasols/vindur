@@ -295,14 +295,12 @@ describe('styled components - attrs functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { _vSC } from "vindur";
-      const BaseButton = _vSC("button", "v1560qbr-1-BaseButton", {
+      const _vBaseButtonAttrs = {
         type: "button",
         "data-testid": "base-button",
-      });
-      export const LinkButton = _vSC("a", "v1560qbr-1-BaseButton", {
-        type: "button",
-        "data-testid": "base-button",
-      });
+      };
+      const BaseButton = _vSC("button", "v1560qbr-1-BaseButton", _vBaseButtonAttrs);
+      export const LinkButton = _vSC("a", "v1560qbr-1-BaseButton", _vBaseButtonAttrs);
       const Component = () => {
         return <LinkButton href="/test">Link</LinkButton>;
       };
@@ -555,15 +553,13 @@ describe('styled components - attrs functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { _vSC } from "vindur";
-      const Button = _vSC("button", "v1560qbr-1-Button", {
+      const _vButtonAttrs = {
         type: "button",
         title: "base",
-      });
+      };
+      const Button = _vSC("button", "v1560qbr-1-Button", _vButtonAttrs);
       const IconButton = _vSC("button", "v1560qbr-1-Button v1560qbr-2-IconButton", {
-        ...{
-          type: "button",
-          title: "base",
-        },
+        ..._vButtonAttrs,
         ...{
           title: "icon",
         },

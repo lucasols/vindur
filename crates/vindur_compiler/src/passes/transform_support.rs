@@ -24,6 +24,7 @@ use super::{
         StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
         styled_tag_component_with_attrs, undeclared_style_classes,
     },
+    styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
@@ -44,6 +45,10 @@ pub(super) struct VariableTransform<'a> {
     pub is_exported: bool,
     /// Styled components referenced as values stay runtime components
     pub value_referenced_names: &'a FxHashSet<String>,
+    /// Styled components other styled components are built from
+    pub extended_names: &'a FxHashSet<String>,
+    /// Start of the statement holding the declaration, including its `export`
+    pub statement_start: u32,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
@@ -277,7 +282,27 @@ pub(super) fn process_variable_declaration(
                 variable_name.to_owned(),
                 StaticValue::ClassName(generated_name.clone()),
             );
-            let attrs = merge_attrs(base_component.attrs.as_deref(), own_attrs);
+            let has_own_attrs = own_attrs.is_some();
+            let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {
+                // Derived components reuse the attrs, so they are evaluated only once
+                Some(value)
+                    if has_own_attrs && transform.extended_names.contains(variable_name) =>
+                {
+                    Some(hoist_attrs(
+                        variable_name,
+                        &value,
+                        &AttrsHoisting {
+                            program: transform.program,
+                            scoping: transform.scoping,
+                            file_path: transform.file_path,
+                            source: transform.source,
+                            statement_start: transform.statement_start,
+                        },
+                        transform.edits,
+                    )?)
+                }
+                attrs => attrs,
+            };
             let runtime = transform.is_exported
                 || transform.value_referenced_names.contains(variable_name)
                 || attrs.is_some()
@@ -522,12 +547,4 @@ pub(super) fn imported_tag_name<'a>(
     imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     imports.get_expression(tag)
-}
-
-/// Own attrs override the base attrs, like a spread of both objects
-fn merge_attrs(base: Option<&str>, own: Option<String>) -> Option<String> {
-    match (base, own) {
-        (Some(base), Some(own)) => Some(format!("{{ ...{base}, ...{own} }}")),
-        (base, own) => own.or_else(|| base.map(str::to_owned)),
-    }
 }

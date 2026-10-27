@@ -309,3 +309,87 @@ test('should not keep styled components only referenced as types', async () => {
     "
   `);
 });
+
+test('should pass the css prop class of an aliased styled component to its runtime component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Red = styled.div\`
+        color: red;
+      \`;
+
+      const Blue = styled.div\`
+        color: blue;
+      \`;
+
+      export const A = ({ red }: { red: boolean }) => {
+        const El = red ? Red : Blue;
+        return <El css={\`padding: 4px;\`} />;
+      };
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    const Red = _vSC("div", "v1560qbr-1-Red");
+    const Blue = _vSC("div", "v1560qbr-2-Blue");
+    export const A = ({ red }: { red: boolean }) => {
+      const El = red ? Red : Blue;
+      return <El css="v1560qbr-3-css-prop-3" />;
+    };
+    "
+  `);
+});
+
+test('should not repeat the class of a runtime styled component in css and cx props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { MoreMenu } from '#/components';
+
+      const Box = styled.div\`
+        color: red;
+
+        &.active {
+          color: blue;
+        }
+      \`;
+
+      export const A = ({ active }: { active: boolean }) => (
+        <>
+          <Box css={\`padding: 4px;\`} />
+          <Box cx={{ active }} />
+          <Box className="extra" cx={{ active }} />
+          <MoreMenu container={Box} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC, cx } from "vindur";
+    import { MoreMenu } from "#/components";
+    const Box = _vSC("div", "v1560qbr-1-Box");
+    export const A = ({ active }: { active: boolean }) => (
+      <>
+        <Box className="v1560qbr-2-css-prop-2" />
+        <Box
+          className={cx({
+            "v1560qbr-3-active": active,
+          })}
+        />
+        <Box
+          className={
+            "extra " +
+            cx({
+              "v1560qbr-3-active": active,
+            })
+          }
+        />
+        <MoreMenu container={Box} />
+      </>
+    );
+    "
+  `);
+});

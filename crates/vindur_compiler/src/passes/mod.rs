@@ -32,6 +32,7 @@ mod static_evaluation;
 mod static_value;
 mod style_flags;
 mod styled;
+mod styled_attrs;
 mod styled_jsx;
 mod styled_jsx_helpers;
 mod template_css;

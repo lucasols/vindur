@@ -284,9 +284,12 @@ impl JsxCssVisitor<'_> {
             return;
         }
 
-        let complete_class = component.map_or(class_name.clone(), |styled| {
-            format!("{} {class_name}", styled.class_name)
-        });
+        // Runtime styled components already add their own class name
+        let complete_class = component
+            .filter(|styled| !styled.runtime)
+            .map_or(class_name.clone(), |styled| {
+                format!("{} {class_name}", styled.class_name)
+            });
         let complete_expression =
             cx_transform.map(|cx| format!("\"{complete_class} \" + {}", cx.call));
         // A className after every spread overrides them, so it's merged in place

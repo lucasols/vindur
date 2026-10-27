@@ -8,8 +8,43 @@ import {
   mergeClassNames,
   mergeStyles,
 } from '../../src/main';
+import { isForwardRefComponent } from './runtimeComponents.typeGuards';
+
+function renderProps(
+  component: unknown,
+  props: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!isForwardRefComponent(component)) {
+    throw new Error('Expected a forwardRef component');
+  }
+  return component.render(props, null).props;
+}
 
 describe('_vSC', () => {
+  test('should add the class of a compiled css prop', () => {
+    const Component = _vSC('div', 'base');
+
+    expect(
+      renderProps(Component, { css: 'css-prop', className: 'user' }),
+    ).toEqual({ className: 'base css-prop user', ref: null });
+  });
+
+  test('should read className and css from attrs', () => {
+    const Component = _vSC('button', 'base', {
+      className: 'attrs-class',
+      type: 'button',
+    });
+
+    expect(renderProps(Component, {})).toEqual({
+      className: 'base attrs-class',
+      type: 'button',
+      ref: null,
+    });
+    expect(
+      renderProps(Component, { className: 'user', type: 'submit' }),
+    ).toEqual({ className: 'base user', type: 'submit', ref: null });
+  });
+
   test('should create component with correct displayName', () => {
     const Component = _vSC('div', 'test-class');
     expect(Component.displayName).toBe('Styled(div)');
@@ -41,6 +76,30 @@ describe('_vCWM', () => {
     const Component = _vCWM(modifiers, 'base-class', 'button');
 
     expect(Component.displayName).toBe('StyledWithModifiers(button)');
+  });
+
+  test('should apply style flags and the class of a compiled css prop', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', 'button');
+
+    expect(
+      renderProps(Component, { active: true, css: 'css-prop', id: 'a' }),
+    ).toEqual({ className: 'base active-class css-prop', id: 'a', ref: null });
+  });
+
+  test('should apply default style flags from attrs', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', 'button', {
+      active: true,
+      className: 'attrs-class',
+    });
+
+    expect(renderProps(Component, {})).toEqual({
+      className: 'base active-class attrs-class',
+      ref: null,
+    });
+    expect(renderProps(Component, { active: false })).toEqual({
+      className: 'base attrs-class',
+      ref: null,
+    });
   });
 });
 
