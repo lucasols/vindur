@@ -295,21 +295,28 @@ enum CssToken<'a> {
 /// Splits CSS into `.class` selectors and the text between them. A class is chained to a
 /// component reference (a component class matched by `is_reference` or a forward reference
 /// placeholder) when it is in the same compound selector, e.g. `Parent` for every flag in
-/// `.Parent.active.size-small`, `.Parent:hover.active` and `.Parent:not(.active)`.
-/// Strings and `url()` values are kept as text
+/// `.Parent.active.size-small`, `.Parent:hover.active` and `.Parent:not(.active)`. A reference
+/// nested in a pseudo-class, like `.Parent:has(.Child.active)`, applies until its parenthesis
+/// closes. Comments, strings and `url()` values are kept as text
 fn scan_class_chains<'a>(
     css: &'a str,
     is_reference: impl Fn(&str) -> bool,
     mut visit: impl FnMut(CssToken<'a>),
 ) {
-    // The reference and the parenthesis depth it was found at
-    let mut reference: Option<(&str, usize)> = None;
+    // The references in scope, each with the parenthesis depth it was found at
+    let mut references: Vec<(&str, usize)> = Vec::new();
     let mut depth = 0usize;
     let mut rest = css;
     while let Some(character) = rest.chars().next() {
+        let can_add_reference = references
+            .last()
+            .is_none_or(|&(_, reference_depth)| depth > reference_depth);
         if let Some(placeholder) = leading_styled_ref_placeholder(rest) {
             visit(CssToken::Text(placeholder));
-            reference = Some((placeholder, depth));
+            if !can_add_reference {
+                references.pop();
+            }
+            references.push((placeholder, depth));
             rest = &rest[placeholder.len()..];
             continue;
         }
@@ -324,11 +331,11 @@ fn scan_class_chains<'a>(
                 .map_or(rest.len(), |index| index + 1);
             let name = &rest[1..class_end];
             visit(CssToken::Class {
-                reference: reference.map(|(reference, _)| reference),
+                reference: references.last().map(|&(reference, _)| reference),
                 name,
             });
-            if reference.is_none() && is_reference(name) {
-                reference = Some((name, depth));
+            if can_add_reference && is_reference(name) {
+                references.push((name, depth));
             }
             rest = &rest[class_end..];
             continue;
@@ -338,13 +345,11 @@ fn scan_class_chains<'a>(
             ')' => depth = depth.saturating_sub(1),
             _ => {}
         }
-        let left_reference_scope = reference.is_some_and(|(_, reference_depth)| {
-            depth < reference_depth
-                || (depth == reference_depth
-                    && u8::try_from(character).is_ok_and(is_compound_boundary))
-        });
-        if left_reference_scope {
-            reference = None;
+        let is_boundary = u8::try_from(character).is_ok_and(is_compound_boundary);
+        while references.last().is_some_and(|&(_, reference_depth)| {
+            depth < reference_depth || (depth == reference_depth && is_boundary)
+        }) {
+            references.pop();
         }
         let character_end = character.len_utf8();
         visit(CssToken::Text(&rest[..character_end]));
@@ -352,8 +357,12 @@ fn scan_class_chains<'a>(
     }
 }
 
-/// A leading string or `url()` value, their content is never a selector
+/// A leading comment, string or `url()` value, their content is never a selector
 fn leading_css_literal(css: &str) -> Option<&str> {
+    if let Some(comment) = css.strip_prefix("/*") {
+        let end = comment.find("*/").map_or(css.len(), |index| index + 4);
+        return Some(&css[..end]);
+    }
     if css.starts_with("url(") {
         let end = css.find(')').map_or(css.len(), |index| index + 1);
         return Some(&css[..end]);

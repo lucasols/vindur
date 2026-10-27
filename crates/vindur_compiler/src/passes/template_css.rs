@@ -7,7 +7,7 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::styled::{StyleFlag, css_class_name_part, replace_class_selector};
+use super::styled::{css_class_name_part, replace_class_selector, rewrite_class_chains};
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -90,8 +90,7 @@ pub(crate) fn validate_template_css(
     rebuild_with_extensions: impl Fn(&[usize]) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
     let kind = BlockKind::from_tag_type(context.tag_type);
-    let validate =
-        |css: &str| validate_style_block(&validation_css(css, context.style_flags), kind);
+    let validate = |css: &str| validate_style_block(&validation_css(css, context), kind);
     let Err(error) = validate(&evaluated.css) else {
         return Ok(());
     };
@@ -186,12 +185,26 @@ fn missing_extension(
 }
 
 /// Style flag selectors like `&.$active` are rewritten to hashed classes after validation. A `$` is
-/// not valid in a class name, so they are validated with `_`, which keeps the CSS offsets
-fn validation_css<'a>(css: &'a str, style_flags: &[StyleFlag]) -> Cow<'a, str> {
-    style_flags
+/// not valid in a class name, so they are validated with `_`, which keeps the CSS offsets. In styled
+/// components this includes transient flags chained to another class, like `${Parent}.$active`,
+/// which are checked when the flags are rewritten
+fn validation_css<'a>(css: &'a str, context: &TemplateContext<'_>) -> Cow<'a, str> {
+    let css = if context.tag_type == "styled" && css.contains('$') {
+        Cow::Owned(rewrite_class_chains(
+            css,
+            |class| !class.contains('$'),
+            |reference, class| {
+                (reference.is_some() && class.contains('$')).then(|| css_class_name_part(class))
+            },
+        ))
+    } else {
+        Cow::Borrowed(css)
+    };
+    context
+        .style_flags
         .iter()
         .filter(|flag| flag.prop_name.contains('$'))
-        .fold(Cow::Borrowed(css), |css, flag| {
+        .fold(css, |css, flag| {
             Cow::Owned(replace_class_selector(
                 &css,
                 &flag.prop_name,
