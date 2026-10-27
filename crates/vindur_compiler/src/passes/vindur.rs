@@ -16,6 +16,7 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
     cx_optimize::optimize_cx_calls,
     cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
@@ -125,6 +126,7 @@ pub(crate) fn transform_program(
     let mut hashed_styled_modifiers = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
+    let mut cx_key_usages = CxKeyUsages::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let value_referenced_names =
@@ -381,6 +383,7 @@ pub(crate) fn transform_program(
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
+            key_usages: &mut cx_key_usages,
         },
     )?;
 
@@ -502,6 +505,14 @@ pub(crate) fn transform_program(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),
         ));
+    }
+    if options.dev {
+        warnings.extend(raw_hashed_cx_key_warnings(
+            &cx_key_usages,
+            &css_rules,
+            file_path,
+            source,
+        )?);
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variable_warnings(
