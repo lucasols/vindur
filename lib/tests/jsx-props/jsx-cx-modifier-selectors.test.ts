@@ -441,7 +441,6 @@ test('should keep rewriting cx classes of nested rules that may match the styled
       const Box = styled.div\`
         /* responsive */ @media (min-width: 1px) { &.active { left: 0; } }
         :is(&) { &.active { top: 0; } }
-        &:hover, & .child { &.active { color: red; } }
         & /* note */ .tab { &.active { color: blue; } }
         &:hover /* note */ { &.active { right: 0; } }
       \`;
@@ -461,12 +460,6 @@ test('should keep rewriting cx classes of nested rules that may match the styled
       :is(&) {
         &.v1560qbr-2-active {
           top: 0;
-        }
-      }
-      &:hover,
-      & .child {
-        &.v1560qbr-2-active {
-          color: red;
         }
       }
       & /* note */ .tab {
@@ -601,7 +594,7 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
   `);
 });
 
-test('should leave cx classes of relative nested rules and rewrite rootless and escaped @scope', async () => {
+test('should leave cx classes of relative nested rules and rootless @scope and rewrite escaped @scope', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
@@ -630,7 +623,7 @@ test('should leave cx classes of relative nested rules and rewrite rootless and 
         }
       }
       @scope to (& .stop) {
-        &.v1560qbr-2-active {
+        &.active {
           color: green;
         }
       }

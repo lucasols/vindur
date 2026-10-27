@@ -887,7 +887,7 @@ createGlobalStyle`
 `;
 ```
 
-`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
+`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
 ### Mixins and Functions
 
@@ -1001,7 +1001,9 @@ Other `css` values on custom components (strings or non-vindur values) are left 
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`), and each `$` key must be a single class.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`) and must not start with `---`, which is reserved for scoped variables, and each `$` key must be a single class. A class can't be both hashed and `$`-prefixed in the `cx` props of the same styles, like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`.
+
+In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed. A hashed class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }` or `:where(&, .x) { &.active { ... } }`, is a compile error, split it into separate rules.
 
 ```tsx
 const Container = styled.div`
@@ -1054,7 +1056,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) are a compile error, use `$` keys or move them into the styled component.
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) or in a styled component it extends (`styled(Base)`) are a compile error, use `$` keys or move them into the styled component. Hashed modifiers of an exported css reference are a compile error too, as other files using it wouldn't get the hashed classes. A css reference inside a `className` expression, like `className={cx(styles)}`, can't declare hashed modifiers, pass it directly. Selecting a hashed class through a component reference, like `${Item}.active` in another styled component, is a compile error too, use a `$` key or a style flag.
 
 On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
 

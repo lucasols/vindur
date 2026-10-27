@@ -566,7 +566,7 @@ describe('Warnings for Missing CSS Classes', () => {
     `);
   });
 
-  test('should warn about cx modifiers only used in selectors of other elements', async () => {
+  test('should only warn about cx modifiers that are not classes of the element', async () => {
     const warnings: TransformWarning[] = [];
 
     const result = await transformWithFormat({
@@ -574,10 +574,60 @@ describe('Warnings for Missing CSS Classes', () => {
         import { styled } from 'vindur';
 
         const Box = styled.div\`
-          & .active {
+          &:not(.active) {
             opacity: 0.5;
           }
+
+          & .loading {
+            opacity: 0;
+          }
         \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box cx={{ active: on, loading: !on }} />
+        );
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: 'Warning: Missing CSS classes for cx modifiers in Box: loading'
+          loc: 'current_file:14:2'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Box {
+        &:not(.v1560qbr-2-active) {
+          opacity: 0.5;
+        }
+
+        & .loading {
+          opacity: 0;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should warn about cx modifiers only declared outside the styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        export const other = css\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Box = styled.div\`\`;
 
         export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
       `,
@@ -590,14 +640,45 @@ describe('Warnings for Missing CSS Classes', () => {
       "
       - TransformWarning#:
           message: 'Warning: Missing CSS classes for cx modifiers in Box: active'
-          loc: 'current_file:9:48'
+          loc: 'current_file:11:48'
+      "
+    `);
+  });
+
+  test('should not warn about cx modifiers declared in the css prop of a styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box css={\`&.active { color: blue; }\`} cx={{ active: on }} />
+        );
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Box {
-        & .active {
-          opacity: 0.5;
+        color: red;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        &.v1560qbr-3-active {
+          color: blue;
         }
       }
       "

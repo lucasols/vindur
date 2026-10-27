@@ -142,17 +142,16 @@ test('should throw for getters and methods in cx objects', async () => {
   `);
 });
 
-test('should handle empty cx objects', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      export const App = () => <div cx={{}} />;
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = () => <div className={cx({})} />;
-    "
+test('should reject empty cx objects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const App = () => <div cx={{}} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop object must not be empty, remove the cx prop instead
+    loc: 1:34]
   `);
 });
 

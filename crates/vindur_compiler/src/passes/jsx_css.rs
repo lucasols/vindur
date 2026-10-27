@@ -12,7 +12,7 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    cx_selectors::rewrite_cx_selectors_in_body,
+    cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
     jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
     jsx_class_name::{
         ClassNameMerge, ClassNameSources, class_name_merge, emit_class_concat,
@@ -198,7 +198,7 @@ impl JsxCssVisitor<'_> {
                 {
                     *self.output.id_index = *index;
                 }
-                let mut content = match evaluate_template(
+                let content = match evaluate_template(
                     template,
                     self.output.constants,
                     self.output.scoping,
@@ -216,9 +216,6 @@ impl JsxCssVisitor<'_> {
                         return;
                     }
                 };
-                if let Some(cx) = cx_transform {
-                    content = rewrite_cx_selectors_in_body(&content, &cx.mappings);
-                }
                 let index = cx_transform.map_or_else(
                     || {
                         let index = *self.output.id_index;
@@ -235,17 +232,24 @@ impl JsxCssVisitor<'_> {
                 if let Some(cx) = cx_transform {
                     *self.output.id_index = cx.next_index;
                 }
+                let rewritten = match cx_transform {
+                    Some(cx) => rewrite_modifiers(&content, ModifierCss::Block, &cx.mappings),
+                    None => Ok(content),
+                };
                 // The ids after the class are reserved for the scoped variables of the template
-                let rules = match process_scoped_variables(
-                    &content,
-                    BlockKind::Style,
-                    template.span,
-                    self.output.file_hash,
-                    self.output.dev,
-                    self.output.id_index,
-                    self.output.scoped_variables,
-                )
-                .and_then(|content| generate_class_rules(&name, &content))
+                let rules = match rewritten
+                    .and_then(|content| {
+                        process_scoped_variables(
+                            &content,
+                            BlockKind::Style,
+                            template.span,
+                            self.output.file_hash,
+                            self.output.dev,
+                            self.output.id_index,
+                            self.output.scoped_variables,
+                        )
+                    })
+                    .and_then(|content| generate_class_rules(&name, &content))
                 {
                     Ok(rules) => rules,
                     Err(error) => {

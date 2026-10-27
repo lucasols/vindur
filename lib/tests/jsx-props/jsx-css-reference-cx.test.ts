@@ -174,3 +174,170 @@ test('should keep $ cx keys and styled modifiers with a css reference on a style
     "
   `);
 });
+
+test('should fail on a class used both hashed and with $ in cx props of the same styles', async () => {
+  const source = (elements: string) => dedent`
+    import { css, styled } from 'vindur'
+
+    const styles = css\`
+      &.active {
+        color: blue;
+      }
+    \`
+
+    const Box = styled.div\`
+      &.active {
+        color: yellow;
+      }
+    \`
+
+    const Component = ({ on }) => (
+      <>
+        ${elements}
+      </>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<div css={styles} cx={{ active: on }} />\n<div css={styles} cx={{ $active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:28]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Box cx={{ $active: on }} />\n<Box cx={{ active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:15]
+  `);
+});
+
+test('should allow a class hashed and with $ in cx props of different styles', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur'
+
+      const styles = css\`
+        &.active {
+          color: blue;
+        }
+      \`
+
+      const Box = styled.div\`
+        &.active {
+          color: yellow;
+        }
+      \`
+
+      const Component = ({ on }) => (
+        <>
+          <div css={styles} cx={{ $active: on }} />
+          <Box cx={{ active: on }} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    const styles = "v1560qbr-1-styles";
+    const Component = ({ on }) => (
+      <>
+        <div
+          className={
+            "v1560qbr-1-styles " +
+            cx({
+              active: on,
+            })
+          }
+        />
+        <div
+          className={
+            "v1560qbr-2-Box " +
+            cx({
+              "v1560qbr-4-active": on,
+            })
+          }
+        />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      &.active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2-Box {
+      &.v1560qbr-4-active {
+        color: yellow;
+      }
+    }
+    "
+  `);
+});
+
+test('should reject hashed cx modifiers of an exported css reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        export const styles = css\`
+          &.active { color: red; }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <div className={styles} cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the exported css reference "styles", other files using it would not get the hashed modifier classes. Use $-prefixed classes (e.g. $active) or a styled component.
+    loc: 8:18]
+  `);
+});
+
+test('should reject hashed cx modifiers of a css reference inside a className expression', async () => {
+  const source = (className: string) => dedent`
+    import { css, styled, cx } from 'vindur';
+
+    const styles = css\`
+      &.active { color: red; }
+    \`;
+
+    const Box = styled.div\`
+      color: blue;
+    \`;
+
+    export const App = ({ on }: { on: boolean }) => (
+      <Box className={${className}} cx={{ active: on }} />
+    );
+  `;
+
+  await expect(
+    transformWithFormat({ source: source('cx(styles)') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
+    loc: 12:21]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('`${styles} extra`') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
+    loc: 12:21]
+  `);
+});
