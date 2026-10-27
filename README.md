@@ -1009,7 +1009,7 @@ Classes used in `cx` prop will be compiled to bundle size optimized hashes by de
 
 In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed. A hashed class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }` or `:where(&, .x) { &.active { ... } }`, is a compile error, split it into separate rules.
 
-Hashing only renames the `&.class` selectors of the element's own styles. Use the `$` prefix when the class is also used by other selectors, e.g. `.active &` in another component, global styles, other files or JS. Vindur warns when a hashed class is used by other selectors of the same file.
+Hashing only renames the `&.class` selectors of the element's own styles. Use the `$` prefix when the class is also used by other selectors, e.g. `.active &` in another component, global styles, other files or JS. Vindur warns when another selector of the same file uses a hashed class on an ancestor or sibling, like `.active &`.
 
 ```tsx
 const Container = styled.div`

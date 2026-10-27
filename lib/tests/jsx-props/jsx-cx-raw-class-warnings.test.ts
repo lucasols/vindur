@@ -38,10 +38,6 @@ test('should warn when a hashed cx key is used as a raw class in other selectors
       .isActive & {
         color: black;
       }
-
-      \${Menu}.isActive & {
-        font-weight: bold;
-      }
     \`;
 
     export const A = ({ open, active }: { open: boolean; active: boolean }) => (
@@ -57,11 +53,11 @@ test('should warn when a hashed cx key is used as a raw class in other selectors
   expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
     "
     - TransformWarning#:
-        message: 'cx key "isOpen" is hashed, but the class ".isOpen" is used in other selectors of this file, which will never match it. Use "$isOpen" to keep the class name, or rename one of the classes'
-        loc: '/test.tsx:31:16'
+        message: 'cx key "isOpen" is hashed, but the selector ".isOpen .icon" uses the class ".isOpen", which will never match it. Use "$isOpen" to keep the class name, or rename one of the classes'
+        loc: '/test.tsx:27:16'
     - TransformWarning#:
-        message: 'cx key "isActive" is hashed, but the class ".isActive" is used in other selectors of this file, which will never match it. Use "$isActive" to keep the class name, or rename one of the classes'
-        loc: '/test.tsx:31:30'
+        message: 'cx key "isActive" is hashed, but the selector ".isActive &" uses the class ".isActive", which will never match it. Use "$isActive" to keep the class name, or rename one of the classes'
+        loc: '/test.tsx:27:30'
     "
   `);
 });
@@ -78,12 +74,20 @@ test('should not warn when the raw class is only used by the component itself or
       &.isOpenLater {
         display: none;
       }
+
+      .isOpenLater-wrapper & {
+        display: flex;
+      }
     \`;
 
     const Panel = styled.div\`
       &.isActive {
         color: red;
       }
+    \`;
+
+    const Badge = styled.div\`
+      color: blue;
     \`;
 
     const Item = styled.span\`
@@ -95,11 +99,48 @@ test('should not warn when the raw class is only used by the component itself or
     export const A = ({ open }: { open: boolean }) => (
       <>
         <Menu cx={{ isOpen: open, isOpenLater: !open }} />
-        <Panel cx={{ $isActive: open }}>
+        <Badge cx={{ $isActive: open }}>
           <Item />
-        </Panel>
+        </Badge>
         <Panel cx={{ isActive: open }} />
       </>
+    );
+  `);
+
+  expect(warnings).toEqual([]);
+});
+
+test('should not warn about raw classes of the selected elements, comments or values', async () => {
+  const warnings = await getWarnings(dedent`
+    import { styled } from 'vindur';
+
+    const List = styled.ul\`
+      /* toggled with .active */
+      background: url(/icons/active.svg);
+
+      &.active {
+        color: red;
+      }
+
+      & .active {
+        color: blue;
+      }
+
+      &:has(.active) {
+        color: green;
+      }
+    \`;
+
+    const Tab = styled.li\`
+      &.active {
+        font-weight: bold;
+      }
+    \`;
+
+    export const A = ({ on }: { on: boolean }) => (
+      <List cx={{ active: on }}>
+        <Tab className="active" />
+      </List>
     );
   `);
 

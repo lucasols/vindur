@@ -35,7 +35,7 @@ pub(super) fn css_references(
     element: &JSXElement<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-    exported_names: &FxHashSet<String>,
+    exported_names: &FxHashMap<String, String>,
 ) -> Vec<CssReference> {
     ["className", "css"]
         .into_iter()
@@ -56,7 +56,7 @@ pub(super) fn wrapped_css_references(
     element: &JSXElement<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-    exported_names: &FxHashSet<String>,
+    exported_names: &FxHashMap<String, String>,
 ) -> Vec<CssReference> {
     let Some(expression) = attribute_expression(element, "className") else {
         return Vec::new();
@@ -89,7 +89,7 @@ fn css_reference(
     identifier: &IdentifierReference<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-    exported_names: &FxHashSet<String>,
+    exported_names: &FxHashMap<String, String>,
 ) -> Option<CssReference> {
     let Some(StaticValue::CssClass { name, css }) =
         resolved_constant(identifier, constants, scoping)
@@ -102,9 +102,9 @@ fn css_reference(
         .and_then(|id| scoping.get_reference(id).symbol_id())
         .is_some_and(|symbol_id| scoping.symbol_flags(symbol_id).is_import());
     let exported = !imported
-        && exported_names.iter().any(|exported_name| {
+        && exported_names.values().any(|local_name| {
             matches!(
-                constants.get(exported_name),
+                constants.get(local_name),
                 Some(StaticValue::CssClass { name: exported_class, .. }) if exported_class == name
             )
         });
@@ -121,7 +121,7 @@ fn css_reference(
 struct CssReferenceCollector<'c> {
     constants: &'c FxHashMap<String, StaticValue>,
     scoping: &'c Scoping,
-    exported_names: &'c FxHashSet<String>,
+    exported_names: &'c FxHashMap<String, String>,
     references: Vec<CssReference>,
 }
 

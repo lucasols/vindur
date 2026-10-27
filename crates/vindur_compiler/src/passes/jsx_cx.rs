@@ -55,7 +55,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
-    pub exported_names: &'a FxHashSet<String>,
+    pub exported_names: &'a FxHashMap<String, String>,
     pub file_hash: &'a str,
     pub file_path: &'a str,
     pub source: &'a str,

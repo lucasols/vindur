@@ -495,15 +495,15 @@ pub(crate) fn transform_program(
             ),
         ));
     }
-    let css = css_rules.join("\n\n");
     if options.dev {
         warnings.extend(raw_hashed_cx_key_warnings(
             &cx_key_usages,
-            &css,
+            &css_rules,
             file_path,
             source,
-        ));
+        )?);
     }
+    let css = css_rules.join("\n\n");
     warnings.extend(scoped_variable_warnings(
         &scoped_variables,
         file_path,
@@ -530,8 +530,8 @@ fn is_style_value(value: &StaticValue) -> bool {
             | StaticValue::Keyframes(_)
             | StaticValue::ThemeColor { .. }
             | StaticValue::ThemeColorContrast { .. }
-            | StaticValue::ThemeColors(_)
-            | StaticValue::UnexportedThemeColors(_)
+            | StaticValue::ThemeColors { .. }
+            | StaticValue::UnexportedThemeColors { .. }
     )
 }
 
