@@ -34,6 +34,7 @@ use super::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
         transform_stable_declaration,
     },
+    static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
     styled::{resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
@@ -63,8 +64,10 @@ pub(crate) fn transform_program(
     let exported_names = collect_exported_names(program);
 
     // Imported values come first so local constants can reference them, e.g.
-    // `export const INSET = IMPORTED_INSET`
-    let imported_constants = imported_values
+    // `export const INSET = IMPORTED_INSET`. Local style values, e.g. `css` classes and
+    // theme colors, are only known after `collect_constants`, imported ones are added after
+    // it too, so constants derived from them aren't static in both cases
+    let (style_values, imported_constants): (FxHashMap<_, _>, _) = imported_values
         .iter()
         .map(|(name, value)| {
             let value = match value {
@@ -73,8 +76,9 @@ pub(crate) fn transform_program(
             };
             (name.clone(), value)
         })
-        .collect();
+        .partition(|(_, value)| is_style_value(value));
     let mut constants = collect_constants(program, scoping, &imports, imported_constants);
+    constants.extend(style_values);
     for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
@@ -440,11 +444,14 @@ pub(crate) fn transform_program(
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
+    // Unresolved imports exported with `export { name }` describe paths relative to this
+    // module, importers report them as values of this module instead
     let exports = exported_names
         .iter()
         .filter_map(|(name, local)| {
             constants
                 .get(local)
+                .filter(|value| !is_unresolved_import(value))
                 .cloned()
                 .map(|value| (name.clone(), value))
         })
@@ -485,6 +492,22 @@ pub(crate) fn transform_program(
         warnings,
         css_source_offsets: css_template_offsets(program, &imports),
     })
+}
+
+/// Values created by vindur APIs, they are registered while transforming their declarations
+fn is_style_value(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::ClassName(_)
+            | StaticValue::CssClass { .. }
+            | StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::Keyframes(_)
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
+            | StaticValue::ThemeColors(_)
+            | StaticValue::UnexportedThemeColors(_)
+    )
 }
 
 fn scoped_variable_warnings(

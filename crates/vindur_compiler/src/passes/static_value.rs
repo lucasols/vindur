@@ -7,7 +7,9 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
-use super::import_errors::{import_cycle_hint, member_root_identifier, unresolved_import_error};
+use super::import_errors::{
+    member_root_identifier, not_static_import_message, unresolved_import_error,
+};
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
@@ -357,11 +359,7 @@ fn invalid_object_access_error(
                 file_path,
                 source,
                 expression.span(),
-                format!(
-                    "Object \"{}\" not found in {source_path}{}",
-                    root.name,
-                    import_cycle_hint(source_path, cyclic_imports)
-                ),
+                not_static_import_message(&root.name, source_path, cyclic_imports),
             )),
             _ => None,
         };

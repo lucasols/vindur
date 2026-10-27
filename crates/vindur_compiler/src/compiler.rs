@@ -14,7 +14,7 @@ use crate::resolved_imports::remove_resolved_imports;
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
-    facts::StaticValue,
+    facts::{ReExport, StaticValue},
     module_graph::{
         DependencyList, is_type_only_import, is_type_only_specifier, paths_refer_to_same_module,
     },
@@ -396,31 +396,32 @@ impl Compiler {
                             source_path: resolved.clone(),
                             cyclic_imports: facts.cyclic_dependencies.clone(),
                         }
-                    } else if let Some(re_export_source) = facts.re_exports.get(imported_name) {
+                    } else if let Some(re_export) = facts.re_exports.get(imported_name) {
                         StaticValue::UnsupportedReExport {
                             imported_name: imported_name.to_owned(),
                             source_path: resolved.clone(),
                             // Relative sources are relative to the re-exporting module,
                             // the error suggests importing it from this one
-                            re_export_source: Some(
-                                if re_export_source.starts_with('.') {
+                            re_export: Some(ReExport {
+                                source: if re_export.source.starts_with('.') {
                                     unresolved_import_path(
                                         &resolved,
-                                        re_export_source,
+                                        &re_export.source,
                                         &options.import_aliases,
                                     )
                                     .map(|target| relative_import_specifier(file_path, &target))
                                 } else {
                                     None
                                 }
-                                .unwrap_or_else(|| re_export_source.clone()),
-                            ),
+                                .unwrap_or_else(|| re_export.source.clone()),
+                                imported_name: re_export.imported_name.clone(),
+                            }),
                         }
                     } else if !facts.star_re_exports.is_empty() {
                         StaticValue::UnsupportedReExport {
                             imported_name: imported_name.to_owned(),
                             source_path: resolved.clone(),
-                            re_export_source: None,
+                            re_export: None,
                         }
                     } else {
                         StaticValue::MissingImport {

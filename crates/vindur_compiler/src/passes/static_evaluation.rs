@@ -371,11 +371,13 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
 }
 
 /// An imported name whose value couldn't be evaluated in its module, e.g.
-/// `export const hover = getColor()`, it has no CSS value
+/// `export const hover = getColor()`, or that is missing or only re-exported, it has no
+/// CSS value
 pub(super) fn is_unresolved_import(value: &StaticValue) -> bool {
     matches!(
         value,
         StaticValue::MissingImport { .. }
+            | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
     )

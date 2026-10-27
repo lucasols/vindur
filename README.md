@@ -928,7 +928,7 @@ const Button = styled.button`
 
 `vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
 
-Imported values and functions must be imported from the module that declares them, re-exports via `export ... from` are not supported.
+Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`.
 
 ### JSX CSS Prop
 

@@ -275,3 +275,135 @@ test('should error on values derived from imported dynamic colors', async () => 
     ignoreInLint: true]
   `);
 });
+
+test('should suggest the original name of values re-exported with an alias', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { GAP } from '#/barrel';
+
+        export const Box = styled.div\`
+          top: \${GAP}px;
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'barrel.ts': `export { INSET as GAP } from '#/styles';`,
+        'styles.ts': 'export const INSET = 8;',
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "GAP" is re-exported by /barrel.ts from "#/styles", re-exports via \`export ... from\` are not supported, import "INSET" from "#/styles" directly
+    loc: 5:9]
+  `);
+});
+
+test('should error on namespaces re-exported with `export * as`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { tokens } from '#/barrel';
+
+        export const Box = styled.div\`
+          top: \${tokens.INSET}px;
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'barrel.ts': `export * as tokens from '#/styles';`,
+        'styles.ts': 'export const INSET = 8;',
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "tokens" is re-exported by /barrel.ts from "#/styles", re-exports via \`export * as ... from\` are not supported, import the values you need from "#/styles" by name
+    loc: 5:9]
+  `);
+});
+
+test('should error on imported values that are not static used as arguments', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { INSET } from '#/styles';
+        import { px } from '#/fns';
+
+        export const Box = styled.div\`
+          top: \${px(INSET)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'styles.ts': dedent`
+          const getInset = () => 8;
+
+          export const INSET = getInset();
+        `,
+        'fns.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const px = vindurFn((value: number) => \`\${value}px\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "INSET" imported from /styles.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 6:9]
+  `);
+});
+
+test('should report unresolved values exported by name as values of the exporting module', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { INSET } from '#/lib/styles';
+
+        export const Box = styled.div\`
+          top: \${INSET}px;
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        lib: {
+          'styles.ts': dedent`
+            import { INSET } from './barrel';
+
+            export { INSET };
+          `,
+          'barrel.ts': `export { INSET } from './ui/constants';`,
+          ui: { 'constants.ts': 'export const INSET = 8;' },
+        },
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "INSET" imported from /lib/styles.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 5:9]
+  `);
+});
+
+test('should error on values derived from imported theme colors', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { colors } from '#/colors';
+
+        const border = \`1px solid \${colors.primary.value}\`;
+
+        const style = css\`
+          border: \${border};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          import { createStaticThemeColors } from 'vindur';
+
+          export const colors = createStaticThemeColors({ primary: '#ff0000' });
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${border}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 7:12
+    ignoreInLint: true]
+  `);
+});

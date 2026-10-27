@@ -3,12 +3,15 @@ use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, facts::StaticValue};
+use crate::{
+    CompilerDiagnostic,
+    facts::{ReExport, StaticValue},
+};
 
-use super::static_evaluation::resolved_constant;
+use super::static_evaluation::{is_unresolved_import, resolved_constant};
 
 /// Errors for imported values that can't be evaluated, because they are missing, only
-/// re-exported, or not static, e.g. `${INSET}`, `${px(8)}` or `${theme.color}`
+/// re-exported, or not static, e.g. `${INSET}`, `${px(INSET)}` or `${INSET + 1}`
 pub(super) fn unresolved_import_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -16,15 +19,8 @@ pub(super) fn unresolved_import_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    if let Some(diagnostic) =
-        unsupported_re_export_error(expression, constants, scoping, file_path, source)
-    {
-        return Some(diagnostic);
-    }
-    let Expression::Identifier(identifier) = expression else {
-        return None;
-    };
-    let message = match resolved_constant(identifier, constants, scoping)? {
+    let (identifier, value) = find_unresolved_import(expression, constants, scoping)?;
+    let message = match value {
         StaticValue::MissingImport {
             imported_name,
             source_path,
@@ -36,11 +32,12 @@ pub(super) fn unresolved_import_error(
         | StaticValue::InvalidObject {
             source_path,
             cyclic_imports,
-        } => format!(
-            "\"{}\" imported from {source_path} is not a static value, only strings, numbers and other statically analyzable values can be interpolated{}",
-            identifier.name,
-            import_cycle_hint(source_path, cyclic_imports)
-        ),
+        } => not_static_import_message(&identifier.name, source_path, cyclic_imports),
+        StaticValue::UnsupportedReExport {
+            imported_name,
+            source_path,
+            re_export,
+        } => re_export_message(imported_name, source_path, re_export.as_ref()),
         _ => return None,
     };
     Some(CompilerDiagnostic::error(
@@ -51,60 +48,82 @@ pub(super) fn unresolved_import_error(
     ))
 }
 
-fn unsupported_re_export_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let StaticValue::UnsupportedReExport {
-        imported_name,
-        source_path,
-        re_export_source,
-    } = find_re_export(expression, constants, scoping)?
-    else {
-        return None;
-    };
-    let message = match re_export_source {
-        Some(re_export_source) => format!(
-            "\"{imported_name}\" is re-exported by {source_path} from \"{re_export_source}\", re-exports via `export ... from` are not supported, import it from \"{re_export_source}\" directly"
-        ),
-        None => format!(
-            "\"{imported_name}\" not found in {source_path}, re-exports via `export * from` are not supported, import it from the module that declares it directly"
-        ),
-    };
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        expression.span(),
-        message,
-    ))
+pub(super) fn not_static_import_message(
+    name: &str,
+    source_path: &str,
+    cyclic_imports: &[String],
+) -> String {
+    format!(
+        "\"{name}\" imported from {source_path} is not a static value, only strings, numbers and other statically analyzable values can be interpolated{}",
+        import_cycle_hint(source_path, cyclic_imports)
+    )
 }
 
-/// First re-exported name the expression reads, e.g. `SIZE` in `${px(SIZE + 1)}`
-fn find_re_export<'c>(
-    expression: &Expression<'_>,
+fn re_export_message(
+    imported_name: &str,
+    source_path: &str,
+    re_export: Option<&ReExport>,
+) -> String {
+    let Some(ReExport {
+        source: re_export_source,
+        imported_name: original_name,
+    }) = re_export
+    else {
+        return format!(
+            "\"{imported_name}\" not found in {source_path}, re-exports via `export * from` are not supported, import it from the module that declares it directly"
+        );
+    };
+    let advice = match original_name {
+        Some(original_name) if original_name == imported_name => {
+            format!("import it from \"{re_export_source}\" directly")
+        }
+        Some(original_name) => {
+            format!("import \"{original_name}\" from \"{re_export_source}\" directly")
+        }
+        None => format!("import the values you need from \"{re_export_source}\" by name"),
+    };
+    let syntax = if original_name.is_some() {
+        "export ... from"
+    } else {
+        "export * as ... from"
+    };
+    format!(
+        "\"{imported_name}\" is re-exported by {source_path} from \"{re_export_source}\", re-exports via `{syntax}` are not supported, {advice}"
+    )
+}
+
+/// First unresolved imported name the expression reads, e.g. `SIZE` in `${px(SIZE + 1)}`.
+/// Callees are only checked for re-exports, other invalid callees get the vindurFn error
+fn find_unresolved_import<'a, 'b, 'c>(
+    expression: &'a Expression<'b>,
     constants: &'c FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-) -> Option<&'c StaticValue> {
+) -> Option<(&'a IdentifierReference<'b>, &'c StaticValue)> {
     match expression {
         Expression::Identifier(identifier) => resolved_constant(identifier, constants, scoping)
-            .filter(|value| matches!(value, StaticValue::UnsupportedReExport { .. })),
-        Expression::CallExpression(call) => find_re_export(&call.callee, constants, scoping)
-            .or_else(|| {
-                call.arguments.iter().find_map(|argument| {
-                    find_re_export(argument.as_expression()?, constants, scoping)
+            .filter(|value| is_unresolved_import(value))
+            .map(|value| (&**identifier, value)),
+        Expression::CallExpression(call) => {
+            find_unresolved_import(&call.callee, constants, scoping)
+                .filter(|(_, value)| matches!(value, StaticValue::UnsupportedReExport { .. }))
+                .or_else(|| {
+                    call.arguments.iter().find_map(|argument| {
+                        find_unresolved_import(argument.as_expression()?, constants, scoping)
+                    })
                 })
-            }),
-        Expression::StaticMemberExpression(member) => {
-            find_re_export(&member.object, constants, scoping)
         }
-        Expression::BinaryExpression(binary) => find_re_export(&binary.left, constants, scoping)
-            .or_else(|| find_re_export(&binary.right, constants, scoping)),
-        Expression::UnaryExpression(unary) => find_re_export(&unary.argument, constants, scoping),
+        Expression::StaticMemberExpression(member) => {
+            find_unresolved_import(&member.object, constants, scoping)
+        }
+        Expression::BinaryExpression(binary) => {
+            find_unresolved_import(&binary.left, constants, scoping)
+                .or_else(|| find_unresolved_import(&binary.right, constants, scoping))
+        }
+        Expression::UnaryExpression(unary) => {
+            find_unresolved_import(&unary.argument, constants, scoping)
+        }
         Expression::ParenthesizedExpression(parenthesized) => {
-            find_re_export(&parenthesized.expression, constants, scoping)
+            find_unresolved_import(&parenthesized.expression, constants, scoping)
         }
         _ => None,
     }

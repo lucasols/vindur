@@ -5,6 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::{
     diagnostic::CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
+    facts::ReExport,
     semantic::VindurImports,
 };
 
@@ -80,10 +81,11 @@ fn declared_value_name(declaration: &oxc_ast::ast::Declaration<'_>) -> Option<St
     }
 }
 
-/// `export { name } from 'source'` names keyed by exported name, and `export * from` sources
+/// `export { name } from 'source'` and `export * as name from 'source'` names keyed by
+/// exported name, and `export * from` sources
 pub(super) fn collect_re_exports(
     program: &Program<'_>,
-) -> (FxHashMap<String, String>, Vec<String>) {
+) -> (FxHashMap<String, ReExport>, Vec<String>) {
     let mut names = FxHashMap::default();
     let mut star_sources = Vec::new();
     for statement in &program.body {
@@ -95,13 +97,22 @@ pub(super) fn collect_re_exports(
                 names.extend(export.specifiers.iter().map(|specifier| {
                     (
                         specifier.exported.name().to_string(),
-                        export_source.value.to_string(),
+                        ReExport {
+                            source: export_source.value.to_string(),
+                            imported_name: Some(specifier.local.name().to_string()),
+                        },
                     )
                 }));
             }
             Statement::ExportAllDeclaration(export) => {
                 if let Some(exported) = &export.exported {
-                    names.insert(exported.name().to_string(), export.source.value.to_string());
+                    names.insert(
+                        exported.name().to_string(),
+                        ReExport {
+                            source: export.source.value.to_string(),
+                            imported_name: None,
+                        },
+                    );
                 } else {
                     star_sources.push(export.source.value.to_string());
                 }
