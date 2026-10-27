@@ -36,8 +36,9 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
-        ClassNameTarget, decode_jsx_entities, emit_class_name, is_class_rule, js_string_literal,
-        unsupported_spread_message, validate_styled_spreads,
+        ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
+        inlined_component_classes, is_class_rule, js_string_literal, unsupported_spread_message,
+        validate_styled_spreads,
     },
 };
 
@@ -426,6 +427,20 @@ impl JsxCxVisitor<'_> {
             });
             return;
         }
+        // Runtime styled components already add their own class name and style flag classes
+        let inlined = styled
+            .as_ref()
+            .filter(|component| !component.runtime)
+            .map(|component| inlined_component_classes(element, component, self.output.source));
+        let inlined_class = |prefix: &str| {
+            inlined.as_ref().map(|classes| {
+                class_concat(
+                    &format!("{prefix}{}", classes.literal),
+                    &classes.flag_suffix,
+                    Some(&cx_call),
+                )
+            })
+        };
         // A className after every spread overrides them, so it's merged in place
         if matches!(class_name_merge(element), ClassNameMerge::Runtime) {
             if let Err(spread) = validate_styled_spreads(element, self.output.source) {
@@ -435,9 +450,7 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             }
-            let complete = styled.as_ref().map_or(cx_call.clone(), |component| {
-                format!("\"{} \" + {cx_call}", component.class_name)
-            });
+            let complete = inlined_class("").unwrap_or_else(|| cx_call.clone());
             let (inputs, replaced_attributes) = merge_class_name_inputs(
                 element,
                 &class_name_sources(&self.output),
@@ -468,12 +481,8 @@ impl JsxCxVisitor<'_> {
             span: attribute.span,
             replacement: String::new(),
         });
-        let component = styled.as_ref();
         let Some(class_attribute) = find_last_attribute(element, "className") else {
-            let class_name = component.map_or_else(
-                || cx_call.clone(),
-                |component| format!("\"{} \" + {cx_call}", component.class_name),
-            );
+            let class_name = inlined_class("").unwrap_or_else(|| cx_call.clone());
             let offset = opening_attribute_insertion_offset(element, self.output.source);
             emit_class_name(
                 self.output.edits,
@@ -486,22 +495,20 @@ impl JsxCxVisitor<'_> {
         };
         if let Some(JSXAttributeValue::StringLiteral(value)) = &class_attribute.value {
             let existing = decode_jsx_entities(&value.value);
-            let prefix = component.map_or_else(
-                || format!("{existing} "),
-                |component| format!("{existing} {} ", component.class_name),
-            );
+            let class_name = inlined_class(&format!("{existing} "))
+                .unwrap_or_else(|| class_concat(&existing, "", Some(&cx_call)));
             emit_class_name(
                 self.output.edits,
                 self.output.class_expressions,
                 element,
                 ClassNameTarget::Replace(class_attribute.span),
-                format!("{} + {cx_call}", js_string_literal(&prefix)),
+                class_name,
             );
             return;
         }
-        let separator = component.map_or_else(
-            || " ".to_owned(),
-            |component| format!(" {} ", component.class_name),
+        let after = inlined_class(" ").map_or_else(
+            || format!(" + \" \" + {cx_call}"),
+            |class_name| format!(" + {class_name}"),
         );
         let sources = class_name_sources(&self.output);
         emit_class_concat(
@@ -511,7 +518,7 @@ impl JsxCxVisitor<'_> {
             class_attribute,
             &sources,
             "",
-            &format!(" + {} + {cx_call}", js_string_literal(&separator)),
+            &after,
         );
     }
 

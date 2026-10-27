@@ -23,16 +23,8 @@ impl RuntimeHelperNames {
         source: &str,
     ) -> Result<Self, CompilerDiagnostic> {
         let name = |helper: &str, alias: &str| {
-            helper_name(program, scoping, helper, alias).map_err(|span| {
-                CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    span,
-                    format!(
-                        "\"{alias}\" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved"
-                    ),
-                )
-            })
+            helper_name(program, scoping, helper, alias)
+                .map_err(|span| reserved_name_diagnostic(alias, span, file_path, source))
         };
         Ok(Self {
             cx: name("cx", "_vCx")?,
@@ -40,6 +32,36 @@ impl RuntimeHelperNames {
             merge_styles: name("mergeStyles", "_vMergeStyles")?,
         })
     }
+}
+
+/// Errors when the file binds or references `name`, a name vindur generates code with
+pub(super) fn reserved_name_error(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    name: &str,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    match name_use_span(program, scoping, name) {
+        Some(span) => Err(reserved_name_diagnostic(name, span, file_path, source)),
+        None => Ok(()),
+    }
+}
+
+fn reserved_name_diagnostic(
+    name: &str,
+    span: Span,
+    file_path: &str,
+    source: &str,
+) -> CompilerDiagnostic {
+    CompilerDiagnostic::error(
+        file_path,
+        source,
+        span,
+        format!(
+            "\"{name}\" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved"
+        ),
+    )
 }
 
 // `helper`, or `alias` when another binding or a global reference shadows it. Errors with the

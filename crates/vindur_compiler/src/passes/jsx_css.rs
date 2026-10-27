@@ -26,9 +26,9 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     styled::StyledComponent,
     styled_jsx_helpers::{
-        ClassNameTarget, decode_jsx_entities, emit_class_name, has_dynamic_color_attribute,
-        has_spread_attribute, js_string_literal, unsupported_spread_message,
-        validate_styled_spreads, wrap_jsx_string,
+        ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
+        has_dynamic_color_attribute, has_spread_attribute, inlined_component_classes,
+        js_string_literal, unsupported_spread_message, validate_styled_spreads, wrap_jsx_string,
     },
 };
 
@@ -284,11 +284,19 @@ impl JsxCssVisitor<'_> {
             return;
         }
 
-        let complete_class = component.map_or(class_name.clone(), |styled| {
-            format!("{} {class_name}", styled.class_name)
+        // Runtime styled components already add their own class name and style flag classes
+        let inlined = component
+            .filter(|styled| !styled.runtime)
+            .map(|styled| inlined_component_classes(element, styled, self.output.source));
+        let complete_class = inlined.as_ref().map_or(class_name.clone(), |classes| {
+            format!("{} {class_name}", classes.literal)
         });
-        let complete_expression =
-            cx_transform.map(|cx| format!("\"{complete_class} \" + {}", cx.call));
+        let flag_suffix = inlined
+            .as_ref()
+            .map_or("", |classes| classes.flag_suffix.as_str());
+        let cx_call = cx_transform.map(|cx| cx.call.as_str());
+        let complete_expression = (cx_call.is_some() || !flag_suffix.is_empty())
+            .then(|| class_concat(&complete_class, flag_suffix, cx_call));
         // A className after every spread overrides them, so it's merged in place
         if matches!(class_name_merge(element), ClassNameMerge::Runtime) {
             if let Err(spread) = validate_styled_spreads(element, self.output.source) {
@@ -336,7 +344,8 @@ impl JsxCssVisitor<'_> {
                 element,
                 class_attribute,
                 &complete_class,
-                cx_transform.map(|cx| cx.call.as_str()),
+                flag_suffix,
+                cx_call,
             );
         } else if complete_expression.is_none() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
@@ -359,17 +368,13 @@ impl JsxCssVisitor<'_> {
         element: &JSXElement<'_>,
         attribute: &JSXAttribute<'_>,
         class_name: &str,
+        flag_suffix: &str,
         cx_call: Option<&str>,
     ) {
         let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value else {
-            let after = cx_call.map_or_else(
-                || format!(" + {}", js_string_literal(&format!(" {class_name}"))),
-                |cx_call| {
-                    format!(
-                        " + {} + {cx_call}",
-                        js_string_literal(&format!(" {class_name} "))
-                    )
-                },
+            let after = format!(
+                " + {}",
+                class_concat(&format!(" {class_name}"), flag_suffix, cx_call)
             );
             let sources = class_name_sources(&self.output);
             emit_class_concat(
@@ -383,7 +388,7 @@ impl JsxCssVisitor<'_> {
             );
             return;
         };
-        if cx_call.is_none() && !has_dynamic_color_attribute(element) {
+        if cx_call.is_none() && flag_suffix.is_empty() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
                 span: value.span,
                 replacement: wrap_jsx_string(
@@ -396,15 +401,7 @@ impl JsxCssVisitor<'_> {
             return;
         }
         let existing = decode_jsx_entities(&value.value);
-        let expression = cx_call.map_or_else(
-            || js_string_literal(&format!("{existing} {class_name}")),
-            |cx_call| {
-                format!(
-                    "{} + {cx_call}",
-                    js_string_literal(&format!("{existing} {class_name} "))
-                )
-            },
-        );
+        let expression = class_concat(&format!("{existing} {class_name}"), flag_suffix, cx_call);
         emit_class_name(
             self.output.edits,
             self.output.class_expressions,

@@ -190,6 +190,15 @@ const Container = styled.main`
 `;
 ```
 
+Styled components used as JSX elements compile to the plain element with its class name. A styled component that is exported or referenced as a value (passed as a prop, picked in a conditional) is kept as a lightweight runtime component instead:
+
+```tsx
+<Card>...</Card>; // compiles to <div className="...">
+<Menu container={Card} />; // Card is kept as a runtime component
+```
+
+Styled components are matched in JSX by name, so a local binding can't reuse a styled component's name (e.g. a `Card` parameter in a file that declares a styled `Card`).
+
 ### Variable Interpolation
 
 Interpolate JavaScript variables into your styles:
@@ -258,6 +267,8 @@ const Div = Button.withComponent('div'); // Same styles, <div> element
 const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
 ```
 
+`withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
+
 ### Default Attributes
 
 Set default attributes on styled components using `attrs`:
@@ -284,7 +295,9 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` can also be used with styled extensions:
+`attrs` are default props, props passed to the component override them. They can also set a default style flag, or a `className` that is always added to the component's classes.
+
+`attrs` values can't contain JSX (pass the element as a prop where the component is rendered), vindur templates (reference a module level `css` constant) or `stableId()` calls (reference a module level constant). `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
 
 ```tsx
 const StyledDiv = styled(Component).attrs({
@@ -971,7 +984,7 @@ const App = () => (
 );
 ```
 
-When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop.
+When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop. Styled components used where the compiler can't see them as styled (imported, or picked in a conditional) receive it the same way: styled DOM elements add it to their className, styled custom components like `styled(Pie)` forward it to the wrapped component.
 
 ```tsx
 const CustomComponent = ({

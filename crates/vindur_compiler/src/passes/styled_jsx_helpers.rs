@@ -10,7 +10,7 @@ use crate::edit::Edit;
 use super::{
     jsx_class_name::{ClassNameSources, class_name_concat_source},
     static_evaluation::resolved_constant,
-    styled::{StyleFlag, StyleFlagKind},
+    styled::{StyleFlag, StyleFlagKind, StyledComponent},
 };
 
 pub(super) fn css_attribute_is_compile_time(
@@ -100,6 +100,104 @@ pub(super) fn collect_flag_class(
             }
             _ => {}
         },
+    }
+}
+
+/// The classes of the style flag props set on a compiled styled component
+pub(super) struct StyleFlagClasses {
+    pub(super) attribute_spans: Vec<oxc_span::Span>,
+    pub(super) static_classes: Vec<String>,
+    pub(super) dynamic_classes: Vec<DynamicFlagClass>,
+}
+
+impl StyleFlagClasses {
+    /// Concatenates the classes of the flags with a runtime value
+    pub(super) fn dynamic_suffix(&self) -> String {
+        self.dynamic_classes
+            .iter()
+            .map(|class| class.concat.as_str())
+            .collect()
+    }
+}
+
+pub(super) fn style_flag_classes(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+) -> StyleFlagClasses {
+    let mut classes = StyleFlagClasses {
+        attribute_spans: Vec::new(),
+        static_classes: Vec::new(),
+        dynamic_classes: Vec::new(),
+    };
+    for item in &element.opening_element.attributes {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            continue;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            continue;
+        };
+        let Some(flag) = component
+            .style_flags
+            .iter()
+            .find(|flag| flag.prop_name == name.name.as_str())
+        else {
+            continue;
+        };
+        classes.attribute_spans.push(attribute.span);
+        collect_flag_class(
+            attribute,
+            flag,
+            source,
+            &mut classes.static_classes,
+            &mut classes.dynamic_classes,
+        );
+    }
+    classes
+}
+
+/// The classes a compiled styled component adds to the className emitted for its css or
+/// cx prop. With a `dynamicColor` prop the dynamic color pass adds the style flag classes
+pub(super) struct InlinedComponentClasses {
+    pub(super) literal: String,
+    pub(super) flag_suffix: String,
+}
+
+pub(super) fn inlined_component_classes(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+) -> InlinedComponentClasses {
+    if has_dynamic_color_attribute(element) {
+        return InlinedComponentClasses {
+            literal: component.class_name.clone(),
+            flag_suffix: String::new(),
+        };
+    }
+    let flags = style_flag_classes(element, component, source);
+    InlinedComponentClasses {
+        literal: std::iter::once(component.class_name.as_str())
+            .chain(flags.static_classes.iter().map(String::as_str))
+            .collect::<Vec<_>>()
+            .join(" "),
+        flag_suffix: flags.dynamic_suffix(),
+    }
+}
+
+/// `literal` followed by the classes of dynamic style flags and a cx call
+pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx_call: Option<&str>) -> String {
+    match (flag_suffix.is_empty(), cx_call) {
+        (true, None) => js_string_literal(literal),
+        (true, Some(cx_call)) => {
+            format!("{} + {cx_call}", js_string_literal(&format!("{literal} ")))
+        }
+        (false, None) => format!("{}{flag_suffix}", js_string_literal(literal)),
+        (false, Some(cx_call)) => {
+            format!(
+                "{}{flag_suffix} + \" \" + {cx_call}",
+                js_string_literal(literal)
+            )
+        }
     }
 }
 

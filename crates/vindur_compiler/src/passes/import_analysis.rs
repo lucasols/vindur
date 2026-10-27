@@ -168,6 +168,10 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
             continue;
         };
         spans.extend(declaration.declarations.iter().filter_map(|declarator| {
+            // Templates assigned to other binding patterns aren't compiled
+            if !matches!(declarator.id, BindingPattern::BindingIdentifier(_)) {
+                return None;
+            }
             let Some(Expression::TaggedTemplateExpression(tagged)) = &declarator.init else {
                 return None;
             };
