@@ -456,24 +456,40 @@ test('should resolve static colors to hex in every kind of style in production',
   `);
 });
 
-test('should keep user written --stc- references as is in production', async () => {
+test('should reject user written --stc- custom properties', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur';
+
+        createGlobalStyle\`
+          body {
+            --stc-brand: #00f;
+            color: var(--stc-brand, #f00);
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Custom properties starting with --stc- are reserved for static theme colors, rename this custom property
+    loc: 5:4]
+  `);
+});
+
+test('should keep interpolated --stc- text that is not a generated color in production', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { createGlobalStyle, styled, createStaticThemeColors } from 'vindur';
 
       const colors = createStaticThemeColors({ primary: '#007bff' });
+      const label = '"var(--stc-example)"';
 
       createGlobalStyle\`
-        body {
-          color: var(--stc-brand);
-          margin: var(--stc-gap, 8px);
-          background: var(--stc-x, var(--y, red));
+        h1::before {
+          content: \${label};
         }
-        h1 {
+        h2 {
           font-family: Arial, sans-serif;
-        }
-        h2::before {
-          content: "var(--stc-example)";
         }
       \`;
 
@@ -488,16 +504,11 @@ test('should keep user written --stc- references as is in production', async () 
   });
 
   expect(result.css).toMatchInlineSnapshot(`
-    "body {
-      color: var(--stc-brand);
-      margin: var(--stc-gap, 8px);
-      background: var(--stc-x, var(--y, red));
-    }
-    h1 {
-      font-family: Arial, sans-serif;
-    }
-    h2::before {
+    "h1::before {
       content: "var(--stc-example)";
+    }
+    h2 {
+      font-family: Arial, sans-serif;
     }
 
     .v1560qbr-2 {

@@ -1292,6 +1292,8 @@ In dev mode, the output will show the color name for easier debugging:
 }
 ```
 
+Custom properties starting with `--stc-` are reserved for theme colors, writing them in a style is a compile error.
+
 ### Color API
 
 Each color in your theme provides:

@@ -1,8 +1,8 @@
-use oxc_ast::ast::{Argument, ObjectPropertyKind};
-use oxc_span::GetSpan;
+use oxc_ast::ast::{Argument, ObjectPropertyKind, TemplateElement};
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
-use crate::facts::StaticValue;
+use crate::{CompilerDiagnostic, facts::StaticValue};
 
 use super::{
     color_math::{
@@ -186,9 +186,27 @@ fn alpha_hex(rgb: (u8, u8, u8), amount: f64) -> String {
 }
 
 const STATIC_COLOR_PREFIX: &str = "var(--stc-";
+const RESERVED_PROPERTY_PREFIX: &str = "--stc-";
 
-/// Replaces the generated `var(--stc-<name>, #<hex>)` references with their hex, any other text
-/// (user written `--stc-` properties, strings or comments) is kept as is
+/// `--stc-` custom properties are reserved for static theme colors, their references are replaced
+/// with the hex in production
+pub(super) fn reserved_static_color_error(
+    quasi: &TemplateElement<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let offset = u32::try_from(quasi.value.raw.find(RESERVED_PROPERTY_PREFIX)?).ok()?;
+    let start = quasi.span.start + offset;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        Span::new(start, start + RESERVED_PROPERTY_PREFIX.len() as u32),
+        "Custom properties starting with --stc- are reserved for static theme colors, rename this custom property".to_owned(),
+    ))
+}
+
+/// Replaces every `var(--stc-<name>, #<hex>)` reference with its hex, other text is kept as is.
+/// User written `--stc-` properties are rejected in templates, see `reserved_static_color_error`
 pub(super) fn static_color_fallbacks(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;

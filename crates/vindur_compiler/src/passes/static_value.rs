@@ -18,6 +18,7 @@ use super::static_evaluation::{
 };
 use super::styled::{StyleFlag, styled_ref_placeholder};
 use super::template_css::{EvaluatedTemplate, validate_template_css};
+use super::theme_color::reserved_static_color_error;
 use super::unsupported_css_syntax::unsupported_syntax_error;
 
 pub(crate) struct TemplateContext<'a> {
@@ -100,6 +101,9 @@ fn build_template_css(
     let mut evaluated = EvaluatedTemplate::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
+        if let Some(diagnostic) = reserved_static_color_error(quasi, file_path, source) {
+            return Err(diagnostic);
+        }
         let quasi_start = evaluated.css.len();
         evaluated.css.push_str(quasi_text(quasi));
         evaluated.map_quasi(quasi_start, quasi);
