@@ -422,12 +422,12 @@ impl ComponentReference<'_> {
     }
 }
 
-enum SelectorArgument<'s, 'a> {
+pub(super) enum SelectorArgument<'s, 'a> {
     Complex(&'s ComplexSelector<'a>),
     Compound(&'s CompoundSelector<'a>),
 }
 
-fn pseudo_class_selectors<'s, 'a>(
+pub(super) fn pseudo_class_selectors<'s, 'a>(
     pseudo: &'s PseudoClassSelector<'a>,
 ) -> Vec<SelectorArgument<'s, 'a>> {
     match pseudo.arg.as_ref().map(|arg| &arg.kind) {
@@ -521,7 +521,9 @@ fn compound_subject(compound: &CompoundSelector<'_>, refs: ElementRefs<'_>) -> S
         .unwrap_or(Subject::Other)
 }
 
-fn compounds<'s, 'a>(selector: &'s ComplexSelector<'a>) -> Vec<&'s CompoundSelector<'a>> {
+pub(super) fn compounds<'s, 'a>(
+    selector: &'s ComplexSelector<'a>,
+) -> Vec<&'s CompoundSelector<'a>> {
     selector
         .children
         .iter()
