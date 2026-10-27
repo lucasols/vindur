@@ -5,8 +5,7 @@ use rustc_hash::FxHashMap;
 
 use super::css_syntax::{CssError, parse_style_block};
 use super::cx_modifier_selectors::{
-    ElementClass, ModifierCss, element_classes, referenced_classes, rewrite_classes,
-    style_block_classes,
+    ElementClass, StyleBlockClasses, referenced_classes, rewrite_classes, style_block_classes,
 };
 use super::styled::{StyleFlag, StyleFlagKind, StyledComponent};
 use super::styled_jsx_helpers::is_class_rule;
@@ -87,19 +86,34 @@ pub(crate) fn referenced_dollar_class(
         })
 }
 
-/// The classes of the selectors of the element itself in a styled component CSS, named as written
-/// in the CSS, as `$active` and `_active` are both parsed as `_active`
-pub(crate) fn style_element_classes(
-    css: &str,
-    flags: &[StyleFlag],
-) -> Result<Vec<ElementClass>, CssError> {
-    let mut classes = element_classes(&parsable_css(css, flags), ModifierCss::Block)?;
-    for class in &mut classes {
+/// The class selectors of a styled component CSS, with the classes of the element itself named as
+/// written in the CSS, as `$active` and `_active` are both parsed as `_active`
+pub(crate) fn style_classes(css: &str, flags: &[StyleFlag]) -> Result<StyleBlockClasses, CssError> {
+    let mut classes = style_block_classes(&parsable_css(css, flags))?;
+    for class in &mut classes.element {
         if let Some(name) = css.get(class.start..class.end) {
             name.clone_into(&mut class.name);
         }
     }
     Ok(classes)
+}
+
+/// The flag classes used in selectors of other elements, e.g. `active` in `.active > &` or
+/// `& .active`. They are kept as written, so they don't select elements with the flag
+pub(crate) fn other_element_flag_classes(
+    css: &str,
+    other_classes: &[Range<usize>],
+    flags: &[StyleFlag],
+) -> Vec<String> {
+    flag_classes(flags)
+        .into_iter()
+        .filter(|flag| {
+            other_classes
+                .iter()
+                .any(|range| css.get(range.clone()) == Some(flag.original.as_str()))
+        })
+        .map(|flag| flag.original)
+        .collect()
 }
 
 /// The CSS to validate, with the `$` of the flag classes of the element parsed as `_`. Fails for
@@ -320,15 +334,15 @@ fn references_class(rule: &str, class_name: &str) -> bool {
     selections > usize::from(is_class_rule(rule, class_name))
 }
 
-/// The selectors of the flag classes not used by the element, e.g. `&.active`
-pub(crate) fn missing_style_flag_selectors(
+/// The flag classes not used by the element, e.g. `active` without a `&.active` selector
+pub(crate) fn missing_style_flag_classes(
     classes: &[ElementClass],
     flags: &[StyleFlag],
 ) -> Vec<String> {
     flag_classes(flags)
         .into_iter()
         .filter(|flag| !classes.iter().any(|class| class.name == flag.original))
-        .map(|flag| format!("&.{}", flag.original))
+        .map(|flag| flag.original)
         .collect()
 }
 

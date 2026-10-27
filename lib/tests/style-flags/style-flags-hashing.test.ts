@@ -560,3 +560,133 @@ test('should throw for $ prefixed flags selected through a component reference',
     loc: 10:14]
   `);
 });
+
+test('extending a styled component with flags keeps its flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Ext = styled(Item)<{ big: boolean }>\`
+        &.big {
+          font-size: 2em;
+        }
+        &.active {
+          color: blue;
+        }
+      \`;
+
+      const Child = styled.div\`
+        \${Item}.active & {
+          color: green;
+        }
+      \`;
+
+      export const App = () => (
+        <Ext active big>
+          <Child />
+        </Ext>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 v1560qbr-2 voctcyj v1x4k6wd"}>
+        <div className="v1560qbr-3" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.voctcyj {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      &.v1x4k6wd {
+        font-size: 2em;
+      }
+      &.voctcyj {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-3 {
+      .v1560qbr-1.voctcyj & {
+        color: green;
+      }
+    }
+    "
+  `);
+});
+
+test('referencing a withComponent of an extended component selects its own class', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Base = styled.div\`
+        color: red;
+      \`;
+
+      const Extended = styled(Base)<{ active: boolean }>\`
+        &.active {
+          color: blue;
+        }
+      \`;
+
+      const Link = Extended.withComponent('a');
+
+      const Child = styled.div\`
+        \${Link}.active & {
+          color: green;
+        }
+      \`;
+
+      export const App = () => (
+        <Link active>
+          <Child />
+        </Link>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <a className={"v1560qbr-1 v1560qbr-2 voctcyj"}>
+        <div className="v1560qbr-3" />
+      </a>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: red;
+    }
+
+    .v1560qbr-2 {
+      &.voctcyj {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-3 {
+      .v1560qbr-2.voctcyj & {
+        color: green;
+      }
+    }
+    "
+  `);
+});

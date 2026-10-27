@@ -15,13 +15,14 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
-        missing_style_flag_selectors, rewrite_style_flag_selectors, style_element_classes,
-        undeclared_style_classes,
+        missing_style_flag_classes, other_element_flag_classes, rewrite_style_flag_selectors,
+        style_classes, undeclared_style_classes,
     },
     styled::{
         StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
@@ -181,13 +182,18 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
-            // Inherited flags are styled by the base component
-            let inherits_style_flags = own_style_flags.is_empty();
-            let style_flags = if inherits_style_flags {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
-            };
+            // The flags of the base component still apply, its own flags are added to them
+            let mut style_flags = base_component
+                .style_flags
+                .iter()
+                .filter(|flag| {
+                    !own_style_flags
+                        .iter()
+                        .any(|own| own.prop_name == flag.prop_name)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            style_flags.extend(own_style_flags.iter().cloned());
             let template_context = TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: "styled",
@@ -202,30 +208,45 @@ pub(super) fn process_variable_declaration(
                 &template_context,
             )?;
             let content = clean_css(&content);
-            let element_classes = if transform.dev || !style_flags.is_empty() {
-                style_element_classes(&content, &style_flags).map_err(|error| {
+            let classes = if transform.dev || !style_flags.is_empty() {
+                style_classes(&content, &style_flags).map_err(|error| {
                     css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
                 })?
             } else {
-                Vec::new()
+                StyleBlockClasses::default()
             };
+            let element_classes = classes.element;
             if transform.dev {
-                if !inherits_style_flags {
-                    transform.warnings.extend(
-                        missing_style_flag_selectors(&element_classes, &style_flags)
-                            .into_iter()
-                            .map(|selector| {
-                                CompilerDiagnostic::warning(
-                                    "",
-                                    transform.source,
-                                    identifier.span,
-                                    format!(
-                                        "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
-                                    ),
-                                )
-                            }),
-                    );
-                }
+                let other_element_flags =
+                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                // Inherited flags are styled by the base component
+                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
+                    .into_iter()
+                    .filter(|class_name| !other_element_flags.contains(class_name));
+                transform
+                    .warnings
+                    .extend(missing_flags.map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "Warning: Missing modifier styles for \"&.{class_name}\" in {variable_name}"
+                            ),
+                        )
+                    }));
+                transform
+                    .warnings
+                    .extend(other_element_flags.iter().map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "The style flag class \"{class_name}\" is used in a selector of another element in {variable_name}, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \"&.{class_name}\""
+                            ),
+                        )
+                    }));
                 let usage_prefix = format!("<{variable_name}");
                 let suppress_undeclared = !base_component.class_name.is_empty()
                     || (transform.source.contains(&usage_prefix)
@@ -275,7 +296,7 @@ pub(super) fn process_variable_declaration(
                             transform.source,
                             &template_context,
                             |css| {
-                                let classes = style_element_classes(css, &style_flags).ok()?;
+                                let classes = style_classes(css, &style_flags).ok()?.element;
                                 rewrite_style_flag_selectors(css, &classes, &style_flags).err()
                             },
                         )?;

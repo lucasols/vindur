@@ -78,9 +78,16 @@ pub(super) fn process_with_component(
         runtime,
         style_flags: base.style_flags.clone(),
     };
+    // References select the component's own class, the class names of the components it extends
+    // are only applied to the element
+    let reference_class = base
+        .class_name
+        .split_whitespace()
+        .last()
+        .unwrap_or_default();
     transform.constants.insert(
         variable_name.to_owned(),
-        StaticValue::ClassName(base.class_name.clone()),
+        StaticValue::ClassName(reference_class.to_owned()),
     );
     transform
         .styled_components

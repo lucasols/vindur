@@ -438,13 +438,41 @@ test('should warn about style flags only used by other elements', async () => {
   expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
     "
     - TransformWarning#:
-        message: 'Warning: Missing modifier styles for "&.active" in Card'
+        message: "The style flag class \\"active\\" is used in a selector of another element in Card, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.active\\""
         loc: 'current_file:3:6'
     - TransformWarning#:
-        message: 'Warning: Missing modifier styles for "&.size-small" in Card'
+        message: "The style flag class \\"size-small\\" is used in a selector of another element in Card, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.size-small\\""
         loc: 'current_file:3:6'
     - TransformWarning#:
-        message: 'Warning: Missing modifier styles for "&.size-large" in Card'
+        message: "The style flag class \\"size-large\\" is used in a selector of another element in Card, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.size-large\\""
+        loc: 'current_file:3:6'
+    "
+  `);
+});
+
+test('should warn about style flags also used by other elements', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+        .active > & {
+          color: blue;
+        }
+      \`;
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: "The style flag class \\"active\\" is used in a selector of another element in Item, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.active\\""
         loc: 'current_file:3:6'
     "
   `);

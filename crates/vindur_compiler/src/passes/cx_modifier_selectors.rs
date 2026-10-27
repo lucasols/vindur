@@ -125,6 +125,7 @@ pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<Elemen
 }
 
 /// The class selectors of a style block
+#[derive(Default)]
 pub(super) struct StyleBlockClasses {
     /// The classes that may apply to the element itself, sorted by position
     pub element: Vec<ElementClass>,
