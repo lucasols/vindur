@@ -80,9 +80,25 @@ impl StyledJsxVisitor<'_, '_, '_> {
         };
         let base_name = component.element.split('.').next()?;
         let scope_id = self.scoping.get_reference(name.reference_id()).scope_id();
-        let symbol_id = self.scoping.find_binding(scope_id, base_name.into())?;
+        let symbol_id = self.value_binding(scope_id, base_name)?;
         (self.scoping.symbol_scope_id(symbol_id) != self.scoping.root_scope_id())
             .then(|| (self.scoping.symbol_span(symbol_id), base_name))
+    }
+
+    /// Types and type parameters don't shadow the value a JSX tag refers to
+    fn value_binding(
+        &self,
+        scope_id: oxc_semantic::ScopeId,
+        name: &str,
+    ) -> Option<oxc_semantic::SymbolId> {
+        let symbol_id = self.scoping.find_binding(scope_id, name.into())?;
+        if self.scoping.symbol_flags(symbol_id).is_value() {
+            return Some(symbol_id);
+        }
+        let parent = self
+            .scoping
+            .scope_parent_id(self.scoping.symbol_scope_id(symbol_id))?;
+        self.value_binding(parent, name)
     }
 }
 
@@ -112,6 +128,18 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             };
             name.name.as_str() == "dynamicColor"
         });
+        // The dynamic color pass also renames the element to the base component
+        if let Some((span, base_name)) = self.shadowed_base(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "\"{base_name}\" shadows the component \"{base_name}\" extended by \"{component_name}\", rename this binding"
+                ),
+            ));
+            return;
+        }
         if has_dynamic_color {
             walk::walk_jsx_element(self, element);
             return;
@@ -123,18 +151,6 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.source,
                 spread.span,
                 unsupported_spread_message(&spread, "vindur styled component"),
-            ));
-            return;
-        }
-
-        if let Some((span, base_name)) = self.shadowed_base(element, component) {
-            self.diagnostic = Some(CompilerDiagnostic::error(
-                self.file_path,
-                self.source,
-                span,
-                format!(
-                    "\"{base_name}\" shadows the component \"{base_name}\" extended by \"{component_name}\", rename this binding"
-                ),
             ));
             return;
         }

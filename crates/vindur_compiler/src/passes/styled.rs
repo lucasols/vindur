@@ -240,7 +240,13 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
     }
     if let Expression::CallExpression(call) = attrs_base(tag)
         && matches!(call.callee, Expression::Identifier(_))
-        && let [Argument::CallExpression(_)] = call.arguments.as_slice()
+        && let [argument] = call.arguments.as_slice()
+        && matches!(
+            argument
+                .as_expression()
+                .map(Expression::get_inner_expression),
+            Some(Expression::CallExpression(_))
+        )
     {
         return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
     }
@@ -273,9 +279,9 @@ impl LocalBaseError {
             Self::NotComponent => {
                 format!("Cannot extend \"{name}\": it is not a component or styled component.")
             }
-            Self::NotConst => format!(
-                "Cannot extend \"{name}\": a component created by a call must be declared with const."
-            ),
+            Self::NotConst => {
+                format!("Cannot extend \"{name}\": declare it with const.")
+            }
         }
     }
 
@@ -285,8 +291,8 @@ impl LocalBaseError {
     }
 }
 
-/// Top-level locals are extendable when declared before the `styled()` call and initialized with
-/// a function, a class or, in a const, a call like `memo(Component)`
+/// Top-level locals are extendable when declared with const before the `styled()` call and
+/// initialized with a function, a class or a call like `memo(Component)`
 fn local_base_error(
     program: &Program<'_>,
     base: &IdentifierReference<'_>,
@@ -304,16 +310,17 @@ fn local_base_error(
                 .get_binding_identifier()
                 .is_some_and(|identifier| identifier.name == base.name)
         })?;
-    let initializer = declarator.init.as_ref()?;
     if declarator.span.start > base.span.start {
         return Some(LocalBaseError::DeclaredAfter);
     }
-    match initializer.get_inner_expression() {
+    if declaration.kind != VariableDeclarationKind::Const {
+        return Some(LocalBaseError::NotConst);
+    }
+    match declarator.init.as_ref()?.get_inner_expression() {
         Expression::ArrowFunctionExpression(_)
         | Expression::FunctionExpression(_)
-        | Expression::ClassExpression(_) => None,
-        Expression::CallExpression(_) if declaration.kind == VariableDeclarationKind::Const => None,
-        Expression::CallExpression(_) => Some(LocalBaseError::NotConst),
+        | Expression::ClassExpression(_)
+        | Expression::CallExpression(_) => None,
         _ => Some(LocalBaseError::NotComponent),
     }
 }

@@ -416,7 +416,7 @@ describe('styled component extension', () => {
     `);
   });
 
-  test('should throw error when extending a call-initialized local declared with let', async () => {
+  test('should throw error when extending a local declared with let', async () => {
     await expect(async () => {
       await transformWithFormat({
         source: dedent`
@@ -434,8 +434,130 @@ describe('styled component extension', () => {
         overrideDefaultImportAliases: importAliases,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: Cannot extend "MemoButton": a component created by a call must be declared with const.
+      [TransformError: /test.tsx: Cannot extend "MemoButton": declare it with const.
       loc: 7:28]
+    `);
+  });
+
+  test('should throw error when extending a local function declared with let', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          let Button = ({ className }: { className?: string }) => (
+            <button className={className} />
+          )
+
+          const StyledButton = styled(Button)\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "Button": declare it with const.
+      loc: 7:28]
+    `);
+  });
+
+  test('should throw error when a binding shadows the extended component where it is rendered with dynamicColor', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor, styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          const color = createDynamicCssColor()
+          const MemoButton = memo(Button)
+
+          const StyledButton = styled(MemoButton)\`
+            color: \${color.var};
+          \`
+
+          export const App = ({ MemoButton, c }: { MemoButton: string; c: string }) => (
+            <div>
+              {MemoButton}
+              <StyledButton dynamicColor={color.set(c)} />
+            </div>
+          )
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "MemoButton" shadows the component "MemoButton" extended by "StyledButton", rename this binding
+      loc: 12:22]
+    `);
+  });
+
+  test('type bindings with the extended component name do not shadow it', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Item } from './Item'
+
+        const StyledItem = styled(Item)\`
+          color: red;
+        \`
+
+        export function List<Item>() {
+          return <StyledItem />
+        }
+
+        export function Card() {
+          type Item = { id: string }
+          const item: Item = { id: '1' }
+          return <StyledItem key={item.id} />
+        }
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { Item } from "./Item";
+      export function List<Item>() {
+        return <Item className="v1560qbr-1-StyledItem" />;
+      }
+      export function Card() {
+        type Item = { id: string };
+        const item: Item = {
+          id: "1",
+        };
+        return <Item key={item.id} className="v1560qbr-1-StyledItem" />;
+      }
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-StyledItem {
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should suggest a const for a cast call passed to styled', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          const StyledButton = styled(memo(Button) as typeof Button)\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled() cannot extend a call expression, assign it to a const first, e.g. \`const Base = wrap(Component)\` and then \`styled(Base)\`
+      loc: 5:21]
     `);
   });
 
