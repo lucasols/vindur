@@ -1,10 +1,16 @@
-use oxc_ast::ast::{Argument, Expression, Program, Statement, TSTypeParameterInstantiation};
+use oxc_ast::ast::{
+    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
+    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+};
+use oxc_ast_visit::{Visit, walk};
+use oxc_span::{GetSpan, Span};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
+use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
 #[derive(Clone, Debug)]
 pub(crate) enum StyleFlagKind {
@@ -157,6 +163,15 @@ pub(crate) fn styled_tag_component_with_attrs(
                     .to_owned(),
             ));
         };
+        // The object is copied as written, so it can't hold code the other passes rewrite
+        if let Some((span, message)) = first_unsupported_attrs_value(object, context.imports) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                span,
+                message.to_owned(),
+            ));
+        }
         let span = object.span;
         return Ok(Some(StyledDefinition {
             base_component: component,
@@ -193,11 +208,34 @@ pub(crate) fn styled_tag_component_with_attrs(
             .ignored_in_lint());
         }
     }
-    Ok(component.map(|component| StyledDefinition {
+    let Some(component) = component else {
+        if is_styled_tag(tag, context.imports) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                tag.span(),
+                unsupported_styled_tag_message(tag).to_owned(),
+            ));
+        }
+        return Ok(None);
+    };
+    Ok(Some(StyledDefinition {
         attrs: None,
         base_component: component,
         style_flags,
     }))
+}
+
+fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+        && let Expression::CallExpression(inner) = &member.object
+        && matches!(&inner.callee, Expression::StaticMemberExpression(inner_member) if inner_member.property.name.as_str() == "attrs")
+    {
+        return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
+    }
+    "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
@@ -566,4 +604,54 @@ pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &st
     }
     output.push_str(rest);
     output
+}
+
+const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
+const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
+const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+
+fn first_unsupported_attrs_value(
+    object: &ObjectExpression<'_>,
+    imports: &VindurImports<'_>,
+) -> Option<(Span, &'static str)> {
+    let mut visitor = UnsupportedAttrsValueFinder {
+        imports,
+        found: None,
+    };
+    visitor.visit_object_expression(object);
+    visitor.found
+}
+
+struct UnsupportedAttrsValueFinder<'i> {
+    imports: &'i VindurImports<'i>,
+    found: Option<(Span, &'static str)>,
+}
+
+impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
+    fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        self.found.get_or_insert((element.span, ATTRS_JSX_ERROR));
+    }
+
+    fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
+        self.found.get_or_insert((fragment.span, ATTRS_JSX_ERROR));
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
+            self.found
+                .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
+        } else {
+            walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if let Expression::Identifier(callee) = &call.callee
+            && self.imports.get_identifier(callee) == Some("stableId")
+        {
+            self.found.get_or_insert((call.span, ATTRS_STABLE_ID_ERROR));
+        } else {
+            walk::walk_call_expression(self, call);
+        }
+    }
 }

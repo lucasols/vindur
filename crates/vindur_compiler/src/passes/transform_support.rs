@@ -3,7 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -24,6 +24,7 @@ use super::{
         StyleFlag, StyleFlagKind, StyledComponent, StyledTagContext, css_class_name_part,
         missing_style_flag_selectors, styled_tag_component_with_attrs, undeclared_style_classes,
     },
+    styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
@@ -42,6 +43,12 @@ pub(super) struct VariableTransform<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
     pub is_exported: bool,
+    /// Styled components referenced as values stay runtime components
+    pub value_referenced_names: &'a FxHashSet<String>,
+    /// Styled components other styled components are built from
+    pub extended_names: &'a FxHashSet<String>,
+    /// Start of the statement holding the declaration, including its `export`
+    pub statement_start: u32,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
@@ -128,7 +135,7 @@ pub(super) fn process_variable_declaration(
         if let Some(initializer) = &declarator.init
             && process_with_component(
                 initializer,
-                declaration.span,
+                declaration,
                 identifier.name.as_str(),
                 transform,
             )?
@@ -292,8 +299,31 @@ pub(super) fn process_variable_declaration(
                 variable_name.to_owned(),
                 StaticValue::ClassName(component_class.clone()),
             );
-            let attrs = own_attrs.or_else(|| base_component.attrs.clone());
-            let runtime = transform.is_exported || attrs.is_some() || base_component.runtime;
+            let has_own_attrs = own_attrs.is_some();
+            let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {
+                // Derived components reuse the attrs, so they are evaluated only once
+                Some(value)
+                    if has_own_attrs && transform.extended_names.contains(variable_name) =>
+                {
+                    Some(hoist_attrs(
+                        variable_name,
+                        &value,
+                        &AttrsHoisting {
+                            program: transform.program,
+                            scoping: transform.scoping,
+                            file_path: transform.file_path,
+                            source: transform.source,
+                            statement_start: transform.statement_start,
+                        },
+                        transform.edits,
+                    )?)
+                }
+                attrs => attrs,
+            };
+            let runtime = transform.is_exported
+                || transform.value_referenced_names.contains(variable_name)
+                || attrs.is_some()
+                || base_component.runtime;
             if runtime {
                 let attrs_argument = attrs
                     .as_ref()

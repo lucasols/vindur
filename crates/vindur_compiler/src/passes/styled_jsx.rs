@@ -137,7 +137,13 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
         if !component.style_flags.is_empty() && !has_compile_time_class_attribute {
             self.rewrite_style_flags(element, component);
         } else if has_compile_time_class_attribute {
-            // The JSX prop passes emit the combined styled and generated class names.
+            // The JSX prop passes emit the combined styled, style flag and generated class names
+            for span in style_flag_classes(element, component, self.source).attribute_spans {
+                self.edits.push(Edit {
+                    span,
+                    replacement: String::new(),
+                });
+            }
         } else {
             match class_name_merge(element) {
                 ClassNameMerge::Runtime => {
@@ -255,34 +261,15 @@ impl StyledJsxVisitor<'_, '_, '_> {
     }
 
     fn rewrite_style_flags(&mut self, element: &JSXElement<'_>, component: &StyledComponent) {
-        let mut static_classes = Vec::new();
-        let mut dynamic_classes = Vec::new();
-        for item in &element.opening_element.attributes {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                continue;
-            };
-            let JSXAttributeName::Identifier(name) = &attribute.name else {
-                continue;
-            };
-            let Some(flag) = component
-                .style_flags
-                .iter()
-                .find(|flag| flag.prop_name == name.name.as_str())
-            else {
-                continue;
-            };
+        let flags = style_flag_classes(element, component, self.source);
+        for span in &flags.attribute_spans {
             self.edits.push(Edit {
-                span: attribute.span,
+                span: *span,
                 replacement: String::new(),
             });
-            collect_flag_class(
-                attribute,
-                flag,
-                self.source,
-                &mut static_classes,
-                &mut dynamic_classes,
-            );
         }
+        let static_classes = flags.static_classes;
+        let dynamic_classes = flags.dynamic_classes;
 
         let static_class_name = std::iter::once(component.class_name.as_str())
             .chain(static_classes.iter().map(String::as_str))

@@ -11,7 +11,7 @@ use super::{
     css_syntax::{BlockKind, css_error_diagnostic},
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
-    styled::styled_tag_element,
+    vindur_fn_references::is_styled_tag,
 };
 
 pub(crate) struct DirectTransform<'a> {
@@ -55,7 +55,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             return;
         }
 
-        if styled_tag_element(&tagged.tag, self.output.imports).is_some() {
+        if is_styled_tag(&tagged.tag, self.output.imports) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.output.file_path,
                 self.output.source,

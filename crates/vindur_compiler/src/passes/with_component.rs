@@ -1,4 +1,4 @@
-use oxc_ast::ast::{Argument, Expression};
+use oxc_ast::ast::{Argument, Expression, VariableDeclaration};
 use oxc_span::GetSpan;
 
 use crate::{
@@ -12,10 +12,11 @@ use super::transform_support::VariableTransform;
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
-    declaration_span: oxc_span::Span,
+    declaration: &VariableDeclaration<'_>,
     variable_name: &str,
     transform: &mut VariableTransform<'_>,
 ) -> Result<bool, CompilerDiagnostic> {
+    let initializer = initializer.without_parentheses();
     let Expression::CallExpression(call) = initializer else {
         return Ok(false);
     };
@@ -49,6 +50,14 @@ pub(super) fn process_with_component(
         [argument] => (String::new(), false, argument.span()),
         _ => (String::new(), false, call.span),
     };
+    if declaration.declarations.len() != 1 {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            declaration.span,
+            "withComponent() must use its own variable declaration".to_owned(),
+        ));
+    }
     if element.is_empty() {
         return Err(CompilerDiagnostic::error(
             transform.file_path,
@@ -58,7 +67,9 @@ pub(super) fn process_with_component(
                 .to_owned(),
         ));
     }
-    let runtime = transform.is_exported || base.runtime;
+    let runtime = transform.is_exported
+        || transform.value_referenced_names.contains(variable_name)
+        || base.runtime;
     let component = StyledComponent {
         attrs: base.attrs.clone(),
         class_name: base.class_name.clone(),
@@ -99,7 +110,7 @@ pub(super) fn process_with_component(
         });
     } else {
         transform.edits.push(Edit {
-            span: expand_removal_to_line(transform.source, declaration_span),
+            span: expand_removal_to_line(transform.source, declaration.span),
             replacement: String::new(),
         });
     }
