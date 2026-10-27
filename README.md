@@ -197,6 +197,8 @@ Styled components used as JSX elements compile to the plain element with its cla
 <Menu container={Card} />; // Card is kept as a runtime component
 ```
 
+Styled components are matched in JSX by name, so a local binding can't reuse a styled component's name (e.g. a `Card` parameter in a file that declares a styled `Card`).
+
 ### Variable Interpolation
 
 Interpolate JavaScript variables into your styles:
@@ -293,7 +295,7 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` values can't contain JSX or vindur templates, reference a module level `css` constant instead. `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
+`attrs` values can't contain JSX (pass the element as a prop where the component is rendered), vindur templates (reference a module level `css` constant) or `stableId()` calls (reference a module level constant). `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
 
 ```tsx
 const StyledDiv = styled(Component).attrs({

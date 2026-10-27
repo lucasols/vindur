@@ -265,3 +265,47 @@ test('should not keep styled components only referenced in templates of an unimp
     "
   `);
 });
+
+test('should throw error for local bindings shadowing a styled component', async () => {
+  await expect(async () => {
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import type { ComponentType } from 'react';
+
+        const Icon = styled.span\`
+          color: red;
+        \`;
+
+        export const Button = ({ Icon }: { Icon: ComponentType }) => <Icon />;
+
+        export const A = () => <Icon />;
+      `,
+    });
+  }).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Icon" shadows the styled component "Icon", rename this binding
+    loc: 8:25]
+  `);
+});
+
+test('should not keep styled components only referenced as types', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      type Icon = { size: number };
+
+      const Icon = styled.span\`
+        color: red;
+      \`;
+
+      export const A = (props: Icon) => <Icon />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "type Icon = { size: number };
+    export const A = (props: Icon) => <span className="v1560qbr-1-Icon" />;
+    "
+  `);
+});

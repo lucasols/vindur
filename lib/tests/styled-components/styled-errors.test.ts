@@ -53,4 +53,39 @@ describe('styled components - error handling', () => {
     `,
     );
   });
+
+  test('should throw error for styled components assigned to a destructuring pattern', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const { displayName } = styled.div\`
+            color: red;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      loc: 3:24]
+    `);
+  });
+
+  test('should throw error for default exported styled extensions', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Card } from '#/components'
+
+          export default styled(Card)\`
+            color: red;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      loc: 4:15]
+    `);
+  });
 });

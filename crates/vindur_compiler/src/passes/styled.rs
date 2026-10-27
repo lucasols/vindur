@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Argument, Expression, JSXElement, JSXFragment, ObjectExpression, Program, Statement,
-    TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
+    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::Span;
@@ -422,6 +422,7 @@ pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &st
 
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
+const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -455,6 +456,16 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
                 .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
         } else {
             walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if let Expression::Identifier(callee) = &call.callee
+            && self.imports.get_identifier(callee) == Some("stableId")
+        {
+            self.found.get_or_insert((call.span, ATTRS_STABLE_ID_ERROR));
+        } else {
+            walk::walk_call_expression(self, call);
         }
     }
 }

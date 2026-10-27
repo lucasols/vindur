@@ -55,25 +55,15 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_> {
     }
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        let is_vindur_template = tag_root(&tagged.tag)
-            .is_some_and(|identifier| self.imports.get_identifier(identifier).is_some());
-        if is_vindur_template {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
             self.visit_runtime_tag_arguments(&tagged.tag);
         } else {
             walk::walk_tagged_template_expression(self, tagged);
         }
     }
 
-    // css prop templates are compiled away like vindur templates, other css prop values are
-    // passed through to custom components at runtime
     fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
-        let is_css_prop_template = matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
-            && matches!(
-                &attribute.value,
-                Some(JSXAttributeValue::ExpressionContainer(container))
-                    if matches!(container.expression, JSXExpression::TemplateLiteral(_))
-            );
-        if !is_css_prop_template {
+        if !is_css_template_attribute(attribute) {
             walk::walk_jsx_attribute(self, attribute);
         }
     }
@@ -183,6 +173,22 @@ pub(super) fn tag_root<'e, 'a>(
         Expression::CallExpression(call) => tag_root(&call.callee),
         _ => None,
     }
+}
+
+/// css prop templates are compiled away like vindur templates, other css prop values are
+/// passed through to custom components at runtime
+pub(super) fn is_css_template_attribute(attribute: &JSXAttribute<'_>) -> bool {
+    matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
+        && matches!(
+            &attribute.value,
+            Some(JSXAttributeValue::ExpressionContainer(container))
+                if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+        )
+}
+
+/// A tag starting with `styled`, e.g. `styled.div`, `styled(A)` or `styled.div.attrs({})`
+pub(super) fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    tag_root(tag).is_some_and(|identifier| imports.matches_import_or_global(identifier, "styled"))
 }
 
 /// A tag compiled by vindur: a vindur import, or `styled` used without importing it

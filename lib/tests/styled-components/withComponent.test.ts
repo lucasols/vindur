@@ -255,7 +255,7 @@ describe('withComponent', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
       loc: 8:42]
     `,
     );
@@ -279,7 +279,7 @@ describe('withComponent', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
       loc: 8:15]
     `,
     );
@@ -322,8 +322,27 @@ describe('withComponent', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
       loc: 7:13]
+    `);
+  });
+
+  test('should throw error when withComponent is assigned to a destructuring pattern', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const { displayName } = Container.withComponent('a')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:24]
     `);
   });
 

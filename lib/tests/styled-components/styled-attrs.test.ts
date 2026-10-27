@@ -519,6 +519,23 @@ describe('styled components - attrs functionality', () => {
     `);
   });
 
+  test('should throw error for stableId calls in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled, stableId } from 'vindur'
+
+          export const Input = styled.input.attrs({ id: stableId() })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it
+      loc: 3:46]
+    `);
+  });
+
   test('should merge the attrs of a styled extension with the attrs of its base', async () => {
     const result = await transformWithFormat({
       source: dedent`
