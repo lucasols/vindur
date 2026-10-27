@@ -3,14 +3,14 @@ use oxc_ast::ast::{
     Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
-use oxc_span::Span;
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
-use super::vindur_fn_references::is_vindur_template_tag;
+use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
 #[derive(Clone, Debug)]
 pub(crate) enum StyleFlagKind {
@@ -206,11 +206,34 @@ pub(crate) fn styled_tag_component_with_attrs(
             .ignored_in_lint());
         }
     }
-    Ok(component.map(|component| StyledDefinition {
+    let Some(component) = component else {
+        if is_styled_tag(tag, context.imports) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                tag.span(),
+                unsupported_styled_tag_message(tag).to_owned(),
+            ));
+        }
+        return Ok(None);
+    };
+    Ok(Some(StyledDefinition {
         attrs: None,
         base_component: component,
         style_flags,
     }))
+}
+
+fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+        && let Expression::CallExpression(inner) = &member.object
+        && matches!(&inner.callee, Expression::StaticMemberExpression(inner_member) if inner_member.property.name.as_str() == "attrs")
+    {
+        return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
+    }
+    "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {

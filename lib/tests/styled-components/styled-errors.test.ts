@@ -88,4 +88,23 @@ describe('styled components - error handling', () => {
       loc: 4:15]
     `);
   });
+
+  test('should throw error for chained attrs calls', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          export const Button = styled.button
+            .attrs({ type: 'button' })
+            .attrs({ title: 'ok' })\`
+            color: red;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object
+      loc: 3:22]
+    `);
+  });
 });

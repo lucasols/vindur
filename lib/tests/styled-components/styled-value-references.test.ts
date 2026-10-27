@@ -288,6 +288,32 @@ test('should throw error for local bindings shadowing a styled component', async
   `);
 });
 
+test('should allow type signature parameters and enum members named like a styled component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Icon = styled.span\`
+        color: red;
+      \`;
+
+      type Props = { render: (Icon: string) => void };
+      enum Kind { Icon = 1 }
+
+      export const A = () => <Icon />;
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "type Props = { render: (Icon: string) => void };
+    enum Kind {
+      Icon = 1,
+    }
+    export const A = () => <span className="v1560qbr-1-Icon" />;
+    "
+  `);
+});
+
 test('should not keep styled components only referenced as types', async () => {
   const result = await transformWithFormat({
     source: dedent`

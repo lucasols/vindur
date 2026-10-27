@@ -157,25 +157,48 @@ export const styled: Styled = new Proxy(
   },
 ) as any;
 
+type StyledAttrs = Record<string, string | number | boolean>;
+
+// The attrs className is always added, so a className passed to the component, or
+// compiled from its css or cx prop, doesn't drop it
+function splitAttrsClassName(
+  className: string,
+  attrs: StyledAttrs | null | undefined,
+): [string, StyledAttrs | null] {
+  if (!attrs) return [className, null];
+  const { className: attrsClassName, ...defaultProps } = attrs;
+  return [
+    attrsClassName ? `${className} ${attrsClassName}` : className,
+    defaultProps,
+  ];
+}
+
 export function _vSC(
   tagOrComponent: string | ComponentType<any>,
   className: string,
-  attrs?: Record<string, string | number | boolean> | null,
+  attrs?: StyledAttrs | null,
 ): ComponentType<any> {
   // Runtime helper for exported styled components
+
+  const [ownClassName, defaultProps] = splitAttrsClassName(className, attrs);
+  // A styled DOM element takes a compiled `css` prop as a class name, a styled
+  // custom component forwards it to the wrapped component
+  const appliesCss = typeof tagOrComponent === 'string';
 
   const Component = forwardRef<any, any>((props, ref) => {
     // Merge attrs with user props, giving user props precedence
     const {
       className: userClassName,
-      css: cssClassName,
+      css: cssProp,
       ...finalProps
-    } = attrs ? { ...attrs, ...props } : props;
+    } = defaultProps ? { ...defaultProps, ...props } : props;
 
-    // A compiled `css` prop passed to a styled component the compiler
-    // couldn't see as styled carries the generated class name
-    let finalClassName = className;
-    if (cssClassName) finalClassName += ` ${cssClassName}`;
+    let finalClassName = ownClassName;
+    if (appliesCss) {
+      if (cssProp) finalClassName += ` ${cssProp}`;
+    } else if (cssProp !== undefined) {
+      finalProps.css = cssProp;
+    }
     if (userClassName) finalClassName += ` ${userClassName}`;
 
     return createElement(tagOrComponent, {
@@ -200,9 +223,15 @@ export function _vCWM(
   modifiers: Array<[string, string]>,
   baseClassName: string,
   elementType: string | ComponentType<any>,
-  attrs?: Record<string, string | number | boolean> | null,
+  attrs?: StyledAttrs | null,
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
+
+  const [ownClassName, defaultProps] = splitAttrsClassName(
+    baseClassName,
+    attrs,
+  );
+  const appliesCss = typeof elementType === 'string';
 
   // Precompute modifier map once per component instance
   const modifierMap = new Map<string, string>();
@@ -215,9 +244,9 @@ export function _vCWM(
     // Merge attrs with user props first, so attrs can set default style flags
     const {
       className: userClassName,
-      css: cssClassName,
+      css: cssProp,
       ...otherProps
-    } = attrs ? { ...attrs, ...props } : props;
+    } = defaultProps ? { ...defaultProps, ...props } : props;
 
     // Separate style flag props from other props
     const styleProps: Record<string, boolean | string> = {};
@@ -238,7 +267,7 @@ export function _vCWM(
     }
 
     // Build className with modifiers
-    let finalClassName = baseClassName;
+    let finalClassName = ownClassName;
 
     // Add modifier classes for active props
     for (const [propName, hashedClassName] of modifierEntries) {
@@ -253,9 +282,11 @@ export function _vCWM(
       }
     }
 
-    // Add the class name of a compiled `css` prop
-    if (cssClassName) {
-      finalClassName += ` ${cssClassName}`;
+    // Add the class name of a compiled `css` prop, see `_vSC`
+    if (appliesCss) {
+      if (cssProp) finalClassName += ` ${cssProp}`;
+    } else if (cssProp !== undefined) {
+      finalProps.css = cssProp;
     }
 
     // Add user className if provided

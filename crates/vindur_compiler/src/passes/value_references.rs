@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    BindingPattern, CallExpression, Declaration, Expression, IdentifierReference, JSXAttributeItem,
-    JSXClosingElement, JSXElementName, JSXOpeningElement, Program, Statement, TSTypeQuery,
-    TaggedTemplateExpression,
+    BindingPattern, CallExpression, ComputedMemberExpression, Declaration, Expression,
+    IdentifierReference, JSXAttributeItem, JSXClosingElement, JSXElementName, JSXOpeningElement,
+    Program, Statement, StaticMemberExpression, TSTypeQuery, TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::{Scoping, SymbolId};
@@ -97,30 +97,31 @@ impl<'a> Visit<'a> for ValueReferenceVisitor<'_, '_> {
     }
 
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
-        if let Expression::StaticMemberExpression(member) = &call.callee
-            && member.property.name.as_str() == "withComponent"
-            && let Expression::Identifier(base) = &member.object
-        {
-            if self.first_error.is_none()
-                && !self.top_level_with_component_calls.contains(&call.span)
-                && self
-                    .top_level_symbol(base)
-                    .is_some_and(|symbol_id| self.styled_symbols.contains(&symbol_id))
-            {
-                self.first_error = Some((
-                    call.span,
-                    format!(
-                        "\"{name}.withComponent()\" must be assigned directly to a top-level variable, e.g. `const Link = {name}.withComponent('a')`",
-                        name = base.name
-                    ),
-                ));
-            }
+        // The compiled `withComponent()` keeps only its arguments
+        if self.top_level_with_component_calls.contains(&call.span) {
             for argument in &call.arguments {
                 self.visit_argument(argument);
             }
             return;
         }
         walk::walk_call_expression(self, call);
+    }
+
+    fn visit_static_member_expression(&mut self, member: &StaticMemberExpression<'a>) {
+        if member.property.name.as_str() == "withComponent" {
+            self.reject_with_component_access(&member.object, member.span);
+        }
+        walk::walk_static_member_expression(self, member);
+    }
+
+    fn visit_computed_member_expression(&mut self, member: &ComputedMemberExpression<'a>) {
+        if member
+            .static_property_name()
+            .is_some_and(|name| name.as_str() == "withComponent")
+        {
+            self.reject_with_component_access(&member.object, member.span);
+        }
+        walk::walk_computed_member_expression(self, member);
     }
 
     // `typeof A` in types has no runtime reference
@@ -138,6 +139,29 @@ impl ValueReferenceVisitor<'_, '_> {
             .filter(|symbol_id| {
                 self.scoping.symbol_scope_id(*symbol_id) == self.scoping.root_scope_id()
             })
+    }
+
+    /// Any `withComponent` access on a local styled component other than the compiled
+    /// `const Link = Button.withComponent('a')` is kept at runtime, where it doesn't exist
+    fn reject_with_component_access(&mut self, object: &Expression<'_>, span: Span) {
+        if self.first_error.is_some() {
+            return;
+        }
+        let Expression::Identifier(base) = object.without_parentheses() else {
+            return;
+        };
+        if self
+            .top_level_symbol(base)
+            .is_some_and(|symbol_id| self.styled_symbols.contains(&symbol_id))
+        {
+            self.first_error = Some((
+                span,
+                format!(
+                    "\"{name}.withComponent()\" must be assigned directly to a top-level variable, e.g. `const Link = {name}.withComponent('a')`",
+                    name = base.name
+                ),
+            ));
+        }
     }
 
     /// `.attrs()` objects are kept in the runtime output, the rest of the tag is compiled away
@@ -210,8 +234,14 @@ fn top_level_styled_declarations(
     declarations
 }
 
+/// The form compiled by `process_with_component`
 fn is_with_component_call(call: &CallExpression<'_>) -> bool {
-    matches!(&call.callee, Expression::StaticMemberExpression(member) if member.property.name.as_str() == "withComponent")
+    matches!(
+        &call.callee,
+        Expression::StaticMemberExpression(member)
+            if member.property.name.as_str() == "withComponent"
+                && matches!(member.object, Expression::Identifier(_))
+    )
 }
 
 fn shadowed_styled_component(
@@ -228,8 +258,13 @@ fn shadowed_styled_component(
     scoping
         .symbol_ids()
         .find(|symbol_id| {
+            let flags = scoping.symbol_flags(*symbol_id);
             scoping.symbol_scope_id(*symbol_id) != scoping.root_scope_id()
-                && scoping.symbol_flags(*symbol_id).is_value()
+                && flags.is_value()
+                && !flags.is_enum_member()
+                // Unreferenced bindings, like parameters of type signatures, can't be
+                // confused with the styled component
+                && !scoping.get_resolved_reference_ids(*symbol_id).is_empty()
                 && styled_names.contains(scoping.symbol_name(*symbol_id))
         })
         .map(|symbol_id| {

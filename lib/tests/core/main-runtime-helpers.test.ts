@@ -29,7 +29,7 @@ describe('_vSC', () => {
     ).toEqual({ className: 'base css-prop user', ref: null });
   });
 
-  test('should read className and css from attrs', () => {
+  test('should keep the attrs className with a passed className', () => {
     const Component = _vSC('button', 'base', {
       className: 'attrs-class',
       type: 'button',
@@ -42,7 +42,15 @@ describe('_vSC', () => {
     });
     expect(
       renderProps(Component, { className: 'user', type: 'submit' }),
-    ).toEqual({ className: 'base user', type: 'submit', ref: null });
+    ).toEqual({ className: 'base attrs-class user', type: 'submit', ref: null });
+  });
+
+  test('should forward the css prop of a styled custom component', () => {
+    const Component = _vSC(() => null, 'base');
+
+    expect(
+      renderProps(Component, { css: 'label', className: 'user' }),
+    ).toEqual({ className: 'base user', css: 'label', ref: null });
   });
 
   test('should create component with correct displayName', () => {
@@ -93,11 +101,21 @@ describe('_vCWM', () => {
     });
 
     expect(renderProps(Component, {})).toEqual({
-      className: 'base active-class attrs-class',
+      className: 'base attrs-class active-class',
       ref: null,
     });
     expect(renderProps(Component, { active: false })).toEqual({
       className: 'base attrs-class',
+      ref: null,
+    });
+  });
+
+  test('should forward the css prop of a styled custom component', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', () => null);
+
+    expect(renderProps(Component, { active: true, css: 'label' })).toEqual({
+      className: 'base active-class',
+      css: 'label',
       ref: null,
     });
   });

@@ -346,6 +346,62 @@ describe('withComponent', () => {
     `);
   });
 
+  test('should throw error when withComponent is called on a parenthesized or computed reference', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = (Container).withComponent('a')
+          const Section = Container['withComponent']('section')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:13]
+    `);
+
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Section = Container['withComponent']('section')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:16]
+    `);
+  });
+
+  test('should throw error when withComponent is referenced without being called', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export const getWithComponent = () => Container.withComponent
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:38]
+    `);
+  });
+
   test('should work with a parenthesized withComponent initializer', async () => {
     const result = await transformWithFormat({
       source: dedent`

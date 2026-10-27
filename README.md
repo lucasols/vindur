@@ -295,7 +295,7 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` are default props, props passed to the component override them. They can also set a default `className` or style flag.
+`attrs` are default props, props passed to the component override them. They can also set a default style flag, or a `className` that is always added to the component's classes.
 
 `attrs` values can't contain JSX (pass the element as a prop where the component is rendered), vindur templates (reference a module level `css` constant) or `stableId()` calls (reference a module level constant). `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
 
@@ -984,7 +984,7 @@ const App = () => (
 );
 ```
 
-When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop. Styled components used where the compiler can't see them as styled (imported, or picked in a conditional) receive it the same way and add it to their className.
+When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop. Styled components used where the compiler can't see them as styled (imported, or picked in a conditional) receive it the same way: styled DOM elements add it to their className, styled custom components like `styled(Pie)` forward it to the wrapped component.
 
 ```tsx
 const CustomComponent = ({
