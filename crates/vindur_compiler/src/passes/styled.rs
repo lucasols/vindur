@@ -325,7 +325,7 @@ pub(crate) fn leading_styled_ref_placeholder(css: &str) -> Option<&str> {
     Some(&css[..STYLED_REF_PREFIX.len() + encoded_end + STYLED_REF_SUFFIX.len()])
 }
 
-const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
+pub(crate) const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
 const STYLED_REF_SUFFIX: &str = "__";
 
 /// Forward styled component references are replaced by a placeholder until every component is
@@ -386,14 +386,17 @@ pub(crate) fn undeclared_style_classes(
     is_reference: impl Fn(&str) -> bool,
 ) -> Vec<String> {
     let css = strip_css_comments(css);
+    // By offset, a class chained to a reference doesn't hide an own class with the same name
     let mut referenced = FxHashSet::default();
     let _ = scan_class_chains(&css, &is_reference, |token| {
         if let CssToken::Class {
-            reference, name, ..
+            reference,
+            name,
+            offset,
         } = token
             && (reference.is_some() || is_reference(name))
         {
-            referenced.insert(name);
+            referenced.insert(offset);
         }
     });
     let declared = flags
@@ -407,9 +410,9 @@ pub(crate) fn undeclared_style_classes(
         })
         .collect::<FxHashSet<_>>();
     let mut classes: Vec<String> = Vec::new();
-    for name in ampersand_compound_classes(&css) {
+    for (offset, name) in ampersand_compound_classes(&css) {
         if !declared.contains(name)
-            && !referenced.contains(name)
+            && !referenced.contains(&offset)
             && !classes.iter().any(|class| class == name)
         {
             classes.push(name.to_owned());
@@ -423,8 +426,9 @@ fn is_compound_boundary(byte: u8) -> bool {
 }
 
 // Only classes in the same compound selector as `&` (`&.active`,
-// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not
-fn ampersand_compound_classes(css: &str) -> Vec<&str> {
+// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not.
+// Returns each class with the offset of its `.`
+fn ampersand_compound_classes(css: &str) -> Vec<(usize, &str)> {
     let bytes = css.as_bytes();
     let mut names = Vec::new();
     let mut compound_end = 0usize;
@@ -455,7 +459,7 @@ fn ampersand_compound_classes(css: &str) -> Vec<&str> {
             if name.chars().next().is_some_and(|first| {
                 !first.is_ascii() || first.is_ascii_alphabetic() || first == '_' || first == '-'
             }) {
-                names.push(name);
+                names.push((start + dot, name));
             }
         }
     }

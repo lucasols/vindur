@@ -1,4 +1,4 @@
-use super::styled::leading_styled_ref_placeholder;
+use super::styled::{STYLED_REF_PREFIX, leading_styled_ref_placeholder};
 
 /// CSS identifiers also accept any non-ASCII character, `$` is the start of a transient flag
 fn is_class_name_char(character: char) -> bool {
@@ -27,6 +27,7 @@ const MULTIPLE_REFERENCES_ERROR: &str = "A compound selector can only chain one 
 const REFERENCE_ARGUMENT_ERROR: &str = "`:not()`, `:is()` and `:where()` after a component reference can only list classes of that component, like `${Menu}:not(.active)`, use `:has()` to match other elements";
 const CLASS_BEFORE_REFERENCE_ERROR: &str = "A component reference must start its compound selector, like `${Menu}.active`, not `.active${Menu}`";
 const FUNCTION_CLASS_ERROR: &str = "After a component reference, only `:not()`, `:is()`, `:where()` and `:has()` can contain classes, like `${Menu}:not(.active)`";
+const FUNCTION_REFERENCE_ERROR: &str = "A component reference can't be inside a function like `:is()` or `:not()`, only inside `:has()`, write it directly in the selector, like `${Menu}.active &`";
 const NESTED_REFERENCE_ERROR: &str = "`&` nested in a component reference's rule, like `${Menu} { &.active {} }`, can't select classes, write `${Menu}.active` instead";
 
 /// The state of the compound selector being scanned, one per parenthesis level
@@ -39,6 +40,8 @@ struct ChainScope<'a> {
     /// The arguments of other functions after a reference, like `:nth-child(1 of .active)`, match
     /// other elements, so their classes are rejected
     rejects_classes: bool,
+    /// The arguments of functions other than `:has()`, which can't contain component references
+    in_function: bool,
     has_class: bool,
     has_ampersand: bool,
     /// The `&` of the compound around a `:not()`, `:is()` or `:where()`
@@ -58,6 +61,9 @@ struct ClassChainScanner<'a> {
     scopes: Vec<ChainScope<'a>>,
     /// Whether the `&` of each nested rule is a component reference, like in `${Menu} { & {} }`
     reference_rules: Vec<bool>,
+    /// Whether an earlier selector of the rule prelude's list, like `${Menu}` in
+    /// `${Menu}, .x {}`, ends with a component reference
+    prelude_reference: bool,
     prelude_start: usize,
     unsupported: Option<UnsupportedClassChain>,
 }
@@ -75,6 +81,12 @@ impl<'a> ClassChainScanner<'a> {
         self.reference_rules.last().copied().unwrap_or(false)
     }
 
+    /// Whether the `&` of a rule with the current selector is a component reference
+    fn selector_is_reference(&self) -> bool {
+        let scope = self.scope();
+        scope.reference.is_some() || (scope.has_ampersand && self.in_reference_rule())
+    }
+
     fn report(&mut self, message: &'static str, offset: usize) {
         self.unsupported
             .get_or_insert(UnsupportedClassChain { message, offset });
@@ -86,6 +98,8 @@ impl<'a> ClassChainScanner<'a> {
             self.report(REFERENCE_ARGUMENT_ERROR, offset);
         } else if scope.rejects_classes {
             self.report(FUNCTION_CLASS_ERROR, offset);
+        } else if scope.in_function {
+            self.report(FUNCTION_REFERENCE_ERROR, offset);
         } else if scope.reference.is_some() {
             self.report(MULTIPLE_REFERENCES_ERROR, offset);
         } else if scope.has_class {
@@ -131,40 +145,43 @@ impl<'a> ClassChainScanner<'a> {
         let same_element = ["not", "is", "where"]
             .iter()
             .any(|name| function.eq_ignore_ascii_case(name));
-        let argument = if scope.rejects_classes
-            || (scope.reference.is_some() && !same_element && !function.eq_ignore_ascii_case("has"))
-        {
-            ChainScope {
-                rejects_classes: true,
-                ..ChainScope::default()
-            }
-        } else if same_element {
-            ChainScope {
-                reference: scope.reference,
-                inherited: scope.reference.is_some(),
-                outer_ampersand: scope.has_ampersand || scope.outer_ampersand,
-                ..ChainScope::default()
-            }
-        } else {
-            ChainScope::default()
-        };
+        let is_has = function.eq_ignore_ascii_case("has");
+        let argument =
+            if scope.rejects_classes || (scope.reference.is_some() && !same_element && !is_has) {
+                ChainScope {
+                    rejects_classes: true,
+                    ..ChainScope::default()
+                }
+            } else if same_element {
+                ChainScope {
+                    reference: scope.reference,
+                    inherited: scope.reference.is_some(),
+                    in_function: true,
+                    outer_ampersand: scope.has_ampersand || scope.outer_ampersand,
+                    ..ChainScope::default()
+                }
+            } else {
+                ChainScope {
+                    in_function: !is_has,
+                    ..ChainScope::default()
+                }
+            };
         self.scopes.push(argument);
     }
 
     /// At-rules like `@media` keep the `&` of their parent rule
     fn open_rule(&mut self, offset: usize) {
-        let scope = self.scope();
-        let parent = self.in_reference_rule();
         let is_at_rule =
             trim_start_css_comments(&self.css[self.prelude_start..offset]).starts_with('@');
         self.reference_rules.push(if is_at_rule {
-            parent
+            self.in_reference_rule()
         } else {
-            scope.reference.is_some() || (scope.has_ampersand && parent)
+            self.prelude_reference || self.selector_is_reference()
         });
     }
 
     fn end_statement(&mut self, offset: usize) {
+        self.prelude_reference = false;
         self.scopes.truncate(1);
         if let Some(current) = self.current() {
             current.start_compound();
@@ -184,9 +201,13 @@ impl<'a> ClassChainScanner<'a> {
             }
             return;
         }
-        // The spacing before `{` doesn't end the last compound of a rule's selector
+        if character == ',' && self.scopes.len() == 1 && self.selector_is_reference() {
+            self.prelude_reference = true;
+        }
+        // The spacing before `{` and `,` doesn't end the last compound of a selector
         let ends_compound = matches!(character, ',' | '>' | '+' | '~')
-            || (character.is_whitespace() && !trim_start_css_comments(rest).starts_with('{'));
+            || (character.is_whitespace()
+                && !trim_start_css_comments(rest).starts_with(['{', ',']));
         if ends_compound && let Some(current) = self.current() {
             current.start_compound();
         }
@@ -234,6 +255,7 @@ pub(crate) fn scan_class_chains<'a>(
         css,
         scopes: vec![ChainScope::default()],
         reference_rules: vec![false],
+        prelude_reference: false,
         prelude_start: 0,
         unsupported: None,
     };
@@ -252,9 +274,14 @@ pub(crate) fn scan_class_chains<'a>(
             continue;
         }
         if character == '.' {
+            // A forward reference placeholder right after a class, like in `.x${() => Menu}`,
+            // is not part of the class name
             let class_end = rest[1..]
                 .find(|character: char| !is_class_name_char(character))
                 .map_or(rest.len(), |index| index + 1);
+            let class_end = rest[1..class_end]
+                .find(STYLED_REF_PREFIX)
+                .map_or(class_end, |index| index + 1);
             let name = &rest[1..class_end];
             visit(CssToken::Class {
                 reference: scanner.scope().reference,

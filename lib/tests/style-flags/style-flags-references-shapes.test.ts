@@ -303,3 +303,129 @@ test('should not warn about component references and their flags inside :has()',
     "
   `);
 });
+
+test('should reject classes of & nested in a rule whose selector list has a component reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Menu = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Item = styled.span<{ active: boolean }>\`
+          &.active {
+            color: blue;
+          }
+
+          \${Menu}, & {
+            &.active {
+              color: green;
+            }
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`&\` nested in a component reference's rule, like \`\${Menu} { &.active {} }\`, can't select classes, write \`\${Menu}.active\` instead
+    loc: 15:5]
+  `);
+});
+
+test('should reject component references inside functions other than :has()', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Menu = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Item = styled.span<{ active: boolean }>\`
+          &.active {
+            color: blue;
+          }
+
+          :is(\${Menu}).active & {
+            color: green;
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: A component reference can't be inside a function like \`:is()\` or \`:not()\`, only inside \`:has()\`, write it directly in the selector, like \`\${Menu}.active &\`
+    loc: 14:8]
+  `);
+});
+
+test('should reject classes before a forward component reference in the same compound', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Item = styled.span<{ active: boolean }>\`
+          &.active {
+            color: blue;
+          }
+
+          .x\${() => Menu}.active & {
+            color: green;
+          }
+        \`;
+
+        const Menu = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: A component reference must start its compound selector, like \`\${Menu}.active\`, not \`.active\${Menu}\`
+    loc: 8:6]
+  `);
+});
+
+test('should warn about own classes with the name of a class chained to a component reference', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Menu = styled.div<{ open: boolean }>\`
+        &.open {
+          color: red;
+        }
+      \`;
+
+      const Item = styled.span\`
+        &.open {
+          color: blue;
+        }
+
+        \${Menu}.open & {
+          color: green;
+        }
+      \`;
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: "The class 'open' is used in CSS but not declared in the component"
+        loc: 'current_file:9:6'
+    "
+  `);
+});

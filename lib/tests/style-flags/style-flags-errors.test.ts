@@ -275,3 +275,20 @@ test('should throw error for style flags with the same class name', async () => 
   `,
   );
 });
+
+test('should throw error for style flags on a default exported styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        export default styled.button<{ active: boolean }>\`
+          &.active { color: red; }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flags are not supported on \`export default styled.*\`, declare the component first, like \`const Button = styled.button<{ active: boolean }>\`, then \`export default Button\`
+    loc: 3:28]
+  `);
+});

@@ -1250,7 +1250,7 @@ The CSS classes are automatically applied based on prop values:
 }
 ```
 
-Flags chained to a component reference in the same compound selector, like `${Menu}.open &`, `${Menu}:hover.open &` or `${Menu}:not(.$open) &`, select the flags of that component. The reference must start the compound, a compound can chain only one reference, and after it only `:not()`, `:is()` and `:where()`, which can only list its classes, and `:has()` can contain classes. `:has()` matches other elements, so `${Menu}:has(.open) &` selects the component's own `open` flag. `&` nested in a reference's rule, like `${Menu} { &.open {} }`, can't select classes, write `${Menu}.open`. Transient (`$`) flags of another component can only be selected in a styled component defined after it.
+Flags chained to a component reference in the same compound selector, like `${Menu}.open &`, `${Menu}:hover.open &` or `${Menu}:not(.$open) &`, select the flags of that component. The reference must start the compound, a compound can chain only one reference, and after it only `:not()`, `:is()` and `:where()`, which can only list its classes, and `:has()` can contain classes. A reference can't be inside a function other than `:has()`, like `:is(${Menu})`. `:has()` matches other elements, so `${Menu}:has(.open) &` selects the component's own `open` flag. `&` nested in a rule whose selector list ends with a reference, like `${Menu} { &.open {} }` or `${Menu}, & { &.open {} }`, can't select classes, write `${Menu}.open`. Transient (`$`) flags of another component can only be selected in a styled component defined after it. Style flags can't be declared on `export default styled.*`, declare the component in a `const` and export it.
 
 ## Theme Colors
 
