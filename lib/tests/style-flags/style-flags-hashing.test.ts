@@ -398,3 +398,113 @@ test('should support style flags with $ prefixed names', async () => {
     "
   `);
 });
+
+test('referencing styled component flags hashes flags of nested and scoped references', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Child = styled.div\`
+        :is(\${Item}).active & {
+          color: green;
+        }
+        .list \${Item} {
+          &.active .icon {
+            color: blue;
+          }
+          & .active {
+            color: gray;
+          }
+        }
+        @scope (\${Item}) {
+          :scope.active & {
+            color: black;
+          }
+        }
+      \`;
+
+      export const App = () => (
+        <Item active>
+          <Child />
+        </Item>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 voctcyj"}>
+        <div className="v1560qbr-2" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.voctcyj {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      :is(.v1560qbr-1).voctcyj & {
+        color: green;
+      }
+      .list .v1560qbr-1 {
+        &.voctcyj .icon {
+          color: blue;
+        }
+        & .active {
+          color: gray;
+        }
+      }
+      @scope (.v1560qbr-1) {
+        :scope.voctcyj & {
+          color: black;
+        }
+      }
+    }
+    "
+  `);
+});
+
+test('should throw for referenced styled component flags in rules that also match other elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Item = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Child = styled.div\`
+          \${Item}, .other {
+            &.active & {
+              color: blue;
+            }
+          }
+        \`;
+
+        export const App = () => (
+          <Item active>
+            <Child />
+          </Item>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" of "Item" can't be used in a rule that matches both "Item" and other elements, like "&.active" nested in "\${Item}, .x". Split the selectors into separate rules.
+    loc: 9:6]
+  `);
+});

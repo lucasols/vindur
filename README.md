@@ -1250,7 +1250,7 @@ The CSS classes are automatically applied based on prop values:
 
 Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, so `$`-prefixed flags, which are not valid CSS classes, can only be used in selectors of the element itself. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
 
-Flags of another styled component can be selected through a reference to it in the same way, e.g. `${Item}.active &`, `${Item}:hover.size-small &` or `${Item}:not(.active) &`.
+Flags of another styled component are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error.
 
 ## Theme Colors
 

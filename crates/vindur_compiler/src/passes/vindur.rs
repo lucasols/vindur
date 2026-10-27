@@ -514,11 +514,16 @@ pub(crate) fn transform_program(
         ));
     }
     if let Err(error) = hash_referenced_style_flags(&mut css_rules, &styled_components) {
+        let span = scoping
+            .get_root_binding(error.component.as_str().into())
+            .map_or(oxc_span::Span::new(0, 0), |symbol| {
+                scoping.symbol_span(symbol)
+            });
         return Err(CompilerDiagnostic::error(
             file_path,
             source,
-            oxc_span::Span::new(0, 0),
-            error.message,
+            span,
+            error.error.message,
         ));
     }
     if options.dev {

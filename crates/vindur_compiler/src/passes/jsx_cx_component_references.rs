@@ -1,18 +1,9 @@
-use oxc_css_parser::{
-    Allocator,
-    ast::{
-        AtRulePrelude, ComplexSelector, CompoundSelector, InterpolableIdent, ScopePrelude,
-        SelectorList, SimpleSelector, Statement, TypeSelector,
-    },
-};
+use oxc_css_parser::Allocator;
 use oxc_span::Span;
 
 use crate::CompilerDiagnostic;
 
-use super::{
-    css_syntax::parse_style_block,
-    cx_modifier_selectors::{SelectorArgument, compounds, matches_element, pseudo_class_selectors},
-};
+use super::{css_syntax::parse_style_block, cx_modifier_selectors::referenced_classes};
 
 /// A cx class hashed on a styled component. Other styles selecting the component through a
 /// component reference keep the original class, e.g. `.active` in `${Item}.active`
@@ -85,127 +76,6 @@ pub(crate) fn component_reference_modifier_error(
     None
 }
 
-/// A class used with a reference to a styled component in a compound, `start..end` is the name
-pub(crate) struct ReferencedClass<'c> {
-    pub name: &'c str,
-    pub start: usize,
-    pub end: usize,
-}
-
-/// The classes used with a reference to a styled component in a compound, e.g. `active` in
-/// `.item.active` or `.item:not(.active)`. The component is referenced by its `classes` and its
-/// forward reference `placeholders`
-pub(crate) fn referenced_classes<'c>(
-    statements: &'c [Statement<'c>],
-    classes: &[String],
-    placeholders: &[String],
-) -> Vec<ReferencedClass<'c>> {
-    let mut collector = ReferencedClassCollector {
-        references: classes,
-        placeholders,
-        classes: Vec::new(),
-    };
-    collector.statements(statements);
-    collector.classes
-}
-
-struct ReferencedClassCollector<'r, 'c> {
-    references: &'r [String],
-    placeholders: &'r [String],
-    classes: Vec<ReferencedClass<'c>>,
-}
-
-impl<'c> ReferencedClassCollector<'_, 'c> {
-    fn statements(&mut self, statements: &'c [Statement<'c>]) {
-        for statement in statements {
-            match statement {
-                Statement::QualifiedRule(rule) => {
-                    self.selector_list(&rule.selector);
-                    self.statements(&rule.block.statements);
-                }
-                Statement::AtRule(rule) => {
-                    if let Some(AtRulePrelude::Scope(prelude)) = &rule.prelude {
-                        let (start, end) = match prelude.as_ref() {
-                            ScopePrelude::StartOnly(start) => (&start.selector, &None),
-                            ScopePrelude::EndOnly(end) => (&None, &end.selector),
-                            ScopePrelude::Both(both) => (&both.start.selector, &both.end.selector),
-                        };
-                        for list in [start, end].into_iter().flatten() {
-                            self.selector_list(list);
-                        }
-                    }
-                    if let Some(block) = &rule.block {
-                        self.statements(&block.statements);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn selector_list(&mut self, list: &'c SelectorList<'c>) {
-        for selector in &list.selectors {
-            self.selector(selector, false);
-        }
-    }
-
-    /// `inherited` is when the subject is the component, e.g. `.a` in `.item:not(.a)`
-    fn selector(&mut self, selector: &'c ComplexSelector<'c>, inherited: bool) {
-        let compounds = compounds(selector);
-        let subject = compounds.len().saturating_sub(1);
-        for (index, compound) in compounds.into_iter().enumerate() {
-            self.compound(compound, inherited && index == subject);
-        }
-    }
-
-    fn compound(&mut self, compound: &'c CompoundSelector<'c>, inherited: bool) {
-        let is_component = inherited
-            || compound
-                .children
-                .iter()
-                .any(|simple| self.is_reference(simple));
-        for simple in &compound.children {
-            match simple {
-                SimpleSelector::Class(class) if is_component => {
-                    if let InterpolableIdent::Literal(ident) = &class.name {
-                        self.classes.push(ReferencedClass {
-                            name: ident.name,
-                            start: ident.span.start,
-                            end: ident.span.end,
-                        });
-                    }
-                }
-                SimpleSelector::PseudoClass(pseudo) => {
-                    let inherited = is_component && matches_element(pseudo);
-                    for argument in pseudo_class_selectors(pseudo) {
-                        match argument {
-                            SelectorArgument::Complex(selector) => {
-                                self.selector(selector, inherited);
-                            }
-                            SelectorArgument::Compound(compound) => {
-                                self.compound(compound, inherited);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn is_reference(&self, simple: &SimpleSelector<'_>) -> bool {
-        let (names, name) = match simple {
-            SimpleSelector::Class(class) => (self.references, &class.name),
-            SimpleSelector::Type(TypeSelector::TagName(tag)) => (self.placeholders, &tag.name.name),
-            _ => return false,
-        };
-        let InterpolableIdent::Literal(ident) = name else {
-            return false;
-        };
-        names.iter().any(|reference| reference == ident.name)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use oxc_span::Span;
@@ -232,9 +102,12 @@ mod tests {
                 ".list:has(.item.active) { color: red; }",
                 ".list { & __VINDUR_STYLED_REF_49__.active { color: red; } }",
                 "@scope (.item.active) { .x { color: red; } }",
+                ".list { :is(.item).active & { color: red; } }",
+                ".list { & .item { &.active { color: red; } } }",
+                ".list { @scope (.item) { :scope.active { color: red; } } }",
             ]
             .map(rejects),
-            [true; 5]
+            [true; 8]
         );
     }
 
@@ -247,9 +120,10 @@ mod tests {
                 ".list { & .item:has(.active) { color: red; } }",
                 ".list.active { & .item { color: red; } }",
                 ".list { & .item.active-x { color: red; } }",
+                ".list { & .item .x { &.active { color: red; } } }",
             ]
             .map(rejects),
-            [false; 5]
+            [false; 6]
         );
     }
 }

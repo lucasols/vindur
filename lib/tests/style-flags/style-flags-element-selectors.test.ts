@@ -310,6 +310,27 @@ test('should throw for escaped style flag selectors', async () => {
   `);
 });
 
+test('should throw for style flag selectors escaped with a code point', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ $active: boolean }>\`
+          &.\\24 active {
+            color: red;
+          }
+        \`;
+
+        export const App = () => <Button $active />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be escaped, write it as "&.$active"
+    loc: 4:5]
+  `);
+});
+
 test('should not confuse $ prefixed style flags with _ prefixed classes', async () => {
   const result = await transformWithFormat({
     source: dedent`
