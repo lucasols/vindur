@@ -196,19 +196,10 @@ pub(crate) fn styled_tag_component_with_attrs(
             ));
         }
         if !context.components.contains_key(name)
-            && let Some(error) = local_base_error(context.program, base)
+            && let Some(diagnostic) =
+                local_base_diagnostic(context.program, base, context.file_path, context.source)
         {
-            let diagnostic = CompilerDiagnostic::error(
-                context.file_path,
-                context.source,
-                base.span,
-                error.message(name),
-            );
-            return Err(if error.ignored_in_lint() {
-                diagnostic.ignored_in_lint()
-            } else {
-                diagnostic
-            });
+            return Err(diagnostic);
         }
     }
     let Some(component) = component else {
@@ -266,6 +257,7 @@ fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
 
 enum LocalBaseError {
     DeclaredAfter,
+    Destructured,
     NotComponent,
     NotConst,
 }
@@ -276,22 +268,43 @@ impl LocalBaseError {
             Self::DeclaredAfter => {
                 format!("Cannot extend \"{name}\": declare it before extending it.")
             }
-            Self::NotComponent => {
-                format!("Cannot extend \"{name}\": it is not a component or styled component.")
-            }
+            Self::Destructured => format!(
+                "Cannot extend \"{name}\": destructured locals can't be extended, extend the property directly, e.g. styled(object.{name})."
+            ),
+            Self::NotComponent => format!(
+                "Cannot extend \"{name}\": only locals initialized with a function, a class or a call like memo(Component) can be extended, extend the original component directly instead."
+            ),
             Self::NotConst => {
                 format!("Cannot extend \"{name}\": declare it with const.")
             }
         }
     }
-
-    /// TypeScript already reports these
-    fn ignored_in_lint(&self) -> bool {
-        !matches!(self, Self::NotConst)
-    }
 }
 
-/// Top-level locals are extendable when declared with const before the `styled()` call and
+/// Builds the error for a top-level local that can't be used as a base component, bases that
+/// aren't top-level variables, like imports, are accepted
+pub(super) fn local_base_diagnostic(
+    program: &Program<'_>,
+    base: &IdentifierReference<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let error = local_base_error(program, base)?;
+    let diagnostic = CompilerDiagnostic::error(
+        file_path,
+        source,
+        base.span,
+        error.message(base.name.as_str()),
+    );
+    // TypeScript already reports using a const or let before its declaration
+    Some(if matches!(error, LocalBaseError::DeclaredAfter) {
+        diagnostic.ignored_in_lint()
+    } else {
+        diagnostic
+    })
+}
+
+/// Top-level locals are extendable when declared with const before they are extended and
 /// initialized with a function, a class or a call like `memo(Component)`
 fn local_base_error(
     program: &Program<'_>,
@@ -307,14 +320,18 @@ fn local_base_error(
         .find(|(_, declarator)| {
             declarator
                 .id
-                .get_binding_identifier()
-                .is_some_and(|identifier| identifier.name == base.name)
+                .get_binding_identifiers()
+                .iter()
+                .any(|identifier| identifier.name == base.name)
         })?;
+    if declaration.kind != VariableDeclarationKind::Const {
+        return Some(LocalBaseError::NotConst);
+    }
     if declarator.span.start > base.span.start {
         return Some(LocalBaseError::DeclaredAfter);
     }
-    if declaration.kind != VariableDeclarationKind::Const {
-        return Some(LocalBaseError::NotConst);
+    if declarator.id.get_binding_identifier().is_none() {
+        return Some(LocalBaseError::Destructured);
     }
     match declarator.init.as_ref()?.get_inner_expression() {
         Expression::ArrowFunctionExpression(_)

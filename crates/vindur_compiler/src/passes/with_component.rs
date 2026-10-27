@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::style_flag_selectors::flag_classes;
-use super::styled::{StyleFlag, StyledComponent};
+use super::styled::{StyleFlag, StyledComponent, local_base_diagnostic};
 use super::transform_support::VariableTransform;
 
 pub(super) fn process_with_component(
@@ -45,6 +45,19 @@ pub(super) fn process_with_component(
             ),
         ));
     };
+    if let [Argument::Identifier(element)] = call.arguments.as_slice()
+        && !transform
+            .styled_components
+            .contains_key(element.name.as_str())
+        && let Some(diagnostic) = local_base_diagnostic(
+            transform.program,
+            element,
+            transform.file_path,
+            transform.source,
+        )
+    {
+        return Err(diagnostic);
+    }
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),

@@ -100,9 +100,8 @@ describe('styled component extension', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Cannot extend "NotAComponent": it is not a component or styled component.
-      loc: 4:31
-      ignoreInLint: true]
+      [TransformError: /test.tsx: Cannot extend "NotAComponent": only locals initialized with a function, a class or a call like memo(Component) can be extended, extend the original component directly instead.
+      loc: 4:31]
     `,
     );
   });
@@ -636,6 +635,99 @@ describe('styled component extension', () => {
     }).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Unsupported styled component definition, use styled.tag\`...\`, styled(Component)\`...\` or add a single .attrs({...}) to them
       loc: 6:21]
+    `);
+  });
+
+  test('should throw error when extending a destructured local', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Popover } from './Popover'
+
+          const { Trigger } = Popover
+
+          const StyledTrigger = styled(Trigger)\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "Trigger": destructured locals can't be extended, extend the property directly, e.g. styled(object.Trigger).
+      loc: 6:29]
+    `);
+  });
+
+  test('should throw error when extending a local alias of a component', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Popover } from './Popover'
+
+          const Trigger = Popover.Trigger
+
+          const StyledTrigger = styled(Trigger)\`
+            color: red;
+          \`
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "Trigger": only locals initialized with a function, a class or a call like memo(Component) can be extended, extend the original component directly instead.
+      loc: 6:29]
+    `);
+  });
+
+  test('should throw error when extending a local declared with var after the styled component', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          const StyledButton = styled(MemoButton)\`
+            color: red;
+          \`
+
+          var MemoButton = memo(Button)
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "MemoButton": declare it with const.
+      loc: 5:28]
+    `);
+  });
+
+  test('should throw error when withComponent uses a local declared after it', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { memo } from 'react'
+          import { Button } from './Button'
+
+          const Box = styled.div\`
+            color: red;
+          \`
+
+          export const MemoBox = Box.withComponent(MemoButton)
+
+          const MemoButton = memo(Button)
+        `,
+        overrideDefaultFs: emptyFs,
+        overrideDefaultImportAliases: importAliases,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Cannot extend "MemoButton": declare it before extending it.
+      loc: 9:41
+      ignoreInLint: true]
     `);
   });
 
