@@ -8,6 +8,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
+use super::class_chains::{CssToken, rewrite_class_chains, scan_class_chains};
 use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -314,224 +315,11 @@ pub(crate) fn style_flag_class(flags: &[StyleFlag], selector: &str) -> Option<St
     })
 }
 
-/// CSS identifiers also accept any non-ASCII character, `$` is the start of a transient flag
-fn is_class_name_char(character: char) -> bool {
-    !character.is_ascii()
-        || character.is_ascii_alphanumeric()
-        || matches!(character, '_' | '-' | '$')
-}
-
-enum CssToken<'a> {
-    Text(&'a str),
-    /// A `.class` selector and the component reference it is chained to
-    Class {
-        reference: Option<&'a str>,
-        name: &'a str,
-    },
-}
-
-/// A selector shape the flags chained to a component reference don't support, with its CSS offset
-pub(crate) struct UnsupportedClassChain {
-    pub message: &'static str,
-    pub offset: usize,
-}
-
-const MULTIPLE_REFERENCES_ERROR: &str = "A compound selector can only chain one component reference, like `${Menu}.active`, select each component in its own compound, like `${Menu} ${Item}`";
-const REFERENCE_ARGUMENT_ERROR: &str = "`:not()`, `:is()` and `:where()` after a component reference can only list classes of that component, like `${Menu}:not(.active)`, use `:has()` to match other elements";
-
-/// The component reference of the compound selector being scanned, one per parenthesis level
-#[derive(Clone, Copy)]
-struct ChainScope<'a> {
-    reference: Option<&'a str>,
-    /// Inherited by the arguments of `:not()`, `:is()` and `:where()`, which match the same
-    /// element as the reference, so they can only list its classes
-    inherited: bool,
-}
-
-/// Splits CSS into `.class` selectors and the text between them. A class is chained to a
-/// component reference (a component class matched by `is_reference` or a forward reference
-/// placeholder) when it is in the same compound selector, e.g. `Parent` for every flag in
-/// `.Parent.active.size-small`, `.Parent:hover.active` and `.Parent:not(.active)`. `:has()`
-/// matches other elements, so its arguments start a new selector. Comments, strings and `url()`
-/// values are kept as text. Returns the first unsupported selector shape
-fn scan_class_chains<'a>(
-    css: &'a str,
-    is_reference: impl Fn(&str) -> bool,
-    mut visit: impl FnMut(CssToken<'a>),
-) -> Option<UnsupportedClassChain> {
-    let top_level = ChainScope {
-        reference: None,
-        inherited: false,
-    };
-    let mut scopes = vec![top_level];
-    let mut unsupported = None;
-    let mut report = |message: &'static str, rest: &str| {
-        unsupported.get_or_insert(UnsupportedClassChain {
-            message,
-            offset: css.len() - rest.len(),
-        });
-    };
-    let mut rest = css;
-    while let Some(character) = rest.chars().next() {
-        let scope = scopes.last().copied().unwrap_or(top_level);
-        if let Some(literal) = leading_css_literal(rest) {
-            visit(CssToken::Text(literal));
-            rest = &rest[literal.len()..];
-            continue;
-        }
-        let (reference, token_end) = match leading_styled_ref_placeholder(rest) {
-            Some(placeholder) => {
-                visit(CssToken::Text(placeholder));
-                (Some(placeholder), placeholder.len())
-            }
-            None if character == '.' => {
-                let class_end = rest[1..]
-                    .find(|character: char| !is_class_name_char(character))
-                    .map_or(rest.len(), |index| index + 1);
-                let name = &rest[1..class_end];
-                visit(CssToken::Class {
-                    reference: scope.reference,
-                    name,
-                });
-                (is_reference(name).then_some(name), class_end)
-            }
-            None => (None, 0),
-        };
-        if token_end > 0 {
-            if let Some(reference) = reference {
-                if scope.inherited {
-                    report(REFERENCE_ARGUMENT_ERROR, rest);
-                } else if scope.reference.is_some() {
-                    report(MULTIPLE_REFERENCES_ERROR, rest);
-                } else if let Some(current) = scopes.last_mut() {
-                    current.reference = Some(reference);
-                }
-            }
-            rest = &rest[token_end..];
-            continue;
-        }
-        match character {
-            '(' => {
-                let function = css_function_name(&css[..css.len() - rest.len()]);
-                let inherits =
-                    scope.reference.is_some() && matches!(function, "not" | "is" | "where");
-                scopes.push(ChainScope {
-                    reference: scope.reference.filter(|_| inherits),
-                    inherited: inherits,
-                });
-            }
-            ')' if scopes.len() > 1 => {
-                scopes.pop();
-            }
-            '{' | '}' | ';' => scopes.truncate(1),
-            _ => {}
-        }
-        if scope.inherited {
-            if matches!(character, '&' | '>' | '+' | '~')
-                || (character.is_whitespace() && is_descendant_combinator(css, rest))
-            {
-                report(REFERENCE_ARGUMENT_ERROR, rest);
-            }
-        } else if u8::try_from(character).is_ok_and(is_compound_boundary)
-            && let Some(current) = scopes.last_mut()
-        {
-            current.reference = None;
-        }
-        let character_end = character.len_utf8();
-        visit(CssToken::Text(&rest[..character_end]));
-        rest = &rest[character_end..];
-    }
-    unsupported
-}
-
-/// The name of the function whose `(` follows `before`, like `not` in `.Parent:not`
-fn css_function_name(before: &str) -> &str {
-    let start = before
-        .rfind(|character: char| !is_class_name_char(character))
-        .map_or(0, |index| index + 1);
-    &before[start..]
-}
-
-/// Whether the whitespace starting `rest` separates two selectors, unlike the spacing around
-/// `,` and the parentheses
-fn is_descendant_combinator(css: &str, rest: &str) -> bool {
-    let before = css[..css.len() - rest.len()].trim_end();
-    let after = rest.trim_start();
-    !before.ends_with(['(', ',']) && !after.starts_with([')', ','])
-}
-
-/// A leading comment, string or `url()` value, their content is never a selector
-fn leading_css_literal(css: &str) -> Option<&str> {
-    if let Some(comment) = css.strip_prefix("/*") {
-        let end = comment.find("*/").map_or(css.len(), |index| index + 4);
-        return Some(&css[..end]);
-    }
-    if let Some(url) = css.strip_prefix("url(") {
-        let argument = url.trim_start();
-        let argument_start = css.len() - argument.len();
-        let close_search_start = leading_css_string(argument)
-            .map_or(argument_start, |string| argument_start + string.len());
-        let end = css[close_search_start..]
-            .find(')')
-            .map_or(css.len(), |index| close_search_start + index + 1);
-        return Some(&css[..end]);
-    }
-    leading_css_string(css)
-}
-
-/// A leading quoted string, `\` escapes the next character
-fn leading_css_string(css: &str) -> Option<&str> {
-    let quote = css
-        .chars()
-        .next()
-        .filter(|character| matches!(character, '"' | '\''))?;
-    let mut escaped = false;
-    let end = css[1..]
-        .char_indices()
-        .find(|&(_, character)| {
-            let is_end = !escaped && character == quote;
-            escaped = !escaped && character == '\\';
-            is_end
-        })
-        .map_or(css.len(), |(index, _)| index + 2);
-    Some(&css[..end])
-}
-
-/// Rewrites each `.class` selector with `rewrite`, which also gets the component reference the
-/// class is chained to, see `scan_class_chains`
-pub(crate) fn rewrite_class_chains(
-    css: &str,
-    is_reference: impl Fn(&str) -> bool,
-    mut rewrite: impl FnMut(Option<&str>, &str) -> Option<String>,
-) -> String {
-    let mut output = String::with_capacity(css.len());
-    // The shapes are rejected when the template is validated, see `unsupported_class_chain`
-    let _ = scan_class_chains(css, is_reference, |token| match token {
-        CssToken::Text(text) => output.push_str(text),
-        CssToken::Class { reference, name } => {
-            output.push('.');
-            match rewrite(reference, name) {
-                Some(rewritten) => output.push_str(&rewritten),
-                None => output.push_str(name),
-            }
-        }
-    });
-    output
-}
-
-/// The first selector shape the flags chained to a component reference don't support
-pub(crate) fn unsupported_class_chain(
-    css: &str,
-    is_reference: impl Fn(&str) -> bool,
-) -> Option<UnsupportedClassChain> {
-    scan_class_chains(css, is_reference, |_| {})
-}
-
 pub(crate) fn is_styled_ref_placeholder(reference: &str) -> bool {
     reference.starts_with(STYLED_REF_PREFIX)
 }
 
-fn leading_styled_ref_placeholder(css: &str) -> Option<&str> {
+pub(crate) fn leading_styled_ref_placeholder(css: &str) -> Option<&str> {
     let encoded = css.strip_prefix(STYLED_REF_PREFIX)?;
     let encoded_end = encoded.find(STYLED_REF_SUFFIX)?;
     Some(&css[..STYLED_REF_PREFIX.len() + encoded_end + STYLED_REF_SUFFIX.len()])
@@ -558,6 +346,7 @@ pub(crate) fn missing_style_flag_selectors(
         if let CssToken::Class {
             reference: None,
             name,
+            ..
         } = token
         {
             own_classes.insert(name);
@@ -589,8 +378,24 @@ pub(crate) fn missing_style_flag_selectors(
     missing
 }
 
-pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<String> {
+/// Classes of `&`, like `&.active`, that are not style flags. Component references and the
+/// classes chained to them, like in `&:has(${Menu}.open)`, are not classes of `&`
+pub(crate) fn undeclared_style_classes(
+    css: &str,
+    flags: &[StyleFlag],
+    is_reference: impl Fn(&str) -> bool,
+) -> Vec<String> {
     let css = strip_css_comments(css);
+    let mut referenced = FxHashSet::default();
+    let _ = scan_class_chains(&css, &is_reference, |token| {
+        if let CssToken::Class {
+            reference, name, ..
+        } = token
+            && (reference.is_some() || is_reference(name))
+        {
+            referenced.insert(name);
+        }
+    });
     let declared = flags
         .iter()
         .flat_map(|flag| match &flag.kind {
@@ -603,7 +408,10 @@ pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<St
         .collect::<FxHashSet<_>>();
     let mut classes: Vec<String> = Vec::new();
     for name in ampersand_compound_classes(&css) {
-        if !declared.contains(name) && !classes.iter().any(|class| class == name) {
+        if !declared.contains(name)
+            && !referenced.contains(name)
+            && !classes.iter().any(|class| class == name)
+        {
             classes.push(name.to_owned());
         }
     }
@@ -663,29 +471,6 @@ pub(super) fn strip_css_comments(css: &str) -> String {
             return output;
         };
         rest = &rest[start + relative_end + 4..];
-    }
-    output.push_str(rest);
-    output
-}
-
-pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
-    let needle = format!(".{original}");
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(index) = rest.find(&needle) {
-        let end = index + needle.len();
-        let next_is_word = rest[end..]
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_');
-        if next_is_word {
-            output.push_str(&rest[..end]);
-        } else {
-            output.push_str(&rest[..index]);
-            output.push('.');
-            output.push_str(replacement);
-        }
-        rest = &rest[end..];
     }
     output.push_str(rest);
     output

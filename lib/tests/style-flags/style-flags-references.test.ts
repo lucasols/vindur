@@ -413,7 +413,7 @@ test('should reject transient flags chained to a forward component reference', a
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
     [TransformError: /test.tsx: The transient style flag selector ".$open" can't follow a forward component reference, define the referenced component before this one
-    loc: 3:13]
+    loc: 8:15]
   `,
   );
 });

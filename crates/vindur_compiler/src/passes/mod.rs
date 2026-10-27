@@ -1,3 +1,4 @@
+mod class_chains;
 mod color_math;
 mod css;
 mod css_balance;

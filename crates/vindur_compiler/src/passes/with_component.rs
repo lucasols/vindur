@@ -80,7 +80,13 @@ pub(super) fn process_with_component(
     };
     transform.constants.insert(
         variable_name.to_owned(),
-        StaticValue::ClassName(base.class_name.clone()),
+        StaticValue::ClassName(
+            base.class_name
+                .split_whitespace()
+                .last()
+                .unwrap_or_default()
+                .to_owned(),
+        ),
     );
     transform
         .styled_components

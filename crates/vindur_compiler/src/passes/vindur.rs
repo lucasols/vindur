@@ -252,6 +252,7 @@ pub(crate) fn transform_program(
                             variable_name: None,
                             tag_type: "createGlobalStyle",
                             style_flags: &[],
+                            referenced_components: None,
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -290,6 +291,7 @@ pub(crate) fn transform_program(
                             variable_name: None,
                             tag_type: "styled",
                             style_flags: &[],
+                            referenced_components: None,
                         },
                     )?;
                     let content = process_scoped_variables(

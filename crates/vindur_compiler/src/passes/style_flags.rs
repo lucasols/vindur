@@ -7,9 +7,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
+use super::class_chains::{CssToken, rewrite_class_chains, scan_class_chains};
 use super::styled::{
     StyleFlag, StyleFlagKind, StyledComponent, css_class_name_part, is_styled_ref_placeholder,
-    rewrite_class_chains, style_flag_class,
+    style_flag_class,
 };
 
 pub(super) fn extract_style_flags(
@@ -338,48 +339,69 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
 }
 
 /// Flags chained to another component's reference, like `${Parent}.active`, are that component's
-/// flags. Forward references are rewritten once every component is known, so their transient
-/// flags, which are not valid CSS until rewritten, are rejected, as are transient flags that are
-/// not declared
+/// flags, forward references are rewritten once every component is known
 pub(crate) fn rewrite_style_flag_selectors(
     css: &str,
     flags: &[StyleFlag],
     referenced_components: &FxHashMap<&str, &StyledComponent>,
-) -> Result<String, String> {
-    let mut error = None;
-    let css = rewrite_class_chains(
+) -> String {
+    rewrite_class_chains(
         css,
         |class| referenced_components.contains_key(class),
-        |reference, class| {
-            let rewritten = match reference {
-                Some(reference) if is_styled_ref_placeholder(reference) => {
-                    if class.contains('$') && error.is_none() {
-                        error = Some(format!(
-                            "The transient style flag selector \".{class}\" can't follow a forward component reference, define the referenced component before this one"
-                        ));
-                    }
-                    return None;
-                }
+        |reference, class| match reference {
+            Some(reference) => referenced_components
+                .get(reference)
+                .and_then(|component| style_flag_class(&component.style_flags, class)),
+            None => style_flag_class(flags, class),
+        },
+    )
+}
+
+/// The first transient flag selector, like `.$active`, that is not a style flag of its component,
+/// with its message and CSS offset. Forward references are rewritten once every component is
+/// known, so their transient flags, which are not valid CSS until rewritten, are rejected
+pub(crate) fn invalid_transient_flag(
+    css: &str,
+    flags: &[StyleFlag],
+    referenced_components: &FxHashMap<&str, &StyledComponent>,
+) -> Option<(String, usize)> {
+    let mut invalid = None;
+    let _ = scan_class_chains(
+        css,
+        |class| referenced_components.contains_key(class),
+        |token| {
+            let CssToken::Class {
+                reference,
+                name,
+                offset,
+            } = token
+            else {
+                return;
+            };
+            if invalid.is_some() || !name.contains('$') {
+                return;
+            }
+            let message = match reference {
+                Some(reference) if is_styled_ref_placeholder(reference) => Some(format!(
+                    "The transient style flag selector \".{name}\" can't follow a forward component reference, define the referenced component before this one"
+                )),
                 Some(reference) => referenced_components
                     .get(reference)
-                    .and_then(|component| style_flag_class(&component.style_flags, class)),
-                None => style_flag_class(flags, class),
+                    .and_then(|component| style_flag_class(&component.style_flags, name))
+                    .is_none()
+                    .then(|| {
+                        format!(
+                            "The transient style flag selector \".{name}\" is not a style flag of the referenced component"
+                        )
+                    }),
+                None => style_flag_class(flags, name).is_none().then(|| {
+                    format!(
+                        "The transient style flag selector \".{name}\" is not a style flag of this component"
+                    )
+                }),
             };
-            if rewritten.is_none() && class.contains('$') && error.is_none() {
-                let owner = if reference.is_some() {
-                    "the referenced component"
-                } else {
-                    "this component"
-                };
-                error = Some(format!(
-                    "The transient style flag selector \".{class}\" is not a style flag of {owner}"
-                ));
-            }
-            rewritten
+            invalid = message.map(|message| (message, offset));
         },
     );
-    match error {
-        Some(message) => Err(message),
-        None => Ok(css),
-    }
+    invalid
 }

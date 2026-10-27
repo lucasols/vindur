@@ -185,6 +185,13 @@ pub(super) fn process_variable_declaration(
             })?;
             let new_style_flags =
                 flags_without_base_styles(&style_flags, &base_component.style_flags);
+            let referenced_components = transform
+                .styled_components
+                .values()
+                .filter_map(|component| {
+                    Some((component.class_name.split_whitespace().last()?, component))
+                })
+                .collect::<FxHashMap<_, _>>();
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -195,16 +202,10 @@ pub(super) fn process_variable_declaration(
                     variable_name: Some(variable_name),
                     tag_type: "styled",
                     style_flags: &style_flags,
+                    referenced_components: Some(&referenced_components),
                 },
             )?;
             let content = clean_css(&content);
-            let referenced_components = transform
-                .styled_components
-                .values()
-                .filter_map(|component| {
-                    Some((component.class_name.split_whitespace().last()?, component))
-                })
-                .collect::<FxHashMap<_, _>>();
             if transform.dev {
                 transform.warnings.extend(
                     missing_style_flag_selectors(&content, &new_style_flags, |class| {
@@ -238,7 +239,9 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared_style_classes(&content, &style_flags, |class| {
+                            referenced_components.contains_key(class)
+                        })
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -260,15 +263,7 @@ pub(super) fn process_variable_declaration(
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content =
-                rewrite_style_flag_selectors(&content, &style_flags, &referenced_components)
-                    .map_err(|message| {
-                        CompilerDiagnostic::error(
-                            transform.file_path,
-                            transform.source,
-                            tagged.span,
-                            message,
-                        )
-                    })?;
+                rewrite_style_flag_selectors(&content, &style_flags, &referenced_components);
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
@@ -399,6 +394,7 @@ pub(super) fn process_variable_declaration(
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
                     style_flags: &[],
+                    referenced_components: None,
                 },
             )?;
             let content = clean_css(&content);
@@ -446,6 +442,7 @@ pub(super) fn process_variable_declaration(
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
                 style_flags: &[],
+                referenced_components: None,
             },
         )?;
         let content = clean_css(&content);

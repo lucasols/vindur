@@ -160,7 +160,7 @@ test('should reject transient flags the referenced component does not declare', 
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: The transient style flag selector ".$open" is not a style flag of the referenced component
-    loc: 7:13]
+    loc: 8:9]
   `);
 });
 
@@ -185,7 +185,7 @@ test('should reject transient flags of a forward reference the referencing compo
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: The transient style flag selector ".$open" can't follow a forward component reference, define the referenced component before this one
-    loc: 3:13]
+    loc: 4:15]
   `);
 });
 

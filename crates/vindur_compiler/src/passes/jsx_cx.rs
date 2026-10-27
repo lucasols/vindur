@@ -673,6 +673,7 @@ impl JsxCxVisitor<'_> {
                 variable_name: None,
                 tag_type: "css",
                 style_flags: &[],
+                referenced_components: None,
             },
         ) else {
             return Vec::new();

@@ -17,7 +17,7 @@ use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
     static_value_to_string,
 };
-use super::styled::{StyleFlag, styled_ref_placeholder};
+use super::styled::{StyleFlag, StyledComponent, styled_ref_placeholder};
 use super::template_css::{EvaluatedTemplate, validate_template_css};
 use super::unsupported_css_syntax::unsupported_syntax_error;
 
@@ -26,6 +26,9 @@ pub(crate) struct TemplateContext<'a> {
     pub tag_type: &'a str,
     /// Style flags of a styled component, their selectors are replaced after validation
     pub style_flags: &'a [StyleFlag],
+    /// The components defined before a styled component, by class, their transient flags can be
+    /// selected through a reference, like `${Menu}.$active`
+    pub referenced_components: Option<&'a FxHashMap<&'a str, &'a StyledComponent>>,
 }
 
 pub(crate) fn collect_constants(
