@@ -688,7 +688,7 @@ const slideAnimation = keyframes`
 `;
 ```
 
-`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated.
+Stylesheet at-rules, like `@keyframes`, `@font-face`, `@import`, `@property`, `@counter-style`, `@page` or `@view-transition`, inside `css`, `styled` or `css` prop templates are a compile error, for animations use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated. `!important` in keyframes is a compile error, browsers ignore it there.
 
 ### Scoped CSS Variables
 
@@ -905,6 +905,8 @@ createGlobalStyle`
 ```
 
 `@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, since browsers drop them after other rules.
+
+`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
@@ -1238,6 +1240,8 @@ The CSS classes are automatically applied based on prop values:
 
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
+
+Flag props are never passed to the element, so don't name a flag after an attribute the element needs, like `disabled`. Flag names can't contain `$` or be a prop vindur or React handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`). `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it.
 
 #### CSS Selector Patterns
 

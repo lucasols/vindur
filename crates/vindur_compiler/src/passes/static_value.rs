@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
-use super::css_tokens::ends_in_string_or_comment;
+use super::css_tokens::OpenTokenScanner;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::import_errors::{
@@ -98,6 +98,7 @@ fn build_template_css(
     forced_extensions: &[usize],
 ) -> Result<EvaluatedTemplate, CompilerDiagnostic> {
     let mut evaluated = EvaluatedTemplate::default();
+    let mut open_tokens = OpenTokenScanner::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
         let quasi_start = evaluated.css.len();
@@ -198,14 +199,14 @@ fn build_template_css(
             starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
         });
         let forward_reference = forward_styled_reference(expression);
-        let in_string_or_comment = ends_in_string_or_comment(&evaluated.css);
+        let value = match forward_reference {
+            Some(_) => None,
+            None => evaluate_expression(expression, constants, scoping),
+        };
+        let in_string_or_comment = open_tokens.ends_in_string_or_comment(&evaluated.css);
         if has_semicolon
             && !in_string_or_comment
-            && (forward_reference.is_some()
-                || matches!(
-                    evaluate_expression(expression, constants, scoping),
-                    Some(StaticValue::ClassName(_))
-                ))
+            && (forward_reference.is_some() || matches!(value, Some(StaticValue::ClassName(_))))
         {
             let expression_source =
                 &source[expression.span().start as usize..expression.span().end as usize];
@@ -223,7 +224,7 @@ fn build_template_css(
             evaluated.map_expression(expression_start, expression.span());
             continue;
         }
-        let Some(value) = evaluate_expression(expression, constants, scoping) else {
+        let Some(value) = value else {
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
             {

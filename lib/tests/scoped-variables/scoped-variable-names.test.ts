@@ -254,7 +254,7 @@ test('should throw for quoted scoped names that are not renamed', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---spin\` without quotes
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---spin\` without quotes or the string directly in the property that uses it
     loc: 4:11]
   `);
 
@@ -273,5 +273,38 @@ test('should throw for quoted scoped names that are not renamed', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Scoped CSS variables are not supported in \`@font-feature-values\` rule preludes
     loc: 4:23]
+  `);
+});
+
+test('should throw for quoted scoped names in custom property area strings and style queries', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const grid = css\`
+          ---areas: "---head ---tail";
+          grid-template-areas: var(---areas);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---head\` without quotes or the string directly in the property that uses it
+    loc: 4:12]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const font = css\`
+          font-family: if(style(--mode: "---serif"): serif; else: sans-serif);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---serif\` without quotes or the string directly in the property that uses it
+    loc: 4:32]
   `);
 });

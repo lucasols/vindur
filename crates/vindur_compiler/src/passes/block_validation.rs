@@ -1,4 +1,4 @@
-use oxc_css_parser::ast::Statement;
+use oxc_css_parser::ast::{AtRule, Statement};
 
 use super::css_syntax::{BlockKind, CssError};
 use super::css_tokens::{decode_ident, ident_end, skipped_token_end, unprefixed_at_rule_name};
@@ -16,35 +16,7 @@ pub(super) fn validate_block_kind(
         let message = match (kind, statement) {
             (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
             (BlockKind::Global, Statement::AtRule(rule)) => {
-                if let Some(block) = &rule.block {
-                    let inner = (block.span.start + 1, block.span.end.saturating_sub(1));
-                    let name = unprefixed_at_rule_name(rule.name.name).unwrap_or_default();
-                    if is_grouping_at_rule(&name) {
-                        validate_block_kind(&block.statements, kind, source, inner)?;
-                    } else if name == "keyframes" {
-                        validate_block_kind(
-                            &block.statements,
-                            BlockKind::Keyframes,
-                            source,
-                            inner,
-                        )?;
-                    } else if name == "font-feature-values" {
-                        // Its block holds rules, so a `;` between them drops the next one
-                        reject_stray_semicolons(&block.statements, source, inner.0, inner.1)?;
-                    } else if DECLARATION_AT_RULES.contains(&name.as_str())
-                        && let Some(nested) = block
-                            .statements
-                            .iter()
-                            .find(|statement| !matches!(statement, Statement::Declaration(_)))
-                    {
-                        let span = statement_span(nested);
-                        return Err(CssError::syntax(
-                            format!("`@{}` can only contain declarations", rule.name.raw),
-                            span.start,
-                            span.end,
-                        ));
-                    }
-                }
+                validate_global_at_rule(rule, source)?;
                 continue;
             }
             (BlockKind::Global, _) => {
@@ -75,6 +47,43 @@ pub(super) fn validate_block_kind(
     // After the statements, a misplaced declaration is reported as such, not as its `;`
     if kind != BlockKind::Style {
         reject_stray_semicolons(statements, source, start, end)?;
+    }
+    Ok(())
+}
+
+/// The block of an at-rule in global styles, grouping rules hold a stylesheet
+fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssError> {
+    let Some(block) = &rule.block else {
+        return Ok(());
+    };
+    let inner = (block.span.start + 1, block.span.end.saturating_sub(1));
+    let name = unprefixed_at_rule_name(rule.name.name).unwrap_or_default();
+    if is_grouping_at_rule(&name) {
+        validate_block_kind(&block.statements, BlockKind::Global, source, inner)?;
+    } else if name == "scope" {
+        // Declarations in `@scope` style the scope root, its at-rules are checked as usual
+        for statement in &block.statements {
+            if let Statement::AtRule(nested) = statement {
+                validate_global_at_rule(nested, source)?;
+            }
+        }
+    } else if name == "keyframes" {
+        validate_block_kind(&block.statements, BlockKind::Keyframes, source, inner)?;
+    } else if name == "font-feature-values" {
+        // Its block holds rules, so a `;` between them drops the next one
+        reject_stray_semicolons(&block.statements, source, inner.0, inner.1)?;
+    } else if DECLARATION_AT_RULES.contains(&name.as_str())
+        && let Some(nested) = block
+            .statements
+            .iter()
+            .find(|statement| !matches!(statement, Statement::Declaration(_)))
+    {
+        let span = statement_span(nested);
+        return Err(CssError::syntax(
+            format!("`@{}` can only contain declarations", rule.name.raw),
+            span.start,
+            span.end,
+        ));
     }
     Ok(())
 }

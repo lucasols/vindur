@@ -287,29 +287,10 @@ pub(crate) fn resolve_styled_references(
             if rule.contains(&placeholder) {
                 *rule = rule.replace(&placeholder, &format!(".{class_name}"));
             }
-            for flag in &component.style_flags {
-                match &flag.kind {
-                    StyleFlagKind::Boolean => {
-                        if let Some(replaced) = replace_class_selector(
-                            rule,
-                            &format!("{class_name}.{}", flag.prop_name),
-                            &format!("{class_name}.{}", flag.hashed_class_name),
-                        ) {
-                            *rule = replaced;
-                        }
-                    }
-                    StyleFlagKind::StringUnion(values) => {
-                        for value in values {
-                            if let Some(replaced) = replace_class_selector(
-                                rule,
-                                &format!("{class_name}.{}-{value}", flag.prop_name),
-                                &format!("{class_name}.{}-{value}", flag.hashed_class_name),
-                            ) {
-                                *rule = replaced;
-                            }
-                        }
-                    }
-                }
+            if let Some(replaced) =
+                replace_reference_flag_classes(rule, class_name, &component.style_flags)
+            {
+                *rule = replaced;
             }
         }
     }
@@ -317,6 +298,55 @@ pub(crate) fn resolve_styled_references(
         let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
         let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
         hex_decode(encoded)
+    })
+}
+
+/// Renames the style flag classes in the compound selectors of a referenced component, like
+/// `.Button.active.size-large`, `None` when there are none
+fn replace_reference_flag_classes(
+    css: &str,
+    class_name: &str,
+    flags: &[StyleFlag],
+) -> Option<String> {
+    if flags.is_empty() {
+        return None;
+    }
+    let mut output = String::with_capacity(css.len());
+    let mut copied = 0;
+    for start in class_selector_starts(css, class_name) {
+        let mut index = start + 1 + class_name.len();
+        while css[index..].starts_with('.') {
+            let name_start = index + 1;
+            let name_end = css[name_start..]
+                .find(|character: char| !is_ident_char(character))
+                .map_or(css.len(), |end| name_start + end);
+            if let Some(hashed) = hashed_flag_class(flags, &css[name_start..name_end]) {
+                output.push_str(&css[copied..name_start]);
+                output.push_str(&hashed);
+                copied = name_end;
+            }
+            index = name_end;
+        }
+    }
+    if copied == 0 {
+        return None;
+    }
+    output.push_str(&css[copied..]);
+    Some(output)
+}
+
+fn hashed_flag_class(flags: &[StyleFlag], class: &str) -> Option<String> {
+    flags.iter().find_map(|flag| match &flag.kind {
+        StyleFlagKind::Boolean => (flag.prop_name == class).then(|| flag.hashed_class_name.clone()),
+        StyleFlagKind::StringUnion(values) => {
+            let value = class
+                .strip_prefix(flag.prop_name.as_str())?
+                .strip_prefix('-')?;
+            values
+                .iter()
+                .any(|candidate| candidate == value)
+                .then(|| format!("{}-{value}", flag.hashed_class_name))
+        }
     })
 }
 

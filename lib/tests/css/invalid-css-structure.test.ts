@@ -345,3 +345,78 @@ test('should throw for rules nested in declaration only at-rules of createGlobal
     loc: 6:4]
   `);
 });
+
+test('should throw for createGlobalStyle outside the top level', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        export default createGlobalStyle\`
+          body { margin: 0; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle can only be used at the top level of the module, as a statement or in its own \`const\` declaration
+    loc: 3:15]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        export function setup() {
+          createGlobalStyle\`
+            body { margin: 0; }
+          \`
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle can only be used at the top level of the module, as a statement or in its own \`const\` declaration
+    loc: 4:2]
+  `);
+});
+
+test('should throw for createGlobalStyle sharing a variable declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        const Global = createGlobalStyle\`
+          body { margin: 0; }
+        \`, a = 1
+
+        console.log(a)
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle must use its own variable declaration
+    loc: 3:0]
+  `);
+});
+
+test('should validate at-rules nested in @scope of global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @scope (.a) {
+            color: red;
+            @keyframes fade {
+              from { opacity: 0 !important; }
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`!important\` is ignored in keyframes, remove it
+    loc: 7:13]
+  `);
+});

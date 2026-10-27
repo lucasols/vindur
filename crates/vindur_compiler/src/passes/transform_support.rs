@@ -407,6 +407,15 @@ pub(super) fn process_variable_declaration(
                     "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`".to_owned(),
                 ));
             }
+            // The whole declaration is removed with it
+            if declaration.declarations.len() != 1 {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    declaration.span,
+                    "createGlobalStyle must use its own variable declaration".to_owned(),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,

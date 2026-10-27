@@ -283,13 +283,15 @@ impl ScopedIdentCollector<'_> {
     }
 
     /// Custom property values can be used by any property, so a quoted scoped name in them can't
-    /// be told apart from text
+    /// be told apart from text, also in a grid area string like `"---head ---tail"`
     fn reject_custom_property_quoted_name(&mut self, span: oxc_css_parser::Span) {
         let (_, content) = string_content(self.source, span);
-        if self.error.is_none() && is_scoped_name(content) {
+        if self.error.is_none()
+            && let Some(name) = content.split_whitespace().find(|word| is_scoped_name(word))
+        {
             self.error = Some(CssError::new(
                 format!(
-                    "Quoted scoped names are not supported in custom properties, write `{content}` without quotes"
+                    "Quoted scoped names are not supported in custom properties, write `{name}` without quotes or the string directly in the property that uses it"
                 ),
                 span.start,
                 span.end,
@@ -369,7 +371,13 @@ impl ScopedIdentCollector<'_> {
                         || is_function_named(&function.name, "style") =>
                 {
                     self.value(variable, ScopedRole::Read);
+                    // A `style()` value is compared with a custom property's value
+                    let quoted_names = self.quoted_names;
+                    if is_function_named(&function.name, "style") {
+                        self.quoted_names = Some(QuotedNames::Unknown);
+                    }
                     self.values(rest);
+                    self.quoted_names = quoted_names;
                 }
                 _ => self.values(&function.args),
             },

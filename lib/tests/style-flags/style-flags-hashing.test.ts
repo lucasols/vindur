@@ -222,3 +222,61 @@ test('should reject style flags with $ prefixed names', async () => {
     loc: 4:2]
   `);
 });
+
+test('should hash every style flag of a compound component reference', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Button = styled.button<{ active: boolean; size: 'small' | 'large' }>\`
+        &.active { color: red; }
+        &.size-large { padding: 8px; }
+      \`
+
+      const Toolbar = styled.div\`
+        \${Button}.active.size-large { color: blue; }
+        \${Button}.size-large.other.active { color: green; }
+      \`
+
+      export const App = ({ on }) => (
+        <Toolbar>
+          <Button active={on} size="large" />
+        </Toolbar>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = ({ on }) => (
+      <div className="v1560qbr-2-Toolbar">
+        <button
+          className={
+            "v1560qbr-1-Button vr4ikfs-size-large" + (on ? " voctcyj-active" : "")
+          }
+        />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.voctcyj-active {
+        color: red;
+      }
+      &.vr4ikfs-size-large {
+        padding: 8px;
+      }
+    }
+
+    .v1560qbr-2-Toolbar {
+      .v1560qbr-1-Button.voctcyj-active.vr4ikfs-size-large {
+        color: blue;
+      }
+      .v1560qbr-1-Button.vr4ikfs-size-large.other.voctcyj-active {
+        color: green;
+      }
+    }
+    "
+  `);
+});

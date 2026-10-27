@@ -81,29 +81,42 @@ pub(super) fn scan_string(css: &str, start: usize) -> (usize, bool) {
     (bytes.len(), false)
 }
 
-/// Whether the end of the CSS is inside a string or a comment that is still open
-pub(super) fn ends_in_string_or_comment(css: &str) -> bool {
-    let mut index = 0;
-    while index < css.len() {
-        let rest = &css[index..];
-        if rest.starts_with("/*") && !rest[2..].contains("*/") {
-            return true;
-        }
-        if rest.starts_with(['"', '\'']) {
-            let (end, closed) = scan_string(css, index);
-            if end >= css.len() && !closed {
+/// Scans CSS that only grows, like a template built one part at a time. It resumes after the
+/// last top level `;`, `{` or `}` it reached, which appended text can't change, so a check after
+/// every interpolation stays linear
+#[derive(Default)]
+pub(super) struct OpenTokenScanner {
+    resume: usize,
+}
+
+impl OpenTokenScanner {
+    /// Whether the end of the CSS is inside a string or a comment that is still open
+    pub(super) fn ends_in_string_or_comment(&mut self, css: &str) -> bool {
+        let mut index = self.resume;
+        while index < css.len() {
+            let rest = &css[index..];
+            if rest.starts_with("/*") && !rest[2..].contains("*/") {
                 return true;
             }
-            index = end;
-            continue;
+            if rest.starts_with(['"', '\'']) {
+                let (end, closed) = scan_string(css, index);
+                if end >= css.len() && !closed {
+                    return true;
+                }
+                index = end;
+                continue;
+            }
+            if let Some(end) = skipped_token_end(css, index) {
+                index = end;
+                continue;
+            }
+            if rest.starts_with([';', '{', '}']) {
+                self.resume = index + 1;
+            }
+            index += rest.chars().next().map_or(1, char::len_utf8);
         }
-        if let Some(end) = skipped_token_end(css, index) {
-            index = end;
-            continue;
-        }
-        index += rest.chars().next().map_or(1, char::len_utf8);
+        false
     }
-    false
 }
 
 /// The index of the `(` of a `url(` function starting at `index`, its name can be escaped like
@@ -209,4 +222,31 @@ pub(super) fn is_ident_char(character: char) -> bool {
         || character == '_'
         || character == '\\'
         || !character.is_ascii()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenTokenScanner;
+
+    #[test]
+    fn resumes_scanning_grown_css_with_the_same_result() {
+        let mut scanner = OpenTokenScanner::default();
+        let mut css = String::new();
+        for (part, open) in [
+            ("a: 1; content: '", true),
+            ("x; y", true),
+            ("'; b: 2; /", false),
+            ("* c", true),
+            (" */ d: u", false),
+            ("rl(a;b", false),
+        ] {
+            css.push_str(part);
+            assert_eq!(scanner.ends_in_string_or_comment(&css), open, "{css}");
+            assert_eq!(
+                OpenTokenScanner::default().ends_in_string_or_comment(&css),
+                open,
+                "{css}"
+            );
+        }
+    }
 }
