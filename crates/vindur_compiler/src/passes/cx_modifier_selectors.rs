@@ -122,10 +122,7 @@ impl ElementClassCollector {
                     let nested = match context {
                         Context::Outer => Context::Element,
                         Context::Element => self.selector_list(&rule.selector),
-                        Context::Other => {
-                            self.other_selector_list(&rule.selector);
-                            Context::Other
-                        }
+                        Context::Other => self.other_selector_list(&rule.selector),
                     };
                     self.statements(&rule.block.statements, nested);
                 }
@@ -150,7 +147,8 @@ impl ElementClassCollector {
     /// they're still the element when the subject of any start selector is, e.g. `@scope (&.a)`.
     /// Without a start selector, e.g. `@scope to (.x)`, the root is the parent of the stylesheet
     /// owner. In the start selectors of a `@scope` nested in other elements only `:scope` can
-    /// still be the element, e.g. `@scope (:scope.active > &)` in `@scope (&) { & .child { ... } }`
+    /// still be the element, e.g. `@scope (:scope.active > &)` in `@scope (&) { & .child { ... } }`,
+    /// and the body is the element again when it's the subject, e.g. `@scope (:scope.active)`
     fn at_rule(&mut self, rule: &AtRule<'_>, context: Context) -> (Context, bool) {
         let is_scope = rule.name.name.eq_ignore_ascii_case("scope");
         let prelude = match &rule.prelude {
@@ -167,10 +165,7 @@ impl ElementClassCollector {
         let body = match (context, start.map(|start| &start.selector)) {
             (Context::Outer, _) => Context::Outer,
             (Context::Element, Some(Some(list))) => self.selector_list(list),
-            (Context::Other, Some(Some(list))) => {
-                self.other_selector_list(list);
-                Context::Other
-            }
+            (Context::Other, Some(Some(list))) => self.other_selector_list(list),
             _ => Context::Other,
         };
         let scope_root_is_element = body == Context::Element;
@@ -201,16 +196,23 @@ impl ElementClassCollector {
     }
 
     /// In rules nested in other elements only `:scope` can still be the element, e.g.
-    /// `:scope.active &` in `@scope (&) { & .child { ... } }`
-    fn other_selector_list(&mut self, list: &SelectorList<'_>) {
+    /// `:scope.active &` in `@scope (&) { & .child { ... } }`. The rule block is the element again
+    /// when the subject of any selector is `:scope`, e.g. `:scope:has(&)`
+    fn other_selector_list(&mut self, list: &SelectorList<'_>) -> Context {
         if !self.scope_root_is_element {
-            return;
+            return Context::Other;
         }
         let outer_nesting = std::mem::replace(&mut self.nesting_is_element, false);
+        let mut is_element = false;
         for selector in &list.selectors {
-            self.selector(selector, false);
+            is_element |= self.selector(selector, false);
         }
         self.nesting_is_element = outer_nesting;
+        if is_element {
+            Context::Element
+        } else {
+            Context::Other
+        }
     }
 
     /// Collects the classes of the compounds that are the element, returns if the subject is
@@ -421,6 +423,10 @@ mod tests {
                 block("@scope (&) to (&.active > *) { .child { color: red; } }"),
                 block("@scope (&) { & .child { :scope.active & { color: red; } } }"),
                 block("@scope (&) { & .child { @scope (:scope.active > &) { color: red; } } }"),
+                block(
+                    "@scope (&) { & .c { @scope (:scope.active) { &.disabled { color: red; } } } }"
+                ),
+                block("@scope (&) { & .child { :scope:has(&) { &.active { color: red; } } } }"),
             ],
             [
                 "&.h-active { color: red; }",
@@ -441,6 +447,8 @@ mod tests {
                 "@scope (&) to (&.h-active > *) { .child { color: red; } }",
                 "@scope (&) { & .child { :scope.h-active & { color: red; } } }",
                 "@scope (&) { & .child { @scope (:scope.h-active > &) { color: red; } } }",
+                "@scope (&) { & .c { @scope (:scope.h-active) { &.h-disabled { color: red; } } } }",
+                "@scope (&) { & .child { :scope:has(&) { &.h-active { color: red; } } } }",
             ]
         );
     }
@@ -467,6 +475,8 @@ mod tests {
             "@scope { :scope.active { color: red; } }",
             "@scope to (:scope.active > *) { color: red; }",
             "@scope (&) { .c { @scope (&.active) { :scope.disabled { color: red; } } } }",
+            "@scope (&) { & .c { @scope (:scope .x) { &.active { color: red; } } } }",
+            "@scope (&) { & .child { :scope .x { &.active { color: red; } } } }",
             "content: \"&.active\"; /* &.active */",
             "---x: &.active;",
         ] {

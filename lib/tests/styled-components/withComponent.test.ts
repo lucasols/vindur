@@ -463,4 +463,71 @@ describe('withComponent', () => {
       "
     `);
   });
+
+  test('should share cx modifier classes with the base component', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button\`
+          padding: 10px;
+
+          &.active {
+            background: red;
+          }
+        \`
+
+        const Link = Button.withComponent('a')
+
+        const App = ({ on }) => (
+          <div>
+            <Button cx={{ active: on }}>Button</Button>
+            <Link cx={{ active: on }}>Link</Link>
+          </div>
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      const App = ({ on }) => (
+        <div>
+          <button
+            className={
+              "v1560qbr-1-Button " +
+              cx({
+                "v1560qbr-2-active": on,
+              })
+            }
+          >
+            Button
+          </button>
+          <a
+            className={
+              "v1560qbr-1-Button " +
+              cx({
+                "v1560qbr-2-active": on,
+              })
+            }
+          >
+            Link
+          </a>
+        </div>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Button {
+        padding: 10px;
+
+        &.v1560qbr-2-active {
+          background: red;
+        }
+      }
+      "
+    `);
+  });
 });

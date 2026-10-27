@@ -76,7 +76,11 @@ pub(super) fn unsupported_css_reference_modifiers(
         return None;
     }
     let mut declaring = Vec::new();
-    for reference in css_references {
+    // Local references of other elements are rewritten in place
+    for reference in css_references
+        .iter()
+        .filter(|reference| reference.imported || is_styled)
+    {
         match declares_rewritten_modifier(reference, mappings) {
             Ok(true) => declaring.push(reference),
             Ok(false) => {}
@@ -113,18 +117,6 @@ fn declares_rewritten_modifier(
     Ok(mappings
         .iter()
         .any(|(original, _, should_rewrite)| *should_rewrite && declared.contains(original)))
-}
-
-pub(super) fn rewrite_css_references(
-    css_rules: &mut [String],
-    references: &[CssReference],
-    mappings: &[(String, String, bool)],
-) -> Result<(), CssError> {
-    let names = references
-        .iter()
-        .map(|reference| reference.name.clone())
-        .collect::<Vec<_>>();
-    rewrite_class_rules(css_rules, &names, mappings)
 }
 
 pub(super) fn rewrite_class_rules(

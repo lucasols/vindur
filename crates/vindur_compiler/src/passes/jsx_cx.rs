@@ -5,7 +5,7 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -27,8 +27,7 @@ use super::{
     jsx_css::is_foreign_css_attribute,
     jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
     jsx_cx_css_references::{
-        CssReference, css_references, rewrite_class_rules, rewrite_css_references,
-        unsupported_css_reference_modifiers,
+        CssReference, css_references, rewrite_class_rules, unsupported_css_reference_modifiers,
     },
     runtime_helpers::RuntimeHelperNames,
     static_value::{TemplateContext, evaluate_template},
@@ -77,6 +76,7 @@ pub(crate) fn transform_jsx_cx_props(
         output,
         class_indices: FxHashMap::default(),
         modifier_forms: FxHashMap::default(),
+        renamed_modifiers: FxHashSet::default(),
         diagnostic: None,
     };
     visitor.visit_program(program);
@@ -93,6 +93,9 @@ struct JsxCxVisitor<'a> {
     /// Whether each `(rules owner, class)` modifier is used hashed, the owner rules are renamed
     /// for hashed keys, so a `$` key of the same class would stop matching them
     modifier_forms: FxHashMap<(String, String), bool>,
+    /// The `(rules owner, class)` modifiers already renamed in the owner rules, hashed names only
+    /// depend on the owner, so later elements using them don't parse the rules again
+    renamed_modifiers: FxHashSet<(String, String)>,
     diagnostic: Option<CompilerDiagnostic>,
 }
 
@@ -173,9 +176,10 @@ impl JsxCxVisitor<'_> {
         let css_references = css_references(element, self.output.constants, self.output.scoping);
         let has_css_context = styled.is_some() || has_vindur_css || !css_references.is_empty();
         // Css reference rules are rewritten in place and can be combined in any way across
-        // elements, so all of them share a single file-wide index per modifier name
+        // elements, so all of them share a single file-wide index per modifier name. Styled
+        // components are keyed by their class, which `withComponent()` variants share
         let context_key = match (&styled, css_references.is_empty()) {
-            (Some(_), _) => format!("styled:{element_name}"),
+            (Some(styled), _) => format!("styled:{}", styled.class_name),
             (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
@@ -326,11 +330,20 @@ impl JsxCxVisitor<'_> {
             }
         }
 
-        let rewritten = match &styled {
-            Some(styled) => self.rewrite_styled_css(styled, &mappings),
-            None => rewrite_css_references(self.output.css_rules, &css_references, &mappings),
+        let rules_owners = match &styled {
+            Some(styled) => styled
+                .class_name
+                .split_whitespace()
+                .last()
+                .map(str::to_owned)
+                .into_iter()
+                .collect(),
+            None => css_references
+                .iter()
+                .map(|reference| reference.name().to_owned())
+                .collect::<Vec<_>>(),
         };
-        if let Err(error) = rewritten {
+        if let Err(error) = self.rewrite_owner_rules(&rules_owners, &mappings) {
             self.set_error(attribute.span, error.message);
             return;
         }
@@ -505,15 +518,25 @@ impl JsxCxVisitor<'_> {
         element_class_names(&clean_css(&content), ModifierCss::Block).unwrap_or_default()
     }
 
-    fn rewrite_styled_css(
+    fn rewrite_owner_rules(
         &mut self,
-        styled: &StyledComponent,
+        owners: &[String],
         mappings: &[(String, String, bool)],
     ) -> Result<(), CssError> {
-        let Some(base_class) = styled.class_name.split_whitespace().last() else {
-            return Ok(());
-        };
-        rewrite_class_rules(self.output.css_rules, &[base_class.to_owned()], mappings)
+        for owner in owners {
+            let pending = mappings
+                .iter()
+                .filter(|(original, _, should_rewrite)| {
+                    *should_rewrite
+                        && self
+                            .renamed_modifiers
+                            .insert((owner.clone(), original.clone()))
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            rewrite_class_rules(self.output.css_rules, std::slice::from_ref(owner), &pending)?;
+        }
+        Ok(())
     }
 
     /// Fails when a class of rules shared with other elements is used both hashed and as a `$`
