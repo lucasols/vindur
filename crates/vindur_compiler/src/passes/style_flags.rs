@@ -3,10 +3,13 @@ use oxc_ast::ast::{
     TSTypeName,
 };
 use oxc_span::GetSpan;
+use rustc_hash::FxHashSet;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part, replace_class_selector};
+use super::styled::{
+    StyleFlag, StyleFlagKind, css_class_name_part, rewrite_class_chains, style_flag_classes,
+};
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -341,23 +344,16 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
     (!values.is_empty()).then_some(values)
 }
 
-pub(crate) fn rewrite_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> String {
-    let mut output = css.to_owned();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                output = replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name);
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    output = replace_class_selector(
-                        &output,
-                        &format!("{}-{value}", flag.prop_name),
-                        &format!("{}-{value}", flag.hashed_class_name),
-                    );
-                }
-            }
-        }
-    }
-    output
+/// Flags chained to another component's reference, like `${Parent}.active`, are that component's
+/// flags, they are rewritten with its classes once every component is known
+pub(crate) fn rewrite_style_flag_selectors(
+    css: &str,
+    flags: &[StyleFlag],
+    reference_classes: &FxHashSet<&str>,
+) -> String {
+    let classes = style_flag_classes(flags);
+    rewrite_class_chains(css, reference_classes, |reference, class| match reference {
+        Some(_) => None,
+        None => classes.get(class).map(String::as_str),
+    })
 }

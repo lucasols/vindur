@@ -3,7 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -21,7 +21,7 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
     styled::{
-        StyleFlag, StyledComponent, StyledTagContext, css_class_name_part,
+        StyleFlag, StyleFlagKind, StyledComponent, StyledTagContext, css_class_name_part,
         missing_style_flag_selectors, styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::parse_theme_colors,
@@ -173,17 +173,8 @@ pub(super) fn process_variable_declaration(
             }
             *transform.id_index += 1;
             let style_flags = with_base_style_flags(own_style_flags, &base_component.style_flags);
-            // The base component styles its own flags, so only new flags need modifier styles
-            let new_style_flags = style_flags
-                .iter()
-                .filter(|flag| {
-                    !base_component
-                        .style_flags
-                        .iter()
-                        .any(|base_flag| base_flag.prop_name == flag.prop_name)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
+            let new_style_flags =
+                flags_without_base_styles(&style_flags, &base_component.style_flags);
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -249,7 +240,12 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let reference_classes = transform
+                .styled_components
+                .values()
+                .filter_map(|component| component.class_name.split_whitespace().last())
+                .collect::<FxHashSet<_>>();
+            let content = rewrite_style_flag_selectors(&content, &style_flags, &reference_classes);
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
@@ -532,6 +528,39 @@ fn with_base_style_flags(
         .collect::<Vec<_>>();
     style_flags.extend(own_flags);
     style_flags
+}
+
+/// The base component styles its own flags, so only new flags and values need modifier styles
+fn flags_without_base_styles(
+    style_flags: &[StyleFlag],
+    base_flags: &[StyleFlag],
+) -> Vec<StyleFlag> {
+    style_flags
+        .iter()
+        .filter_map(|flag| {
+            let Some(base_flag) = base_flags
+                .iter()
+                .find(|base_flag| base_flag.prop_name == flag.prop_name)
+            else {
+                return Some(flag.clone());
+            };
+            match (&flag.kind, &base_flag.kind) {
+                (StyleFlagKind::Boolean, StyleFlagKind::Boolean) => None,
+                (StyleFlagKind::StringUnion(values), StyleFlagKind::StringUnion(base_values)) => {
+                    let new_values = values
+                        .iter()
+                        .filter(|value| !base_values.contains(value))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    (!new_values.is_empty()).then(|| StyleFlag {
+                        kind: StyleFlagKind::StringUnion(new_values),
+                        ..flag.clone()
+                    })
+                }
+                _ => Some(flag.clone()),
+            }
+        })
+        .collect()
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

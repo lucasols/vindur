@@ -1,5 +1,5 @@
 use oxc_ast::ast::{Argument, Expression, Program, Statement, TSTypeParameterInstantiation};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
@@ -226,39 +226,99 @@ pub(crate) fn resolve_styled_references(
     css_rules: &mut [String],
     components: &FxHashMap<String, StyledComponent>,
 ) -> Option<String> {
+    let flag_classes = components
+        .values()
+        .filter_map(|component| {
+            let class_name = component.class_name.split_whitespace().last()?;
+            Some((class_name, style_flag_classes(&component.style_flags)))
+        })
+        .collect::<FxHashMap<_, _>>();
+    let reference_classes = flag_classes.keys().copied().collect::<FxHashSet<_>>();
     for rule in css_rules.iter_mut() {
         for (name, component) in components {
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
             *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
-            for flag in &component.style_flags {
-                match &flag.kind {
-                    StyleFlagKind::Boolean => {
-                        *rule = replace_class_selector(
-                            rule,
-                            &format!("{class_name}.{}", flag.prop_name),
-                            &format!("{class_name}.{}", flag.hashed_class_name),
-                        );
-                    }
-                    StyleFlagKind::StringUnion(values) => {
-                        for value in values {
-                            *rule = replace_class_selector(
-                                rule,
-                                &format!("{class_name}.{}-{value}", flag.prop_name),
-                                &format!("{class_name}.{}-{value}", flag.hashed_class_name),
-                            );
-                        }
-                    }
-                }
-            }
         }
+        *rule = rewrite_class_chains(rule, &reference_classes, |reference, class| {
+            flag_classes.get(reference?)?.get(class).map(String::as_str)
+        });
     }
     css_rules.iter().find_map(|rule| {
         let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
         let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
         hex_decode(encoded)
     })
+}
+
+/// Maps flag selectors like `active` and `size-small` to their generated classes
+pub(crate) fn style_flag_classes(flags: &[StyleFlag]) -> FxHashMap<String, String> {
+    let mut classes = FxHashMap::default();
+    for flag in flags {
+        match &flag.kind {
+            StyleFlagKind::Boolean => {
+                classes.insert(flag.prop_name.clone(), flag.hashed_class_name.clone());
+            }
+            StyleFlagKind::StringUnion(values) => {
+                for value in values {
+                    classes.insert(
+                        format!("{}-{value}", flag.prop_name),
+                        format!("{}-{value}", flag.hashed_class_name),
+                    );
+                }
+            }
+        }
+    }
+    classes
+}
+
+fn is_class_name_char(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, '_' | '-' | '$')
+}
+
+/// Rewrites each `.class` selector with `rewrite`, which also gets the component reference the
+/// class is chained to, e.g. `Parent` for both flags in `.Parent.active.size-small` or
+/// `${() => Parent}.active`
+pub(crate) fn rewrite_class_chains<'m>(
+    css: &str,
+    reference_classes: &FxHashSet<&str>,
+    rewrite: impl Fn(Option<&str>, &str) -> Option<&'m str>,
+) -> String {
+    let mut output = String::with_capacity(css.len());
+    let mut reference: Option<&str> = None;
+    let mut rest = css;
+    while let Some(character) = rest.chars().next() {
+        if let Some(placeholder) = leading_styled_ref_placeholder(rest) {
+            output.push_str(placeholder);
+            reference = Some(placeholder);
+            rest = &rest[placeholder.len()..];
+            continue;
+        }
+        if character != '.' {
+            output.push(character);
+            reference = None;
+            rest = &rest[character.len_utf8()..];
+            continue;
+        }
+        let class_end = rest[1..]
+            .find(|character: char| !is_class_name_char(character))
+            .map_or(rest.len(), |index| index + 1);
+        let class = &rest[1..class_end];
+        output.push('.');
+        output.push_str(rewrite(reference, class).unwrap_or(class));
+        if reference.is_none() && reference_classes.contains(class) {
+            reference = Some(class);
+        }
+        rest = &rest[class_end..];
+    }
+    output
+}
+
+fn leading_styled_ref_placeholder(css: &str) -> Option<&str> {
+    let encoded = css.strip_prefix(STYLED_REF_PREFIX)?;
+    let encoded_end = encoded.find(STYLED_REF_SUFFIX)?;
+    Some(&css[..STYLED_REF_PREFIX.len() + encoded_end + STYLED_REF_SUFFIX.len()])
 }
 
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
@@ -309,7 +369,7 @@ pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<St
                 .map(|value| format!("{}-{value}", flag.prop_name))
                 .collect(),
         })
-        .collect::<rustc_hash::FxHashSet<_>>();
+        .collect::<FxHashSet<_>>();
     let mut classes: Vec<String> = Vec::new();
     for name in ampersand_compound_classes(&css) {
         if !declared.contains(name) && !classes.iter().any(|class| class == name) {
@@ -382,7 +442,7 @@ fn contains_class_selector(css: &str, name: &str) -> bool {
         css[index + needle.len()..]
             .chars()
             .next()
-            .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
+            .is_none_or(|character| !is_class_name_char(character))
     })
 }
 
