@@ -19,6 +19,7 @@ use super::{
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
+    static_evaluation::evaluate_expression,
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
         flag_classes, missing_style_flag_classes, other_element_flag_classes,
@@ -522,6 +523,11 @@ pub(super) fn process_variable_declaration(
                 StaticValue::CssClass {
                     name: generated_name.clone(),
                     css: content,
+                    uses_keyframes: uses_keyframes(
+                        &tagged.quasi.expressions,
+                        transform.constants,
+                        transform.scoping,
+                    ),
                 }
             } else {
                 StaticValue::Keyframes(generated_name.clone())
@@ -594,6 +600,26 @@ fn validate_vindur_function_declaration(
         );
     }
     Ok(())
+}
+
+/// Whether a `css` template interpolates keyframes, directly or through another `css` class
+fn uses_keyframes(
+    expressions: &[Expression<'_>],
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    expressions.iter().any(|expression| {
+        matches!(
+            evaluate_expression(expression, constants, scoping),
+            Some(
+                StaticValue::Keyframes(_)
+                    | StaticValue::CssClass {
+                        uses_keyframes: true,
+                        ..
+                    }
+            )
+        )
+    })
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

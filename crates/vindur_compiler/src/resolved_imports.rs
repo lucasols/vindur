@@ -64,12 +64,13 @@ pub(crate) fn remove_resolved_imports(
     apply_edits(file_path, &code, &mut edits)
 }
 
-/// Imports of modules with side effects whose value references are all replaced by `edits`,
-/// e.g. a styled component only used in a selector, the edited code may no longer load them
+/// Theme colors imported from modules with side effects whose value references are all
+/// replaced by `edits`, the edited code may no longer load their module
 pub(crate) fn consumed_side_effect_imports(
     program: &Program<'_>,
     scoping: &Scoping,
     edits: &[Edit],
+    imported_values: &FxHashMap<String, StaticValue>,
     side_effect_sources: &FxHashSet<String>,
 ) -> FxHashSet<String> {
     if edits.is_empty() || side_effect_sources.is_empty() {
@@ -87,7 +88,10 @@ pub(crate) fn consumed_side_effect_imports(
         }
         for specifier in declaration.specifiers.iter().flatten() {
             let local = specifier.local();
-            if let Some(symbol_id) = local.symbol_id.get()
+            if matches!(
+                imported_values.get(local.name.as_str()),
+                Some(StaticValue::ThemeColors { .. })
+            ) && let Some(symbol_id) = local.symbol_id.get()
                 && scoping
                     .get_resolved_references(symbol_id)
                     .any(|reference| reference.is_value())
@@ -174,10 +178,11 @@ fn collect_resolved_import_edits(
             continue;
         };
         let mut compile_time_count = 0usize;
+        let has_side_effects = side_effect_sources.contains(declaration.source.value.as_str());
         // The module's CSS and side effects only run while the module itself is imported, so
-        // keep it when it has side effects, e.g. global styles, or when its keyframes or an
-        // inlined class name are still used by this file
-        let mut keeps_module = side_effect_sources.contains(declaration.source.value.as_str());
+        // keep it when its keyframes or an inlined class name are still used by this file, or
+        // when it has side effects, e.g. global styles, and its theme colors were consumed
+        let mut keeps_module = false;
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         let mut has_value_specifiers = false;
@@ -214,15 +219,20 @@ fn collect_resolved_import_edits(
             compile_time_count += 1;
             keeps_module |= match value {
                 StaticValue::Keyframes(_) => true,
-                StaticValue::CssClass { name, .. } => contains_class_name(source, name),
+                StaticValue::CssClass {
+                    name,
+                    uses_keyframes,
+                    ..
+                } => *uses_keyframes || contains_class_name(source, name),
+                StaticValue::ThemeColors { .. } => has_side_effects,
                 _ => false,
             };
         }
+        keeps_module |= has_side_effects && has_consumed_values;
         if compile_time_count == 0 {
-            // Uses consumed by vindur styles can leave only type or unused references, e.g.
-            // a styled component used in a selector, TypeScript compilers drop such imports
-            // with the module
-            if keeps_module && has_consumed_values && !has_value_specifiers {
+            // Theme colors consumed by vindur styles can leave only type references, e.g.
+            // `typeof colors`, TypeScript compilers drop such imports with the module
+            if keeps_module && !has_value_specifiers {
                 edits.push(Edit {
                     span: declaration.span,
                     replacement: format!(

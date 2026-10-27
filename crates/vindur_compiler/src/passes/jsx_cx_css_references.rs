@@ -91,7 +91,7 @@ fn css_reference(
     scoping: &Scoping,
     exported_names: &FxHashMap<String, String>,
 ) -> Option<CssReference> {
-    let Some(StaticValue::CssClass { name, css }) =
+    let Some(StaticValue::CssClass { name, css, .. }) =
         resolved_constant(identifier, constants, scoping)
     else {
         return None;

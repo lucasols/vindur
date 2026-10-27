@@ -369,7 +369,7 @@ test('should keep a side effect import when only type references of the colors r
   `);
 });
 
-test('should keep a side effect import of a styled component only used in selectors', async () => {
+test('should not add a side effect import for a styled component only used in selectors', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
@@ -400,9 +400,35 @@ test('should keep a side effect import of a styled component only used in select
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { _vSC } from "vindur";
-    import "#/theme";
     import { Button } from "#/theme";
     export const Box = _vSC("div", "v1560qbr-1-Box");
+    "
+  `);
+});
+
+test('should remove an import of a constant from a module with side effects', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { BRAND } from '#/consts';
+
+      export const styles = css\`
+        color: \${BRAND};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'consts.ts': dedent`
+        import clsx from 'clsx';
+
+        export const BRAND = '#007bff';
+
+        export const join = (a: string, b: string) => clsx(a, b);
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const styles = "v1560qbr-1-styles";
     "
   `);
 });

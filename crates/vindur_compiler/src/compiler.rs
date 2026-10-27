@@ -226,6 +226,7 @@ impl Compiler {
             &parsed.program,
             semantic.scoping(),
             &pass_output.edits,
+            &imports.values,
             &imports.side_effect_sources,
         );
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
