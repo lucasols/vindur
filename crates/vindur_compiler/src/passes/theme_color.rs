@@ -185,22 +185,47 @@ fn alpha_hex(rgb: (u8, u8, u8), amount: f64) -> String {
     compress_hex(rgb, Some(alpha))
 }
 
+const STATIC_COLOR_PREFIX: &str = "var(--stc-";
+
+/// Replaces the generated `var(--stc-<name>, #<hex>)` references with their hex, any other text
+/// (user written `--stc-` properties, strings or comments) is kept as is
 pub(super) fn static_color_fallbacks(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
-    while let Some(start) = rest.find("var(--stc-") {
+    while let Some(start) = rest.find(STATIC_COLOR_PREFIX) {
         output.push_str(&rest[..start]);
-        let Some(comma) = rest[start..].find(", ").map(|index| start + index) else {
-            output.push_str(&rest[start..]);
-            return output;
-        };
-        let Some(end) = rest[comma + 2..].find(')').map(|index| comma + 2 + index) else {
-            output.push_str(&rest[start..]);
-            return output;
-        };
-        output.push_str(&rest[comma + 2..end]);
-        rest = &rest[end + 1..];
+        let reference = &rest[start..];
+        match generated_static_color(reference) {
+            Some((hex, length)) => {
+                output.push_str(hex);
+                rest = &reference[length..];
+            }
+            None => {
+                output.push_str(STATIC_COLOR_PREFIX);
+                rest = &reference[STATIC_COLOR_PREFIX.len()..];
+            }
+        }
     }
     output.push_str(rest);
     output
+}
+
+/// Returns the hex fallback and the length of a reference made by `theme_member` or `theme_method`
+fn generated_static_color(reference: &str) -> Option<(&str, usize)> {
+    let name_start = STATIC_COLOR_PREFIX.len();
+    let name_length = reference[name_start..]
+        .find(|character: char| {
+            !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '\\' | '.'))
+        })
+        .unwrap_or(reference.len() - name_start);
+    let hex_start = name_start + name_length + ", ".len();
+    if name_length == 0 || !reference[name_start + name_length..].starts_with(", #") {
+        return None;
+    }
+    let digits_length = reference[hex_start + 1..]
+        .find(|character: char| !character.is_ascii_hexdigit())
+        .unwrap_or(reference.len() - hex_start - 1);
+    let hex_end = hex_start + 1 + digits_length;
+    (matches!(digits_length, 3 | 4 | 6 | 8) && reference[hex_end..].starts_with(')'))
+        .then(|| (&reference[hex_start..hex_end], hex_end + 1))
 }

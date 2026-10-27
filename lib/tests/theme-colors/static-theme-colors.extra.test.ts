@@ -455,3 +455,55 @@ test('should resolve static colors to hex in every kind of style in production',
     "
   `);
 });
+
+test('should keep user written --stc- references as is in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      createGlobalStyle\`
+        body {
+          color: var(--stc-brand);
+          margin: var(--stc-gap, 8px);
+          background: var(--stc-x, var(--y, red));
+        }
+        h1 {
+          font-family: Arial, sans-serif;
+        }
+        h2::before {
+          content: "var(--stc-example)";
+        }
+      \`;
+
+      const Box = styled.div\`
+        color: \${colors.primary.value};
+        width: calc(100% - 1px);
+      \`;
+
+      export const A = () => <Box />;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      color: var(--stc-brand);
+      margin: var(--stc-gap, 8px);
+      background: var(--stc-x, var(--y, red));
+    }
+    h1 {
+      font-family: Arial, sans-serif;
+    }
+    h2::before {
+      content: "var(--stc-example)";
+    }
+
+    .v1560qbr-2 {
+      color: #007bff;
+      width: calc(100% - 1px);
+    }
+    "
+  `);
+});
