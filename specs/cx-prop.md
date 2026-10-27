@@ -116,12 +116,20 @@ The styles are parsed with the CSS parser and only classes of compounds that are
 
 - **The element** - a compound with `&`, like `&.active` or `.parent &.active`, and the selectors of `:not()`, `:is()`, `:where()` and `:nth-child(… of …)` in it, like `&:not(.active)`. A compound without `&` is the element when every argument of its `:is()`/`:where()` is, like `:is(&.a)`
 - **Other elements** - the other compounds, like `& .active`, `& + .active` or `&:has(.active)`. Rules nested in them, like `& .child { &.active { … } }`, stay in the other element
-- **Nested rules** - a rule nested in the element still matches it when the subject of any of its selectors is the element, like `&:hover, & .child { &.active { … } }`
-- **`@scope`** - the body is the element when the subject of any start selector is, like `@scope (&.active)`, so `&` and `:scope` are the element. The end selectors are walked the same way. Without a start selector, like `@scope to (.x)`, the root is the parent of the stylesheet owner, so the body is another element. In rules and `@scope` start selectors of other elements inside `@scope (&)`, `:scope` is still the element, like `:scope.active &`, and their body is the element again when `:scope` is the subject, like `:scope:has(&) { &.active { ... } }`
+- **Nested rules** - a rule nested in the element is the element when the subject of every selector is, like `&:hover, &:focus { &.active { … } }`
+- **Mixed rules** - a rule that matches both the element and other elements, like `&:hover, & .child { &.active { … } }`, `:where(&, .x) { &.active { … } }` or `@scope (&, & .x)`, can't rename its classes without breaking the other elements, so hashed keys used in it are a compile error asking to split the selectors into separate rules. Other classes in it are left as is
+- **`@scope`** - the body is the element when the subject of every start selector is, like `@scope (&.active)`, so `&` and `:scope` are the element. The end selectors are walked the same way. Without a start selector, like `@scope to (.x)`, the root is the parent of the stylesheet owner, so the body is another element. In rules and `@scope` start selectors of other elements inside `@scope (&)`, `:scope` is still the element, like `:scope.active &`, and their body is the element again when `:scope` is the subject, like `:scope:has(&) { &.active { ... } }`
 
 Keys starting with `---` are rejected, as `---name` classes would be renamed as scoped variables.
 
-A class can't be used both hashed and as a `$` key in cx props of the same styles (a styled component, a css reference or a css prop), like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`, as renaming the hashed modifier would make the `$` class stop matching.
+A class can't be used both hashed and as a `$` key in cx props of the same styles (a styled component and the styled components it extends, a css reference or a css prop), like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`, as renaming the hashed modifier would make the `$` class stop matching.
+
+Hashed keys are a compile error when their modifiers are declared where they can't be renamed for the element:
+
+- An imported css reference, its styles are defined in another file
+- An exported css reference, other files using it would not get the renamed modifiers
+- A css reference passed to a styled component, only the styled component's own modifiers are renamed
+- A styled component it extends, like `&.active` in `Base` for `<Child cx={{ active }} />` with `Child = styled(Base)`, the extended rules are only renamed for cx props of `Base`
 
 ### Preventing Hashing with $ Prefix
 

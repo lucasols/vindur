@@ -1003,7 +1003,7 @@ Apply conditional classes using object syntax with the `cx` prop, similar to the
 
 Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`) and must not start with `---`, which is reserved for scoped variables, and each `$` key must be a single class. A class can't be both hashed and `$`-prefixed in the `cx` props of the same styles, like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`.
 
-In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed.
+In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed. A hashed class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }` or `:where(&, .x) { &.active { ... } }`, is a compile error, split it into separate rules.
 
 ```tsx
 const Container = styled.div`
@@ -1056,7 +1056,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) are a compile error, use `$` keys or move them into the styled component.
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) or in a styled component it extends (`styled(Base)`) are a compile error, use `$` keys or move them into the styled component. Hashed modifiers of an exported css reference are a compile error too, as other files using it wouldn't get the hashed classes.
 
 On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
 

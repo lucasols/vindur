@@ -51,6 +51,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
+    pub exported_names: &'a FxHashSet<String>,
     pub file_hash: &'a str,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -173,7 +174,12 @@ impl JsxCxVisitor<'_> {
                 self.output.scoping,
             )
         });
-        let css_references = css_references(element, self.output.constants, self.output.scoping);
+        let css_references = css_references(
+            element,
+            self.output.constants,
+            self.output.scoping,
+            self.output.exported_names,
+        );
         let has_css_context = styled.is_some() || has_vindur_css || !css_references.is_empty();
         // Css reference rules are rewritten in place and can be combined in any way across
         // elements, so all of them share a single file-wide index per modifier name. Styled
@@ -184,6 +190,16 @@ impl JsxCxVisitor<'_> {
             (None, true) => format!("css:{}", element.span.start),
         };
         let owners = ModifierOwners::new(element, styled.as_ref(), has_vindur_css, &css_references);
+        let extended_modifiers = match styled
+            .as_ref()
+            .map_or(Ok(Vec::new()), |styled| self.extended_modifiers(styled))
+        {
+            Ok(modifiers) => modifiers,
+            Err(error) => {
+                self.set_error(attribute.span, error.message);
+                return;
+            }
+        };
         let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
@@ -240,6 +256,15 @@ impl JsxCxVisitor<'_> {
                 self.set_error(property.key.span(), message);
                 return;
             }
+            if hashed && self.is_extended_modifier(&extended_modifiers, &class_name) {
+                self.set_error(
+                    property.key.span(),
+                    format!(
+                        "cx prop class \"{class_name}\" can't be hashed on styled component \"{element_name}\", its \"&.{class_name}\" styles are declared in the styled component it extends. Move the modifier styles into \"{element_name}\" or use a $-prefixed class (e.g. ${class_name})."
+                    ),
+                );
+                return;
+            }
             let (output_name, should_rewrite_css) =
                 if let Some(unhashed) = class_name.strip_prefix('$') {
                     (unhashed.to_owned(), false)
@@ -250,12 +275,7 @@ impl JsxCxVisitor<'_> {
                         *self.output.id_index += 1;
                         index
                     });
-                    let hashed = if self.output.dev {
-                        format!("{}-{index}-{class_name}", self.output.file_hash)
-                    } else {
-                        format!("{}-{index}", self.output.file_hash)
-                    };
-                    (hashed, true)
+                    (self.hashed_class_name(index, &class_name), true)
                 };
             let value_span = property.value.span();
             // The value is copied into the generated call, with the edits of other passes inside
@@ -457,6 +477,56 @@ impl JsxCxVisitor<'_> {
         );
     }
 
+    fn hashed_class_name(&self, index: u32, class_name: &str) -> String {
+        if self.output.dev {
+            format!("{}-{index}-{class_name}", self.output.file_hash)
+        } else {
+            format!("{}-{index}", self.output.file_hash)
+        }
+    }
+
+    /// The element classes declared in the rules of each styled component `styled` extends, with
+    /// the cx context key of that component, e.g. `active` for `&.active` in `Base` of
+    /// `styled(Base)`. Their rules are only renamed for cx props of the extended component
+    fn extended_modifiers(
+        &self,
+        styled: &StyledComponent,
+    ) -> Result<Vec<(String, Vec<String>)>, CssError> {
+        let classes = styled.class_name.split_whitespace().collect::<Vec<_>>();
+        let mut extended = Vec::new();
+        for (index, class) in classes
+            .iter()
+            .enumerate()
+            .take(classes.len().saturating_sub(1))
+        {
+            let mut declared = Vec::new();
+            for rule in self
+                .output
+                .css_rules
+                .iter()
+                .filter(|rule| is_class_rule(rule, class))
+            {
+                declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
+            }
+            extended.push((format!("styled:{}", classes[..=index].join(" ")), declared));
+        }
+        Ok(extended)
+    }
+
+    /// If an extended component declares the class, also when cx props of that component already
+    /// renamed it
+    fn is_extended_modifier(&self, extended: &[(String, Vec<String>)], class_name: &str) -> bool {
+        extended.iter().any(|(context_key, declared)| {
+            declared.iter().any(|declared| declared == class_name)
+                || self
+                    .class_indices
+                    .get(&format!("{context_key}:{class_name}"))
+                    .is_some_and(|index| {
+                        declared.contains(&self.hashed_class_name(*index, class_name))
+                    })
+        })
+    }
+
     fn missing_styled_classes(
         &self,
         element: &JSXElement<'_>,
@@ -608,13 +678,13 @@ impl ModifierOwners {
             Some(class) => vec![class.clone()],
             None => references.clone(),
         };
+        // A `$` key class also matches the rules of the extended styled components
+        let styled_classes = styled
+            .into_iter()
+            .flat_map(|styled| styled.class_name.split_whitespace().map(str::to_owned));
         Self {
             hashed: hashed.into_iter().chain(css_prop.clone()).collect(),
-            unhashed: styled_class
-                .into_iter()
-                .chain(references)
-                .chain(css_prop)
-                .collect(),
+            unhashed: styled_classes.chain(references).chain(css_prop).collect(),
         }
     }
 }

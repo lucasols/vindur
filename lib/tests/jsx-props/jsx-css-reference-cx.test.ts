@@ -288,3 +288,24 @@ test('should allow a class hashed and with $ in cx props of different styles', a
     "
   `);
 });
+
+test('should reject hashed cx modifiers of an exported css reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        export const styles = css\`
+          &.active { color: red; }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <div className={styles} cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the exported css reference "styles", other files using it would not get the hashed modifier classes. Use $-prefixed classes (e.g. $active) or a styled component.
+    loc: 8:18]
+  `);
+});

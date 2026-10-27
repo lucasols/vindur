@@ -341,6 +341,7 @@ pub(crate) fn transform_program(
             constants: &constants,
             scoping,
             styled_components: &styled_components,
+            exported_names: &exported_names,
             file_hash: &file_hash,
             file_path,
             source,

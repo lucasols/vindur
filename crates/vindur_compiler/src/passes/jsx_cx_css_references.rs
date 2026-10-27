@@ -1,6 +1,6 @@
 use oxc_ast::ast::{JSXAttributeValue, JSXElement, JSXExpression};
 use oxc_semantic::Scoping;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::facts::StaticValue;
 
@@ -18,6 +18,8 @@ pub(super) struct CssReference {
     identifier: String,
     span: oxc_span::Span,
     imported: bool,
+    /// A local css exported to other files, which don't get its renamed modifiers
+    exported: bool,
 }
 
 impl CssReference {
@@ -32,6 +34,7 @@ pub(super) fn css_references(
     element: &JSXElement<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
+    exported_names: &FxHashSet<String>,
 ) -> Vec<CssReference> {
     ["className", "css"]
         .into_iter()
@@ -53,19 +56,28 @@ pub(super) fn css_references(
                 .get()
                 .and_then(|id| scoping.get_reference(id).symbol_id())
                 .is_some_and(|symbol_id| scoping.symbol_flags(symbol_id).is_import());
+            let exported = !imported
+                && exported_names.iter().any(|exported_name| {
+                    matches!(
+                        constants.get(exported_name),
+                        Some(StaticValue::CssClass { name: exported_class, .. }) if exported_class == name
+                    )
+                });
             Some(CssReference {
                 name: name.clone(),
                 css: css.clone(),
                 identifier: identifier.name.to_string(),
                 span: identifier.span,
                 imported,
+                exported,
             })
         })
         .collect()
 }
 
 /// Hashed cx modifiers are only rewritten in the styled component css or in local css
-/// references, so fail when a reference that is not rewritten declares one of them
+/// references, so fail when a reference that is not rewritten, or exported to files that don't
+/// get the renamed modifiers, declares one of them
 pub(super) fn unsupported_css_reference_modifiers(
     element_name: &str,
     is_styled: bool,
@@ -79,7 +91,7 @@ pub(super) fn unsupported_css_reference_modifiers(
     // Local references of other elements are rewritten in place
     for reference in css_references
         .iter()
-        .filter(|reference| reference.imported || is_styled)
+        .filter(|reference| reference.imported || reference.exported || is_styled)
     {
         match declares_rewritten_modifier(reference, mappings) {
             Ok(true) => declaring.push(reference),
@@ -95,6 +107,15 @@ pub(super) fn unsupported_css_reference_modifiers(
             reference.span,
             format!(
                 "cx prop modifiers can't be used with the imported css reference \"{}\", its styles are defined in another file. Use $-prefixed classes (e.g. $active) or define the modifier styles locally.",
+                reference.identifier
+            ),
+        ));
+    }
+    if let Some(reference) = local.iter().find(|reference| reference.exported) {
+        return Some((
+            reference.span,
+            format!(
+                "cx prop modifiers can't be used with the exported css reference \"{}\", other files using it would not get the hashed modifier classes. Use $-prefixed classes (e.g. $active) or a styled component.",
                 reference.identifier
             ),
         ));
