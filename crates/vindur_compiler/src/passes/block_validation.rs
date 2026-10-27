@@ -1,7 +1,7 @@
 use oxc_css_parser::ast::Statement;
 
 use super::css_syntax::{BlockKind, CssError};
-use super::css_tokens::skipped_token_end;
+use super::css_tokens::{decode_ident, ident_end, skipped_token_end, unprefixed_at_rule_name};
 use super::css_validation::statement_span;
 
 /// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
@@ -20,17 +20,20 @@ pub(super) fn validate_block_kind(
             (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
             (BlockKind::Global, Statement::AtRule(rule)) => {
                 if let Some(block) = &rule.block {
-                    let (inner_start, inner_end) =
-                        (block.span.start + 1, block.span.end.saturating_sub(1));
-                    if is_grouping_at_rule(rule.name.name) {
+                    let inner = (block.span.start + 1, block.span.end.saturating_sub(1));
+                    let name = unprefixed_at_rule_name(rule.name.name).unwrap_or_default();
+                    if is_grouping_at_rule(&name) {
+                        validate_block_kind(&block.statements, kind, source, inner)?;
+                    } else if name == "keyframes" {
                         validate_block_kind(
                             &block.statements,
-                            kind,
+                            BlockKind::Keyframes,
                             source,
-                            (inner_start, inner_end),
+                            inner,
                         )?;
-                    } else if holds_rules(rule.name.name) {
-                        reject_stray_semicolons(&block.statements, source, inner_start, inner_end)?;
+                    } else if name == "font-feature-values" {
+                        // Its block holds rules, so a `;` between them drops the next one
+                        reject_stray_semicolons(&block.statements, source, inner.0, inner.1)?;
                     }
                 }
                 continue;
@@ -57,7 +60,7 @@ pub(super) fn validate_block_kind(
                 }
             }
             (BlockKind::Keyframes, _) => {
-                "keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
+                "keyframes can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
             }
         };
         let span = statement_span(statement);
@@ -68,7 +71,8 @@ pub(super) fn validate_block_kind(
 
 /// The parser skips a `;` between rules, but browsers read it as the start of the next rule's
 /// selector and drop that rule. Global styles are joined, so it can drop a rule of another file.
-/// Statements without a block, like `@import url(a.css);`, end with their `;`
+/// Statements without a block, like `@import url(a.css);`, end with their `;`. A `;` at the start
+/// of the template is removed from the output
 fn reject_stray_semicolons(
     statements: &[Statement<'_>],
     source: &str,
@@ -77,6 +81,7 @@ fn reject_stray_semicolons(
 ) -> Result<(), CssError> {
     let mut gap_start = start;
     let mut allows_semicolon = false;
+    let mut after_statement = false;
     for statement in statements.iter().map(Some).chain([None]) {
         let gap_end = statement.map_or(end, |statement| statement_span(statement).start);
         let mut index = gap_start;
@@ -86,12 +91,14 @@ fn reject_stray_semicolons(
                 continue;
             }
             if source.as_bytes()[index] == b';' {
-                if !allows_semicolon {
-                    return Err(CssError::syntax(
-                        "unexpected `;` after a rule, remove it".to_owned(),
-                        index,
-                        index + 1,
-                    ));
+                let is_template_start = start == 0 && source[..index].trim().is_empty();
+                if !allows_semicolon && !is_template_start {
+                    let message = if after_statement {
+                        "unexpected `;` after a rule, remove it"
+                    } else {
+                        "unexpected `;`, remove it"
+                    };
+                    return Err(CssError::syntax(message.to_owned(), index, index + 1));
                 }
                 allows_semicolon = false;
             }
@@ -99,6 +106,7 @@ fn reject_stray_semicolons(
         }
         if let Some(statement) = statement {
             gap_start = statement_span(statement).end;
+            after_statement = true;
             allows_semicolon = !ends_with_block(statement) && !source[..gap_start].ends_with(';');
         }
     }
@@ -113,29 +121,107 @@ pub(super) fn validate_global_top_level(
     reject_unterminated_global_end(statements, source)
 }
 
-/// Browsers drop `@charset`, `@import` and `@namespace` after any other rule, only `@layer`
-/// statements can come before them
+/// Where a statement can be at the start of a stylesheet, browsers drop `@charset`, `@import` and
+/// `@namespace` after a statement that must come after them
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum StartOrder {
+    Charset,
+    /// A `@layer a, b;` statement before the imports
+    Layer,
+    Import,
+    Namespace,
+    Rule,
+}
+
+/// The order is `@charset`, `@layer` statements, `@import` and `@namespace`, then every other
+/// rule. A `@layer` statement after an `@import` ends the imports
 fn reject_late_stylesheet_start_rules(statements: &[Statement<'_>]) -> Result<(), CssError> {
-    let mut seen_rule = false;
+    // The latest order and the at-rule that set it, `None` for any other rule
+    let mut latest: Option<(StartOrder, Option<&'static str>)> = None;
     for statement in statements {
         let name = match statement {
-            Statement::AtRule(rule) => rule.name.name.to_ascii_lowercase(),
+            Statement::AtRule(rule) => unprefixed_at_rule_name(rule.name.name).unwrap_or_default(),
             _ => String::new(),
         };
-        let starts_stylesheet = matches!(name.as_str(), "charset" | "import" | "namespace");
-        if starts_stylesheet && seen_rule {
+        let latest_order = latest.map(|(order, _)| order);
+        let (order, label) = match name.as_str() {
+            "charset" => (StartOrder::Charset, Some("@charset")),
+            "import" => (StartOrder::Import, Some("@import")),
+            "namespace" => (StartOrder::Namespace, Some("@namespace")),
+            "layer" if matches!(statement, Statement::AtRule(rule) if rule.block.is_none()) => {
+                let order = if latest_order.is_none_or(|order| order <= StartOrder::Layer) {
+                    StartOrder::Layer
+                } else {
+                    StartOrder::Rule
+                };
+                (order, Some("@layer"))
+            }
+            _ => (StartOrder::Rule, None),
+        };
+        if let Some((latest_order, latest_label)) = latest
+            && order < latest_order
+        {
             let span = statement_span(statement);
-            return Err(CssError::syntax(
-                format!("`@{name}` must come before every rule in `createGlobalStyle`"),
-                span.start,
-                span.end,
-            ));
+            let message = match latest_label {
+                Some(label) => {
+                    format!("`@{name}` must come before `{label}` in `createGlobalStyle`")
+                }
+                None => format!("`@{name}` must come before every rule in `createGlobalStyle`"),
+            };
+            return Err(CssError::syntax(message, span.start, span.end));
         }
-        let is_layer_statement =
-            matches!(statement, Statement::AtRule(rule) if name == "layer" && rule.block.is_none());
-        seen_rule |= !starts_stylesheet && !is_layer_statement;
+        if latest_order.is_none_or(|latest_order| order > latest_order) {
+            latest = Some((order, label));
+        }
     }
     Ok(())
+}
+
+/// Whether validated global styles start with `@charset`, `@import` or `@namespace`, maybe after
+/// `@layer` statements. Browsers drop them after another rule, also one of another template
+pub(super) fn starts_with_stylesheet_start_rule(css: &str) -> bool {
+    let mut index = 0;
+    while let Some(character) = css[index..].chars().next() {
+        if character.is_whitespace() {
+            index += character.len_utf8();
+            continue;
+        }
+        if css[index..].starts_with("/*")
+            && let Some(end) = skipped_token_end(css, index)
+        {
+            index = end;
+            continue;
+        }
+        if character != '@' {
+            return false;
+        }
+        let name_end = ident_end(css, index + 1);
+        match unprefixed_at_rule_name(&decode_ident(&css[index + 1..name_end])).as_deref() {
+            Some("charset" | "import" | "namespace") => return true,
+            Some("layer") => match statement_end(css, name_end) {
+                Some(end) => index = end,
+                None => return false,
+            },
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// The end of a block-less statement after `index`, `None` when the statement has a block
+fn statement_end(css: &str, mut index: usize) -> Option<usize> {
+    while let Some(character) = css[index..].chars().next() {
+        if let Some(end) = skipped_token_end(css, index) {
+            index = end;
+            continue;
+        }
+        match character {
+            ';' => return Some(index + 1),
+            '{' => return None,
+            _ => index += character.len_utf8(),
+        }
+    }
+    None
 }
 
 /// Global styles are joined with other files, so a last `@import url(a.css)` without its `;` would
@@ -177,16 +263,6 @@ fn reject_unterminated_global_end(
     ))
 }
 
-/// At-rules whose block holds rules, so a `;` between them drops the next one
-fn holds_rules(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    let name = name
-        .strip_prefix("-webkit-")
-        .or_else(|| name.strip_prefix("-moz-"))
-        .unwrap_or(&name);
-    matches!(name, "keyframes" | "font-feature-values")
-}
-
 fn ends_with_block(statement: &Statement<'_>) -> bool {
     match statement {
         Statement::AtRule(rule) => rule.block.is_some(),
@@ -200,11 +276,6 @@ fn ends_with_block(statement: &Statement<'_>) -> bool {
 /// Conditional and layer at-rules hold rules at the top level of a stylesheet. `@scope` is not
 /// included because its declarations apply to the scoping root
 fn is_grouping_at_rule(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    let name = name
-        .strip_prefix("-webkit-")
-        .or_else(|| name.strip_prefix("-moz-"))
-        .unwrap_or(&name);
     matches!(
         name,
         "media" | "supports" | "container" | "layer" | "document" | "starting-style"
@@ -214,6 +285,7 @@ fn is_grouping_at_rule(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::super::css_syntax::{BlockKind, validate_style_block};
+    use super::starts_with_stylesheet_start_rule;
 
     fn kind_error(css: &str, kind: BlockKind) -> String {
         match validate_style_block(css, kind) {
@@ -242,7 +314,7 @@ mod tests {
             [
                 "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 0..10",
                 "ok",
-                "Invalid CSS: keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
+                "Invalid CSS: keyframes can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
                 "Invalid CSS: keyframes can only contain declarations at 7..30",
                 "ok",
                 "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 18..28",
@@ -317,6 +389,61 @@ mod tests {
     }
 
     #[test]
+    fn validates_keyframes_in_global_styles() {
+        assert_eq!(
+            [
+                kind_error("@keyframes a { opacity: 0; }", BlockKind::Global),
+                kind_error(
+                    "@-o-keyframes a { from { @media print { opacity: 0; } } }",
+                    BlockKind::Global
+                ),
+                kind_error(
+                    "@-webkit-keyframes a { from { opacity: 0; } to { opacity: 1; } }",
+                    BlockKind::Global
+                ),
+            ],
+            [
+                "Invalid CSS: keyframes can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 15..25",
+                "Invalid CSS: keyframes can only contain declarations at 25..53",
+                "ok",
+            ]
+        );
+    }
+
+    #[test]
+    fn allows_a_semicolon_at_the_start_of_global_styles() {
+        assert_eq!(
+            [
+                kind_error("; body { margin: 0; }", BlockKind::Global),
+                kind_error(";; body { margin: 0; }", BlockKind::Global),
+                kind_error("/* a */ ; body { margin: 0; }", BlockKind::Global),
+                kind_error("@media print { ; a { b: c; } }", BlockKind::Global),
+            ],
+            [
+                "ok",
+                "Invalid CSS: unexpected `;`, remove it at 1..2",
+                "Invalid CSS: unexpected `;`, remove it at 8..9",
+                "Invalid CSS: unexpected `;`, remove it at 15..16",
+            ]
+        );
+    }
+
+    #[test]
+    fn finds_stylesheet_start_rules() {
+        assert_eq!(
+            [
+                "/* a */ @import url(a.css);",
+                "@layer a, b; @namespace svg url(x);",
+                "@\\69mport url(a.css);",
+                "@layer a { body { margin: 0; } }",
+                "body { margin: 0; }",
+            ]
+            .map(starts_with_stylesheet_start_rule),
+            [true, true, true, false, false]
+        );
+    }
+
+    #[test]
     fn validates_global_top_level_statements() {
         assert_eq!(
             [
@@ -324,7 +451,15 @@ mod tests {
                 kind_error("@layer a, b", BlockKind::Global),
                 kind_error("body { margin: 0; } @import url(a.css);", BlockKind::Global),
                 kind_error(
-                    "@charset \"utf-8\"; @layer a; @import url(a.css); @namespace svg url(x); body { margin: 0; }",
+                    "@charset \"utf-8\"; @layer a; @import url(a.css); @namespace svg url(x); @layer b; body { margin: 0; }",
+                    BlockKind::Global
+                ),
+                kind_error(
+                    "@import url(a.css); @layer a; @import url(b.css);",
+                    BlockKind::Global
+                ),
+                kind_error(
+                    "@namespace svg url(x); @import url(a.css);",
                     BlockKind::Global
                 ),
             ],
@@ -333,6 +468,8 @@ mod tests {
                 "Invalid CSS: missing `;` after `@layer`, global styles are joined with other styles at 0..11",
                 "Invalid CSS: `@import` must come before every rule in `createGlobalStyle` at 20..38",
                 "ok",
+                "Invalid CSS: `@import` must come before `@layer` in `createGlobalStyle` at 30..48",
+                "Invalid CSS: `@import` must come before `@namespace` in `createGlobalStyle` at 23..41",
             ]
         );
     }

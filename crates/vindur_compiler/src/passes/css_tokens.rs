@@ -166,6 +166,16 @@ pub(super) fn decode_ident(raw: &str) -> String {
     decoded
 }
 
+/// The lowercase at-rule name without a vendor prefix, `-webkit-Keyframes` is `keyframes`. `None`
+/// for a prefix without a name, like `-webkit`
+pub(super) fn unprefixed_at_rule_name(decoded_name: &str) -> Option<String> {
+    let name = decoded_name.to_ascii_lowercase();
+    match name.strip_prefix('-') {
+        Some(prefixed) => Some(prefixed.split_once('-')?.1.to_owned()),
+        None => Some(name),
+    }
+}
+
 /// Whether `index` is inside the block opened by the `{` at `brace`
 pub(super) fn is_inside_block(css: &str, brace: usize, index: usize) -> bool {
     if css.as_bytes().get(brace) != Some(&b'{') || index <= brace {

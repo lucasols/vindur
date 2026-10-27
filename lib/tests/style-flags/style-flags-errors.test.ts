@@ -265,3 +265,22 @@ test('should throw for style flag values that are not valid class names', async 
     loc: 3:34]
   `);
 });
+
+test('should throw for style flag names containing `$`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div<{ is$on: boolean }>\`
+          &.is$on { color: red; }
+        \`;
+
+        export const App = () => <Box is$on />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`is$on\` can't contain \`$\`, as it becomes part of a class name
+    loc: 3:25]
+  `);
+});

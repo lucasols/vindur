@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::{
+    block_validation::starts_with_stylesheet_start_rule,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
@@ -263,6 +264,14 @@ pub(crate) fn transform_program(
                         &mut scoped_variables,
                     )
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
+                    if !css_rules.is_empty() && starts_with_stylesheet_start_rule(&content) {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            tagged.span,
+                            "`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles".to_owned(),
+                        ));
+                    }
                     if !content.is_empty() {
                         css_rules.push(content);
                     }
@@ -498,7 +507,7 @@ pub(crate) fn transform_program(
         return Err(CompilerDiagnostic::error(
             file_path,
             source,
-            forward_reference_span(program, &reference).unwrap_or(program.span),
+            forward_reference_span(program, &imports, &reference).unwrap_or(program.span),
             format!(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),

@@ -70,7 +70,12 @@ fn segment_source_span(
     if let Some(raw_quasi) = raw_quasi
         && evaluated != raw_quasi
         && let Some(offsets) = cooked_offsets(raw_quasi, evaluated)
-        && let (Some(&start), Some(&end)) = (offsets.get(local.start), offsets.get(local.end))
+        && let Some(&start) = offsets.starts.get(local.start)
+        // The raw end of the last byte, a line continuation after it is not part of the range
+        && let Some(&end) = match local.end.checked_sub(1) {
+            Some(last) if !local.is_empty() => offsets.ends.get(last),
+            _ => offsets.starts.get(local.end),
+        }
         && let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end))
     {
         return Span::new(span.start + start, span.start + end);
@@ -99,12 +104,21 @@ fn segment_source_span(
     }
 }
 
-/// The raw offset of each byte of the evaluated quasi, plus the raw end. JS templates cook escapes
-/// like `\\` and evaluate `\r\n` and `\r` to `\n`. `None` when cooking the raw text doesn't give
-/// the evaluated text
-fn cooked_offsets(raw: &str, evaluated: &str) -> Option<Vec<usize>> {
+/// Raw offsets of the bytes of an evaluated quasi
+struct CookedOffsets {
+    /// Where each byte starts, plus the raw end
+    starts: Vec<usize>,
+    /// Where each byte ends
+    ends: Vec<usize>,
+}
+
+/// The raw offsets of each byte of the evaluated quasi. JS templates cook escapes like `\\` and
+/// evaluate `\r\n` and `\r` to `\n`. `None` when cooking the raw text doesn't give the evaluated
+/// text
+fn cooked_offsets(raw: &str, evaluated: &str) -> Option<CookedOffsets> {
     let mut cooked = String::with_capacity(raw.len());
-    let mut offsets = Vec::with_capacity(raw.len() + 1);
+    let mut starts = Vec::with_capacity(raw.len() + 1);
+    let mut ends = Vec::with_capacity(raw.len());
     let mut index = 0;
     while let Some(character) = raw[index..].chars().next() {
         let start = index;
@@ -124,12 +138,13 @@ fn cooked_offsets(raw: &str, evaluated: &str) -> Option<Vec<usize>> {
             character => Some(character),
         };
         if let Some(cooked_character) = cooked_character {
-            offsets.extend(std::iter::repeat_n(start, cooked_character.len_utf8()));
+            starts.extend(std::iter::repeat_n(start, cooked_character.len_utf8()));
+            ends.extend(std::iter::repeat_n(index, cooked_character.len_utf8()));
             cooked.push(cooked_character);
         }
     }
-    offsets.push(raw.len());
-    (cooked == evaluated).then_some(offsets)
+    starts.push(raw.len());
+    (cooked == evaluated).then_some(CookedOffsets { starts, ends })
 }
 
 /// The character a JS template escape evaluates to, `Some(None)` for a line continuation
@@ -147,7 +162,7 @@ fn cooked_escape(raw: &str, index: &mut usize, escaped: char) -> Option<Option<c
             let close = raw[*index..].find('}')?;
             Some(hex_char(raw, index, 1, close.checked_sub(1)?)?).inspect(|_| *index += 1)
         }
-        'u' => Some(hex_char(raw, index, 0, 4)?),
+        'u' => Some(utf16_escape_char(raw, index)?),
         '\r' => {
             if raw[*index..].starts_with('\n') {
                 *index += 1;
@@ -161,10 +176,30 @@ fn cooked_escape(raw: &str, index: &mut usize, escaped: char) -> Option<Option<c
 
 /// Reads `len` hex digits `skip` bytes after `index` and moves `index` past them
 fn hex_char(raw: &str, index: &mut usize, skip: usize, len: usize) -> Option<char> {
+    char::from_u32(hex_value(raw, index, skip, len)?)
+}
+
+fn hex_value(raw: &str, index: &mut usize, skip: usize, len: usize) -> Option<u32> {
     let start = *index + skip;
     let digits = raw.get(start..start + len)?;
     *index = start + len;
-    char::from_u32(u32::from_str_radix(digits, 16).ok()?)
+    u32::from_str_radix(digits, 16).ok()
+}
+
+/// A `\uXXXX` escape, a high surrogate is combined with the `\uXXXX` low surrogate after it
+fn utf16_escape_char(raw: &str, index: &mut usize) -> Option<char> {
+    let high = hex_value(raw, index, 0, 4)?;
+    if !(0xD800..0xDC00).contains(&high) {
+        return char::from_u32(high);
+    }
+    if !raw[*index..].starts_with("\\u") {
+        return None;
+    }
+    let low = hex_value(raw, index, 2, 4)?;
+    if !(0xDC00..0xE000).contains(&low) {
+        return None;
+    }
+    char::from_u32(0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00))
 }
 
 #[cfg(test)]
@@ -204,6 +239,34 @@ mod tests {
         assert_eq!(
             segment_source_span(css, source, &segment, start..start + 7),
             quasi_span
+        );
+    }
+
+    fn quasi_span(source: &str, css: &str, start: usize, end: usize) -> Span {
+        let segment = TemplateSegment {
+            range: 0..css.len(),
+            origin: SegmentOrigin::Quasi(Span::new(0, u32::try_from(source.len()).unwrap_or(0))),
+        };
+        segment_source_span(css, source, &segment, start..end)
+    }
+
+    #[test]
+    fn ends_locations_before_a_line_continuation() {
+        let source = "a: b; }\\\n c: d;";
+        let css = "a: b; } c: d;";
+        let start = css.find('}').unwrap_or(0);
+        assert_eq!(quasi_span(source, css, start, start + 1), Span::new(6, 7));
+    }
+
+    #[test]
+    fn maps_locations_after_surrogate_pair_escapes() {
+        let source = r#"content: "\uD83D\uDE00"; }"#;
+        let css = "content: \"\u{1F600}\"; }";
+        let start = css.find('\u{1F600}').unwrap_or(0);
+        let source_start = u32::try_from(source.find('\\').unwrap_or(0)).unwrap_or(0);
+        assert_eq!(
+            quasi_span(source, css, start, start + '\u{1F600}'.len_utf8()),
+            Span::new(source_start, source_start + 12)
         );
     }
 }

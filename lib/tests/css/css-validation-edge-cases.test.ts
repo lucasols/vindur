@@ -382,3 +382,42 @@ test('should throw for object and theme color interpolations without css text', 
     ignoreInLint: true]
   `);
 });
+
+test('should throw for boolean and undefined interpolations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const enabled = true
+
+        export const style = css\`
+          color: \${enabled};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${enabled}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 6:11
+    ignoreInLint: true]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const value = undefined
+        const width = \`\${value}px\`
+
+        export const style = css\`
+          width: \${width};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${width}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 7:11
+    ignoreInLint: true]
+  `);
+});

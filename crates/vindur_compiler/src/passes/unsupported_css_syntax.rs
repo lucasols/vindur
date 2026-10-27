@@ -1,6 +1,8 @@
 use oxc_span::Span;
 
-use super::css_tokens::{decode_ident, ident_end, is_ident_char, skipped_token_end};
+use super::css_tokens::{
+    decode_ident, ident_end, is_ident_char, skipped_token_end, unprefixed_at_rule_name,
+};
 use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 use crate::CompilerDiagnostic;
 
@@ -255,12 +257,10 @@ fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
 fn at_rule_name(rest: &str) -> Option<(&str, String)> {
     let at_rule = &rest[..ident_end(rest, 1)];
     // The name can be escaped, like `@\6d edia`
-    let name = decode_ident(&at_rule[1..]).to_ascii_lowercase();
-    let unprefixed = match name.strip_prefix('-') {
-        Some(prefixed) => prefixed.split_once('-')?.1.to_owned(),
-        None => name,
-    };
-    Some((at_rule, unprefixed))
+    Some((
+        at_rule,
+        unprefixed_at_rule_name(&decode_ident(&at_rule[1..]))?,
+    ))
 }
 
 fn top_level_at_rule_message(

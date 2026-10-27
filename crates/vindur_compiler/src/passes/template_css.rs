@@ -4,6 +4,7 @@ use oxc_span::{GetSpan, Span};
 use crate::CompilerDiagnostic;
 
 use super::css::layer_markers_in_text;
+use super::css_balance::LINE_COMMENT_ERROR;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::css_tokens::is_inside_block;
 use super::static_value::TemplateContext;
@@ -156,7 +157,7 @@ pub(crate) fn validate_template_css(
             |name| format!("... {name} = {}", context.tag_type),
         );
         let description = if is_line_comment {
-            "`//` comments are not supported in CSS, use `/* ... */`".to_owned()
+            LINE_COMMENT_ERROR.to_owned()
         } else {
             description
         };

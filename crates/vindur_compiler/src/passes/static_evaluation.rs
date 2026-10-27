@@ -334,12 +334,15 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
     }
 }
 
-/// Objects, colors and functions have no CSS text, they would be written as `[object Object]`
+/// Objects, colors and functions have no CSS text, they would be written as `[object Object]`,
+/// and booleans and `undefined` would be written as `true` or `undefined`
 pub(super) fn has_css_text(value: &StaticValue) -> bool {
     match value {
         StaticValue::Array(values) => values.iter().all(has_css_text),
         StaticValue::ImportedValue { value, .. } => has_css_text(value),
-        StaticValue::DynamicColor { .. }
+        StaticValue::Boolean(_)
+        | StaticValue::Undefined
+        | StaticValue::DynamicColor { .. }
         | StaticValue::DynamicColorPath { .. }
         | StaticValue::Function(_)
         | StaticValue::ImportedFunction(_)

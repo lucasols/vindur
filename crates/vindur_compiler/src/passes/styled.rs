@@ -282,23 +282,30 @@ pub(crate) fn resolve_styled_references(
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
-            *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
+            let placeholder = styled_ref_placeholder(name);
+            if rule.contains(&placeholder) {
+                *rule = rule.replace(&placeholder, &format!(".{class_name}"));
+            }
             for flag in &component.style_flags {
                 match &flag.kind {
                     StyleFlagKind::Boolean => {
-                        *rule = replace_class_selector(
+                        if let Some(replaced) = replace_class_selector(
                             rule,
                             &format!("{class_name}.{}", flag.prop_name),
                             &format!("{class_name}.{}", flag.hashed_class_name),
-                        );
+                        ) {
+                            *rule = replaced;
+                        }
                     }
                     StyleFlagKind::StringUnion(values) => {
                         for value in values {
-                            *rule = replace_class_selector(
+                            if let Some(replaced) = replace_class_selector(
                                 rule,
                                 &format!("{class_name}.{}-{value}", flag.prop_name),
                                 &format!("{class_name}.{}-{value}", flag.hashed_class_name),
-                            );
+                            ) {
+                                *rule = replaced;
+                            }
                         }
                     }
                 }
@@ -312,27 +319,53 @@ pub(crate) fn resolve_styled_references(
     })
 }
 
-/// The `${() => name}` interpolation of a forward reference, used to locate errors about it
-pub(crate) fn forward_reference_span(program: &Program<'_>, name: &str) -> Option<Span> {
-    struct Finder<'n> {
+/// The `${() => name}` interpolation of a forward reference, used to locate errors about it.
+/// References in vindur templates come first, other templates can have the same function
+pub(crate) fn forward_reference_span(
+    program: &Program<'_>,
+    imports: &VindurImports<'_>,
+    name: &str,
+) -> Option<Span> {
+    struct Finder<'n, 'i> {
         name: &'n str,
+        imports: &'i VindurImports<'i>,
+        in_vindur_template: bool,
+        vindur_span: Option<Span>,
         span: Option<Span>,
     }
-    impl<'a> Visit<'a> for Finder<'_> {
+    impl<'a> Visit<'a> for Finder<'_, '_> {
+        fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = is_vindur_template_tag(&tagged.tag, self.imports);
+            walk::walk_tagged_template_expression(self, tagged);
+            self.in_vindur_template = in_vindur_template;
+        }
+
         fn visit_template_literal(&mut self, template: &TemplateLiteral<'a>) {
-            if self.span.is_none() {
-                self.span = template
-                    .expressions
-                    .iter()
-                    .find(|expression| forward_styled_reference(expression) == Some(self.name))
-                    .map(GetSpan::span);
+            let span = template
+                .expressions
+                .iter()
+                .find(|expression| forward_styled_reference(expression) == Some(self.name))
+                .map(GetSpan::span);
+            if self.in_vindur_template {
+                self.vindur_span = self.vindur_span.or(span);
             }
+            self.span = self.span.or(span);
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = false;
             walk::walk_template_literal(self, template);
+            self.in_vindur_template = in_vindur_template;
         }
     }
-    let mut finder = Finder { name, span: None };
+    let mut finder = Finder {
+        name,
+        imports,
+        in_vindur_template: false,
+        vindur_span: None,
+        span: None,
+    };
     finder.visit_program(program);
-    finder.span
+    finder.vindur_span.or(finder.span)
 }
 
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
@@ -453,18 +486,27 @@ fn contains_class_selector(css: &str, name: &str) -> bool {
     !class_selector_starts(css, name).is_empty()
 }
 
-pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
+/// `None` when the CSS doesn't select the class
+pub(super) fn replace_class_selector(
+    css: &str,
+    original: &str,
+    replacement: &str,
+) -> Option<String> {
+    let starts = class_selector_starts(css, original);
+    if starts.is_empty() {
+        return None;
+    }
     let needle_len = original.len() + 1;
     let mut output = String::with_capacity(css.len());
     let mut copied = 0;
-    for start in class_selector_starts(css, original) {
+    for start in starts {
         output.push_str(&css[copied..start]);
         output.push('.');
         output.push_str(replacement);
         copied = start + needle_len;
     }
     output.push_str(&css[copied..]);
-    output
+    Some(output)
 }
 
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
@@ -522,6 +564,9 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
 fn class_selector_starts(css: &str, name: &str) -> Vec<usize> {
     let needle = format!(".{name}");
     let mut starts = Vec::new();
+    if !css.contains(&needle) {
+        return starts;
+    }
     let mut index = 0;
     while index < css.len() {
         if let Some(end) = skipped_token_end(css, index) {

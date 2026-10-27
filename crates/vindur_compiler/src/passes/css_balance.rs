@@ -4,9 +4,13 @@ use super::css_tokens::{
     skipped_token_end,
 };
 
+pub(super) const LINE_COMMENT_ERROR: &str =
+    "`//` comments are not supported in CSS, use `/* ... */`";
+
 /// Fails on an unclosed comment, an unclosed `(`, `[` or `url(`, or an unexpected `)` or `]`.
 /// oxc-css-parser 0.0.17 does not report these inside nested blocks, where they swallow the rules
-/// after them, remove this check once the parser reports them
+/// after them, remove this check once the parser reports them. Also fails on a `//` comment,
+/// whose text could otherwise be reported as an unclosed string or bracket
 pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
     let mut open: Vec<(u8, usize)> = Vec::new();
     let mut index = 0;
@@ -14,6 +18,13 @@ pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
         if css[index..].starts_with("/*") && !css[index + 2..].contains("*/") {
             return Err(CssError::syntax(
                 "unclosed comment, add `*/`".to_owned(),
+                index,
+                index + 2,
+            ));
+        }
+        if css[index..].starts_with("//") {
+            return Err(CssError::syntax(
+                LINE_COMMENT_ERROR.to_owned(),
                 index,
                 index + 2,
             ));

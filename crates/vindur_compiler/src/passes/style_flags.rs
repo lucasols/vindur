@@ -120,6 +120,17 @@ fn style_flag_from_property(
             ),
         ));
     }
+    if key.name.contains('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't contain `$`, as it becomes part of a class name",
+                key.name
+            ),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -308,15 +319,21 @@ pub(crate) fn rewrite_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> St
     for flag in flags {
         match &flag.kind {
             StyleFlagKind::Boolean => {
-                output = replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name);
+                if let Some(replaced) =
+                    replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name)
+                {
+                    output = replaced;
+                }
             }
             StyleFlagKind::StringUnion(values) => {
                 for value in values {
-                    output = replace_class_selector(
+                    if let Some(replaced) = replace_class_selector(
                         &output,
                         &format!("{}-{value}", flag.prop_name),
                         &format!("{}-{value}", flag.hashed_class_name),
-                    );
+                    ) {
+                        output = replaced;
+                    }
                 }
             }
         }

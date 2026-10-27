@@ -242,6 +242,26 @@ describe('forward references', () => {
     );
   });
 
+  test('should locate undefined forward references in the styled template', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Other = () => null
+          export const label = \`\${() => Other}\`
+
+          export const Box = styled.div\`
+            \${() => Other} & { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Forward reference to undefined styled component: Other. Make sure the component is defined in the same file.
+      loc: /test.tsx|7:4]
+    `);
+  });
+
   test('should throw error for invalid arrow function syntax', async () => {
     await expect(async () => {
       await transformWithFormat({

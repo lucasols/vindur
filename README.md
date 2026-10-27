@@ -745,6 +745,8 @@ Compiles to scoped CSS variables:
 
 Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name`, `@keyframes` and grid area strings. In custom properties, write them without quotes.
+
 #### Dynamic Variables
 
 Scoped variables can be set dynamically with the `style` prop:
@@ -899,6 +901,8 @@ createGlobalStyle`
   }
 `;
 ```
+
+`@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, since browsers drop them after other rules.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 

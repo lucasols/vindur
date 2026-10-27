@@ -50,8 +50,13 @@ pub(super) fn collect_scoped_idents(
         source,
         offset,
         idents: Vec::new(),
+        quoted_names: None,
+        unsupported_quoted_name: None,
     };
     collector.statements(statements)?;
+    if let Some(error) = collector.unsupported_quoted_name {
+        return Err(error);
+    }
     collector.idents.sort_by_key(|ident| ident.start);
     Ok(collector.idents)
 }
@@ -60,6 +65,9 @@ struct ScopedIdentCollector<'a> {
     source: &'a str,
     offset: usize,
     idents: Vec<ScopedIdent>,
+    /// How strings in the current declaration name things
+    quoted_names: Option<QuotedNames>,
+    unsupported_quoted_name: Option<CssError>,
 }
 
 impl ScopedIdentCollector<'_> {
@@ -223,7 +231,10 @@ impl ScopedIdentCollector<'_> {
 
     /// Scoped variables are only rewritten in the preludes the collector understands
     fn reject_scoped(&self, rule: &AtRule<'_>, span: oxc_css_parser::Span) -> Result<(), CssError> {
-        if has_scoped_ident(&self.source[span.start..span.end]) {
+        let text = &self.source[span.start..span.end];
+        // Font family names can be quoted, other strings in preludes are text
+        let names_fonts = rule.name.name.eq_ignore_ascii_case("font-feature-values");
+        if has_scoped_ident(text) || (names_fonts && has_quoted_scoped_name(text)) {
             return Err(CssError::new(
                 format!(
                     "Scoped CSS variables are not supported in `@{}` rule preludes",
@@ -250,34 +261,45 @@ impl ScopedIdentCollector<'_> {
     }
 
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
+        let quoted_names = self.quoted_names;
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
-            if let Some(kind) = quoted_names_kind(name.name) {
-                self.quoted_names(&declaration.value, kind);
-            }
+            self.quoted_names = quoted_names_kind(name.name);
         }
         self.values(&declaration.value);
+        self.quoted_names = quoted_names;
     }
 
-    /// Some properties name things with strings, `animation: "---spin" 1s` uses `---spin`
-    fn quoted_names(&mut self, values: &[ComponentValue<'_>], kind: QuotedNames) {
-        for value in values {
-            match value {
-                ComponentValue::InterpolableStr(InterpolableStr::Literal(name)) => match kind {
-                    QuotedNames::Whole => self.quoted_name(name.span),
-                    QuotedNames::GridAreas => self.quoted_area_names(name.span),
-                },
-                // `var(--animation, "---spin" 1s)` names it in the fallback
-                ComponentValue::Function(function) => self.quoted_names(&function.args, kind),
-                _ => {}
-            }
+    /// Some properties name things with strings, `animation: "---spin" 1s` uses `---spin`, also in
+    /// a fallback like `var(--animation, "---spin" 1s)`. Strings of other properties are text
+    fn string(&mut self, span: oxc_css_parser::Span) {
+        match self.quoted_names {
+            Some(QuotedNames::Whole) => self.quoted_name(span),
+            Some(QuotedNames::GridAreas) => self.quoted_area_names(span),
+            Some(QuotedNames::Unknown) => self.reject_custom_property_quoted_name(span),
+            None => {}
+        }
+    }
+
+    /// Custom property values can be used by any property, so a quoted scoped name in them can't
+    /// be told apart from text
+    fn reject_custom_property_quoted_name(&mut self, span: oxc_css_parser::Span) {
+        let (_, content) = string_content(self.source, span);
+        if self.unsupported_quoted_name.is_none() && is_scoped_name(content) {
+            self.unsupported_quoted_name = Some(CssError::new(
+                format!(
+                    "Quoted scoped names are not supported in custom properties, write `{content}` without quotes"
+                ),
+                span.start,
+                span.end,
+            ));
         }
     }
 
     /// A string that is a whole scoped name, like `"---spin"`, is that name
     fn quoted_name(&mut self, span: oxc_css_parser::Span) {
         let (content_start, content) = string_content(self.source, span);
-        if content.starts_with(SCOPED_PREFIX) && ident_end(content, 0) == content.len() {
+        if is_scoped_name(content) {
             self.push(
                 content_start,
                 content_start + content.len(),
@@ -356,16 +378,19 @@ impl ScopedIdentCollector<'_> {
                 self.value(&calc.right, ScopedRole::Name);
             }
             ComponentValue::CalcParenthesized(calc) => self.value(&calc.expr, ScopedRole::Name),
-            ComponentValue::TokenWithSpan(token) => {
-                if matches!(token.token, TokenData::Ident(_)) {
-                    self.push(
-                        token.span.start,
-                        token.span.end,
-                        token.raw(self.source),
-                        role,
-                    );
-                }
+            ComponentValue::InterpolableStr(InterpolableStr::Literal(string)) => {
+                self.string(string.span);
             }
+            ComponentValue::TokenWithSpan(token) => match token.token {
+                TokenData::Ident(_) => self.push(
+                    token.span.start,
+                    token.span.end,
+                    token.raw(self.source),
+                    role,
+                ),
+                TokenData::Str(_) => self.string(token.span),
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -393,9 +418,14 @@ enum QuotedNames {
     /// The whole string is one name
     Whole,
     GridAreas,
+    /// Custom properties, strings can be names or text depending on where they are used
+    Unknown,
 }
 
 fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
+    if property.starts_with("--") {
+        return Some(QuotedNames::Unknown);
+    }
     let property = ["-webkit-", "-moz-", "-o-", "-ms-"]
         .iter()
         .find_map(|prefix| {
@@ -406,7 +436,7 @@ fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
         })
         .unwrap_or(property);
     let is = |name: &str| property.eq_ignore_ascii_case(name);
-    if is("animation") || is("animation-name") || is("font-family") {
+    if is("animation") || is("animation-name") || is("font") || is("font-family") {
         Some(QuotedNames::Whole)
     } else if is("grid-template-areas") || is("grid-template") || is("grid") {
         Some(QuotedNames::GridAreas)
@@ -446,6 +476,32 @@ fn is_raw_var_call(name: &TokenWithSpanData, paren: &TokenWithSpanData, source: 
 /// Whether the text has an identifier starting with `---`, comments, strings and urls are ignored
 fn has_scoped_ident(text: &str) -> bool {
     !scoped_ident_ranges(text).is_empty()
+}
+
+/// A whole scoped name, like `---spin`
+fn is_scoped_name(text: &str) -> bool {
+    text.len() > SCOPED_PREFIX.len()
+        && text.starts_with(SCOPED_PREFIX)
+        && ident_end(text, 0) == text.len()
+}
+
+/// Whether the text has a string that is a whole scoped name, like `"---brand"`
+fn has_quoted_scoped_name(text: &str) -> bool {
+    let mut index = 0;
+    while let Some(character) = text[index..].chars().next() {
+        if let Some(end) = skipped_token_end(text, index) {
+            if matches!(character, '"' | '\'')
+                && let Some(content) = text.get(index + 1..end.saturating_sub(1))
+                && is_scoped_name(content)
+            {
+                return true;
+            }
+            index = end;
+            continue;
+        }
+        index += character.len_utf8();
+    }
+    false
 }
 
 /// Byte ranges of the identifiers starting with `---`. Comments, strings, urls and unquoted

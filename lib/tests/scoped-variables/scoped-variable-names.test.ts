@@ -207,3 +207,71 @@ test('should rename quoted grid areas, font families and nested animation names'
     "
   `);
 });
+
+test('should rename quoted scoped names in the font shorthand', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @font-face {
+          font-family: "---brand";
+          src: url(brand.woff2);
+        }
+
+        body {
+          font: italic 16px "---brand", serif;
+        }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@font-face {
+      font-family: "--v1560qbr-2-brand";
+      src: url(brand.woff2);
+    }
+
+    body {
+      font:
+        italic 16px "--v1560qbr-2-brand",
+        serif;
+    }
+    "
+  `);
+});
+
+test('should throw for quoted scoped names that are not renamed', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const spin = css\`
+          ---anim: "---spin" 1s;
+          animation: var(---anim);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---spin\` without quotes
+    loc: 4:11]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @font-feature-values "---brand" {
+            @swash { fancy: 1; }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped CSS variables are not supported in \`@font-feature-values\` rule preludes
+    loc: 4:23]
+  `);
+});

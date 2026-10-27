@@ -49,7 +49,7 @@ test('should throw for declarations at the root of keyframes', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: keyframes templates can only contain keyframe blocks, e.g. \`from { ... } to { ... }\`
+    [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: keyframes can only contain keyframe blocks, e.g. \`from { ... } to { ... }\`
     loc: 4:2]
   `);
 });
@@ -160,5 +160,76 @@ test('should throw for `@import` inside a grouping rule in createGlobalStyle', a
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: \`@import\` must come before every rule, move it to the top level of \`createGlobalStyle\`
     loc: 4:17]
+  `);
+});
+
+test('should throw for `@import` in createGlobalStyle after other styles of the file', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createGlobalStyle } from 'vindur'
+
+        export const card = css\`
+          padding: 0;
+        \`
+
+        createGlobalStyle\`
+          @import url(reset.css);
+          body { margin: 0; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@charset\`, \`@import\` and \`@namespace\` must come before every other style of the file, move this \`createGlobalStyle\` above the other styles
+    loc: 7:0]
+  `);
+});
+
+test('should keep `@import` of the first createGlobalStyle of the file', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @import url(reset.css);
+        body { margin: 0; }
+      \`
+
+      export const card = css\`
+        padding: 0;
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@import url(reset.css);
+    body {
+      margin: 0;
+    }
+
+    .v1560qbr-2-card {
+      padding: 0;
+    }
+    "
+  `);
+});
+
+test('should throw for `//` comments in createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          body {
+            // it's the body
+            color: red;
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`//\` comments are not supported in CSS, use \`/* ... */\`
+    loc: 5:4]
   `);
 });
