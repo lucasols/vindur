@@ -284,3 +284,20 @@ test('should throw for style flag names containing `$`', async () => {
     loc: 3:25]
   `);
 });
+
+test('should throw for style flags named like props React or vindur handle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Item = styled.div<{ key: boolean }>\`
+          &.key { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`key\` is a prop React or vindur handles, style flags are turned into classes, so use another name
+    loc: 3:26]
+  `);
+});

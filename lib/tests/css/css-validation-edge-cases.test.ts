@@ -3,8 +3,6 @@ import { expect, test } from 'vitest';
 import { transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
-const styleKeyRegex = /"--[^"]*": w/;
-
 // Not formatted, Prettier can't parse escaped custom property names
 test('should accept escapes in unquoted urls and custom property names', () => {
   const result = transform({
@@ -150,30 +148,21 @@ test('should locate errors spanning lines in CRLF files', async () => {
 });
 
 // Not formatted, Prettier can't parse escaped custom property names
-test('should set escaped scoped names in the style prop by their decoded name', () => {
-  const result = transform({
-    fileAbsPath: '/test.tsx',
-    fs: createFsMock({}),
-    transformFunctionCache: {},
-    transformDynamicColorCache: {},
-    importAliases: { '#/': '/' },
-    dev: true,
-    source: dedent`
-      const App = ({ w }) => (
-        <div css={\`---f\\6f o: 1px; width: var(---f\\6f o);\`} style={{ '---f\\6f o': w }} />
-      )
-    `,
-  });
+test('should throw for escaped scoped names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
 
-  // The style key is a valid JS string with the decoded name the CSS declares
-  expect(result.code.match(styleKeyRegex)?.[0]).toMatchInlineSnapshot(
-    `""--v1560qbr-2-foo": w"`,
-  );
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-css-prop-1 {
-      --v1560qbr-2-f\\6f o: 1px; width: var(--v1560qbr-2-f\\6f o);
-    }"
+        const style = css\`
+          ---f\\6f o: 1px;
+          width: var(---foo);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped name \`---f\\6f o\` can't contain escapes, write it without them
+    loc: 4:2]
   `);
 });
 
@@ -213,7 +202,7 @@ test('should reject styled components used as style extensions', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`\${Base}\` is a class selector and can't be followed by \`;\`, use \`styled(Component)\` to extend a styled component's styles
+    [TransformError: /test.tsx: \`\${Base}\` is a class selector and can't be followed by \`;\`, use \`styled(Component)\` to extend a styled component's styles, or remove the \`;\` to use it as a selector
     loc: 8:4]
   `);
 });
@@ -419,5 +408,42 @@ test('should throw for boolean and undefined interpolations', async () => {
     [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${width}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
     loc: 7:11
     ignoreInLint: true]
+  `);
+});
+
+test('should interpolate css constants in strings as their selector', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+
+      const base = css\`
+        color: red;
+      \`
+
+      const style = css\`
+        &::before {
+          content: '\${base};';
+        }
+      \`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const base = "v1560qbr-1-base";
+    const style = "v1560qbr-2-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-base {
+      color: red;
+    }
+
+    .v1560qbr-2-style {
+      &::before {
+        content: ".v1560qbr-1-base;";
+      }
+    }
+    "
   `);
 });

@@ -14,7 +14,6 @@ use crate::{
 };
 
 use super::{
-    block_validation::starts_with_stylesheet_start_rule,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
@@ -42,7 +41,9 @@ use super::{
     styled::{forward_reference_span, resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
-    transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
+    transform_support::{
+        VariableTransform, imported_tag_name, process_variable_declaration, push_global_style,
+    },
     value_references::collect_value_referenced_names,
     vindur_fn_references::runtime_vindur_fn_reference_error,
 };
@@ -264,17 +265,7 @@ pub(crate) fn transform_program(
                         &mut scoped_variables,
                     )
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
-                    if !css_rules.is_empty() && starts_with_stylesheet_start_rule(&content) {
-                        return Err(CompilerDiagnostic::error(
-                            file_path,
-                            source,
-                            tagged.span,
-                            "`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles".to_owned(),
-                        ));
-                    }
-                    if !content.is_empty() {
-                        css_rules.push(content);
-                    }
+                    push_global_style(&mut css_rules, content, file_path, source, tagged.span)?;
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
                         replacement: String::new(),
@@ -441,7 +432,6 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             file_path,
             source,
-            needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
         },

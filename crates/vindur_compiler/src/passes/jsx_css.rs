@@ -12,7 +12,6 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    css_tokens::decode_ident,
     cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
     jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
     jsx_class_name::{
@@ -128,12 +127,19 @@ impl JsxCssVisitor<'_> {
                 continue;
             };
             let Some(generated) = self.output.scoped_variables.generated.get(scoped_name) else {
-                continue;
+                self.diagnostic = Some(CompilerDiagnostic::error(
+                    self.output.file_path,
+                    self.output.source,
+                    property.key.span(),
+                    format!(
+                        "Scoped variable `{name}` is not used by any style of this file, scoped variables only exist in the file whose styles use them"
+                    ),
+                ));
+                return;
             };
-            // The DOM property is the decoded name, `---f\6f o` sets `--…-foo`
             self.output.edits.push(Edit {
                 span: property.key.span(),
-                replacement: js_string_literal(&decode_ident(&format!("--{generated}"))),
+                replacement: js_string_literal(&format!("--{generated}")),
             });
             // Setting the variable in the style prop declares it
             self.output

@@ -5,6 +5,18 @@ use crate::{CompilerDiagnostic, hash::murmur2};
 
 use super::styled::{StyleFlag, StyleFlagKind, replace_class_selector};
 
+/// Props that would stop working as style flags, which are removed and turned into classes
+const RESERVED_PROP_NAMES: [&str; 8] = [
+    "className",
+    "style",
+    "css",
+    "cx",
+    "dynamicColor",
+    "key",
+    "ref",
+    "children",
+];
+
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
     file_hash: &str,
@@ -127,6 +139,17 @@ fn style_flag_from_property(
             key.span,
             format!(
                 "Style flag `{}` can't contain `$`, as it becomes part of a class name",
+                key.name
+            ),
+        ));
+    }
+    if RESERVED_PROP_NAMES.contains(&key.name.as_str()) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` is a prop React or vindur handles, style flags are turned into classes, so use another name",
                 key.name
             ),
         ));

@@ -322,12 +322,21 @@ font-palette: ---brand;"
     }
 
     #[test]
-    fn uses_one_name_for_the_same_escaped_spelling() {
+    fn rejects_escaped_scoped_names() {
+        let mut id_index = 1;
+        let error = process_scoped_variables(
+            "view-transition-name: ---f\\6f o;",
+            BlockKind::Style,
+            Span::default(),
+            "v1",
+            true,
+            &mut id_index,
+            &mut ScopedVariables::default(),
+        )
+        .expect_err("escaped scoped names are rejected");
         assert_eq!(
-            process(
-                "view-transition-name: ---f\\6f o; &::view-transition-old(---f\\6f o) { opacity: 0; }"
-            ),
-            "view-transition-name: --v1-1-f\\6f o; &::view-transition-old(--v1-1-f\\6f o) { opacity: 0; }"
+            error.message,
+            "Scoped name `---f\\6f o` can't contain escapes, write it without them"
         );
     }
 

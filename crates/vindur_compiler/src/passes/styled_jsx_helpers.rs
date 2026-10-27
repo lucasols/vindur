@@ -33,7 +33,6 @@ pub(super) fn css_attribute_is_compile_time(
 
 pub(super) struct DynamicFlagClass {
     pub(super) concat: String,
-    pub(super) cx: String,
 }
 
 pub(super) fn collect_flag_class(
@@ -66,7 +65,6 @@ pub(super) fn collect_flag_class(
                                 " + (({expression_source}) ? \" {}\" : \"\")",
                                 flag.hashed_class_name
                             ),
-                            cx: format!("({expression_source}) && \"{}\"", flag.hashed_class_name),
                         });
                     }
                 }
@@ -88,10 +86,6 @@ pub(super) fn collect_flag_class(
                         dynamic_classes.push(DynamicFlagClass {
                             concat: format!(
                                 " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
-                                flag.hashed_class_name
-                            ),
-                            cx: format!(
-                                "({expression_source}) && `{}-${{({expression_source})}}`",
                                 flag.hashed_class_name
                             ),
                         });

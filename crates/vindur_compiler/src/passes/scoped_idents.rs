@@ -51,10 +51,10 @@ pub(super) fn collect_scoped_idents(
         offset,
         idents: Vec::new(),
         quoted_names: None,
-        unsupported_quoted_name: None,
+        error: None,
     };
     collector.statements(statements)?;
-    if let Some(error) = collector.unsupported_quoted_name {
+    if let Some(error) = collector.error {
         return Err(error);
     }
     collector.idents.sort_by_key(|ident| ident.start);
@@ -67,7 +67,8 @@ struct ScopedIdentCollector<'a> {
     idents: Vec<ScopedIdent>,
     /// How strings in the current declaration name things
     quoted_names: Option<QuotedNames>,
-    unsupported_quoted_name: Option<CssError>,
+    /// The first unsupported scoped name
+    error: Option<CssError>,
 }
 
 impl ScopedIdentCollector<'_> {
@@ -285,8 +286,8 @@ impl ScopedIdentCollector<'_> {
     /// be told apart from text
     fn reject_custom_property_quoted_name(&mut self, span: oxc_css_parser::Span) {
         let (_, content) = string_content(self.source, span);
-        if self.unsupported_quoted_name.is_none() && is_scoped_name(content) {
-            self.unsupported_quoted_name = Some(CssError::new(
+        if self.error.is_none() && is_scoped_name(content) {
+            self.error = Some(CssError::new(
                 format!(
                     "Quoted scoped names are not supported in custom properties, write `{content}` without quotes"
                 ),
@@ -397,6 +398,14 @@ impl ScopedIdentCollector<'_> {
 
     fn push(&mut self, start: usize, end: usize, raw: &str, role: ScopedRole) {
         if raw.len() > SCOPED_PREFIX.len() && raw.starts_with(SCOPED_PREFIX) {
+            // Names are matched as written, `---sp\69n` and `---spin` would get different hashes
+            if raw.contains('\\') && self.error.is_none() {
+                self.error = Some(CssError::new(
+                    format!("Scoped name `{raw}` can't contain escapes, write it without them"),
+                    start,
+                    end,
+                ));
+            }
             self.idents.push(ScopedIdent {
                 start: start - self.offset,
                 end: end - self.offset,

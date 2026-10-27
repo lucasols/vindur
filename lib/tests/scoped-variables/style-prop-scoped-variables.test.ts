@@ -90,3 +90,22 @@ test('should rename style prop variables merged by dynamicColor', async () => {
     "
   `);
 });
+
+test('should throw for style prop scoped variables no style of the file uses', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          color: var(---color);
+        \`
+
+        export const App = () => <Card style={{ '---other': 'red' }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable \`---other\` is not used by any style of this file, scoped variables only exist in the file whose styles use them
+    loc: 7:40]
+  `);
+});

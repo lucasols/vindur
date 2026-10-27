@@ -12,9 +12,6 @@ pub(super) fn validate_block_kind(
     source: &str,
     (start, end): (usize, usize),
 ) -> Result<(), CssError> {
-    if kind != BlockKind::Style {
-        reject_stray_semicolons(statements, source, start, end)?;
-    }
     for statement in statements {
         let message = match (kind, statement) {
             (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
@@ -34,6 +31,18 @@ pub(super) fn validate_block_kind(
                     } else if name == "font-feature-values" {
                         // Its block holds rules, so a `;` between them drops the next one
                         reject_stray_semicolons(&block.statements, source, inner.0, inner.1)?;
+                    } else if DECLARATION_AT_RULES.contains(&name.as_str())
+                        && let Some(nested) = block
+                            .statements
+                            .iter()
+                            .find(|statement| !matches!(statement, Statement::Declaration(_)))
+                    {
+                        let span = statement_span(nested);
+                        return Err(CssError::syntax(
+                            format!("`@{}` can only contain declarations", rule.name.raw),
+                            span.start,
+                            span.end,
+                        ));
                     }
                 }
                 continue;
@@ -42,22 +51,19 @@ pub(super) fn validate_block_kind(
                 "declarations in createGlobalStyle need a rule, e.g. `body { ... }`"
             }
             (BlockKind::Keyframes, Statement::KeyframeBlock(block)) => {
-                match block
-                    .block
-                    .statements
-                    .iter()
-                    .find(|statement| !matches!(statement, Statement::Declaration(_)))
-                {
-                    Some(nested) => {
-                        let span = statement_span(nested);
-                        return Err(CssError::syntax(
-                            "keyframes can only contain declarations".to_owned(),
-                            span.start,
-                            span.end,
-                        ));
-                    }
-                    None => continue,
+                for nested in &block.block.statements {
+                    let message = match nested {
+                        // Browsers ignore `!important` declarations in keyframes
+                        Statement::Declaration(declaration) if declaration.important.is_some() => {
+                            "`!important` is ignored in keyframes, remove it"
+                        }
+                        Statement::Declaration(_) => continue,
+                        _ => "keyframes can only contain declarations",
+                    };
+                    let span = statement_span(nested);
+                    return Err(CssError::syntax(message.to_owned(), span.start, span.end));
                 }
+                continue;
             }
             (BlockKind::Keyframes, _) => {
                 "keyframes can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
@@ -66,8 +72,22 @@ pub(super) fn validate_block_kind(
         let span = statement_span(statement);
         return Err(CssError::syntax(message.to_owned(), span.start, span.end));
     }
+    // After the statements, a misplaced declaration is reported as such, not as its `;`
+    if kind != BlockKind::Style {
+        reject_stray_semicolons(statements, source, start, end)?;
+    }
     Ok(())
 }
+
+/// At-rules whose blocks only hold declarations, browsers drop rules nested in them
+const DECLARATION_AT_RULES: [&str; 6] = [
+    "font-face",
+    "property",
+    "counter-style",
+    "font-palette-values",
+    "position-try",
+    "view-transition",
+];
 
 /// The parser skips a `;` between rules, but browsers read it as the start of the next rule's
 /// selector and drop that rule. Global styles are joined, so it can drop a rule of another file.
@@ -81,7 +101,7 @@ fn reject_stray_semicolons(
 ) -> Result<(), CssError> {
     let mut gap_start = start;
     let mut allows_semicolon = false;
-    let mut after_statement = false;
+    let mut after_block = false;
     for statement in statements.iter().map(Some).chain([None]) {
         let gap_end = statement.map_or(end, |statement| statement_span(statement).start);
         let mut index = gap_start;
@@ -93,7 +113,7 @@ fn reject_stray_semicolons(
             if source.as_bytes()[index] == b';' {
                 let is_template_start = start == 0 && source[..index].trim().is_empty();
                 if !allows_semicolon && !is_template_start {
-                    let message = if after_statement {
+                    let message = if after_block {
                         "unexpected `;` after a rule, remove it"
                     } else {
                         "unexpected `;`, remove it"
@@ -106,7 +126,7 @@ fn reject_stray_semicolons(
         }
         if let Some(statement) = statement {
             gap_start = statement_span(statement).end;
-            after_statement = true;
+            after_block = ends_with_block(statement);
             allows_semicolon = !ends_with_block(statement) && !source[..gap_start].ends_with(';');
         }
     }

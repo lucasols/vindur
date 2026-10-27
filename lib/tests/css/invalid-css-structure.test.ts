@@ -180,8 +180,27 @@ test('should throw for `@import` in createGlobalStyle after other styles of the 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`@charset\`, \`@import\` and \`@namespace\` must come before every other style of the file, move this \`createGlobalStyle\` above the other styles
+    [TransformError: /test.tsx: \`@charset\`, \`@import\` and \`@namespace\` must come before every other style of the file, move this \`createGlobalStyle\` above the other styles or merge it into the first one
     loc: 7:0]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createGlobalStyle } from 'vindur'
+
+        export const card = css\`
+          padding: 0;
+        \`
+
+        const Global = createGlobalStyle\`
+          @import url(reset.css);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@charset\`, \`@import\` and \`@namespace\` must come before every other style of the file, move this \`createGlobalStyle\` above the other styles or merge it into the first one
+    loc: 7:15]
   `);
 });
 
@@ -231,5 +250,98 @@ test('should throw for `//` comments in createGlobalStyle', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`//\` comments are not supported in CSS, use \`/* ... */\`
     loc: 5:4]
+  `);
+});
+
+test('should throw for `@view-transition` outside the top level of createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          @view-transition {
+            navigation: auto;
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@view-transition\` is not supported inside \`css\` templates, move it to the top level of \`createGlobalStyle\`
+    loc: 4:2]
+  `);
+});
+
+test('should throw for exported createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        export const Global = createGlobalStyle\`
+          body { margin: 0; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle can't be exported, its styles are added where it is declared, remove the \`export\`
+    loc: 3:13]
+  `);
+});
+
+test('should report declarations followed by `;` in createGlobalStyle as declarations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          color: red;;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: declarations in createGlobalStyle need a rule, e.g. \`body { ... }\`
+    loc: 4:2]
+  `);
+});
+
+test('should throw for `!important` in keyframes', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { keyframes } from 'vindur'
+
+        const fade = keyframes\`
+          from { opacity: 0 !important; }
+          to { opacity: 1; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: \`!important\` is ignored in keyframes, remove it
+    loc: 4:9]
+  `);
+});
+
+test('should throw for rules nested in declaration only at-rules of createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @font-face {
+            font-family: x;
+            @media print {
+              src: url(a.woff2);
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@font-face\` can only contain declarations
+    loc: 6:4]
   `);
 });

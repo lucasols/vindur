@@ -743,7 +743,7 @@ Compiles to scoped CSS variables:
 }
 ```
 
-Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
 Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name`, `@keyframes` and grid area strings. In custom properties, write them without quotes.
 
@@ -760,6 +760,8 @@ const Component = () => {
   return <Card style={{ '---color': '#007bff' }}>Hello</Card>;
 };
 ```
+
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error.
 
 ### Stable IDs
 
@@ -1154,7 +1156,7 @@ import { styled } from 'vindur';
 const Button = styled.button<{
   primary: boolean;
   size: 'small' | 'medium' | 'large';
-  disabled: boolean;
+  muted: boolean;
 }>`
   padding: 12px 24px;
   background: #007bff;
@@ -1183,19 +1185,18 @@ const Button = styled.button<{
     font-size: 18px;
   }
 
-  &.disabled {
+  &.muted {
     background: #6c757d;
-    cursor: not-allowed;
     opacity: 0.6;
   }
 `;
 
 // Usage with boolean and string union props
-const App = ({ isPrimary, buttonSize, isDisabled }) => (
+const App = ({ isPrimary, buttonSize, isMuted }) => (
   <Button
     primary={isPrimary}
     size={buttonSize}
-    disabled={isDisabled}
+    muted={isMuted}
   >
     Click me
   </Button>
@@ -1210,18 +1211,18 @@ const Button = vComponentWithModifiers(
   [
     ['primary', 'classHash-1'],
     ['size', 'classHash-2'],
-    ['disabled', 'classHash-3'],
+    ['muted', 'classHash-3'],
   ],
   'vhash123-1',
   'button',
 );
 
 // Component can be used as a normal JSX component
-const App = ({ isPrimary, buttonSize, isDisabled }) => (
+const App = ({ isPrimary, buttonSize, isMuted }) => (
   <Button
     primary={isPrimary}
     size={buttonSize}
-    disabled={isDisabled}
+    muted={isMuted}
   >
     Click me
   </Button>

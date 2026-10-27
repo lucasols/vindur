@@ -399,6 +399,23 @@ describe('Dynamic Colors - Spread Props', () => {
       "
     `);
   });
+
+  test('should throw for spreads of expressions with dynamicColor', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ f }) => <div {...f()} dynamicColor={color.set('#fff')} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Unsupported spread expression "f()" used in an element with dynamicColor. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.
+      loc: 5:35]
+    `);
+  });
 });
 
 test('should merge className before spread props with dynamic colors', async () => {

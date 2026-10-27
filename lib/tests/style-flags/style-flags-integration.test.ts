@@ -86,15 +86,12 @@ test('should work with spread props', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     function Component({ props }) {
       return (
         <button
           {...props}
-          className={cx(
-            mergeClassNames([props], "v1560qbr-1-Button"),
-            "voctcyj-active",
-          )}
+          className={mergeClassNames([props], "v1560qbr-1-Button voctcyj-active")}
         >
           Content
         </button>
@@ -234,7 +231,7 @@ test('should preserve conditional expression precedence in dynamic flags', async
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     function Component({ deadline, useToday, props }) {
       return (
         <>
@@ -251,11 +248,13 @@ test('should preserve conditional expression precedence in dynamic flags', async
           </button>
           <button
             {...props}
-            className={cx(
-              mergeClassNames([props], "v1560qbr-1-Button"),
-              (deadline ? isToday(deadline) : false) && "voctcyj-active",
-              (useToday ? "today" : "time") &&
-                \`v11as9cs-variant-\${useToday ? "today" : "time"}\`,
+            className={mergeClassNames(
+              [props],
+              "v1560qbr-1-Button" +
+                ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
+                ((useToday ? "today" : "time")
+                  ? " v11as9cs-variant-" + (useToday ? "today" : "time")
+                  : ""),
             )}
           >
             Spread
@@ -306,15 +305,15 @@ test('should merge explicit className with spread props on style flag components
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     function Component({ p, x }) {
       return (
         <>
           <div
             {...p}
-            className={cx(
-              mergeClassNames(["a", p], "v1560qbr-1-Flag"),
-              x && "voctcyj-active",
+            className={mergeClassNames(
+              ["a", p],
+              "v1560qbr-1-Flag" + (x ? " voctcyj-active" : ""),
             )}
           />
           <div

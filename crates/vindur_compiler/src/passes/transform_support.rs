@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::{
+    block_validation::starts_with_stylesheet_start_rule,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     function_validation::validate_vindur_function,
@@ -53,6 +54,29 @@ pub(super) struct VariableTransform<'a> {
     pub needs_style_flags_helper: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
+}
+
+/// The styles of a file are joined in source order, and browsers drop `@charset`, `@import` and
+/// `@namespace` after another rule
+pub(super) fn push_global_style(
+    css_rules: &mut Vec<String>,
+    content: String,
+    file_path: &str,
+    source: &str,
+    span: oxc_span::Span,
+) -> Result<(), CompilerDiagnostic> {
+    if !css_rules.is_empty() && starts_with_stylesheet_start_rule(&content) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            "`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles or merge it into the first one".to_owned(),
+        ));
+    }
+    if !content.is_empty() {
+        css_rules.push(content);
+    }
+    Ok(())
 }
 
 pub(super) fn process_variable_declaration(
@@ -375,6 +399,14 @@ pub(super) fn process_variable_declaration(
             continue;
         };
         if tag_name == "createGlobalStyle" {
+            if transform.is_exported {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`".to_owned(),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -399,9 +431,13 @@ pub(super) fn process_variable_declaration(
             .map_err(|error| {
                 css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
             })?;
-            if !content.is_empty() {
-                transform.css_rules.push(content);
-            }
+            push_global_style(
+                transform.css_rules,
+                content,
+                transform.file_path,
+                transform.source,
+                tagged.span,
+            )?;
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
                 replacement: String::new(),

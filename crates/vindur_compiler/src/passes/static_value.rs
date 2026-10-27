@@ -198,8 +198,9 @@ fn build_template_css(
             starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
         });
         let forward_reference = forward_styled_reference(expression);
+        let in_string_or_comment = ends_in_string_or_comment(&evaluated.css);
         if has_semicolon
-            && !ends_in_string_or_comment(&evaluated.css)
+            && !in_string_or_comment
             && (forward_reference.is_some()
                 || matches!(
                     evaluate_expression(expression, constants, scoping),
@@ -213,7 +214,7 @@ fn build_template_css(
                 source,
                 expression.span(),
                 format!(
-                    "`${{{expression_source}}}` is a class selector and can't be followed by `;`, use `styled(Component)` to extend a styled component's styles"
+                    "`${{{expression_source}}}` is a class selector and can't be followed by `;`, use `styled(Component)` to extend a styled component's styles, or remove the `;` to use it as a selector"
                 ),
             ));
         }
@@ -237,8 +238,12 @@ fn build_template_css(
             return Err(interpolation_error(expression, file_path, source, context));
         }
         let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
-        let followed_by_semicolon = has_semicolon || forced_semicolon;
-        if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
+        // In a string, like `content: '${base};'`, a css constant is its selector text
+        let followed_by_semicolon = (has_semicolon || forced_semicolon) && !in_string_or_comment;
+        if matches!(value, StaticValue::CssClass { .. })
+            && !followed_by_semicolon
+            && !in_string_or_comment
+        {
             evaluated.selector_classes.push(index);
         }
         let is_css_extension =

@@ -9,7 +9,7 @@ use crate::CompilerDiagnostic;
 const GLOBAL_SELECTOR: &str = ":global";
 // At-rules browsers only accept at the top level of a stylesheet or in grouping rules, they are
 // dropped inside style rules
-const TOP_LEVEL_AT_RULES: [&str; 11] = [
+const TOP_LEVEL_AT_RULES: [&str; 13] = [
     "keyframes",
     "font-face",
     "import",
@@ -21,6 +21,8 @@ const TOP_LEVEL_AT_RULES: [&str; 11] = [
     "font-feature-values",
     "page",
     "position-try",
+    "view-transition",
+    "color-profile",
 ];
 const STYLESHEET_START_AT_RULES: [&str; 3] = ["import", "charset", "namespace"];
 // At-rules whose blocks can contain other rules like `@keyframes`

@@ -1,6 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression, TemplateLiteral,
+    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeName, JSXElement, JSXFragment,
+    ObjectExpression, Program, Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -320,7 +321,8 @@ pub(crate) fn resolve_styled_references(
 }
 
 /// The `${() => name}` interpolation of a forward reference, used to locate errors about it.
-/// References in vindur templates come first, other templates can have the same function
+/// References in vindur templates and css props come first, other templates can have the same
+/// function
 pub(crate) fn forward_reference_span(
     program: &Program<'_>,
     imports: &VindurImports<'_>,
@@ -338,6 +340,16 @@ pub(crate) fn forward_reference_span(
             let in_vindur_template = self.in_vindur_template;
             self.in_vindur_template = is_vindur_template_tag(&tagged.tag, self.imports);
             walk::walk_tagged_template_expression(self, tagged);
+            self.in_vindur_template = in_vindur_template;
+        }
+
+        fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = matches!(
+                &attribute.name,
+                JSXAttributeName::Identifier(name) if name.name == "css"
+            );
+            walk::walk_jsx_attribute(self, attribute);
             self.in_vindur_template = in_vindur_template;
         }
 
