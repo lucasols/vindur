@@ -3,7 +3,7 @@ use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, State
 use oxc_parser::Parser;
 use oxc_semantic::{Scoping, SemanticBuilder};
 use oxc_span::{GetSpan, SourceType};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -19,6 +19,7 @@ pub(crate) fn remove_resolved_imports(
     code: String,
     source_type: SourceType,
     imported_values: &FxHashMap<String, StaticValue>,
+    global_style_sources: &FxHashSet<String>,
 ) -> Result<String, CompilerDiagnostic> {
     if !imported_values
         .values()
@@ -47,6 +48,7 @@ pub(crate) fn remove_resolved_imports(
         semantic.scoping(),
         &code,
         imported_values,
+        global_style_sources,
         &mut edits,
     );
     if edits.is_empty() {
@@ -72,6 +74,7 @@ fn collect_resolved_import_edits(
     scoping: &Scoping,
     source: &str,
     imported_values: &FxHashMap<String, StaticValue>,
+    global_style_sources: &FxHashSet<String>,
     edits: &mut Vec<Edit>,
 ) {
     for statement in &program.body {
@@ -85,7 +88,10 @@ fn collect_resolved_import_edits(
             continue;
         };
         let mut compile_time_count = 0usize;
-        let mut has_styles = false;
+        // The module's CSS is only loaded while the module itself is imported, so keep it
+        // when it has global styles, or when its keyframes or an inlined class name are
+        // still used by this file
+        let mut has_styles = global_style_sources.contains(declaration.source.value.as_str());
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         for specifier in specifiers {
@@ -116,8 +122,6 @@ fn collect_resolved_import_edits(
                 continue;
             };
             compile_time_count += 1;
-            // The module's CSS is only loaded while the module itself is imported, so keep it
-            // when its keyframes or an inlined class name are still used by this file
             has_styles |= match value {
                 StaticValue::Keyframes(_) => true,
                 StaticValue::CssClass { name, .. } => contains_class_name(source, name),

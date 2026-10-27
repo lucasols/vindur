@@ -30,6 +30,9 @@ pub struct ModuleFacts {
     /// Sources of `export * from 'source'`
     #[serde(default)]
     pub star_re_exports: Vec<String>,
+    /// The module has `createGlobalStyle` styles, its CSS is only loaded while it's imported
+    #[serde(default)]
+    pub has_global_styles: bool,
 }
 
 impl ModuleFacts {

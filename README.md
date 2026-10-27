@@ -1277,7 +1277,7 @@ const Button = styled.button`
 `;
 ```
 
-The generated css will be optimized with the values of the colors. An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime:
+The generated css will be optimized with the values of the colors:
 
 ```css
 .v1560qbr-1-Button {
@@ -1310,6 +1310,8 @@ In dev mode, the output will show the color name for easier debugging:
   }
 }
 ```
+
+An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. If the colors module has `createGlobalStyle` styles, it is kept as a side effect import (`import './colors'`) so its global styles still load.
 
 ### Color API
 

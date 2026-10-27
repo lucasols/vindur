@@ -105,3 +105,35 @@ test('should keep imported theme colors used at runtime', async () => {
     "
   `);
 });
+
+test('should keep a side effect import of a colors module with global styles', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const styles = css\`
+        color: \${colors.primary.var};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors, createGlobalStyle } from 'vindur';
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        createGlobalStyle\`
+          body {
+            background: \${colors.primary.var};
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import "#/theme";
+    export const styles = "v1560qbr-1-styles";
+    "
+  `);
+});

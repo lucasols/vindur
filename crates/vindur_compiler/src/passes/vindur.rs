@@ -120,6 +120,7 @@ pub(crate) fn transform_program(
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
+    let mut has_global_styles = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
@@ -186,6 +187,7 @@ pub(crate) fn transform_program(
                         statement_start: declaration.span.start,
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
+                        has_global_styles: &mut has_global_styles,
                         scoped_variables: &mut scoped_variables,
                         warnings: &mut warnings,
                     },
@@ -229,6 +231,7 @@ pub(crate) fn transform_program(
                             statement_start: export.span.start,
                             needs_styled_helper: &mut needs_styled_helper,
                             needs_style_flags_helper: &mut needs_style_flags_helper,
+                            has_global_styles: &mut has_global_styles,
                             scoped_variables: &mut scoped_variables,
                             warnings: &mut warnings,
                         },
@@ -264,6 +267,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(content);
+                        has_global_styles = true;
                     }
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
@@ -484,6 +488,7 @@ pub(crate) fn transform_program(
         exports,
         re_exports,
         star_re_exports,
+        has_global_styles,
         // Filled in by the compiler from the loaded imports
         ..ModuleFacts::default()
     };

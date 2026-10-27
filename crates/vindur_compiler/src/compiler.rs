@@ -36,6 +36,9 @@ struct LoadedImports {
     cyclic_dependencies: Vec<String>,
     /// Local names of values imported from modules whose facts depend on an import cycle
     cyclic_values: FxHashSet<String>,
+    /// Import sources of modules with global styles, kept as side effect imports when all
+    /// their imported values are resolved at compile time
+    global_style_sources: FxHashSet<String>,
 }
 
 /// Modules of the current transform, a module importing one of the `visiting` modules is in
@@ -209,11 +212,16 @@ impl Compiler {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
-        let edited_code =
-            match remove_resolved_imports(file_path, edited_code, source_type, &imports.values) {
-                Ok(code) => code,
-                Err(diagnostic) => return failed_output(source, diagnostic),
-            };
+        let edited_code = match remove_resolved_imports(
+            file_path,
+            edited_code,
+            source_type,
+            &imports.values,
+            &imports.global_style_sources,
+        ) {
+            Ok(code) => code,
+            Err(diagnostic) => return failed_output(source, diagnostic),
+        };
         let code = if options.normalize_code {
             match normalize_code(file_path, &edited_code, source_type) {
                 Ok(code) => code,
@@ -258,6 +266,7 @@ impl Compiler {
         let mut fact_dependencies = DependencyList::new(file_path);
         let mut cyclic_dependencies = DependencyList::new(file_path);
         let mut cyclic_values = FxHashSet::default();
+        let mut global_style_sources = FxHashSet::default();
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
@@ -347,6 +356,9 @@ impl Compiler {
                 continue;
             };
             fact_dependencies.insert(&resolved);
+            if facts.has_global_styles {
+                global_style_sources.insert(import.source.value.to_string());
+            }
             // Whether this module's facts are complete depends on which module of the cycle
             // was transformed first, so values derived from them aren't static
             let has_cycle = facts.has_cycle();
@@ -489,6 +501,7 @@ impl Compiler {
             fact_dependencies: fact_dependencies.paths,
             cyclic_dependencies: cyclic_dependencies.paths,
             cyclic_values,
+            global_style_sources,
         }))
     }
 
