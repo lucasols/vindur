@@ -158,7 +158,7 @@ test('should explain values missing because of an import cycle', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "AB" imported from /a.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated, note that /a.ts has an import cycle with /b.ts, values that depend on modules in an import cycle can't be evaluated statically
+    [TransformError: /test.tsx: "AB" imported from /a.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated, note that /a.ts depends on an import cycle through /b.ts, values that depend on modules in an import cycle can't be evaluated statically
     loc: 5:9]
   `);
 });

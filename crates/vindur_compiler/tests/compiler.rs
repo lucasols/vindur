@@ -219,3 +219,115 @@ fn evaluates_imported_functions_from_cached_module_facts() {
     assert!(second.css.contains("gap: 12px;"));
     assert_eq!(loader.reads, 1);
 }
+
+/// R imports `SIZE` from B, which derives it through the B -> A -> D -> B import cycle
+fn import_cycle_loader() -> MemoryLoader {
+    MemoryLoader {
+        files: FxHashMap::from_iter([
+            (
+                "/R.tsx".to_owned(),
+                "import { css } from 'vindur'; import { SIZE } from '#/B'; const style = css`top: ${SIZE}px;`;".to_owned(),
+            ),
+            (
+                "/B.ts".to_owned(),
+                "import { A_VAL } from '#/A'; export const SIZE = A_VAL;".to_owned(),
+            ),
+            (
+                "/A.ts".to_owned(),
+                "import { D_VAL } from '#/D'; export const A_VAL = D_VAL;".to_owned(),
+            ),
+            (
+                "/D.ts".to_owned(),
+                "import { SIZE } from '#/B'; export const D_VAL = 4; export const D_SIZE = SIZE;"
+                    .to_owned(),
+            ),
+        ]),
+        reads: 0,
+    }
+}
+
+fn transform_file(
+    compiler: &Compiler,
+    loader: &mut MemoryLoader,
+    file_path: &str,
+) -> vindur_compiler::TransformOutput {
+    let options = TransformOptions {
+        import_aliases: FxHashMap::from_iter([("#/".to_owned(), "/".to_owned())]),
+        ..TransformOptions::default()
+    };
+    let source = loader.files[file_path].clone();
+    compiler.transform_with_loader(file_path, &source, &options, loader)
+}
+
+fn error_messages(output: &vindur_compiler::TransformOutput) -> Vec<String> {
+    output
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect()
+}
+
+const IMPORT_CYCLE_ERROR: &str = "\"SIZE\" imported from /B.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated, note that /B.ts depends on an import cycle through /A.ts, values that depend on modules in an import cycle can't be evaluated statically";
+
+#[test]
+fn rejects_values_derived_through_import_cycles_in_any_transform_order() {
+    let compiler = Compiler::new();
+    let mut loader = import_cycle_loader();
+    let entry_first = transform_file(&compiler, &mut loader, "/R.tsx");
+
+    let compiler = Compiler::new();
+    let mut loader = import_cycle_loader();
+    assert!(
+        transform_file(&compiler, &mut loader, "/A.ts")
+            .diagnostics
+            .is_empty()
+    );
+    let cycle_member_first = transform_file(&compiler, &mut loader, "/R.tsx");
+
+    assert_eq!(error_messages(&entry_first), [IMPORT_CYCLE_ERROR]);
+    assert_eq!(error_messages(&cycle_member_first), [IMPORT_CYCLE_ERROR]);
+}
+
+#[test]
+fn keeps_rejecting_values_derived_through_import_cycles_after_unrelated_edits() {
+    let compiler = Compiler::new();
+    let mut loader = import_cycle_loader();
+    assert!(
+        transform_file(&compiler, &mut loader, "/A.ts")
+            .diagnostics
+            .is_empty()
+    );
+
+    loader.files.insert(
+        "/D.ts".to_owned(),
+        "import { SIZE } from '#/B'; export const D_VAL = 6; export const D_SIZE = SIZE;"
+            .to_owned(),
+    );
+    compiler.invalidate("/D.ts");
+
+    assert_eq!(
+        error_messages(&transform_file(&compiler, &mut loader, "/R.tsx")),
+        [IMPORT_CYCLE_ERROR]
+    );
+}
+
+#[test]
+fn recompiles_values_derived_through_import_cycles_once_the_cycle_is_removed() {
+    for first_file in ["/R.tsx", "/A.ts"] {
+        let compiler = Compiler::new();
+        let mut loader = import_cycle_loader();
+        transform_file(&compiler, &mut loader, first_file);
+        transform_file(&compiler, &mut loader, "/R.tsx");
+
+        loader
+            .files
+            .insert("/D.ts".to_owned(), "export const D_VAL = 4;".to_owned());
+        compiler.invalidate("/D.ts");
+
+        let recompiled = transform_file(&compiler, &mut loader, "/R.tsx");
+        let fresh = transform_file(&Compiler::new(), &mut loader, "/R.tsx");
+        assert!(recompiled.diagnostics.is_empty(), "{first_file}");
+        assert_eq!(recompiled.css, fresh.css, "{first_file}");
+        assert!(recompiled.css.contains("top: 4px;"), "{first_file}");
+    }
+}

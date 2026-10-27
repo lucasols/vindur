@@ -930,6 +930,8 @@ const Button = styled.button`
 
 Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`.
 
+Imported values from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, are not static. Break the cycle to derive values from them.
+
 ### JSX CSS Prop
 
 Apply styles directly to JSX elements using the `css` prop, similar to styled-components and emotion:

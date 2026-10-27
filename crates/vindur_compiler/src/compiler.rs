@@ -31,8 +31,20 @@ struct LoadedImports {
     /// Modules whose facts were read directly, including ones whose values aren't static,
     /// changing any of them can change this module's facts
     fact_dependencies: Vec<String>,
-    /// Modules skipped because they're in an import cycle with this module
+    /// Modules skipped because they're in an import cycle with this module, or whose facts
+    /// depend on one
     cyclic_dependencies: Vec<String>,
+    /// Local names of values imported from modules whose facts depend on an import cycle
+    cyclic_values: FxHashSet<String>,
+}
+
+/// Modules of the current transform, a module importing one of the `visiting` modules is in
+/// an import cycle with it
+#[derive(Default)]
+struct Traversal {
+    visiting: FxHashSet<String>,
+    /// Modules that stopped at an import cycle, so their facts aren't cached
+    aborted: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -77,7 +89,7 @@ impl Compiler {
             source,
             options,
             loader,
-            &mut FxHashSet::default(),
+            &mut Traversal::default(),
         );
         output.style_dependencies =
             self.transitive_style_dependencies(file_path, &output.style_dependencies);
@@ -110,9 +122,9 @@ impl Compiler {
         source: &str,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> TransformOutput {
-        visiting.insert(file_path.to_owned());
+        traversal.visiting.insert(file_path.to_owned());
         let source_type = match SourceType::from_path(file_path) {
             Ok(source_type) => source_type.with_module(true),
             Err(error) => {
@@ -158,10 +170,11 @@ impl Compiler {
             },
             options,
             loader,
-            visiting,
+            traversal,
         ) {
             Ok(Some(result)) => result,
             Ok(None) => {
+                traversal.aborted.push(file_path.to_owned());
                 return TransformOutput {
                     code: source.to_owned(),
                     css: String::new(),
@@ -180,6 +193,7 @@ impl Compiler {
             source,
             options,
             &imports.values,
+            &imports.cyclic_values,
         ) {
             Ok(output) => output,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -230,7 +244,7 @@ impl Compiler {
         module: &ModuleSource<'_, '_>,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> Result<Option<LoadedImports>, CompilerDiagnostic> {
         let &ModuleSource {
             program,
@@ -242,6 +256,7 @@ impl Compiler {
         let mut dependencies = DependencyList::new(file_path);
         let mut fact_dependencies = DependencyList::new(file_path);
         let mut cyclic_dependencies = DependencyList::new(file_path);
+        let mut cyclic_values = FxHashSet::default();
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
@@ -265,10 +280,11 @@ impl Compiler {
                     &options.import_aliases,
                 )
                 .is_some_and(|unresolved| {
-                    visiting
+                    traversal
+                        .visiting
                         .iter()
                         .any(|visited| paths_refer_to_same_module(visited, &unresolved))
-                }) && visiting.len() > 2
+                }) && traversal.visiting.len() > 2
                 {
                     return Ok(None);
                 }
@@ -299,12 +315,16 @@ impl Compiler {
                 }
                 continue;
             };
-            let Some(facts) = self.load_module_facts(&resolved, options, loader, visiting)? else {
-                if visiting.len() > 2 {
+            let Some(facts) = self.load_module_facts(&resolved, options, loader, traversal)? else {
+                if traversal.visiting.len() > 2 {
                     return Ok(None);
                 }
-                // Breaking the cycle changes this module's facts
+                // Breaking the cycle changes this module's facts, the cycle can also be
+                // broken in the modules that stopped at it
                 fact_dependencies.insert(&resolved);
+                for aborted in traversal.aborted.drain(..) {
+                    fact_dependencies.insert(&aborted);
+                }
                 cyclic_dependencies.insert(&resolved);
                 continue;
             };
@@ -312,6 +332,12 @@ impl Compiler {
                 continue;
             };
             fact_dependencies.insert(&resolved);
+            // Whether this module's facts are complete depends on which module of the cycle
+            // was transformed first, so values derived from them aren't static
+            let has_cycle = facts.has_cycle();
+            if has_cycle {
+                cyclic_dependencies.insert(&resolved);
+            }
             // Namespace member references can't be checked by the vindurFn runtime guard
             if let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
                 specifiers.iter().find(|specifier| {
@@ -367,6 +393,9 @@ impl Compiler {
                         },
                         value => value.clone(),
                     };
+                    if has_cycle {
+                        cyclic_values.insert(specifier.local.name.to_string());
+                    }
                     values.insert(specifier.local.name.to_string(), value);
                 } else if let Some(StaticValue::ThemeColors(colors)) =
                     facts.constants.get(specifier.imported.name().as_str())
@@ -441,6 +470,7 @@ impl Compiler {
             style_dependencies: dependencies.paths,
             fact_dependencies: fact_dependencies.paths,
             cyclic_dependencies: cyclic_dependencies.paths,
+            cyclic_values,
         }))
     }
 
@@ -449,12 +479,12 @@ impl Compiler {
         file_path: &str,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> Result<Option<Arc<ModuleFacts>>, CompilerDiagnostic> {
         if let Some(facts) = self.cached_facts(file_path) {
             return Ok(Some(facts));
         }
-        if visiting.contains(file_path) {
+        if traversal.visiting.contains(file_path) {
             return Ok(None);
         }
         let source = loader.read_file(file_path).map_err(|message| {
@@ -463,8 +493,8 @@ impl Compiler {
         let mut dependency_options = options.clone();
         dependency_options.normalize_code = false;
         let output =
-            self.transform_internal(file_path, &source, &dependency_options, loader, visiting);
-        visiting.remove(file_path);
+            self.transform_internal(file_path, &source, &dependency_options, loader, traversal);
+        traversal.visiting.remove(file_path);
         if let Some(diagnostic) = output
             .diagnostics
             .into_iter()

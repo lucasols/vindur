@@ -3,7 +3,7 @@ use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 use pretty_assertions::assert_eq;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::transform_program;
 use crate::{TransformOptions, edit::apply_edits};
@@ -37,6 +37,7 @@ const App = () => <Button>Save</Button>;
             import_aliases: FxHashMap::default(),
         },
         &FxHashMap::default(),
+        &FxHashSet::default(),
     )
     .expect("valid transform");
     let code = apply_edits("/test.tsx", source, &mut output.edits).expect("valid edits");

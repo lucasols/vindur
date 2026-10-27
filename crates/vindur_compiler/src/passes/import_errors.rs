@@ -129,14 +129,14 @@ fn find_unresolved_import<'a, 'b, 'c>(
     }
 }
 
-/// Mentions that the module was in an import cycle while collecting facts, which may be why
-/// the value isn't static, empty when there was no cycle
+/// Mentions that the module depended on an import cycle while collecting facts, which may be
+/// why the value isn't static, empty when there was no cycle
 pub(super) fn import_cycle_hint(source_path: &str, cyclic_imports: &[String]) -> String {
     if cyclic_imports.is_empty() {
         return String::new();
     }
     format!(
-        ", note that {source_path} has an import cycle with {}, values that depend on modules in an import cycle can't be evaluated statically",
+        ", note that {source_path} depends on an import cycle through {}, values that depend on modules in an import cycle can't be evaluated statically",
         cyclic_imports.join(", ")
     )
 }

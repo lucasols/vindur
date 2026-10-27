@@ -19,7 +19,8 @@ pub struct ModuleFacts {
     #[serde(default)]
     pub fact_dependencies: Vec<String>,
     /// Modules skipped while collecting facts because they're in an import cycle with
-    /// this module, their values are missing from it
+    /// this module, their values are missing from it, and imported modules whose facts
+    /// depend on an import cycle
     #[serde(default)]
     pub cyclic_dependencies: Vec<String>,
     /// Names re-exported with `export { name } from 'source'` or `export * as name from
@@ -29,6 +30,15 @@ pub struct ModuleFacts {
     /// Sources of `export * from 'source'`
     #[serde(default)]
     pub star_re_exports: Vec<String>,
+}
+
+impl ModuleFacts {
+    /// Facts collected in an import cycle depend on which module of the cycle was
+    /// transformed first
+    #[must_use]
+    pub fn has_cycle(&self) -> bool {
+        !self.cyclic_dependencies.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

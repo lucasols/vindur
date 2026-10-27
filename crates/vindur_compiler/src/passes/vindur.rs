@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use oxc_ast::ast::{Expression, Program, Statement};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::{
     CompilerDiagnostic, ModuleFacts, TransformOptions,
@@ -57,6 +57,7 @@ pub(crate) fn transform_program(
     source: &str,
     options: &TransformOptions,
     imported_values: &FxHashMap<String, StaticValue>,
+    cyclic_values: &FxHashSet<String>,
 ) -> Result<PassOutput, CompilerDiagnostic> {
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
@@ -66,8 +67,9 @@ pub(crate) fn transform_program(
     // Imported values come first so local constants can reference them, e.g.
     // `export const INSET = IMPORTED_INSET`. Local style values, e.g. `css` classes and
     // theme colors, are only known after `collect_constants`, imported ones are added after
-    // it too, so constants derived from them aren't static in both cases
-    let (style_values, imported_constants): (FxHashMap<_, _>, _) = imported_values
+    // it too, so constants derived from them aren't static in both cases. Values from
+    // modules in an import cycle are added after it too, they can only be used directly
+    let (late_values, imported_constants): (FxHashMap<_, _>, _) = imported_values
         .iter()
         .map(|(name, value)| {
             let value = match value {
@@ -76,9 +78,9 @@ pub(crate) fn transform_program(
             };
             (name.clone(), value)
         })
-        .partition(|(_, value)| is_style_value(value));
+        .partition(|(name, value)| is_style_value(value) || cyclic_values.contains(name));
     let mut constants = collect_constants(program, scoping, &imports, imported_constants);
-    constants.extend(style_values);
+    constants.extend(late_values);
     for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
