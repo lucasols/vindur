@@ -19,8 +19,8 @@ use crate::{
         DependencyList, is_type_only_import, is_type_only_specifier, paths_refer_to_same_module,
     },
     resolver::{
-        NoopLoader, clear_resolver_cache, has_source_extension, resolve_import_path,
-        unresolved_import_path,
+        NoopLoader, clear_resolver_cache, has_source_extension, relative_import_specifier,
+        resolve_import_path, unresolved_import_path,
     },
     semantic::ModuleSource,
 };
@@ -313,14 +313,13 @@ impl Compiler {
             };
             fact_dependencies.insert(&resolved);
             // Namespace member references can't be checked by the vindurFn runtime guard
-            if !import.import_kind.is_type()
-                && let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
-                    specifiers.iter().find(|specifier| {
-                        matches!(
-                            specifier,
-                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
-                        )
-                    })
+            if let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
+                specifiers.iter().find(|specifier| {
+                    matches!(
+                        specifier,
+                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                    )
+                })
                 && let Some(function_name) = facts
                     .exports
                     .iter()
@@ -401,7 +400,8 @@ impl Compiler {
                         StaticValue::UnsupportedReExport {
                             imported_name: imported_name.to_owned(),
                             source_path: resolved.clone(),
-                            // Relative to the re-exporting module, not to this one
+                            // Relative sources are relative to the re-exporting module,
+                            // the error suggests importing it from this one
                             re_export_source: Some(
                                 if re_export_source.starts_with('.') {
                                     unresolved_import_path(
@@ -409,6 +409,7 @@ impl Compiler {
                                         re_export_source,
                                         &options.import_aliases,
                                     )
+                                    .map(|target| relative_import_specifier(file_path, &target))
                                 } else {
                                     None
                                 }

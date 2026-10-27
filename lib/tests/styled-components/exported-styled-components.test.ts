@@ -275,6 +275,34 @@ describe('Exported styled components', () => {
     `);
   });
 
+  test('should keep components default exported through a wrapped expression', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button\`
+          background: red;
+        \`
+
+        export default (Button satisfies object)
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      const Button = _vSC("button", "v1560qbr-1-Button");
+      export default Button satisfies object;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Button {
+        background: red;
+      }
+      "
+    `);
+  });
+
   test('should handle direct default export', async () => {
     const result = await transformWithFormat({
       source: dedent`

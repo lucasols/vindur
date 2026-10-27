@@ -253,7 +253,10 @@ fn evaluate_template_value(
         );
         if let Some(expression) = template.expressions.get(index) {
             let value = evaluate_expression(expression, constants, scoping)?;
-            if is_unresolved_import(&value) {
+            // Compiler values, e.g. keyframes or dynamic colors, stringify differently at
+            // runtime and an imported module's styles are only loaded while it's imported,
+            // so they can only be interpolated directly in vindur styles
+            if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
                 return None;
             }
             output.push_str(&static_value_to_string(&value));
@@ -274,6 +277,15 @@ pub(super) fn evaluate_binary(
         {
             None
         }
+        // Two objects or compiler values compare by identity, which is not evaluated
+        (
+            left,
+            BinaryOperator::Equality
+            | BinaryOperator::StrictEquality
+            | BinaryOperator::Inequality
+            | BinaryOperator::StrictInequality,
+            right,
+        ) if oxc_constant_value(&left).is_none() && oxc_constant_value(&right).is_none() => None,
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }

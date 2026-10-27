@@ -58,20 +58,11 @@ fn unsupported_re_export_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let root = match expression {
-        Expression::Identifier(identifier) => identifier,
-        Expression::CallExpression(call) => match &call.callee {
-            Expression::Identifier(callee) => callee,
-            _ => return None,
-        },
-        Expression::StaticMemberExpression(member) => member_root_identifier(&member.object)?,
-        _ => return None,
-    };
-    let Some(StaticValue::UnsupportedReExport {
+    let StaticValue::UnsupportedReExport {
         imported_name,
         source_path,
         re_export_source,
-    }) = resolved_constant(root, constants, scoping)
+    } = find_re_export(expression, constants, scoping)?
     else {
         return None;
     };
@@ -89,6 +80,34 @@ fn unsupported_re_export_error(
         expression.span(),
         message,
     ))
+}
+
+/// First re-exported name the expression reads, e.g. `SIZE` in `${px(SIZE + 1)}`
+fn find_re_export<'c>(
+    expression: &Expression<'_>,
+    constants: &'c FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<&'c StaticValue> {
+    match expression {
+        Expression::Identifier(identifier) => resolved_constant(identifier, constants, scoping)
+            .filter(|value| matches!(value, StaticValue::UnsupportedReExport { .. })),
+        Expression::CallExpression(call) => find_re_export(&call.callee, constants, scoping)
+            .or_else(|| {
+                call.arguments.iter().find_map(|argument| {
+                    find_re_export(argument.as_expression()?, constants, scoping)
+                })
+            }),
+        Expression::StaticMemberExpression(member) => {
+            find_re_export(&member.object, constants, scoping)
+        }
+        Expression::BinaryExpression(binary) => find_re_export(&binary.left, constants, scoping)
+            .or_else(|| find_re_export(&binary.right, constants, scoping)),
+        Expression::UnaryExpression(unary) => find_re_export(&unary.argument, constants, scoping),
+        Expression::ParenthesizedExpression(parenthesized) => {
+            find_re_export(&parenthesized.expression, constants, scoping)
+        }
+        _ => None,
+    }
 }
 
 /// Mentions that the module was in an import cycle while collecting facts, which may be why

@@ -77,6 +77,34 @@ test('should error on values re-exported with `export ... from`', async () => {
   `);
 });
 
+test('should error on re-exported values used as arguments or operands', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { INSET } from '#/barrel';
+        import { px } from '#/fns';
+
+        export const Box = styled.div\`
+          top: \${px(INSET + 1)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'barrel.ts': `export { INSET } from '#/styles';`,
+        'styles.ts': 'export const INSET = 8;',
+        'fns.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const px = vindurFn((value: number) => \`\${value}px\`);
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "INSET" is re-exported by /barrel.ts from "#/styles", re-exports via \`export ... from\` are not supported, import it from "#/styles" directly
+    loc: 6:9]
+  `);
+});
+
 test('should error on values that may come from `export * from`', async () => {
   await expect(
     transformWithFormat({
@@ -154,7 +182,7 @@ test('should resolve relative re-export sources in errors', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "INSET" is re-exported by /ui/index.ts from "/ui/styles", re-exports via \`export ... from\` are not supported, import it from "/ui/styles" directly
+    [TransformError: /test.tsx: "INSET" is re-exported by /ui/index.ts from "./ui/styles", re-exports via \`export ... from\` are not supported, import it from "./ui/styles" directly
     loc: 5:9]
   `);
 });
@@ -184,5 +212,66 @@ test('should error on exported functions of modules with `export * from`', async
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: "getInset" imported from /barrel.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
     loc: 5:9]
+  `);
+});
+
+test('should error on values derived from imported keyframes', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { ANIMATION } from '#/animation';
+
+        const style = css\`
+          animation: \${ANIMATION};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'animation.ts': dedent`
+          import { fadeIn } from '#/keyframes';
+
+          export const ANIMATION = \`\${fadeIn} 1s\`;
+        `,
+        'keyframes.ts': dedent`
+          import { keyframes } from 'vindur';
+
+          export const fadeIn = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`;
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "ANIMATION" imported from /animation.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 5:15]
+  `);
+});
+
+test('should error on values derived from imported dynamic colors', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { color } from '#/colors';
+
+        const value = \`\${color}\`;
+
+        const style = css\`
+          color: \${value};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          import { createDynamicCssColor } from 'vindur';
+
+          export const color = createDynamicCssColor();
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${value}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 7:11
+    ignoreInLint: true]
   `);
 });
