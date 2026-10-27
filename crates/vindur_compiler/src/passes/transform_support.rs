@@ -130,7 +130,7 @@ pub(super) fn process_variable_declaration(
         if let Some(initializer) = &declarator.init
             && process_with_component(
                 initializer,
-                declaration.span,
+                declaration,
                 identifier.name.as_str(),
                 transform,
             )?
@@ -277,10 +277,11 @@ pub(super) fn process_variable_declaration(
                 variable_name.to_owned(),
                 StaticValue::ClassName(generated_name.clone()),
             );
-            let attrs = own_attrs.or_else(|| base_component.attrs.clone());
+            let attrs = merge_attrs(base_component.attrs.as_deref(), own_attrs);
             let runtime = transform.is_exported
                 || transform.value_referenced_names.contains(variable_name)
-                || attrs.is_some();
+                || attrs.is_some()
+                || base_component.runtime;
             if runtime {
                 let attrs_argument = attrs
                     .as_ref()
@@ -521,4 +522,12 @@ pub(super) fn imported_tag_name<'a>(
     imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     imports.get_expression(tag)
+}
+
+/// Own attrs override the base attrs, like a spread of both objects
+fn merge_attrs(base: Option<&str>, own: Option<String>) -> Option<String> {
+    match (base, own) {
+        (Some(base), Some(own)) => Some(format!("{{ ...{base}, ...{own} }}")),
+        (base, own) => own.or_else(|| base.map(str::to_owned)),
+    }
 }

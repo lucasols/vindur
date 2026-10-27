@@ -10,7 +10,7 @@ use rustc_hash::FxHashSet;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
-use super::vindur_fn_references::tag_root;
+use super::vindur_fn_references::{is_vindur_template_tag, tag_root};
 
 /// Top level bindings referenced as values, e.g. `const El = cond ? A : B` or
 /// `<Menu button={A} />`. References as JSX element names, in vindur templates and
@@ -19,7 +19,7 @@ use super::vindur_fn_references::tag_root;
 /// runtime components.
 ///
 /// `withComponent()` is only compiled as the initializer of a top-level variable, any other
-/// call on a local binding is an error.
+/// call on a local styled component is an error.
 pub(super) fn collect_value_referenced_names(
     program: &Program<'_>,
     scoping: &Scoping,
@@ -27,10 +27,12 @@ pub(super) fn collect_value_referenced_names(
     file_path: &str,
     source: &str,
 ) -> Result<FxHashSet<String>, CompilerDiagnostic> {
+    let top_level = top_level_styled_declarations(program, imports);
     let mut visitor = ValueReferenceVisitor {
         scoping,
         imports,
-        top_level_with_component_calls: top_level_with_component_calls(program),
+        styled_symbols: top_level.styled_symbols,
+        top_level_with_component_calls: top_level.with_component_calls,
         names: FxHashSet::default(),
         first_error: None,
     };
@@ -44,8 +46,9 @@ pub(super) fn collect_value_referenced_names(
 struct ValueReferenceVisitor<'s, 'i> {
     scoping: &'s Scoping,
     imports: &'i VindurImports<'i>,
-    /// Span starts of the `withComponent()` calls compiled by `process_with_component`
-    top_level_with_component_calls: FxHashSet<u32>,
+    styled_symbols: FxHashSet<SymbolId>,
+    /// The `withComponent()` calls compiled by `process_with_component`
+    top_level_with_component_calls: FxHashSet<Span>,
     names: FxHashSet<String>,
     first_error: Option<(Span, String)>,
 }
@@ -80,11 +83,7 @@ impl<'a> Visit<'a> for ValueReferenceVisitor<'_, '_> {
     }
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        let is_vindur_template = tag_root(&tagged.tag).is_some_and(|identifier| {
-            self.imports.get_identifier(identifier).is_some()
-                || self.imports.matches_import_or_global(identifier, "styled")
-        });
-        if is_vindur_template {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
             self.visit_attrs_arguments(&tagged.tag);
         } else {
             walk::walk_tagged_template_expression(self, tagged);
@@ -97,12 +96,10 @@ impl<'a> Visit<'a> for ValueReferenceVisitor<'_, '_> {
             && let Expression::Identifier(base) = &member.object
         {
             if self.first_error.is_none()
-                && !self
-                    .top_level_with_component_calls
-                    .contains(&call.span.start)
+                && !self.top_level_with_component_calls.contains(&call.span)
                 && self
                     .top_level_symbol(base)
-                    .is_some_and(|symbol_id| !self.scoping.symbol_flags(symbol_id).is_import())
+                    .is_some_and(|symbol_id| self.styled_symbols.contains(&symbol_id))
             {
                 self.first_error = Some((
                     call.span,
@@ -166,8 +163,19 @@ fn is_css_template_attribute(attribute: &JSXAttribute<'_>) -> bool {
         )
 }
 
-fn top_level_with_component_calls(program: &Program<'_>) -> FxHashSet<u32> {
-    let mut calls = FxHashSet::default();
+struct TopLevelStyledDeclarations {
+    styled_symbols: FxHashSet<SymbolId>,
+    with_component_calls: FxHashSet<Span>,
+}
+
+fn top_level_styled_declarations(
+    program: &Program<'_>,
+    imports: &VindurImports<'_>,
+) -> TopLevelStyledDeclarations {
+    let mut declarations = TopLevelStyledDeclarations {
+        styled_symbols: FxHashSet::default(),
+        with_component_calls: FxHashSet::default(),
+    };
     for statement in &program.body {
         let declaration = match statement {
             Statement::VariableDeclaration(declaration) => declaration,
@@ -181,13 +189,34 @@ fn top_level_with_component_calls(program: &Program<'_>) -> FxHashSet<u32> {
             _ => continue,
         };
         for declarator in &declaration.declarations {
-            if let Some(Expression::CallExpression(call)) = &declarator.init
-                && let Expression::StaticMemberExpression(member) = &call.callee
-                && member.property.name.as_str() == "withComponent"
+            let Some(initializer) = &declarator.init else {
+                continue;
+            };
+            let is_styled = match initializer.without_parentheses() {
+                Expression::CallExpression(call) if is_with_component_call(call) => {
+                    declarations.with_component_calls.insert(call.span);
+                    true
+                }
+                Expression::TaggedTemplateExpression(tagged) => {
+                    tag_root(&tagged.tag).is_some_and(|identifier| {
+                        imports.matches_import_or_global(identifier, "styled")
+                    })
+                }
+                _ => false,
+            };
+            if is_styled
+                && let Some(symbol_id) = declarator
+                    .id
+                    .get_binding_identifier()
+                    .and_then(|identifier| identifier.symbol_id.get())
             {
-                calls.insert(call.span.start);
+                declarations.styled_symbols.insert(symbol_id);
             }
         }
     }
-    calls
+    declarations
+}
+
+fn is_with_component_call(call: &CallExpression<'_>) -> bool {
+    matches!(&call.callee, Expression::StaticMemberExpression(member) if member.property.name.as_str() == "withComponent")
 }

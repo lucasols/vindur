@@ -285,6 +285,91 @@ describe('withComponent', () => {
     );
   });
 
+  test('should throw error when withComponent shares its variable declaration', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = Container.withComponent('a'), title = 'hello'
+
+          export const App = () => <Link>{title}</Link>
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: withComponent() must use its own variable declaration
+      loc: 7:0]
+    `);
+  });
+
+  test('should throw error when withComponent calls are chained', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = Container.withComponent('a').withComponent('span')
+
+          export const App = () => <Link />
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be the initializer of a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:13]
+    `);
+  });
+
+  test('should work with a parenthesized withComponent initializer', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Container = styled.div\`
+          color: red;
+        \`
+
+        const Link = (Container.withComponent('a'))
+
+        export const App = () => <Link />
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const App = () => <a className="v1560qbr-1-Container" />;
+      "
+    `);
+  });
+
+  test('should not check withComponent methods of other local bindings', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        const registry = { withComponent: (value: string) => value }
+
+        export function App() {
+          return registry.withComponent('a')
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const registry = {
+        withComponent: (value: string) => value,
+      };
+      export function App() {
+        return registry.withComponent("a");
+      }
+      "
+    `);
+  });
+
   test('should work with extended styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`

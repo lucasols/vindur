@@ -265,7 +265,7 @@ const Div = Button.withComponent('div'); // Same styles, <div> element
 const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
 ```
 
-`withComponent` must be the initializer of a top-level variable, like the examples above.
+`withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
 
 ### Default Attributes
 
@@ -293,7 +293,7 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` values can't contain JSX. `attrs` can also be used with styled extensions:
+`attrs` values can't contain JSX or vindur templates, reference a module level `css` constant instead. `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
 
 ```tsx
 const StyledDiv = styled(Component).attrs({

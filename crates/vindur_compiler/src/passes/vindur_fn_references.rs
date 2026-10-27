@@ -184,3 +184,11 @@ pub(super) fn tag_root<'e, 'a>(
         _ => None,
     }
 }
+
+/// A tag compiled by vindur: a vindur import, or `styled` used without importing it
+pub(super) fn is_vindur_template_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    tag_root(tag).is_some_and(|identifier| {
+        imports.get_identifier(identifier).is_some()
+            || imports.matches_import_or_global(identifier, "styled")
+    })
+}

@@ -192,7 +192,7 @@ test('should keep local styled components passed as a non-template css value of 
   `);
 });
 
-test('should not make extensions of a styled component referenced as a value runtime components', async () => {
+test('should keep extensions of a styled component referenced as a value as runtime components', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
@@ -222,10 +222,12 @@ test('should not make extensions of a styled component referenced as a value run
     "import { _vSC } from "vindur";
     import { MoreMenu } from "#/components";
     const Button = _vSC("button", "v1560qbr-1-Button");
+    const LinkButton = _vSC("button", "v1560qbr-1-Button v1560qbr-2-LinkButton");
+    const DivButton = _vSC("div", "v1560qbr-1-Button");
     export const A = () => (
       <>
-        <button className="v1560qbr-1-Button v1560qbr-2-LinkButton" />
-        <div className="v1560qbr-1-Button" />
+        <LinkButton />
+        <DivButton />
         <MoreMenu buttonContainer={Button} />
       </>
     );

@@ -502,6 +502,60 @@ describe('styled components - attrs functionality', () => {
     );
   });
 
+  test('should throw error for vindur templates in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled, css } from 'vindur'
+
+          export const Button = styled.button.attrs({ className: css\`color: red;\` })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it
+      loc: 3:55]
+    `);
+  });
+
+  test('should merge the attrs of a styled extension with the attrs of its base', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button.attrs({ type: 'button', title: 'base' })\`
+          color: red;
+        \`
+
+        const IconButton = styled(Button).attrs({ title: 'icon' })\`
+          padding: 0;
+        \`
+
+        export const App = () => <IconButton />
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      const Button = _vSC("button", "v1560qbr-1-Button", {
+        type: "button",
+        title: "base",
+      });
+      const IconButton = _vSC("button", "v1560qbr-1-Button v1560qbr-2-IconButton", {
+        ...{
+          type: "button",
+          title: "base",
+        },
+        ...{
+          title: "icon",
+        },
+      });
+      export const App = () => <IconButton />;
+      "
+    `);
+  });
+
   test('should handle function calls and expressions in attrs', async () => {
     const source = dedent`
       import { styled } from 'vindur'

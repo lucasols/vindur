@@ -1,8 +1,8 @@
 use oxc_ast::ast::{
     Argument, Expression, JSXElement, JSXFragment, ObjectExpression, Program, Statement,
-    TSTypeParameterInstantiation,
+    TSTypeParameterInstantiation, TaggedTemplateExpression,
 };
-use oxc_ast_visit::Visit;
+use oxc_ast_visit::{Visit, walk};
 use oxc_span::Span;
 use rustc_hash::FxHashMap;
 
@@ -10,6 +10,7 @@ use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
+use super::vindur_fn_references::is_vindur_template_tag;
 
 #[derive(Clone, Debug)]
 pub(crate) enum StyleFlagKind {
@@ -160,14 +161,13 @@ pub(crate) fn styled_tag_component_with_attrs(
                     .to_owned(),
             ));
         };
-        // The object is copied as written, so it can't hold JSX the JSX passes rewrite
-        if let Some(jsx_span) = first_jsx_span(object) {
+        // The object is copied as written, so it can't hold code the other passes rewrite
+        if let Some((span, message)) = first_unsupported_attrs_value(object, context.imports) {
             return Err(CompilerDiagnostic::error(
                 context.file_path,
                 context.source,
-                jsx_span,
-                "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered"
-                    .to_owned(),
+                span,
+                message.to_owned(),
             ));
         }
         let span = object.span;
@@ -420,22 +420,41 @@ pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &st
     output
 }
 
-fn first_jsx_span(object: &ObjectExpression<'_>) -> Option<Span> {
-    let mut visitor = JsxFinder { span: None };
+const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
+const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
+
+fn first_unsupported_attrs_value(
+    object: &ObjectExpression<'_>,
+    imports: &VindurImports<'_>,
+) -> Option<(Span, &'static str)> {
+    let mut visitor = UnsupportedAttrsValueFinder {
+        imports,
+        found: None,
+    };
     visitor.visit_object_expression(object);
-    visitor.span
+    visitor.found
 }
 
-struct JsxFinder {
-    span: Option<Span>,
+struct UnsupportedAttrsValueFinder<'i> {
+    imports: &'i VindurImports<'i>,
+    found: Option<(Span, &'static str)>,
 }
 
-impl<'a> Visit<'a> for JsxFinder {
+impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
-        self.span.get_or_insert(element.span);
+        self.found.get_or_insert((element.span, ATTRS_JSX_ERROR));
     }
 
     fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
-        self.span.get_or_insert(fragment.span);
+        self.found.get_or_insert((fragment.span, ATTRS_JSX_ERROR));
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
+            self.found
+                .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
+        } else {
+            walk::walk_tagged_template_expression(self, tagged);
+        }
     }
 }
