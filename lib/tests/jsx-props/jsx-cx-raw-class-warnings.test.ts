@@ -129,6 +129,18 @@ test('should not warn about raw classes of the selected elements, comments or va
       &:has(.active) {
         color: green;
       }
+
+      & .active .icon,
+      .active .label,
+      &:has(.active .icon) {
+        color: gray;
+      }
+
+      @scope (&) to (.active) {
+        .icon {
+          color: black;
+        }
+      }
     \`;
 
     const Tab = styled.li\`
