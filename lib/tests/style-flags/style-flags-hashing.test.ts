@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 test('should hash modifier class names in dev mode', async () => {
@@ -427,6 +428,101 @@ test('should keep production modifier class names unchanged', async () => {
     .v1560qbr-3 {
       .v1560qbr-1.voctcyj & {
         font-weight: bold;
+      }
+    }
+    "
+  `);
+});
+
+const redeclaredFlagsSource = dedent`
+  import { styled } from 'vindur';
+
+  const Button = styled.button<{ active: boolean }>\`
+    &.active {
+      color: red;
+    }
+  \`;
+
+  const IconButton = styled(Button)<{ active: boolean; big: boolean }>\`
+    &.big {
+      font-size: 20px;
+    }
+  \`;
+
+  function Component({ active }: { active: boolean }) {
+    return <IconButton active={active} big />;
+  }
+`;
+
+test('should keep the base modifier classes for flags redeclared in dev', async () => {
+  const warnings: TransformWarning[] = [];
+
+  const result = await transformWithFormat({
+    source: redeclaredFlagsSource,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <button
+          className={
+            "v1560qbr-1-Button v1560qbr-2-IconButton v1560qbr-2-IconButton-big" +
+            (active ? " v1560qbr-1-Button-active" : "")
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.v1560qbr-1-Button-active {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2-IconButton {
+      &.v1560qbr-2-IconButton-big {
+        font-size: 20px;
+      }
+    }
+    "
+  `);
+
+  expect(warnings).toMatchInlineSnapshot(`[]`);
+});
+
+test('should keep the base modifier classes for flags redeclared in production', async () => {
+  const result = await transformWithFormat({
+    source: redeclaredFlagsSource,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <button
+          className={"v1560qbr-1 v1560qbr-2 v1x4k6wd" + (active ? " voctcyj" : "")}
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.voctcyj {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      &.v1x4k6wd {
+        font-size: 20px;
       }
     }
     "

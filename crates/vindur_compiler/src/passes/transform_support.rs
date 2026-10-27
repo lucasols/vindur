@@ -21,8 +21,8 @@ use super::{
     static_value::{TemplateContext, evaluate_template},
     style_flags::rewrite_style_flag_selectors,
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
-        styled_tag_component_with_attrs, undeclared_style_classes,
+        StyleFlag, StyledComponent, StyledTagContext, css_class_name_part,
+        missing_style_flag_selectors, styled_tag_component_with_attrs, undeclared_style_classes,
     },
     theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
@@ -175,8 +175,19 @@ pub(super) fn process_variable_declaration(
             let style_flags = if own_style_flags.is_empty() {
                 base_component.style_flags.clone()
             } else {
-                own_style_flags
+                with_base_flag_classes(own_style_flags, &base_component.style_flags)
             };
+            // The base component styles its own flags, so only new flags need modifier styles
+            let new_style_flags = style_flags
+                .iter()
+                .filter(|flag| {
+                    !base_component
+                        .style_flags
+                        .iter()
+                        .any(|base_flag| base_flag.prop_name == flag.prop_name)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -192,7 +203,7 @@ pub(super) fn process_variable_declaration(
             let content = clean_css(&content);
             if transform.dev {
                 transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &style_flags)
+                    missing_style_flag_selectors(&content, &new_style_flags)
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(
@@ -500,6 +511,26 @@ fn validate_vindur_function_declaration(
         );
     }
     Ok(())
+}
+
+/// Flags redeclared by a `styled(Base)` keep the base classes, so the base modifier styles
+/// still match
+fn with_base_flag_classes(own_flags: Vec<StyleFlag>, base_flags: &[StyleFlag]) -> Vec<StyleFlag> {
+    own_flags
+        .into_iter()
+        .map(|flag| {
+            match base_flags
+                .iter()
+                .find(|base_flag| base_flag.prop_name == flag.prop_name)
+            {
+                Some(base_flag) => StyleFlag {
+                    hashed_class_name: base_flag.hashed_class_name.clone(),
+                    ..flag
+                },
+                None => flag,
+            }
+        })
+        .collect()
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

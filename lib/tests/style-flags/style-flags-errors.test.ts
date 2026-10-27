@@ -252,3 +252,26 @@ test('should warn about missing modifier styles', async () => {
     "
   `);
 });
+
+test('should throw error for style flags with the same class name', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div<{
+          $active: boolean;
+          _active: boolean;
+        }>\`
+          &.$active { color: red; }
+          &._active { color: green; }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `
+    [TransformError: /test.tsx: Style flags "$active" and "_active" would use the same class name "_active", rename one of them
+    loc: 5:2]
+  `,
+  );
+});

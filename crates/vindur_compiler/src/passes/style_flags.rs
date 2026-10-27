@@ -1,4 +1,7 @@
-use oxc_ast::ast::{Program, PropertyKey, Statement, TSLiteral, TSSignature, TSType, TSTypeName};
+use oxc_ast::ast::{
+    Program, PropertyKey, Statement, TSLiteral, TSPropertySignature, TSSignature, TSType,
+    TSTypeName,
+};
 use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
@@ -63,11 +66,19 @@ pub(super) fn extract_style_flags(
             ));
         }
     };
-    type_literal
+    let properties = type_literal
         .members
         .iter()
         .filter_map(|member| match member {
-            TSSignature::TSPropertySignature(property) => Some(style_flag_from_property(
+            TSSignature::TSPropertySignature(property) => Some(property.as_ref()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    colliding_class_name_error(&properties, file_path, source)?;
+    properties
+        .into_iter()
+        .map(|property| {
+            style_flag_from_property(
                 property,
                 file_hash,
                 dev,
@@ -75,10 +86,41 @@ pub(super) fn extract_style_flags(
                 program,
                 file_path,
                 source,
-            )),
-            _ => None,
+            )
         })
         .collect()
+}
+
+/// `$` becomes `_` in class names, so `$active` and `_active` would share a class
+fn colliding_class_name_error(
+    properties: &[&TSPropertySignature<'_>],
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    let names = properties
+        .iter()
+        .filter_map(|property| match &property.key {
+            PropertyKey::StaticIdentifier(key) => Some((key.name.as_str(), property.span)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (index, (name, span)) in names.iter().enumerate() {
+        let class_name = css_class_name_part(name);
+        if let Some((other, _)) = names[..index]
+            .iter()
+            .find(|(other, _)| other != name && css_class_name_part(other) == class_name)
+        {
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                *span,
+                format!(
+                    "Style flags \"{other}\" and \"{name}\" would use the same class name \"{class_name}\", rename one of them"
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn find_type_alias<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a TSType<'a>> {
@@ -100,7 +142,7 @@ fn simple_type_reference_name<'r>(
 }
 
 fn style_flag_from_property(
-    property: &oxc_ast::ast::TSPropertySignature<'_>,
+    property: &TSPropertySignature<'_>,
     file_hash: &str,
     dev: bool,
     component_class: &str,

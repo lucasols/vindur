@@ -348,13 +348,14 @@ pub(crate) fn transform_program(
         },
     )?;
 
+    let exported_locals: FxHashSet<String> = exported_names.values().cloned().collect();
     transform_jsx_cx_props(
         program,
         JsxCxTransform {
             constants: &constants,
             scoping,
             styled_components: &styled_components,
-            exported_names: &exported_names,
+            exported_names: &exported_locals,
             file_hash: &file_hash,
             file_path,
             source,
@@ -519,8 +520,8 @@ fn is_style_value(value: &StaticValue) -> bool {
             | StaticValue::Keyframes(_)
             | StaticValue::ThemeColor { .. }
             | StaticValue::ThemeColorContrast { .. }
-            | StaticValue::ThemeColors(_)
-            | StaticValue::UnexportedThemeColors(_)
+            | StaticValue::ThemeColors { .. }
+            | StaticValue::UnexportedThemeColors { .. }
     )
 }
 
