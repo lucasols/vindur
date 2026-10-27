@@ -1056,7 +1056,7 @@ const App = ({ isActive, isDisabled }) => (
 );
 ```
 
-On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) or in a styled component it extends (`styled(Base)`) are a compile error, use `$` keys or move them into the styled component. Hashed modifiers of an exported css reference are a compile error too, as other files using it wouldn't get the hashed classes.
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) or in a styled component it extends (`styled(Base)`) are a compile error, use `$` keys or move them into the styled component. Hashed modifiers of an exported css reference are a compile error too, as other files using it wouldn't get the hashed classes. A css reference inside a `className` expression, like `className={cx(styles)}`, can't declare hashed modifiers, pass it directly. Selecting a hashed class through a component reference, like `${Item}.active` in another styled component, is a compile error too, use a `$` key or a style flag.
 
 On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
 

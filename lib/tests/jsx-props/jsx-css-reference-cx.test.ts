@@ -309,3 +309,35 @@ test('should reject hashed cx modifiers of an exported css reference', async () 
     loc: 8:18]
   `);
 });
+
+test('should reject hashed cx modifiers of a css reference inside a className expression', async () => {
+  const source = (className: string) => dedent`
+    import { css, styled, cx } from 'vindur';
+
+    const styles = css\`
+      &.active { color: red; }
+    \`;
+
+    const Box = styled.div\`
+      color: blue;
+    \`;
+
+    export const App = ({ on }: { on: boolean }) => (
+      <Box className={${className}} cx={{ active: on }} />
+    );
+  `;
+
+  await expect(
+    transformWithFormat({ source: source('cx(styles)') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
+    loc: 12:21]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('`${styles} extra`') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
+    loc: 12:21]
+  `);
+});

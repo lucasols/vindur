@@ -130,6 +130,8 @@ Hashed keys are a compile error when their modifiers are declared where they can
 - An exported css reference, other files using it would not get the renamed modifiers
 - A css reference passed to a styled component, only the styled component's own modifiers are renamed
 - A styled component it extends, like `&.active` in `Base` for `<Child cx={{ active }} />` with `Child = styled(Base)`, the extended rules are only renamed for cx props of `Base`
+- A css reference inside a `className` expression, like `className={cx(styles)}`, only references passed directly are renamed
+- Other styles selecting a styled component through a component reference, like `${Item}.active` or `${Item}:not(.active)` in `List`, they keep the original class. The check runs after every style of the file is generated, including css props and forward references
 
 ### Preventing Hashing with $ Prefix
 

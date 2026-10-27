@@ -314,12 +314,12 @@ struct ElementRefs {
     scope: Subject,
 }
 
-enum SelectorArgument<'s, 'a> {
+pub(super) enum SelectorArgument<'s, 'a> {
     Complex(&'s ComplexSelector<'a>),
     Compound(&'s CompoundSelector<'a>),
 }
 
-fn pseudo_class_selectors<'s, 'a>(
+pub(super) fn pseudo_class_selectors<'s, 'a>(
     pseudo: &'s PseudoClassSelector<'a>,
 ) -> Vec<SelectorArgument<'s, 'a>> {
     match pseudo.arg.as_ref().map(|arg| &arg.kind) {
@@ -350,7 +350,7 @@ fn pseudo_class_selectors<'s, 'a>(
 
 /// `:not()`, `:is()`, `:where()` and `:nth-child(of)` match the element against their
 /// selectors, so the subject of each one is the element. `:has()` matches other elements
-fn matches_element(pseudo: &PseudoClassSelector<'_>) -> bool {
+pub(super) fn matches_element(pseudo: &PseudoClassSelector<'_>) -> bool {
     pseudo_class_name_is(pseudo, &["not"]) || selects_element(pseudo)
 }
 
@@ -407,7 +407,9 @@ fn compound_subject(compound: &CompoundSelector<'_>, refs: ElementRefs) -> Subje
         .unwrap_or(Subject::Other)
 }
 
-fn compounds<'s, 'a>(selector: &'s ComplexSelector<'a>) -> Vec<&'s CompoundSelector<'a>> {
+pub(super) fn compounds<'s, 'a>(
+    selector: &'s ComplexSelector<'a>,
+) -> Vec<&'s CompoundSelector<'a>> {
     selector
         .children
         .iter()

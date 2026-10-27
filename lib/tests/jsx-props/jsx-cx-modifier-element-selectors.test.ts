@@ -411,21 +411,21 @@ test('should reject cx modifiers in rules matching both the element and other el
     transformWithFormat({ source: styled('&:hover, & .child') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
-    loc: 8:53]
+    loc: 8:59]
   `);
 
   await expect(
     transformWithFormat({ source: styled(':where(&, .x)') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
-    loc: 8:53]
+    loc: 8:59]
   `);
 
   await expect(
     transformWithFormat({ source: styled('@scope (&, & .x)') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
-    loc: 8:53]
+    loc: 8:59]
   `);
 
   await expect(
@@ -474,5 +474,94 @@ test('should reject cx modifiers declared by an extended styled component', asyn
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
     loc: 14:17]
+  `);
+});
+
+test('should reject hashed cx modifiers selected through a component reference', async () => {
+  const source = (selector: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Item = styled.li\`
+      &.active { color: blue; }
+    \`;
+
+    const List = styled.ul\`
+      ${selector} { font-weight: bold; }
+    \`;
+
+    export const App = ({ on }: { on: boolean }) => (
+      <List>
+        <Item cx={{ active: on }} />
+      </List>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({ source: source('& ${Item}.active') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Item", other styles select it through a component reference, like "\${Item}.active", which would stop matching. Use a $-prefixed class (e.g. $active) or a style flag.
+    loc: 13:16]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('& ${() => Item}:not(.active)') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Item", other styles select it through a component reference, like "\${Item}.active", which would stop matching. Use a $-prefixed class (e.g. $active) or a style flag.
+    loc: 13:16]
+  `);
+});
+
+test('should keep classes of other elements selected with a component reference', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.li\`
+        &.active { color: blue; }
+      \`;
+
+      const List = styled.ul\`
+        & \${Item} .active, &.active \${Item} { font-weight: bold; }
+      \`;
+
+      export const App = ({ on }: { on: boolean }) => (
+        <List>
+          <Item cx={{ active: on }} />
+        </List>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const App = ({ on }: { on: boolean }) => (
+      <ul className="v1560qbr-2-List">
+        <li
+          className={
+            "v1560qbr-1-Item " +
+            cx({
+              "v1560qbr-3-active": on,
+            })
+          }
+        />
+      </ul>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Item {
+      &.v1560qbr-3-active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2-List {
+      & .v1560qbr-1-Item .active,
+      &.active .v1560qbr-1-Item {
+        font-weight: bold;
+      }
+    }
+    "
   `);
 });

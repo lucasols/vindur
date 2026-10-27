@@ -27,6 +27,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
+    jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
     source_map::css_template_offsets,
@@ -108,6 +109,7 @@ pub(crate) fn transform_program(
     let mut needs_style_flags_helper = false;
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
+    let mut hashed_styled_modifiers = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut scoped_variables = ScopedVariables::default();
@@ -351,6 +353,7 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             elements: &mut cx_elements,
+            hashed_styled_modifiers: &mut hashed_styled_modifiers,
             class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
@@ -453,6 +456,12 @@ pub(crate) fn transform_program(
         exports,
         dependencies: Vec::new(),
     };
+    // Every style is generated here, also the css props after the cx pass
+    if let Some(diagnostic) =
+        component_reference_modifier_error(&css_rules, &hashed_styled_modifiers, file_path, source)
+    {
+        return Err(diagnostic);
+    }
     if let Some(reference) = resolve_styled_references(&mut css_rules, &styled_components) {
         return Err(CompilerDiagnostic::error(
             file_path,
