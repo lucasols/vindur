@@ -202,6 +202,63 @@ test('referencing styled component with flags preserves style flag hash', async 
   `);
 });
 
+test('referencing styled component flags only hashes whole class names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Child = styled.div\`
+        \${Item}.active-icon & {
+          color: green;
+        }
+        \${Item}.active & {
+          color: blue;
+        }
+      \`;
+
+      export const App = () => (
+        <Item active>
+          <Child />
+        </Item>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 voctcyj"}>
+        <div className="v1560qbr-2" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.voctcyj {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      .v1560qbr-1.active-icon & {
+        color: green;
+      }
+      .v1560qbr-1.voctcyj & {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
 test('should support style flags with $ prefixed names', async () => {
   const result = await transformWithFormat({
     source: dedent`

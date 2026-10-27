@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
+use super::css_syntax::CssError;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::import_errors::{
@@ -85,6 +86,30 @@ pub(crate) fn evaluate_template(
     }
     validate_template_css(&evaluated, template, file_path, source, context, build)?;
     Ok(evaluated.css)
+}
+
+/// Locates an error found after evaluation, e.g. by rewriting the flag selectors of the CSS. The
+/// CSS is evaluated again, as the offsets of the cleaned CSS don't map to the source
+pub(crate) fn locate_template_error(
+    template: &TemplateLiteral<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+    context: &TemplateContext<'_>,
+    find_error: impl Fn(&str) -> Option<CssError>,
+) -> Result<Option<CompilerDiagnostic>, CompilerDiagnostic> {
+    let evaluated = build_template_css(
+        template,
+        constants,
+        scoping,
+        file_path,
+        source,
+        context,
+        &[],
+    )?;
+    Ok(find_error(&evaluated.css)
+        .map(|error| evaluated.error_diagnostic(error, template, file_path, source)))
 }
 
 /// `forced_extensions` evaluates the CSS class interpolations at those indices as style

@@ -5,7 +5,7 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::style_flag_selectors::{flag_validation_css, misplaced_flag_class_at};
+use super::style_flag_selectors::{flag_validation_css, misplaced_flag_class_error};
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -57,6 +57,18 @@ impl EvaluatedTemplate {
             })
     }
 
+    /// The error diagnostic of a CSS error, located in the source
+    pub(crate) fn error_diagnostic(
+        &self,
+        error: CssError,
+        template: &TemplateLiteral<'_>,
+        file_path: &str,
+        source: &str,
+    ) -> CompilerDiagnostic {
+        let (span, _) = self.source_span(&error, source, template);
+        CompilerDiagnostic::error(file_path, source, span, error.message)
+    }
+
     /// Source position of a CSS error, `None` when it can't be mapped to the source
     fn error_position(
         &self,
@@ -93,16 +105,12 @@ pub(crate) fn validate_template_css(
     let Err(error) = validate(&evaluated.css) else {
         return Ok(());
     };
-    if let Some(class) = misplaced_flag_class_at(&evaluated.css, error.start, context.style_flags) {
-        let (span, _) = evaluated.source_span(&error, source, template);
-        return Err(CompilerDiagnostic::error(
-            file_path,
-            source,
-            span,
-            format!(
-                "Style flag \"{class}\" can only be used in selectors of the element itself, e.g. \"&.{class}\""
-            ),
-        ));
+    if let Some(misplaced) = misplaced_flag_class_error(
+        &flag_validation_css(&evaluated.css, context.style_flags),
+        &error,
+        context.style_flags,
+    ) {
+        return Err(evaluated.error_diagnostic(misplaced, template, file_path, source));
     }
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {

@@ -2,39 +2,39 @@ use std::borrow::Cow;
 
 use super::css_syntax::CssError;
 use super::cx_modifier_selectors::{ElementClass, ModifierCss, element_classes, rewrite_classes};
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
+use super::styled::{StyleFlag, StyleFlagKind};
 
 /// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
 struct FlagClass {
     /// The class as written in the CSS, e.g. `$size-small`
     original: String,
-    /// The class as parsed from the CSS, `$` is parsed as `_`, e.g. `_size-small`
-    name: String,
     hashed: String,
 }
 
 fn flag_classes(flags: &[StyleFlag]) -> Vec<FlagClass> {
     flags
         .iter()
-        .flat_map(|flag| {
-            let name = css_class_name_part(&flag.prop_name);
-            match &flag.kind {
-                StyleFlagKind::Boolean => vec![FlagClass {
-                    original: flag.prop_name.clone(),
-                    name,
-                    hashed: flag.hashed_class_name.clone(),
-                }],
-                StyleFlagKind::StringUnion(values) => values
-                    .iter()
-                    .map(|value| FlagClass {
-                        original: format!("{}-{value}", flag.prop_name),
-                        name: format!("{name}-{value}"),
-                        hashed: format!("{}-{value}", flag.hashed_class_name),
-                    })
-                    .collect(),
-            }
+        .flat_map(|flag| match &flag.kind {
+            StyleFlagKind::Boolean => vec![FlagClass {
+                original: flag.prop_name.clone(),
+                hashed: flag.hashed_class_name.clone(),
+            }],
+            StyleFlagKind::StringUnion(values) => values
+                .iter()
+                .map(|value| FlagClass {
+                    original: format!("{}-{value}", flag.prop_name),
+                    hashed: format!("{}-{value}", flag.hashed_class_name),
+                })
+                .collect(),
         })
         .collect()
+}
+
+/// A character of a class name, including the `$` of flag classes like `$active`
+fn is_class_character(character: char) -> bool {
+    !character.is_ascii()
+        || character.is_ascii_alphanumeric()
+        || matches!(character, '-' | '_' | '$')
 }
 
 /// `$` is not valid in a class name, so flag selectors like `&.$active` are parsed as `&._active`,
@@ -50,19 +50,25 @@ fn parsable_css<'a>(css: &'a str, flags: &[StyleFlag]) -> Cow<'a, str> {
             parsable.push('_');
             continue;
         }
-        in_class = character == '.'
-            || (in_class && (character.is_ascii_alphanumeric() || matches!(character, '-' | '_')));
+        in_class = character == '.' || (in_class && is_class_character(character));
         parsable.push(character);
     }
     Cow::Owned(parsable)
 }
 
-/// The classes of the selectors of the element itself in a styled component CSS
+/// The classes of the selectors of the element itself in a styled component CSS, named as written
+/// in the CSS, as `$active` and `_active` are both parsed as `_active`
 pub(crate) fn style_element_classes(
     css: &str,
     flags: &[StyleFlag],
 ) -> Result<Vec<ElementClass>, CssError> {
-    element_classes(&parsable_css(css, flags), ModifierCss::Block)
+    let mut classes = element_classes(&parsable_css(css, flags), ModifierCss::Block)?;
+    for class in &mut classes {
+        if let Some(name) = css.get(class.start..class.end) {
+            name.clone_into(&mut class.name);
+        }
+    }
+    Ok(classes)
 }
 
 /// The CSS to validate, with the `$` of the flag classes of the element parsed as `_`. `$` flag
@@ -79,34 +85,50 @@ pub(crate) fn flag_validation_css<'a>(css: &'a str, flags: &[StyleFlag]) -> Cow<
     let flag_classes = flag_classes(flags);
     let mut validation = css.to_owned();
     for class in classes {
-        if flag_classes.iter().any(|flag| flag.name == class.name) {
-            validation.replace_range(class.start..class.end, &parsable[class.start..class.end]);
+        let range = class.start..class.end;
+        if flag_classes
+            .iter()
+            .any(|flag| css.get(range.clone()) == Some(flag.original.as_str()))
+        {
+            validation.replace_range(range.clone(), &parsable[range]);
         }
     }
     Cow::Owned(validation)
 }
 
-/// The `$` style flag class starting at `start`, e.g. `$active` in `& .$active`. It is not valid
-/// CSS, so it can only be used in selectors of the element, where it is replaced by the hashed class
-pub(crate) fn misplaced_flag_class_at(
-    css: &str,
-    start: usize,
+/// The `$` style flag class in the `error` range of the `validation_css`, e.g. `$active` in
+/// `& .$active` or `&:has(.$active)`. It is not valid CSS, so it can only be used in selectors of
+/// the element, where it is replaced by the hashed class
+pub(crate) fn misplaced_flag_class_error(
+    validation_css: &str,
+    error: &CssError,
     flags: &[StyleFlag],
-) -> Option<String> {
-    if !css.get(..start)?.ends_with('.') {
-        return None;
-    }
-    let rest = css.get(start..)?;
-    let class_end = rest
-        .find(|character: char| {
-            !character.is_ascii_alphanumeric() && !matches!(character, '-' | '_' | '$')
-        })
-        .unwrap_or(rest.len());
-    let class = &rest[..class_end];
+) -> Option<CssError> {
+    // The error can start inside the class, e.g. at `$on` in `.is$on`
+    let start = validation_css
+        .get(..error.start)?
+        .trim_end_matches(is_class_character)
+        .len();
+    let end = error.end.max(error.start + 1);
     flag_classes(flags)
         .into_iter()
-        .find(|flag| flag.original.contains('$') && flag.original == class)
-        .map(|flag| flag.original)
+        .filter(|flag| flag.original.contains('$'))
+        .find_map(|flag| {
+            let selector = format!(".{}", flag.original);
+            let (dot, _) = validation_css.match_indices(&selector).find(|(dot, _)| {
+                dot + 1 >= start
+                    && *dot < end
+                    && !validation_css[dot + selector.len()..].starts_with(is_class_character)
+            })?;
+            Some(CssError::new(
+                format!(
+                    "Style flag \"{0}\" can only be used in selectors of the element itself, e.g. \"&.{0}\"",
+                    flag.original
+                ),
+                dot + 1,
+                dot + selector.len(),
+            ))
+        })
 }
 
 /// Renames the flag classes of the element selectors to their hashed names. Fails for flag classes
@@ -117,18 +139,13 @@ pub(crate) fn rewrite_style_flag_selectors(
     classes: &[ElementClass],
     flags: &[StyleFlag],
 ) -> Result<String, CssError> {
-    let flag_classes = flag_classes(flags);
-    let mappings = flag_classes
-        .iter()
-        .map(|flag| (flag.name.clone(), flag.hashed.clone(), true))
+    let mappings = flag_classes(flags)
+        .into_iter()
+        .map(|flag| (flag.original, flag.hashed, true))
         .collect::<Vec<_>>();
     rewrite_classes(css, classes, &mappings, |name| {
-        let original = flag_classes
-            .iter()
-            .find(|flag| flag.name == name)
-            .map_or(name, |flag| flag.original.as_str());
         format!(
-            "Style flag \"{original}\" can't be used in a rule that matches both the element and other elements, like \"&.{original}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
+            "Style flag \"{name}\" can't be used in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
         )
     })
 }
@@ -140,7 +157,7 @@ pub(crate) fn missing_style_flag_selectors(
 ) -> Vec<String> {
     flag_classes(flags)
         .into_iter()
-        .filter(|flag| !classes.iter().any(|class| class.name == flag.name))
+        .filter(|flag| !classes.iter().any(|class| class.name == flag.original))
         .map(|flag| format!("&.{}", flag.original))
         .collect()
 }
@@ -153,7 +170,7 @@ pub(crate) fn undeclared_style_classes(
     let flag_classes = flag_classes(flags);
     let mut undeclared: Vec<String> = Vec::new();
     for class in classes {
-        if !flag_classes.iter().any(|flag| flag.name == class.name)
+        if !flag_classes.iter().any(|flag| flag.original == class.name)
             && !undeclared.contains(&class.name)
         {
             undeclared.push(class.name.clone());
@@ -177,5 +194,6 @@ mod tests {
             parsable_css("&.$active, &[href$=\"pdf\"] { color: red; }", &flags),
             "&._active, &[href$=\"pdf\"] { color: red; }"
         );
+        assert_eq!(parsable_css("&.é$active {}", &flags), "&.é_active {}");
     }
 }

@@ -18,7 +18,7 @@ use super::{
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
-    static_value::{TemplateContext, evaluate_template},
+    static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
         missing_style_flag_selectors, rewrite_style_flag_selectors, style_element_classes,
         undeclared_style_classes,
@@ -186,17 +186,18 @@ pub(super) fn process_variable_declaration(
             } else {
                 own_style_flags
             };
+            let template_context = TemplateContext {
+                variable_name: Some(variable_name),
+                tag_type: "styled",
+                style_flags: &style_flags,
+            };
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
                 transform.scoping,
                 transform.file_path,
                 transform.source,
-                &TemplateContext {
-                    variable_name: Some(variable_name),
-                    tag_type: "styled",
-                    style_flags: &style_flags,
-                },
+                &template_context,
             )?;
             let content = clean_css(&content);
             let element_classes = if transform.dev || !style_flags.is_empty() {
@@ -258,10 +259,32 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let content = rewrite_style_flag_selectors(&content, &element_classes, &style_flags)
-                .map_err(|error| {
-                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
-                })?;
+            let content =
+                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        let located = locate_template_error(
+                            &tagged.quasi,
+                            transform.constants,
+                            transform.scoping,
+                            transform.file_path,
+                            transform.source,
+                            &template_context,
+                            |css| {
+                                let classes = style_element_classes(css, &style_flags).ok()?;
+                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                            },
+                        )?;
+                        return Err(located.unwrap_or_else(|| {
+                            css_error_diagnostic(
+                                transform.file_path,
+                                transform.source,
+                                tagged.span,
+                                error,
+                            )
+                        }));
+                    }
+                };
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
