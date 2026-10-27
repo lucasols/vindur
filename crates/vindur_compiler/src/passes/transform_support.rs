@@ -118,7 +118,10 @@ pub(super) fn process_variable_declaration(
             })?;
             transform.constants.insert(
                 identifier.name.to_string(),
-                StaticValue::ThemeColors(colors),
+                StaticValue::ThemeColors {
+                    colors,
+                    dev: transform.dev,
+                },
             );
             continue;
         }

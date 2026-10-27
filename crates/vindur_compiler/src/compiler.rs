@@ -312,13 +312,16 @@ impl Compiler {
                         value => value.clone(),
                     };
                     values.insert(specifier.local.name.to_string(), value);
-                } else if let Some(StaticValue::ThemeColors(colors)) =
+                } else if let Some(StaticValue::ThemeColors { colors, dev }) =
                     facts.constants.get(specifier.imported.name().as_str())
                 {
                     needs_dependency = true;
                     values.insert(
                         specifier.local.name.to_string(),
-                        StaticValue::UnexportedThemeColors(colors.clone()),
+                        StaticValue::UnexportedThemeColors {
+                            colors: colors.clone(),
+                            dev: *dev,
+                        },
                     );
                 } else {
                     let imported_name = specifier.imported.name().as_str();

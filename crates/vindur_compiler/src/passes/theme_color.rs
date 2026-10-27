@@ -1,8 +1,8 @@
-use oxc_ast::ast::{Argument, ObjectPropertyKind, TemplateElement};
-use oxc_span::{GetSpan, Span};
+use oxc_ast::ast::{Argument, ObjectPropertyKind};
+use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
-use crate::{CompilerDiagnostic, facts::StaticValue};
+use crate::facts::StaticValue;
 
 use super::{
     color_math::{
@@ -70,31 +70,34 @@ fn normalized_hex(raw: &str) -> Option<String> {
 
 pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
-        StaticValue::ThemeColors(colors) | StaticValue::UnexportedThemeColors(colors) => {
+        StaticValue::ThemeColors { colors, dev }
+        | StaticValue::UnexportedThemeColors { colors, dev } => {
             let default_hex = colors.get(property)?;
             Some(StaticValue::ThemeColor {
                 name: property.to_owned(),
                 hex: normalized_hex(default_hex)?,
                 default_hex: default_hex.clone(),
+                dev: *dev,
             })
         }
         // The runtime `defaultHex` is the hex as written
         StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
             Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex, .. } if is_value_property(property) => Some(
-            StaticValue::String(format!("var(--stc-{}-var, {hex})", css_name(name))),
-        ),
-        StaticValue::ThemeColor { name, hex, .. } if property == "contrast" => {
+        StaticValue::ThemeColor { name, hex, dev, .. } if is_value_property(property) => {
+            Some(color_value(name, "var", hex, *dev))
+        }
+        StaticValue::ThemeColor { name, hex, dev, .. } if property == "contrast" => {
             Some(StaticValue::ThemeColorContrast {
                 name: name.clone(),
                 hex: contrast_hex(hex),
                 base_hex: hex.clone(),
+                dev: *dev,
             })
         }
-        StaticValue::ThemeColorContrast { name, hex, .. } if is_value_property(property) => Some(
-            StaticValue::String(format!("var(--stc-{}-contrast-var, {hex})", css_name(name))),
-        ),
+        StaticValue::ThemeColorContrast { name, hex, dev, .. } if is_value_property(property) => {
+            Some(color_value(name, "contrast-var", hex, *dev))
+        }
         _ => None,
     }
 }
@@ -104,9 +107,9 @@ pub(super) fn theme_method(
     method: &str,
     amount: Option<f64>,
 ) -> Option<StaticValue> {
-    let (name, hex, prefix) = match receiver {
-        StaticValue::ThemeColor { name, hex, .. } => (name, hex, ""),
-        StaticValue::ThemeColorContrast { name, hex, .. } => (name, hex, "contrast-"),
+    let (name, hex, dev, prefix) = match receiver {
+        StaticValue::ThemeColor { name, hex, dev, .. } => (name, hex, *dev, ""),
+        StaticValue::ThemeColorContrast { name, hex, dev, .. } => (name, hex, *dev, "contrast-"),
         _ => return None,
     };
     if !is_color_method(!prefix.is_empty(), method) {
@@ -143,10 +146,16 @@ pub(super) fn theme_method(
             format!("{prefix}{method}-{escaped_amount}")
         },
     );
-    Some(StaticValue::String(format!(
-        "var(--stc-{}-{operation}, {result})",
-        css_name(name)
-    )))
+    Some(color_value(name, &operation, &result, dev))
+}
+
+/// Production styles use the hex, dev keeps the color name and operation for debugging
+fn color_value(name: &str, operation: &str, hex: &str, dev: bool) -> StaticValue {
+    StaticValue::String(if dev {
+        format!("var(--stc-{}-{operation}, {hex})", css_name(name))
+    } else {
+        hex.to_owned()
+    })
 }
 
 /// Theme color keys can have characters like `$` that are invalid in a custom property name
@@ -183,67 +192,4 @@ fn optimal_contrast_hex(base_hex: &str) -> Option<String> {
 fn alpha_hex(rgb: (u8, u8, u8), amount: f64) -> String {
     let alpha = (amount.clamp(0.0, 1.0) * 255.0).round() as u8;
     compress_hex(rgb, Some(alpha))
-}
-
-const STATIC_COLOR_PREFIX: &str = "var(--stc-";
-const RESERVED_PROPERTY_PREFIX: &str = "--stc-";
-
-/// `--stc-` custom properties are reserved for static theme colors, their references are replaced
-/// with the hex in production
-pub(super) fn reserved_static_color_error(
-    quasi: &TemplateElement<'_>,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let offset = u32::try_from(quasi.value.raw.find(RESERVED_PROPERTY_PREFIX)?).ok()?;
-    let start = quasi.span.start + offset;
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        Span::new(start, start + RESERVED_PROPERTY_PREFIX.len() as u32),
-        "Custom properties starting with --stc- are reserved for static theme colors, rename this custom property".to_owned(),
-    ))
-}
-
-/// Replaces every `var(--stc-<name>, #<hex>)` reference with its hex, other text is kept as is.
-/// User written `--stc-` properties are rejected in templates, see `reserved_static_color_error`
-pub(super) fn static_color_fallbacks(css: &str) -> String {
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.find(STATIC_COLOR_PREFIX) {
-        output.push_str(&rest[..start]);
-        let reference = &rest[start..];
-        match generated_static_color(reference) {
-            Some((hex, length)) => {
-                output.push_str(hex);
-                rest = &reference[length..];
-            }
-            None => {
-                output.push_str(STATIC_COLOR_PREFIX);
-                rest = &reference[STATIC_COLOR_PREFIX.len()..];
-            }
-        }
-    }
-    output.push_str(rest);
-    output
-}
-
-/// Returns the hex fallback and the length of a reference made by `theme_member` or `theme_method`
-fn generated_static_color(reference: &str) -> Option<(&str, usize)> {
-    let name_start = STATIC_COLOR_PREFIX.len();
-    let name_length = reference[name_start..]
-        .find(|character: char| {
-            !(character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '\\' | '.'))
-        })
-        .unwrap_or(reference.len() - name_start);
-    let hex_start = name_start + name_length + ", ".len();
-    if name_length == 0 || !reference[name_start + name_length..].starts_with(", #") {
-        return None;
-    }
-    let digits_length = reference[hex_start + 1..]
-        .find(|character: char| !character.is_ascii_hexdigit())
-        .unwrap_or(reference.len() - hex_start - 1);
-    let hex_end = hex_start + 1 + digits_length;
-    (matches!(digits_length, 3 | 4 | 6 | 8) && reference[hex_end..].starts_with(')'))
-        .then(|| (&reference[hex_start..hex_end], hex_end + 1))
 }

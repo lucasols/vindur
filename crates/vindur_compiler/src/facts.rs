@@ -68,15 +68,24 @@ pub enum StaticValue {
         hex: String,
         /// The hex as written in `createStaticThemeColors`, e.g. `#FF0000`
         default_hex: String,
+        /// Dev values keep the color name, e.g. `var(--stc-primary-var, #f00)`
+        dev: bool,
     },
     ThemeColorContrast {
         name: String,
         hex: String,
         base_hex: String,
+        dev: bool,
     },
-    /// Color names to their hex as written, validated by `parse_theme_colors`
-    ThemeColors(FxHashMap<String, String>),
-    UnexportedThemeColors(FxHashMap<String, String>),
+    ThemeColors {
+        /// Color names to their hex as written, validated by `parse_theme_colors`
+        colors: FxHashMap<String, String>,
+        dev: bool,
+    },
+    UnexportedThemeColors {
+        colors: FxHashMap<String, String>,
+        dev: bool,
+    },
     Undefined,
 }
 
