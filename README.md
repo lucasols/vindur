@@ -249,6 +249,16 @@ const SecondaryButton = styled(BaseButton)`
 `;
 ```
 
+`styled()` also extends custom components, local or imported. To extend the result of a call, like a HOC or `memo`, assign it to a const first, `styled(wrap(Button))` is a compile error:
+
+```tsx
+const ButtonWithTooltip = wrapWithTooltip(Button);
+
+const StyledButton = styled(ButtonWithTooltip)`
+  color: red;
+`;
+```
+
 ### Element Type Changes
 
 Change the HTML element while keeping styles using `withComponent`:
@@ -1228,8 +1238,8 @@ The CSS classes are automatically applied based on prop values:
 
 - **Boolean props**: Apply the hashed class when `true` (e.g., `primary={true}` → `classHash-1`)
 - **String union props**: Apply the hashed class with the value suffix (e.g., `size="large"` → `classHash-2-large`)
-- **Dev class names**: In development the modifier class starts with the component class (e.g., `v1560qbr-1-Button-primary` and `v1560qbr-1-Button-size-large`). Production uses short hashes
-- **Extended components**: A `styled(Base)` keeps the flags of `Base` and can add its own. Flags of `Base` that it redeclares must keep their type (boolean or string union) and keep the base modifier class, so the base modifier styles still apply. A `Base` imported from another file is treated as a regular component, so its flags must be styled again in the extension
+- **Dev class names**: In development the modifier class starts with the component class (e.g., `v1560qbr-1-Button-primary` and `v1560qbr-1-Button-size-large`). Production uses short hashes, also scoped to the component
+- **Default exports**: Style flags can't be declared on `export default styled.*`, declare the component first and export it with `export default Button`
 
 #### Supported Prop Types
 
@@ -1250,7 +1260,11 @@ The CSS classes are automatically applied based on prop values:
 }
 ```
 
-Flags chained to a component reference in the same compound selector, like `${Menu}.open &`, `${Menu}:hover.open &` or `${Menu}:not(.$open) &`, select the flags of that component. The reference must start the compound, a compound can chain only one reference, and after it only `:not()`, `:is()` and `:where()`, which can only list its classes, and `:has()` can contain classes. A reference can't be inside a function other than `:has()`, like `:is(${Menu})`. `:has()` matches other elements, so `${Menu}:has(.open) &` selects the component's own `open` flag. `&` nested in a rule whose selector list ends with a reference, like `${Menu} { &.open {} }` or `${Menu}, & { &.open {} }`, can't select classes, write `${Menu}.open`. Transient (`$`) flags of another component can only be selected in a styled component defined after it. Style flags can't be declared on `export default styled.*`, declare the component in a `const` and export it.
+Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. So `$`-prefixed flags, which are not valid CSS classes, can only be used in selectors of the element itself. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
+
+A styled component extending one with flags, like `styled(Item)<{ big: boolean }>`, keeps the flags of `Item` and adds its own.
+
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. `$`-prefixed flags can't be selected through a reference, like `${Item}.$active`, use a flag without `$`.
 
 ## Theme Colors
 
@@ -1316,6 +1330,8 @@ In dev mode, the output will show the color name for easier debugging:
   }
 }
 ```
+
+An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. This only happens when the colors module contains just imports of `vindur`, types or other such modules, and declarations of literals, functions, static constants, objects or arrays of those, and vindur styles. Anything else, like `createGlobalStyle` styles, function calls, classes, re-exports or imports of packages and CSS files, keeps the module as a side effect import (`import './colors'`).
 
 ### Color API
 

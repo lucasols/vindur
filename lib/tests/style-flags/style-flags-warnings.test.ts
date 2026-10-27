@@ -426,5 +426,39 @@ describe('Style Flags Warning System', () => {
       expect(warnings.length).toBe(0);
       expect(result.code).toMatchInlineSnapshot(`""`);
     });
+
+    test('should not warn for style flags inherited from the extended component', async () => {
+      const warnings: TransformWarning[] = [];
+      const result = await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur';
+
+          const Base = styled.div<{ active: boolean }>\`
+            &.active {
+              color: red;
+            }
+          \`;
+
+          const Extended = styled(Base)\`
+            color: blue;
+          \`;
+
+          export const App = () => <Extended active />;
+        `,
+        onWarning: (warning) => {
+          warnings.push(warning);
+        },
+      });
+
+      expect(warnings.length).toBe(0);
+      expect(result.code).toMatchInlineSnapshot(`
+        "export const App = () => (
+          <div
+            className={"v1560qbr-1-Base v1560qbr-2-Extended v1560qbr-1-Base-active"}
+          />
+        );
+        "
+      `);
+    });
   });
 });

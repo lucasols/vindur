@@ -3,20 +3,15 @@ use oxc_ast::ast::{
     TSTypeName,
 };
 use oxc_span::GetSpan;
-use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::class_chains::{CssToken, rewrite_class_chains, scan_class_chains};
-use super::styled::{
-    StyleFlag, StyleFlagKind, StyledComponent, css_class_name_part, is_styled_ref_placeholder,
-    style_flag_class,
-};
+use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
-    dev: bool,
     component_class: &str,
+    dev: bool,
     program: &Program<'_>,
     file_path: &str,
     source: &str,
@@ -82,7 +77,7 @@ pub(super) fn extract_style_flags(
     properties
         .into_iter()
         .map(|property| {
-            style_flag_from_property(property, dev, component_class, program, file_path, source)
+            style_flag_from_property(property, component_class, dev, program, file_path, source)
         })
         .collect()
 }
@@ -139,8 +134,8 @@ fn simple_type_reference_name<'r>(
 
 fn style_flag_from_property(
     property: &TSPropertySignature<'_>,
-    dev: bool,
     component_class: &str,
+    dev: bool,
     program: &Program<'_>,
     file_path: &str,
     source: &str,
@@ -241,8 +236,7 @@ fn style_flag_from_property(
             ));
         }
     };
-    // Both names are scoped to the component class, dev ones start with it, e.g.
-    // `v1560qbr-1-Button-active`
+    // Modifier classes are scoped to the component, dev names read like `v1560qbr-1-Button-active`
     let hashed_class_name = if dev {
         format!("{component_class}-{}", css_class_name_part(&prop_name))
     } else {
@@ -252,7 +246,6 @@ fn style_flag_from_property(
         hashed_class_name,
         kind,
         prop_name,
-        span: property.span,
     })
 }
 
@@ -336,72 +329,4 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
         values.push(literal.value.to_string());
     }
     (!values.is_empty()).then_some(values)
-}
-
-/// Flags chained to another component's reference, like `${Parent}.active`, are that component's
-/// flags, forward references are rewritten once every component is known
-pub(crate) fn rewrite_style_flag_selectors(
-    css: &str,
-    flags: &[StyleFlag],
-    referenced_components: &FxHashMap<&str, &StyledComponent>,
-) -> String {
-    rewrite_class_chains(
-        css,
-        |class| referenced_components.contains_key(class),
-        |reference, class| match reference {
-            Some(reference) => referenced_components
-                .get(reference)
-                .and_then(|component| style_flag_class(&component.style_flags, class)),
-            None => style_flag_class(flags, class),
-        },
-    )
-}
-
-/// The first transient flag selector, like `.$active`, that is not a style flag of its component,
-/// with its message and CSS offset. Forward references are rewritten once every component is
-/// known, so their transient flags, which are not valid CSS until rewritten, are rejected
-pub(crate) fn invalid_transient_flag(
-    css: &str,
-    flags: &[StyleFlag],
-    referenced_components: &FxHashMap<&str, &StyledComponent>,
-) -> Option<(String, usize)> {
-    let mut invalid = None;
-    let _ = scan_class_chains(
-        css,
-        |class| referenced_components.contains_key(class),
-        |token| {
-            let CssToken::Class {
-                reference,
-                name,
-                offset,
-            } = token
-            else {
-                return;
-            };
-            if invalid.is_some() || !name.contains('$') {
-                return;
-            }
-            let message = match reference {
-                Some(reference) if is_styled_ref_placeholder(reference) => Some(format!(
-                    "The transient style flag selector \".{name}\" can't follow a forward component reference, define the referenced component before this one"
-                )),
-                Some(reference) => referenced_components
-                    .get(reference)
-                    .and_then(|component| style_flag_class(&component.style_flags, name))
-                    .is_none()
-                    .then(|| {
-                        format!(
-                            "The transient style flag selector \".{name}\" is not a style flag of the referenced component"
-                        )
-                    }),
-                None => style_flag_class(flags, name).is_none().then(|| {
-                    format!(
-                        "The transient style flag selector \".{name}\" is not a style flag of this component"
-                    )
-                }),
-            };
-            invalid = message.map(|message| (message, offset));
-        },
-    );
-    invalid
 }

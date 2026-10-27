@@ -1,7 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
-import type { TransformWarning } from '../../src/custom-errors';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 test('should hash modifier class names in dev mode', async () => {
   const result = await transformWithFormat({
@@ -205,6 +204,144 @@ test('referencing styled component with flags preserves style flag hash', async 
   `);
 });
 
+test('referencing styled component flags only hashes whole class names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Child = styled.div\`
+        \${Item}.active-icon & {
+          color: green;
+        }
+        \${Item}.active & {
+          color: blue;
+        }
+      \`;
+
+      export const App = () => (
+        <Item active>
+          <Child />
+        </Item>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 vmabrr"}>
+        <div className="v1560qbr-2" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.vmabrr {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      .v1560qbr-1.active-icon & {
+        color: green;
+      }
+      .v1560qbr-1.vmabrr & {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('referencing styled component flags hashes every flag of the referenced element', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean; size: 'small' | 'large' }>\`
+        &.active {
+          color: red;
+        }
+        &.size-small {
+          color: red;
+        }
+        &.size-large {
+          color: red;
+        }
+      \`;
+
+      const Child = styled.div\`
+        \${Item}.size-small.active & {
+          color: green;
+        }
+        \${Item}:hover.active & {
+          color: blue;
+        }
+        \${Item}:not(.active) & {
+          color: gray;
+        }
+        \${Item}:has(.active) & {
+          color: black;
+        }
+      \`;
+
+      export const App = () => (
+        <Item active size="small">
+          <Child />
+        </Item>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 vmabrr v16ujyv9-small"}>
+        <div className="v1560qbr-2" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.vmabrr {
+        color: red;
+      }
+      &.v16ujyv9-small {
+        color: red;
+      }
+      &.v16ujyv9-large {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2 {
+      .v1560qbr-1.v16ujyv9-small.vmabrr & {
+        color: green;
+      }
+      .v1560qbr-1:hover.vmabrr & {
+        color: blue;
+      }
+      .v1560qbr-1:not(.vmabrr) & {
+        color: gray;
+      }
+      .v1560qbr-1:has(.active) & {
+        color: black;
+      }
+    }
+    "
+  `);
+});
+
 test('should support style flags with $ prefixed names', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -268,248 +405,274 @@ test('should support style flags with $ prefixed names', async () => {
   `);
 });
 
-const componentPrefixedFlagsSource = dedent`
-  import { styled } from 'vindur';
-
-  const Button = styled.button<{
-    active: boolean;
-    size: 'small' | 'large';
-  }>\`
-    padding: 8px;
-
-    &.active {
-      color: red;
-    }
-
-    &.size-small {
-      padding: 4px;
-    }
-
-    &.size-large {
-      padding: 16px;
-    }
-  \`;
-
-  const IconButton = styled(Button)\`
-    gap: 4px;
-
-    &.active {
-      color: blue;
-    }
-  \`;
-
-  const Label = styled.span\`
-    \${Button}.active & {
-      font-weight: bold;
-    }
-  \`;
-
-  function Component({ active }: { active: boolean }) {
-    return (
-      <>
-        <Button active={active} size="small">
-          <Label>Button</Label>
-        </Button>
-        <IconButton active size="large" />
-      </>
-    );
-  }
-`;
-
-test('should prefix dev modifier class names with the component class', async () => {
+test('referencing styled component flags hashes flags of nested and scoped references', async () => {
   const result = await transformWithFormat({
-    source: componentPrefixedFlagsSource,
-  });
+    source: dedent`
+      import { styled } from 'vindur';
 
-  expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ active }: { active: boolean }) {
-      return (
-        <>
-          <button
-            className={
-              "v1560qbr-1-Button v1560qbr-1-Button-size-small" +
-              (active ? " v1560qbr-1-Button-active" : "")
-            }
-          >
-            <span className="v1560qbr-3-Label">Button</span>
-          </button>
-          <button
-            className={
-              "v1560qbr-1-Button v1560qbr-2-IconButton v1560qbr-1-Button-active v1560qbr-1-Button-size-large"
-            }
-          />
-        </>
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Child = styled.div\`
+        :is(\${Item}).active & {
+          color: green;
+        }
+        .list \${Item} {
+          &.active .icon {
+            color: blue;
+          }
+          & .active {
+            color: gray;
+          }
+        }
+        @scope (\${Item}) {
+          :scope.active & {
+            color: black;
+          }
+        }
+      \`;
+
+      export const App = () => (
+        <Item active>
+          <Child />
+        </Item>
       );
-    }
-    "
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Button {
-      padding: 8px;
-
-      &.v1560qbr-1-Button-active {
-        color: red;
-      }
-
-      &.v1560qbr-1-Button-size-small {
-        padding: 4px;
-      }
-
-      &.v1560qbr-1-Button-size-large {
-        padding: 16px;
-      }
-    }
-
-    .v1560qbr-2-IconButton {
-      gap: 4px;
-
-      &.v1560qbr-1-Button-active {
-        color: blue;
-      }
-    }
-
-    .v1560qbr-3-Label {
-      .v1560qbr-1-Button.v1560qbr-1-Button-active & {
-        font-weight: bold;
-      }
-    }
-    "
-  `);
-});
-
-test('should keep production modifier class names unchanged', async () => {
-  const result = await transformWithFormat({
-    source: componentPrefixedFlagsSource,
+    `,
     production: true,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ active }: { active: boolean }) {
-      return (
-        <>
-          <button
-            className={"v1560qbr-1 v16ujyv9-small" + (active ? " vmabrr" : "")}
-          >
-            <span className="v1560qbr-3">Button</span>
-          </button>
-          <button className={"v1560qbr-1 v1560qbr-2 vmabrr v16ujyv9-large"} />
-        </>
-      );
-    }
+    "export const App = () => (
+      <div className={"v1560qbr-1 vmabrr"}>
+        <div className="v1560qbr-2" />
+      </div>
+    );
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      padding: 8px;
-
       &.vmabrr {
         color: red;
-      }
-
-      &.v16ujyv9-small {
-        padding: 4px;
-      }
-
-      &.v16ujyv9-large {
-        padding: 16px;
       }
     }
 
     .v1560qbr-2 {
-      gap: 4px;
-
-      &.vmabrr {
-        color: blue;
+      :is(.v1560qbr-1).vmabrr & {
+        color: green;
       }
-    }
-
-    .v1560qbr-3 {
-      .v1560qbr-1.vmabrr & {
-        font-weight: bold;
+      .list .v1560qbr-1 {
+        &.vmabrr .icon {
+          color: blue;
+        }
+        & .active {
+          color: gray;
+        }
+      }
+      @scope (.v1560qbr-1) {
+        :scope.vmabrr & {
+          color: black;
+        }
       }
     }
     "
   `);
 });
 
-const redeclaredFlagsSource = dedent`
-  import { styled } from 'vindur';
-
-  const Button = styled.button<{ active: boolean }>\`
-    &.active {
-      color: red;
-    }
-  \`;
-
-  const IconButton = styled(Button)<{ active: boolean; big: boolean }>\`
-    &.big {
-      font-size: 20px;
-    }
-  \`;
-
-  function Component({ active }: { active: boolean }) {
-    return <IconButton active={active} big />;
-  }
-`;
-
-test('should keep the base modifier classes for flags redeclared in dev', async () => {
-  const warnings: TransformWarning[] = [];
-
+test('referencing imported styled component flags hashes them as the component module does', async () => {
   const result = await transformWithFormat({
-    source: redeclaredFlagsSource,
-    onWarning: (warning) => {
-      warnings.push(warning);
-    },
-  });
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Item } from '#/item';
 
-  expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ active }: { active: boolean }) {
-      return (
-        <button
-          className={
-            "v1560qbr-1-Button v1560qbr-2-IconButton v1560qbr-2-IconButton-big" +
-            (active ? " v1560qbr-1-Button-active" : "")
+      const Child = styled.div\`
+        \${Item}.active & {
+          color: green;
+        }
+        .list \${Item} {
+          &.size-small .icon {
+            color: blue;
           }
-        />
+        }
+      \`;
+
+      export const App = () => (
+        <Item active size="small">
+          <Child />
+        </Item>
       );
-    }
-    "
-  `);
+    `,
+    overrideDefaultFs: createFsMock({
+      'item.tsx': dedent`
+        import { styled } from 'vindur';
 
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Button {
-      &.v1560qbr-1-Button-active {
-        color: red;
-      }
-    }
-
-    .v1560qbr-2-IconButton {
-      &.v1560qbr-2-IconButton-big {
-        font-size: 20px;
-      }
-    }
-    "
-  `);
-
-  expect(warnings).toMatchInlineSnapshot(`[]`);
-});
-
-test('should keep the base modifier classes for flags redeclared in production', async () => {
-  const result = await transformWithFormat({
-    source: redeclaredFlagsSource,
+        export const Item = styled.div<{ active: boolean; size: 'small' | 'large' }>\`
+          &.active {
+            color: red;
+          }
+          &.size-small {
+            padding: 4px;
+          }
+        \`;
+      `,
+    }),
     production: true,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ active }: { active: boolean }) {
-      return (
-        <button
-          className={"v1560qbr-1 v1560qbr-2 v1jk93k" + (active ? " vmabrr" : "")}
-        />
-      );
+    "import { Item } from "#/item";
+    export const App = () => (
+      <Item active size="small">
+        <div className="v1560qbr-1" />
+      </Item>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      .v1llrsih-1.vxyl5e & {
+        color: green;
+      }
+      .list .v1llrsih-1 {
+        &.v10hx3vl-small .icon {
+          color: blue;
+        }
+      }
     }
+    "
+  `);
+});
+
+test('should throw for referenced styled component flags in rules that also match other elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Item = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Child = styled.div\`
+          \${Item}, .other {
+            &.active & {
+              color: blue;
+            }
+          }
+        \`;
+
+        export const App = () => (
+          <Item active>
+            <Child />
+          </Item>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" of "Item" can't be used in a rule that matches both "Item" and other elements, like "&.active" nested in "\${Item}, .x". Split the selectors into separate rules.
+    loc: 9:6]
+  `);
+});
+
+test('should throw for $ prefixed flags selected through a component reference', async () => {
+  const source = (childFlags: string, rule: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Item = styled.div<{ $active: boolean }>\`
+      &.$active {
+        color: red;
+      }
+    \`;
+
+    const Child = styled.div${childFlags}\`
+      ${rule}
+    \`;
+
+    export const App = () => (
+      <Item $active>
+        <Child />
+      </Item>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source('', '${Item}.$active & { color: blue; }'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:10]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<{ $active: boolean }>',
+        '&.$active { color: red; } ${Item}.$active & { color: blue; }',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:36]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source('', '${Item} { &.$active & { color: blue; } }'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be selected through a component reference like "\${Item}.$active", use a flag without "$"
+    loc: 10:14]
+  `);
+});
+
+test('extending a styled component with flags keeps its flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Ext = styled(Item)<{ big: boolean }>\`
+        &.big {
+          font-size: 2em;
+        }
+        &.active {
+          color: blue;
+        }
+      \`;
+
+      const Child = styled.div\`
+        \${Item}.active & {
+          color: green;
+        }
+      \`;
+
+      export const App = () => (
+        <Ext active big>
+          <Child />
+        </Ext>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className={"v1560qbr-1 v1560qbr-2 vmabrr v1jk93k"}>
+        <div className="v1560qbr-3" />
+      </div>
+    );
     "
   `);
 
@@ -522,130 +685,77 @@ test('should keep the base modifier classes for flags redeclared in production',
 
     .v1560qbr-2 {
       &.v1jk93k {
-        font-size: 20px;
+        font-size: 2em;
+      }
+      &.vmabrr {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-3 {
+      .v1560qbr-1.vmabrr & {
+        color: green;
       }
     }
     "
   `);
 });
 
-test('should keep the base flags when an extension adds its own flags', async () => {
-  const warnings: TransformWarning[] = [];
-
+test('referencing a withComponent of an extended component selects its own class', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
 
-      const Button = styled.button<{ active: boolean }>\`
-        &.active {
-          color: red;
-        }
-      \`;
-
-      const BigButton = styled(Button)<{ big: boolean }>\`
-        &.big {
-          font-size: 20px;
-        }
-      \`;
-
-      function Component({ active }: { active: boolean }) {
-        return <BigButton active={active} big />;
-      }
-    `,
-    onWarning: (warning) => {
-      warnings.push(warning);
-    },
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ active }: { active: boolean }) {
-      return (
-        <button
-          className={
-            "v1560qbr-1-Button v1560qbr-2-BigButton v1560qbr-2-BigButton-big" +
-            (active ? " v1560qbr-1-Button-active" : "")
-          }
-        />
-      );
-    }
-    "
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Button {
-      &.v1560qbr-1-Button-active {
+      const Base = styled.div\`
         color: red;
-      }
-    }
+      \`;
 
-    .v1560qbr-2-BigButton {
-      &.v1560qbr-2-BigButton-big {
-        font-size: 20px;
-      }
-    }
-    "
-  `);
-
-  expect(warnings).toMatchInlineSnapshot(`[]`);
-});
-
-test('should not match a referenced flag that prefixes another flag', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur';
-
-      const Menu = styled.div<{ open: boolean; openMenu: boolean }>\`
-        &.open {
-          color: red;
-        }
-
-        &.openMenu {
+      const Extended = styled(Base)<{ active: boolean }>\`
+        &.active {
           color: blue;
         }
       \`;
 
-      const Item = styled.div\`
-        \${Menu}.openMenu & {
-          font-weight: bold;
+      const Link = Extended.withComponent('a');
+
+      const Child = styled.div\`
+        \${Link}.active & {
+          color: green;
         }
       \`;
 
-      function Component({ open }: { open: boolean }) {
-        return (
-          <Menu open={open} openMenu>
-            <Item />
-          </Menu>
-        );
-      }
+      export const App = () => (
+        <Link active>
+          <Child />
+        </Link>
+      );
     `,
     production: true,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "function Component({ open }: { open: boolean }) {
-      return (
-        <div className={"v1560qbr-1 v1r8z3y2" + (open ? " vc2c9p2" : "")}>
-          <div className="v1560qbr-2" />
-        </div>
-      );
-    }
+    "export const App = () => (
+      <a className={"v1560qbr-1 v1560qbr-2 v1exp0sy"}>
+        <div className="v1560qbr-3" />
+      </a>
+    );
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.vc2c9p2 {
-        color: red;
-      }
+      color: red;
+    }
 
-      &.v1r8z3y2 {
+    .v1560qbr-2 {
+      &.v1exp0sy {
         color: blue;
       }
     }
 
-    .v1560qbr-2 {
-      .v1560qbr-1.v1r8z3y2 & {
-        font-weight: bold;
+    .v1560qbr-3 {
+      .v1560qbr-2.v1exp0sy & {
+        color: green;
       }
     }
     "

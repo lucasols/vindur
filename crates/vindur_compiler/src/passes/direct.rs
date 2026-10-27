@@ -85,7 +85,6 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
                 variable_name: None,
                 tag_type: tag_name,
                 style_flags: &[],
-                referenced_components: None,
             },
         ) {
             Ok(content) => clean_css(&content),

@@ -5,6 +5,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
+use super::css_syntax::CssError;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::import_errors::{
@@ -17,7 +18,7 @@ use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
     static_value_to_string,
 };
-use super::styled::{StyleFlag, StyledComponent, styled_ref_placeholder};
+use super::styled::{StyleFlag, styled_ref_placeholder};
 use super::template_css::{EvaluatedTemplate, validate_template_css};
 use super::unsupported_css_syntax::unsupported_syntax_error;
 
@@ -26,9 +27,6 @@ pub(crate) struct TemplateContext<'a> {
     pub tag_type: &'a str,
     /// Style flags of a styled component, their selectors are replaced after validation
     pub style_flags: &'a [StyleFlag],
-    /// The components defined before a styled component, by class, their transient flags can be
-    /// selected through a reference, like `${Menu}.$active`
-    pub referenced_components: Option<&'a FxHashMap<&'a str, &'a StyledComponent>>,
 }
 
 pub(crate) fn collect_constants(
@@ -88,6 +86,30 @@ pub(crate) fn evaluate_template(
     }
     validate_template_css(&evaluated, template, file_path, source, context, build)?;
     Ok(evaluated.css)
+}
+
+/// Locates an error found after evaluation, e.g. by rewriting the flag selectors of the CSS. The
+/// CSS is evaluated again, as the offsets of the cleaned CSS don't map to the source
+pub(crate) fn locate_template_error(
+    template: &TemplateLiteral<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+    context: &TemplateContext<'_>,
+    find_error: impl Fn(&str) -> Option<CssError>,
+) -> Result<Option<CompilerDiagnostic>, CompilerDiagnostic> {
+    let evaluated = build_template_css(
+        template,
+        constants,
+        scoping,
+        file_path,
+        source,
+        context,
+        &[],
+    )?;
+    Ok(find_error(&evaluated.css)
+        .map(|error| evaluated.error_diagnostic(error, template, file_path, source)))
 }
 
 /// `forced_extensions` evaluates the CSS class interpolations at those indices as style
@@ -237,9 +259,6 @@ fn build_template_css(
         let followed_by_semicolon = has_semicolon || forced_semicolon;
         if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
             evaluated.selector_classes.push(index);
-        }
-        if let StaticValue::ClassName(class_name) = &value {
-            evaluated.component_references.push(class_name.clone());
         }
         let is_css_extension =
             matches!(value, StaticValue::CssClass { .. }) && followed_by_semicolon;

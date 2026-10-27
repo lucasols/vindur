@@ -31,6 +31,7 @@ use super::{
     jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
+    side_effects::has_top_level_side_effects,
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
@@ -38,6 +39,7 @@ use super::{
     },
     static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
+    style_flag_selectors::hash_referenced_style_flags,
     styled::{resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
@@ -123,6 +125,7 @@ pub(crate) fn transform_program(
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
+    let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
@@ -190,6 +193,7 @@ pub(crate) fn transform_program(
                         statement_start: declaration.span.start,
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
+                        has_side_effects: &mut has_side_effects,
                         scoped_variables: &mut scoped_variables,
                         warnings: &mut warnings,
                     },
@@ -233,6 +237,7 @@ pub(crate) fn transform_program(
                             statement_start: export.span.start,
                             needs_styled_helper: &mut needs_styled_helper,
                             needs_style_flags_helper: &mut needs_style_flags_helper,
+                            has_side_effects: &mut has_side_effects,
                             scoped_variables: &mut scoped_variables,
                             warnings: &mut warnings,
                         },
@@ -254,7 +259,6 @@ pub(crate) fn transform_program(
                             variable_name: None,
                             tag_type: "createGlobalStyle",
                             style_flags: &[],
-                            referenced_components: None,
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -269,6 +273,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(content);
+                        has_side_effects = true;
                     }
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
@@ -301,7 +306,6 @@ pub(crate) fn transform_program(
                             variable_name: None,
                             tag_type: "styled",
                             style_flags: &[],
-                            referenced_components: None,
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -499,6 +503,7 @@ pub(crate) fn transform_program(
         exports,
         re_exports,
         star_re_exports,
+        has_side_effects,
         // Filled in by the compiler from the loaded imports
         ..ModuleFacts::default()
     };
@@ -516,6 +521,21 @@ pub(crate) fn transform_program(
             format!(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),
+        ));
+    }
+    if let Err(error) =
+        hash_referenced_style_flags(&mut css_rules, &facts.constants, &styled_components)
+    {
+        let span = scoping
+            .get_root_binding(error.component.as_str().into())
+            .map_or(oxc_span::Span::new(0, 0), |symbol| {
+                scoping.symbol_span(symbol)
+            });
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            error.error.message,
         ));
     }
     if options.dev {
@@ -546,7 +566,7 @@ pub(crate) fn transform_program(
 fn is_style_value(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::ClassName(_)
+        StaticValue::ClassName { .. }
             | StaticValue::CssClass { .. }
             | StaticValue::DynamicColor { .. }
             | StaticValue::DynamicColorPath { .. }

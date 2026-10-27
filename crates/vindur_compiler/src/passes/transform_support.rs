@@ -3,7 +3,6 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use oxc_span::Span;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
@@ -16,14 +15,17 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
-    static_value::{TemplateContext, evaluate_template},
-    style_flags::rewrite_style_flag_selectors,
+    static_value::{TemplateContext, evaluate_template, locate_template_error},
+    style_flag_selectors::{
+        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
+    },
     styled::{
-        StyleFlag, StyleFlagKind, StyledComponent, StyledTagContext, css_class_name_part,
-        missing_style_flag_selectors, styled_tag_component_with_attrs, undeclared_style_classes,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -52,6 +54,7 @@ pub(super) struct VariableTransform<'a> {
     pub statement_start: u32,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
+    pub has_side_effects: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
@@ -179,50 +182,71 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             *transform.id_index += 1;
-            let style_flags = with_base_style_flags(own_style_flags, &base_component.style_flags)
-                .map_err(|(span, message)| {
-                CompilerDiagnostic::error(transform.file_path, transform.source, span, message)
-            })?;
-            let new_style_flags =
-                flags_without_base_styles(&style_flags, &base_component.style_flags);
-            let referenced_components = transform
-                .styled_components
-                .values()
-                .filter_map(|component| {
-                    Some((component.class_name.split_whitespace().last()?, component))
+            // The flags of the base component still apply, its own flags are added to them
+            let mut style_flags = base_component
+                .style_flags
+                .iter()
+                .filter(|flag| {
+                    !own_style_flags
+                        .iter()
+                        .any(|own| own.prop_name == flag.prop_name)
                 })
-                .collect::<FxHashMap<_, _>>();
+                .cloned()
+                .collect::<Vec<_>>();
+            style_flags.extend(own_style_flags.iter().cloned());
+            let template_context = TemplateContext {
+                variable_name: Some(variable_name),
+                tag_type: "styled",
+                style_flags: &style_flags,
+            };
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
                 transform.scoping,
                 transform.file_path,
                 transform.source,
-                &TemplateContext {
-                    variable_name: Some(variable_name),
-                    tag_type: "styled",
-                    style_flags: &style_flags,
-                    referenced_components: Some(&referenced_components),
-                },
+                &template_context,
             )?;
             let content = clean_css(&content);
+            let classes = if transform.dev || !style_flags.is_empty() {
+                style_classes(&content, &style_flags).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
+            } else {
+                StyleBlockClasses::default()
+            };
+            let element_classes = classes.element;
             if transform.dev {
-                transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &new_style_flags, |class| {
-                        referenced_components.contains_key(class)
-                    })
-                        .into_iter()
-                        .map(|selector| {
-                            CompilerDiagnostic::warning(
-                                "",
-                                transform.source,
-                                identifier.span,
-                                format!(
-                                    "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
-                                ),
-                            )
-                        }),
-                );
+                let other_element_flags =
+                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                // Inherited flags are styled by the base component
+                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
+                    .into_iter()
+                    .filter(|class_name| !other_element_flags.contains(class_name));
+                transform
+                    .warnings
+                    .extend(missing_flags.map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "Warning: Missing modifier styles for \"&.{class_name}\" in {variable_name}"
+                            ),
+                        )
+                    }));
+                transform
+                    .warnings
+                    .extend(other_element_flags.iter().map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "The style flag class \"{class_name}\" is used in a selector of another element in {variable_name}, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \"&.{class_name}\""
+                            ),
+                        )
+                    }));
                 let usage_prefix = format!("<{variable_name}");
                 let suppress_undeclared = !base_component.class_name.is_empty()
                     || (transform.source.contains(&usage_prefix)
@@ -239,9 +263,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags, |class| {
-                            referenced_components.contains_key(class)
-                        })
+                        undeclared_style_classes(&element_classes, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -263,7 +285,31 @@ pub(super) fn process_variable_declaration(
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content =
-                rewrite_style_flag_selectors(&content, &style_flags, &referenced_components);
+                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        let located = locate_template_error(
+                            &tagged.quasi,
+                            transform.constants,
+                            transform.scoping,
+                            transform.file_path,
+                            transform.source,
+                            &template_context,
+                            |css| {
+                                let classes = style_classes(css, &style_flags).ok()?.element;
+                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                            },
+                        )?;
+                        return Err(located.unwrap_or_else(|| {
+                            css_error_diagnostic(
+                                transform.file_path,
+                                transform.source,
+                                tagged.span,
+                                error,
+                            )
+                        }));
+                    }
+                };
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
@@ -295,7 +341,10 @@ pub(super) fn process_variable_declaration(
             };
             transform.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(component_class.clone()),
+                StaticValue::ClassName {
+                    name: component_class.clone(),
+                    style_flags: flag_classes(&style_flags),
+                },
             );
             let has_own_attrs = own_attrs.is_some();
             let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {
@@ -394,7 +443,6 @@ pub(super) fn process_variable_declaration(
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
                     style_flags: &[],
-                    referenced_components: None,
                 },
             )?;
             let content = clean_css(&content);
@@ -412,6 +460,7 @@ pub(super) fn process_variable_declaration(
             })?;
             if !content.is_empty() {
                 transform.css_rules.push(content);
+                *transform.has_side_effects = true;
             }
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
@@ -442,7 +491,6 @@ pub(super) fn process_variable_declaration(
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
                 style_flags: &[],
-                referenced_components: None,
             },
         )?;
         let content = clean_css(&content);
@@ -546,80 +594,6 @@ fn validate_vindur_function_declaration(
         );
     }
     Ok(())
-}
-
-/// A `styled(Base)` keeps the base flags, and flags it redeclares keep the base classes, so the
-/// base modifier styles still match. A redeclared flag must keep the base flag type, the classes
-/// of a boolean and a string union flag don't match each other
-fn with_base_style_flags(
-    mut own_flags: Vec<StyleFlag>,
-    base_flags: &[StyleFlag],
-) -> Result<Vec<StyleFlag>, (Span, String)> {
-    let mut style_flags = Vec::with_capacity(base_flags.len() + own_flags.len());
-    for base_flag in base_flags {
-        let Some(index) = own_flags
-            .iter()
-            .position(|flag| flag.prop_name == base_flag.prop_name)
-        else {
-            style_flags.push(base_flag.clone());
-            continue;
-        };
-        let flag = own_flags.remove(index);
-        let base_type = match (&flag.kind, &base_flag.kind) {
-            (StyleFlagKind::Boolean, StyleFlagKind::Boolean)
-            | (StyleFlagKind::StringUnion(_), StyleFlagKind::StringUnion(_)) => None,
-            (_, StyleFlagKind::Boolean) => Some("a boolean"),
-            (_, StyleFlagKind::StringUnion(_)) => Some("a string union"),
-        };
-        if let Some(base_type) = base_type {
-            return Err((
-                flag.span,
-                format!(
-                    "Style flag \"{}\" is {base_type} in the extended component, redeclare it with the same type",
-                    flag.prop_name
-                ),
-            ));
-        }
-        style_flags.push(StyleFlag {
-            hashed_class_name: base_flag.hashed_class_name.clone(),
-            ..flag
-        });
-    }
-    style_flags.extend(own_flags);
-    Ok(style_flags)
-}
-
-/// The base component styles its own flags, so only new flags and values need modifier styles
-fn flags_without_base_styles(
-    style_flags: &[StyleFlag],
-    base_flags: &[StyleFlag],
-) -> Vec<StyleFlag> {
-    style_flags
-        .iter()
-        .filter_map(|flag| {
-            let Some(base_flag) = base_flags
-                .iter()
-                .find(|base_flag| base_flag.prop_name == flag.prop_name)
-            else {
-                return Some(flag.clone());
-            };
-            match (&flag.kind, &base_flag.kind) {
-                (StyleFlagKind::Boolean, StyleFlagKind::Boolean) => None,
-                (StyleFlagKind::StringUnion(values), StyleFlagKind::StringUnion(base_values)) => {
-                    let new_values = values
-                        .iter()
-                        .filter(|value| !base_values.contains(value))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    (!new_values.is_empty()).then(|| StyleFlag {
-                        kind: StyleFlagKind::StringUnion(new_values),
-                        ..flag.clone()
-                    })
-                }
-                _ => Some(flag.clone()),
-            }
-        })
-        .collect()
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

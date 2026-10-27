@@ -3,7 +3,7 @@ use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, State
 use oxc_parser::Parser;
 use oxc_semantic::{Scoping, SemanticBuilder};
 use oxc_span::{GetSpan, SourceType};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -19,6 +19,7 @@ pub(crate) fn remove_resolved_imports(
     code: String,
     source_type: SourceType,
     imported_values: &FxHashMap<String, StaticValue>,
+    side_effect_sources: &FxHashSet<String>,
 ) -> Result<String, CompilerDiagnostic> {
     if !imported_values
         .values()
@@ -47,6 +48,7 @@ pub(crate) fn remove_resolved_imports(
         semantic.scoping(),
         &code,
         imported_values,
+        side_effect_sources,
         &mut edits,
     );
     if edits.is_empty() {
@@ -63,8 +65,7 @@ fn is_runtime_value(value: &StaticValue) -> bool {
             | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
-            | StaticValue::ClassName(_)
-            | StaticValue::ThemeColors { .. }
+            | StaticValue::ClassName { .. }
     )
 }
 
@@ -73,6 +74,7 @@ fn collect_resolved_import_edits(
     scoping: &Scoping,
     source: &str,
     imported_values: &FxHashMap<String, StaticValue>,
+    side_effect_sources: &FxHashSet<String>,
     edits: &mut Vec<Edit>,
 ) {
     for statement in &program.body {
@@ -86,7 +88,10 @@ fn collect_resolved_import_edits(
             continue;
         };
         let mut compile_time_count = 0usize;
-        let mut has_styles = false;
+        // The module's CSS and side effects only run while the module itself is imported, so
+        // keep it when it has side effects, e.g. global styles, or when its keyframes or an
+        // inlined class name are still used by this file
+        let mut keeps_module = side_effect_sources.contains(declaration.source.value.as_str());
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         for specifier in specifiers {
@@ -117,9 +122,7 @@ fn collect_resolved_import_edits(
                 continue;
             };
             compile_time_count += 1;
-            // The module's CSS is only loaded while the module itself is imported, so keep it
-            // when its keyframes or an inlined class name are still used by this file
-            has_styles |= match value {
+            keeps_module |= match value {
                 StaticValue::Keyframes(_) => true,
                 StaticValue::CssClass { name, .. } => contains_class_name(source, name),
                 _ => false,
@@ -130,14 +133,14 @@ fn collect_resolved_import_edits(
         }
         let has_runtime_specifiers = default_specifier.is_some() || !runtime_specifiers.is_empty();
         edits.push(Edit {
-            span: if !has_runtime_specifiers && has_styles {
+            span: if !has_runtime_specifiers && keeps_module {
                 declaration.span
             } else {
                 expand_removal_to_line(source, declaration.span)
             },
             replacement: if has_runtime_specifiers {
                 rebuilt_import(declaration, source, default_specifier, &runtime_specifiers)
-            } else if has_styles {
+            } else if keeps_module {
                 format!("import \"{}\";", declaration.source.value)
             } else {
                 String::new()

@@ -7,6 +7,7 @@ use crate::{
     facts::StaticValue,
 };
 
+use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
 use super::transform_support::VariableTransform;
 
@@ -78,15 +79,19 @@ pub(super) fn process_with_component(
         runtime,
         style_flags: base.style_flags.clone(),
     };
+    // References select the component's own class, the class names of the components it extends
+    // are only applied to the element
+    let reference_class = base
+        .class_name
+        .split_whitespace()
+        .last()
+        .unwrap_or_default();
     transform.constants.insert(
         variable_name.to_owned(),
-        StaticValue::ClassName(
-            base.class_name
-                .split_whitespace()
-                .last()
-                .unwrap_or_default()
-                .to_owned(),
-        ),
+        StaticValue::ClassName {
+            name: reference_class.to_owned(),
+            style_flags: flag_classes(&base.style_flags),
+        },
     );
     transform
         .styled_components

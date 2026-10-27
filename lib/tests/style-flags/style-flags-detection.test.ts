@@ -571,7 +571,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
       }
 
       /* Test :has() with flags */
-      &:has(.v1560qbr-1-Button-active) {
+      &:has(.active) {
         border-color: blue;
       }
 

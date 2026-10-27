@@ -208,7 +208,6 @@ impl JsxCssVisitor<'_> {
                         variable_name: None,
                         tag_type: "css",
                         style_flags: &[],
-                        referenced_components: None,
                     },
                 ) {
                     Ok(content) => clean_css(&content),

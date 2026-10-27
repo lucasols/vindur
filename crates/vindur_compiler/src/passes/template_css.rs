@@ -1,23 +1,18 @@
-use std::borrow::Cow;
-
 use oxc_ast::ast::{TemplateElement, TemplateLiteral};
 use oxc_span::{GetSpan, Span};
 
 use crate::CompilerDiagnostic;
 
-use super::class_chains::{rewrite_class_chains, unsupported_class_chain};
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::style_flags::invalid_transient_flag;
-use super::styled::css_class_name_part;
+use super::style_flag_selectors::{flag_validation_css, referenced_dollar_class};
+use super::styled::is_styled_ref_placeholder;
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
 #[derive(Default)]
 pub(crate) struct EvaluatedTemplate {
     pub css: String,
-    /// Classes of the interpolated components, like `${Menu}`
-    pub component_references: Vec<String>,
     /// Indices of the CSS class interpolations that were evaluated as selectors
     pub selector_classes: Vec<usize>,
     pub segments: Vec<TemplateSegment>,
@@ -63,6 +58,18 @@ impl EvaluatedTemplate {
             })
     }
 
+    /// The error diagnostic of a CSS error, located in the source
+    pub(crate) fn error_diagnostic(
+        &self,
+        error: CssError,
+        template: &TemplateLiteral<'_>,
+        file_path: &str,
+        source: &str,
+    ) -> CompilerDiagnostic {
+        let (span, _) = self.source_span(&error, source, template);
+        CompilerDiagnostic::error(file_path, source, span, error.message)
+    }
+
     /// Source position of a CSS error, `None` when it can't be mapped to the source
     fn error_position(
         &self,
@@ -80,6 +87,33 @@ impl EvaluatedTemplate {
         let end = error.end.max(error.start + 1).min(self.css.len());
         template_source_span(&self.css, source, &self.segments, error.start..end)
     }
+
+    /// An error for a `$` style flag selected through a component reference, e.g.
+    /// `${Item}.$active &`, which would otherwise fail as invalid CSS
+    fn referenced_dollar_flag_error(&self, source: &str) -> Option<CssError> {
+        self.segments.iter().find_map(|segment| {
+            let SegmentOrigin::Interpolation(span) = segment.origin else {
+                return None;
+            };
+            let value = self.css.get(segment.range.clone())?;
+            let (classes, placeholders) = if is_styled_ref_placeholder(value) {
+                (Vec::new(), vec![value.to_owned()])
+            } else {
+                let class_name = value.strip_prefix('.')?;
+                (vec![class_name.to_owned()], Vec::new())
+            };
+            let range = referenced_dollar_class(&self.css, &classes, &placeholders)?;
+            let reference = source.get(span.start as usize..span.end as usize)?;
+            let flag = &self.css[range.clone()];
+            Some(CssError::new(
+                format!(
+                    "Style flag \"{flag}\" can't be selected through a component reference like \"${{{reference}}}.{flag}\", use a flag without \"$\""
+                ),
+                range.start,
+                range.end,
+            ))
+        })
+    }
 }
 
 /// Fails with a source located error when the evaluated CSS is invalid. When treating CSS class
@@ -93,34 +127,24 @@ pub(crate) fn validate_template_css(
     context: &TemplateContext<'_>,
     rebuild_with_extensions: impl Fn(&[usize]) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
-    let located_error = |offset: usize, message: String| {
-        let end = (offset + 1).min(evaluated.css.len());
-        let span = template_source_span(&evaluated.css, source, &evaluated.segments, offset..end)
-            .map_or(template.span, |(span, _)| span);
-        CompilerDiagnostic::error(file_path, source, span, message)
-    };
-    if let Some(unsupported) = unsupported_class_chain(&evaluated.css, |class| {
-        evaluated
-            .component_references
-            .iter()
-            .any(|reference| reference == class)
-    }) {
-        return Err(located_error(
-            unsupported.offset,
-            unsupported.message.to_owned(),
-        ));
-    }
-    if let Some(referenced_components) = context.referenced_components
-        && let Some((message, offset)) =
-            invalid_transient_flag(&evaluated.css, context.style_flags, referenced_components)
-    {
-        return Err(located_error(offset, message));
-    }
     let kind = BlockKind::from_tag_type(context.tag_type);
-    let validate = |css: &str| validate_style_block(&validation_css(css, context), kind);
-    let Err(error) = validate(&evaluated.css) else {
+    let validate =
+        |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags)?, kind);
+    let located = |error| evaluated.error_diagnostic(error, template, file_path, source);
+    let validation_css =
+        flag_validation_css(&evaluated.css, context.style_flags).map_err(|error| {
+            located(
+                evaluated
+                    .referenced_dollar_flag_error(source)
+                    .unwrap_or(error),
+            )
+        })?;
+    let Err(error) = validate_style_block(&validation_css, kind) else {
         return Ok(());
     };
+    if let Some(error) = evaluated.referenced_dollar_flag_error(source) {
+        return Err(located(error));
+    }
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;
@@ -209,19 +233,4 @@ fn missing_extension(
         }
     }
     Ok(forced.first().copied())
-}
-
-/// Style flag selectors like `&.$active` are rewritten after validation. A `$` is not valid in a
-/// class name, so in styled components, where every transient flag selector was checked by
-/// `invalid_transient_flag`, they are validated with `_`, which keeps the CSS offsets
-fn validation_css<'a>(css: &'a str, context: &TemplateContext<'_>) -> Cow<'a, str> {
-    if context.referenced_components.is_some() && css.contains('$') {
-        Cow::Owned(rewrite_class_chains(
-            css,
-            |_| false,
-            |_, class| class.contains('$').then(|| css_class_name_part(class)),
-        ))
-    } else {
-        Cow::Borrowed(css)
-    }
 }
