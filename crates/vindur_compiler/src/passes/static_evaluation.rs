@@ -60,12 +60,7 @@ pub(super) fn evaluate_expression(
         Expression::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
             Some(StaticValue::Undefined)
         }
-        Expression::Identifier(identifier) => {
-            match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
-                value => Some(value.clone()),
-            }
-        }
+        Expression::Identifier(identifier) => evaluate_identifier(identifier, constants, scoping),
         Expression::ArrayExpression(array) => evaluate_array(array, constants, scoping),
         Expression::StaticMemberExpression(member) => {
             let analysis = StaticAnalysisContext { constants, scoping };
@@ -258,7 +253,10 @@ fn evaluate_template_value(
         );
         if let Some(expression) = template.expressions.get(index) {
             let value = evaluate_expression(expression, constants, scoping)?;
-            if is_unresolved_import(&value) {
+            // Compiler values, e.g. keyframes or dynamic colors, stringify differently at
+            // runtime and an imported module's styles are only loaded while it's imported,
+            // so they can only be interpolated directly in vindur styles
+            if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
                 return None;
             }
             output.push_str(&static_value_to_string(&value));
@@ -279,6 +277,15 @@ pub(super) fn evaluate_binary(
         {
             None
         }
+        // Two objects or compiler values compare by identity, which is not evaluated
+        (
+            left,
+            BinaryOperator::Equality
+            | BinaryOperator::StrictEquality
+            | BinaryOperator::Inequality
+            | BinaryOperator::StrictInequality,
+            right,
+        ) if oxc_constant_value(&left).is_none() && oxc_constant_value(&right).is_none() => None,
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }
@@ -345,7 +352,9 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
         }
         StaticValue::Keyframes(value) => value.clone(),
         StaticValue::LayerFunction => String::new(),
-        StaticValue::MissingImport { .. } => String::new(),
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. } => String::new(),
         StaticValue::InvalidFunction { .. } => String::new(),
         StaticValue::InvalidObject { .. } => String::new(),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
@@ -362,11 +371,14 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
 }
 
 /// An imported name whose value couldn't be evaluated in its module, e.g.
-/// `export const hover = getColor()`, it has no CSS value
+/// `export const hover = getColor()`, or that is missing or only re-exported, it has no
+/// CSS value
 pub(super) fn is_unresolved_import(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::MissingImport { .. }
+        StaticValue::CyclicImport { .. }
+            | StaticValue::MissingImport { .. }
+            | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
     )
@@ -376,6 +388,24 @@ pub(super) fn static_value_to_boolean(value: &StaticValue) -> bool {
     oxc_constant_value(value)
         .and_then(|value| value.to_boolean(&WithoutGlobalReferenceInformation))
         .unwrap_or(true)
+}
+
+pub(super) fn evaluate_identifier(
+    identifier: &IdentifierReference<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<StaticValue> {
+    match resolved_constant(identifier, constants, scoping)? {
+        StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
+        // Unresolved imports are reported when interpolated directly, values derived
+        // from them, e.g. `${INSET}px`, are not static
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. } => None,
+        value => Some(value.clone()),
+    }
 }
 
 pub(super) fn resolved_constant<'a>(

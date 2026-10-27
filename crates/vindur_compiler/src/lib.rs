@@ -3,6 +3,7 @@ mod diagnostic;
 mod edit;
 mod facts;
 mod hash;
+mod module_graph;
 mod normalize;
 mod options;
 mod passes;

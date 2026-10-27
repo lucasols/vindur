@@ -571,7 +571,7 @@ test('should not extract objects with unresolvable template literals', async () 
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Object "mq" not found in /breakpoints.ts
+    [TransformError: /test.tsx: "mq" imported from /breakpoints.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
     loc: 6:4]
   `,
   );
@@ -630,7 +630,7 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Unresolved binary expression at \`... style = css\` ... \${baseSize * 2}, only simple arithmetic with constants is supported
+    [TransformError: /test.tsx: "baseSize" not found in /constants.ts
     loc: 5:13]
   `,
   );

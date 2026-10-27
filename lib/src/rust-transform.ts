@@ -99,28 +99,15 @@ export function transformWithRust({
     const diagnosticFile = diagnostic.filePath || undefined;
     const isDependencyDiagnostic = diagnosticFile !== undefined
       && diagnosticFile !== fileAbsPath;
-    const isMissingImportDiagnostic = diagnostic.message.startsWith('Function "');
-    const isInvalidFunctionDiagnostic = diagnostic.message.startsWith(
-      'called a invalid vindur function',
-    );
     if (diagnostic.message.startsWith('File not found:')) {
       throw new Error(`${fileAbsPath}: ${diagnostic.message}`);
     }
-    const dependencyPrefix = isDependencyDiagnostic
-      && !isMissingImportDiagnostic
-      && !isInvalidFunctionDiagnostic ?
-        `${diagnosticFile}: `
-      : '';
+    const dependencyPrefix = isDependencyDiagnostic ? `${diagnosticFile}: ` : '';
     const shouldAttachDependencyLocation = isDependencyDiagnostic
       || diagnostic.message.startsWith('vindurFn "');
     const shouldAttachRootLocation = diagnostic.message.startsWith(
       'Forward reference to undefined styled component:',
     );
-
-    if (isMissingImportDiagnostic) {
-      location.start.line = Math.max(1, location.start.line - 1);
-      location.start.column = 6;
-    }
 
     throw new TransformError(
       `${fileAbsPath}: ${dependencyPrefix}${diagnostic.message}`,

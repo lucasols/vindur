@@ -1,7 +1,14 @@
-use oxc_ast::ast::{BindingIdentifier, Expression, IdentifierReference};
+use oxc_ast::ast::{BindingIdentifier, Expression, IdentifierReference, Program};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 use rustc_hash::FxHashMap;
+
+pub(crate) struct ModuleSource<'m, 'a> {
+    pub(crate) program: &'m Program<'a>,
+    pub(crate) scoping: &'m Scoping,
+    pub(crate) file_path: &'m str,
+    pub(crate) source: &'m str,
+}
 
 /// Vindur imports indexed by Oxc's semantic symbol identity.
 ///

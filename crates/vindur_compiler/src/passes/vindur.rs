@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use oxc_ast::ast::{Expression, Program, Statement};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::{
     CompilerDiagnostic, ModuleFacts, TransformOptions,
@@ -23,7 +23,7 @@ use super::{
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
         assigned_tag_spans, collect_exported_names, collect_exported_object_names,
-        collect_vindur_imports,
+        collect_re_exports, collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
@@ -35,6 +35,7 @@ use super::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
         transform_stable_declaration,
     },
+    static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
     styled::{resolve_styled_references, styled_tag_element},
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
@@ -57,20 +58,30 @@ pub(crate) fn transform_program(
     source: &str,
     options: &TransformOptions,
     imported_values: &FxHashMap<String, StaticValue>,
+    cyclic_values: &FxHashSet<String>,
 ) -> Result<PassOutput, CompilerDiagnostic> {
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
     let exported_names = collect_exported_names(program);
 
-    let mut constants = collect_constants(program, scoping, &imports);
-    constants.extend(imported_values.iter().map(|(name, value)| {
-        let value = match value {
-            StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
-            value => value.clone(),
-        };
-        (name.clone(), value)
-    }));
+    // Imported values come first so local constants can reference them, e.g.
+    // `export const INSET = IMPORTED_INSET`. Local style values, e.g. `css` classes and
+    // theme colors, are only known after `collect_constants`, imported ones are added after
+    // it too, so constants derived from them aren't static in both cases. Values from
+    // modules in an import cycle are added after it too, they can only be used directly
+    let (late_values, imported_constants): (FxHashMap<_, _>, _) = imported_values
+        .iter()
+        .map(|(name, value)| {
+            let value = match value {
+                StaticValue::Function(function) => StaticValue::ImportedFunction(function.clone()),
+                value => value.clone(),
+            };
+            (name.clone(), value)
+        })
+        .partition(|(name, value)| is_style_value(value) || cyclic_values.contains(name));
+    let mut constants = collect_constants(program, scoping, &imports, imported_constants);
+    constants.extend(late_values);
     for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
@@ -158,13 +169,13 @@ pub(crate) fn transform_program(
                         styled_components: &mut styled_components,
                         file_path,
                         source,
-                        is_exported: exported_names.contains(
+                        is_exported: exported_names.values().any(|local| {
                             declaration
                                 .declarations
                                 .first()
                                 .and_then(|declarator| declarator.id.get_binding_identifier())
-                                .map_or("", |identifier| identifier.name.as_str()),
-                        ),
+                                .is_some_and(|identifier| identifier.name == local.as_str())
+                        }),
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
                         scoped_variables: &mut scoped_variables,
@@ -439,22 +450,31 @@ pub(crate) fn transform_program(
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
+    // Unresolved imports exported with `export { name }` describe paths relative to this
+    // module, importers report them as values of this module instead. Values from modules
+    // in an import cycle aren't passed on either, their facts depend on the transform order
     let exports = exported_names
         .iter()
-        .filter_map(|name| {
+        .filter(|(_, local)| !cyclic_values.contains(*local))
+        .filter_map(|(name, local)| {
             constants
-                .get(name)
+                .get(local)
+                .filter(|value| !is_unresolved_import(value))
                 .cloned()
                 .map(|value| (name.clone(), value))
         })
         .collect();
+    let (re_exports, star_re_exports) = collect_re_exports(program);
     let facts = ModuleFacts {
-        declared_exports: exported_names.iter().cloned().collect(),
+        declared_exports: exported_names.into_keys().collect(),
         declared_object_exports: exported_object_names.iter().cloned().collect(),
         source_hash: hasher.finish(),
         constants,
         exports,
-        dependencies: Vec::new(),
+        re_exports,
+        star_re_exports,
+        // Filled in by the compiler from the loaded imports
+        ..ModuleFacts::default()
     };
     // Every style is generated here, also the css props after the cx pass
     if let Some(diagnostic) =
@@ -486,6 +506,22 @@ pub(crate) fn transform_program(
         warnings,
         css_source_offsets: css_template_offsets(program, &imports),
     })
+}
+
+/// Values created by vindur APIs, they are registered while transforming their declarations
+fn is_style_value(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::ClassName(_)
+            | StaticValue::CssClass { .. }
+            | StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::Keyframes(_)
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
+            | StaticValue::ThemeColors(_)
+            | StaticValue::UnexportedThemeColors(_)
+    )
 }
 
 fn scoped_variable_warnings(

@@ -1,6 +1,4 @@
-use oxc_ast::ast::{
-    Expression, IdentifierReference, Program, Statement, TemplateElement, TemplateLiteral,
-};
+use oxc_ast::ast::{Expression, Program, Statement, TemplateElement, TemplateLiteral};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
@@ -9,6 +7,9 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::import_errors::{
+    member_root_identifier, not_static_import_message, unresolved_import_error,
+};
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
@@ -31,8 +32,8 @@ pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
     imports: &VindurImports<'_>,
+    mut constants: FxHashMap<String, StaticValue>,
 ) -> FxHashMap<String, StaticValue> {
-    let mut constants = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
@@ -154,26 +155,18 @@ fn build_template_css(
                 ),
             ));
         }
-        if let Expression::Identifier(identifier) = expression
-            && let Some(StaticValue::MissingImport {
-                imported_name,
-                source_path,
-            }) = resolved_constant(identifier, constants, scoping)
+        if let Some(diagnostic) =
+            unresolved_import_error(expression, constants, scoping, file_path, source)
         {
-            return Err(CompilerDiagnostic::error(
-                source_path,
-                source,
-                expression.span(),
-                format!("Function \"{imported_name}\" not found in {source_path}"),
-            ));
+            return Err(diagnostic);
         }
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
-            && let Some(StaticValue::InvalidFunction { source_path }) =
+            && let Some(StaticValue::InvalidFunction { .. }) =
                 resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
-                source_path,
+                file_path,
                 source,
                 expression.span(),
                 "called a invalid vindur function, style functions must be defined with \"vindurFn(() => ...)\" function"
@@ -182,11 +175,11 @@ fn build_template_css(
         }
         if let Expression::CallExpression(call) = expression
             && let Expression::Identifier(callee) = &call.callee
-            && let Some(StaticValue::ImportedValue { source_path, .. }) =
+            && let Some(StaticValue::ImportedValue { .. }) =
                 resolved_constant(callee, constants, scoping)
         {
             return Err(CompilerDiagnostic::error(
-                source_path,
+                file_path,
                 source,
                 expression.span(),
                 "called a invalid vindur function, style functions must be defined with \"vindurFn(() => ...)\" function"
@@ -359,11 +352,14 @@ fn invalid_object_access_error(
                 expression.span(),
                 format!("Object \"{imported_name}\" not found in {source_path}"),
             )),
-            StaticValue::InvalidObject { source_path } => Some(CompilerDiagnostic::error(
+            StaticValue::InvalidObject {
+                source_path,
+                cyclic_imports,
+            } => Some(CompilerDiagnostic::error(
                 file_path,
                 source,
                 expression.span(),
-                format!("Object \"{}\" not found in {source_path}", root.name),
+                not_static_import_message(&root.name, source_path, cyclic_imports),
             )),
             _ => None,
         };
@@ -389,16 +385,6 @@ fn invalid_object_access_error(
             "Nested property access is not supported, only one level property access is allowed at `{variable_context}` ... ${{{expression_source}}}"
         ),
     ))
-}
-
-fn member_root_identifier<'a, 'b>(
-    expression: &'a Expression<'b>,
-) -> Option<&'a IdentifierReference<'b>> {
-    match expression {
-        Expression::Identifier(identifier) => Some(identifier),
-        Expression::StaticMemberExpression(member) => member_root_identifier(&member.object),
-        _ => None,
-    }
 }
 
 fn imported_function_preserves_boundary(

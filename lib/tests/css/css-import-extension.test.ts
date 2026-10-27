@@ -507,8 +507,8 @@ test('should throw error when imported CSS is not found', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Function "unknownStyles" not found in /styles.ts
-    loc: /styles.ts|4:6]
+    [TransformError: /test.tsx: "unknownStyles" not found in /styles.ts
+    loc: 5:4]
   `,
   );
 });
@@ -626,7 +626,7 @@ test('should throw error on indirect circular import', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: /fileA.ts: Invalid interpolation used at \`... styleA = css\` ... \${styleB}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    [TransformError: /test.tsx: /fileA.ts: "styleB" imported from /fileB.ts can't be evaluated, /fileB.ts is in an import cycle with /fileA.ts, move the value to a module outside the cycle
     loc: /fileA.ts|5:4
     ignoreInLint: true]
   `,

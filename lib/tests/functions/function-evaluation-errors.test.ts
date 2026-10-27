@@ -61,7 +61,7 @@ describe('function evaluation errors', () => {
     }).toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
-      loc: /functions.ts|5:4]
+      loc: 5:4]
     `,
     );
   });
@@ -92,7 +92,7 @@ describe('function evaluation errors', () => {
     }).toThrowErrorMatchingInlineSnapshot(
       `
       [TransformError: /test.ts: called a invalid vindur function, style functions must be defined with "vindurFn(() => ...)" function
-      loc: /functions.ts|5:4]
+      loc: 5:4]
     `,
     );
   });

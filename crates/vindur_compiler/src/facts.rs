@@ -15,6 +15,38 @@ pub struct ModuleFacts {
     pub constants: FxHashMap<String, StaticValue>,
     pub exports: FxHashMap<String, StaticValue>,
     pub dependencies: Vec<String>,
+    /// Modules whose facts were read directly, including ones whose values aren't static
+    #[serde(default)]
+    pub fact_dependencies: Vec<String>,
+    /// Modules skipped while collecting facts because they're in an import cycle with
+    /// this module, their values are missing from it, and imported modules whose facts
+    /// depend on an import cycle
+    #[serde(default)]
+    pub cyclic_dependencies: Vec<String>,
+    /// Names re-exported with `export { name } from 'source'` or `export * as name from
+    /// 'source'`, keyed by exported name
+    #[serde(default)]
+    pub re_exports: FxHashMap<String, ReExport>,
+    /// Sources of `export * from 'source'`
+    #[serde(default)]
+    pub star_re_exports: Vec<String>,
+}
+
+impl ModuleFacts {
+    /// Facts collected in an import cycle depend on which module of the cycle was
+    /// transformed first
+    #[must_use]
+    pub fn has_cycle(&self) -> bool {
+        !self.cyclic_dependencies.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReExport {
+    pub source: String,
+    /// Name exported by `source`, `None` for `export * as name from 'source'`
+    pub imported_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -37,6 +69,11 @@ pub enum StaticValue {
         path: String,
         dev: bool,
     },
+    /// Imported from a module skipped because it's in an import cycle with the importer,
+    /// its value depends on which module of the cycle was transformed first
+    CyclicImport {
+        source_path: String,
+    },
     Keyframes(String),
     LayerFunction,
     MissingImport {
@@ -55,11 +92,22 @@ pub enum StaticValue {
     },
     InvalidFunction {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     InvalidObject {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     Number(f64),
+    /// Imported name that only exists through a re-export, `re_export` is `None` when it
+    /// may come from `export * from`
+    UnsupportedReExport {
+        imported_name: String,
+        source_path: String,
+        re_export: Option<ReExport>,
+    },
     Object(FxHashMap<String, StaticValue>),
     String(String),
     ThemeColor {

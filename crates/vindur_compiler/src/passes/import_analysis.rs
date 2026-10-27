@@ -1,10 +1,11 @@
 use oxc_ast::ast::{BindingPattern, Expression, ImportDeclarationSpecifier, Program, Statement};
 use oxc_span::GetSpan;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     diagnostic::CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
+    facts::ReExport,
     semantic::VindurImports,
 };
 
@@ -22,8 +23,9 @@ pub(super) fn is_compile_time_import(name: &str) -> bool {
     COMPILE_TIME_IMPORTS.contains(&name)
 }
 
-pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String> {
-    let mut names = FxHashSet::default();
+/// Local bindings keyed by the name they are exported as
+pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashMap<String, String> {
+    let mut names = FxHashMap::default();
     for statement in &program.body {
         match statement {
             Statement::ExportNamedDeclaration(export) => {
@@ -34,15 +36,18 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
                             return None;
                         };
-                        Some(identifier.name.to_string())
+                        Some((identifier.name.to_string(), identifier.name.to_string()))
                     }));
-                } else {
-                    names.extend(
-                        export
-                            .specifiers
-                            .iter()
-                            .map(|specifier| specifier.local.name().to_string()),
-                    );
+                } else if let Some(name) = export.declaration.as_ref().and_then(declared_value_name)
+                {
+                    names.insert(name.clone(), name);
+                } else if export.source.is_none() {
+                    names.extend(export.specifiers.iter().map(|specifier| {
+                        (
+                            specifier.exported.name().to_string(),
+                            specifier.local.name().to_string(),
+                        )
+                    }));
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
@@ -51,13 +56,71 @@ pub(super) fn collect_exported_names(program: &Program<'_>) -> FxHashSet<String>
                     .as_expression()
                     .map(Expression::get_inner_expression)
                 {
-                    names.insert(identifier.name.to_string());
+                    names.insert("default".to_owned(), identifier.name.to_string());
                 }
             }
             _ => {}
         }
     }
     names
+}
+
+/// Name of an exported function, class or enum, they are never static values
+fn declared_value_name(declaration: &oxc_ast::ast::Declaration<'_>) -> Option<String> {
+    match declaration {
+        oxc_ast::ast::Declaration::FunctionDeclaration(function) => {
+            function.id.as_ref().map(|id| id.name.to_string())
+        }
+        oxc_ast::ast::Declaration::ClassDeclaration(class) => {
+            class.id.as_ref().map(|id| id.name.to_string())
+        }
+        oxc_ast::ast::Declaration::TSEnumDeclaration(declaration) => {
+            Some(declaration.id.name.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// `export { name } from 'source'` and `export * as name from 'source'` names keyed by
+/// exported name, and `export * from` sources
+pub(super) fn collect_re_exports(
+    program: &Program<'_>,
+) -> (FxHashMap<String, ReExport>, Vec<String>) {
+    let mut names = FxHashMap::default();
+    let mut star_sources = Vec::new();
+    for statement in &program.body {
+        match statement {
+            Statement::ExportNamedDeclaration(export) => {
+                let Some(export_source) = &export.source else {
+                    continue;
+                };
+                names.extend(export.specifiers.iter().map(|specifier| {
+                    (
+                        specifier.exported.name().to_string(),
+                        ReExport {
+                            source: export_source.value.to_string(),
+                            imported_name: Some(specifier.local.name().to_string()),
+                        },
+                    )
+                }));
+            }
+            Statement::ExportAllDeclaration(export) => {
+                if let Some(exported) = &export.exported {
+                    names.insert(
+                        exported.name().to_string(),
+                        ReExport {
+                            source: export.source.value.to_string(),
+                            imported_name: None,
+                        },
+                    );
+                } else {
+                    star_sources.push(export.source.value.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    (names, star_sources)
 }
 
 pub(super) fn collect_exported_object_names(program: &Program<'_>) -> FxHashSet<String> {

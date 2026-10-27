@@ -83,9 +83,8 @@ test('should throw when an imported value could not be evaluated in its module',
   await expect(
     transformWithFormat({ source: source('hover'), overrideDefaultFs }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${hover}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
-    loc: 5:11
-    ignoreInLint: true]
+    [TransformError: /test.tsx: "hover" imported from /colors.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 5:11]
   `);
 
   await expect(

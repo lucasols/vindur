@@ -8,8 +8,8 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_array, evaluate_binary, evaluate_expression, evaluate_object, resolved_constant,
-    static_value_to_boolean, static_value_to_string,
+    evaluate_array, evaluate_binary, evaluate_expression, evaluate_identifier, evaluate_object,
+    resolved_constant, static_value_to_boolean, static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -357,11 +357,10 @@ pub(super) fn evaluate_argument(
         }
         Argument::Identifier(identifier) => {
             match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
                 StaticValue::ImportedObject { properties, .. } => {
                     Some(StaticValue::Object(properties.clone()))
                 }
-                value => Some(value.clone()),
+                _ => evaluate_identifier(identifier, constants, scoping),
             }
         }
         Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),

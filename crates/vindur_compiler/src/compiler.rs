@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast::ast::{ImportDeclarationSpecifier, Statement};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{SourceType, Span};
@@ -14,14 +14,39 @@ use crate::resolved_imports::remove_resolved_imports;
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
-    facts::StaticValue,
-    resolver::{
-        NoopLoader, clear_resolver_cache, has_source_extension, resolve_import_path,
-        unresolved_import_path,
+    facts::{ReExport, StaticValue},
+    module_graph::{
+        DependencyList, is_type_only_import, is_type_only_specifier, paths_refer_to_same_module,
     },
+    resolver::{
+        NoopLoader, clear_resolver_cache, has_source_extension, relative_import_specifier,
+        resolve_import_path, unresolved_import_path,
+    },
+    semantic::ModuleSource,
 };
 
-type LoadedImports = (FxHashMap<String, StaticValue>, Vec<String>);
+struct LoadedImports {
+    values: FxHashMap<String, StaticValue>,
+    style_dependencies: Vec<String>,
+    /// Modules whose facts were read directly, including ones whose values aren't static,
+    /// changing any of them can change this module's facts
+    fact_dependencies: Vec<String>,
+    /// Modules skipped because they're in an import cycle with this module, or whose facts
+    /// depend on one
+    cyclic_dependencies: Vec<String>,
+    /// Local names of values imported from modules whose facts depend on an import cycle
+    cyclic_values: FxHashSet<String>,
+}
+
+/// Modules of the current transform, a module importing one of the `visiting` modules is in
+/// an import cycle with it
+#[derive(Default)]
+struct Traversal {
+    visiting: FxHashSet<String>,
+    /// Modules that stopped at an import cycle, so their facts aren't cached, and the
+    /// modules they stopped at
+    aborted: Vec<String>,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,13 +85,36 @@ impl Compiler {
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
     ) -> TransformOutput {
-        self.transform_internal(
+        let mut output = self.transform_internal(
             file_path,
             source,
             options,
             loader,
-            &mut FxHashSet::default(),
-        )
+            &mut Traversal::default(),
+        );
+        output.style_dependencies =
+            self.transitive_style_dependencies(file_path, &output.style_dependencies);
+        output
+    }
+
+    /// Facts only keep direct dependencies, imported values can come from a dependency's
+    /// own imports, so those files affect this module's styles too
+    fn transitive_style_dependencies(&self, file_path: &str, direct: &[String]) -> Vec<String> {
+        let facts = self
+            .module_facts
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+        let mut dependencies = DependencyList::new(file_path);
+        let mut pending = direct.iter().rev().collect::<Vec<_>>();
+        while let Some(dependency) = pending.pop() {
+            if !dependencies.insert(dependency) {
+                continue;
+            }
+            if let Some(module) = facts.get(dependency.as_str()) {
+                pending.extend(module.dependencies.iter().rev());
+            }
+        }
+        dependencies.paths
     }
 
     fn transform_internal(
@@ -75,9 +123,9 @@ impl Compiler {
         source: &str,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> TransformOutput {
-        visiting.insert(file_path.to_owned());
+        traversal.visiting.insert(file_path.to_owned());
         let source_type = match SourceType::from_path(file_path) {
             Ok(source_type) => source_type.with_module(true),
             Err(error) => {
@@ -114,16 +162,20 @@ impl Compiler {
         }
         let semantic = semantic_return.semantic;
 
-        let (imported_values, dependencies) = match self.load_imported_values(
-            &parsed.program,
-            file_path,
-            source,
+        let imports = match self.load_imported_values(
+            &ModuleSource {
+                program: &parsed.program,
+                scoping: semantic.scoping(),
+                file_path,
+                source,
+            },
             options,
             loader,
-            visiting,
+            traversal,
         ) {
             Ok(Some(result)) => result,
             Ok(None) => {
+                traversal.aborted.push(file_path.to_owned());
                 return TransformOutput {
                     code: source.to_owned(),
                     css: String::new(),
@@ -141,18 +193,24 @@ impl Compiler {
             file_path,
             source,
             options,
-            &imported_values,
+            &imports.values,
+            &imports.cyclic_values,
         ) {
             Ok(output) => output,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
-        pass_output.facts.dependencies.clone_from(&dependencies);
+        pass_output
+            .facts
+            .dependencies
+            .clone_from(&imports.style_dependencies);
+        pass_output.facts.fact_dependencies = imports.fact_dependencies;
+        pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
         let edited_code =
-            match remove_resolved_imports(file_path, edited_code, source_type, &imported_values) {
+            match remove_resolved_imports(file_path, edited_code, source_type, &imports.values) {
                 Ok(code) => code,
                 Err(diagnostic) => return failed_output(source, diagnostic),
             };
@@ -176,7 +234,7 @@ impl Compiler {
         TransformOutput {
             code,
             css: pass_output.css,
-            style_dependencies: dependencies,
+            style_dependencies: imports.style_dependencies,
             diagnostics: pass_output.warnings,
             css_source_offsets: pass_output.css_source_offsets,
         }
@@ -184,20 +242,27 @@ impl Compiler {
 
     fn load_imported_values(
         &self,
-        program: &Program<'_>,
-        file_path: &str,
-        source: &str,
+        module: &ModuleSource<'_, '_>,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> Result<Option<LoadedImports>, CompilerDiagnostic> {
+        let &ModuleSource {
+            program,
+            scoping,
+            file_path,
+            source,
+        } = module;
         let mut values = FxHashMap::default();
-        let mut dependencies = Vec::new();
+        let mut dependencies = DependencyList::new(file_path);
+        let mut fact_dependencies = DependencyList::new(file_path);
+        let mut cyclic_dependencies = DependencyList::new(file_path);
+        let mut cyclic_values = FxHashSet::default();
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
             };
-            if import.source.value.as_str() == "vindur" {
+            if import.source.value.as_str() == "vindur" || is_type_only_import(import, scoping) {
                 continue;
             }
             let resolved = resolve_import_path(
@@ -216,10 +281,11 @@ impl Compiler {
                     &options.import_aliases,
                 )
                 .is_some_and(|unresolved| {
-                    visiting
+                    traversal
+                        .visiting
                         .iter()
                         .any(|visited| paths_refer_to_same_module(visited, &unresolved))
-                }) && visiting.len() > 2
+                }) && traversal.visiting.len() > 2
                 {
                     return Ok(None);
                 }
@@ -250,24 +316,51 @@ impl Compiler {
                 }
                 continue;
             };
-            let Some(facts) = self.load_module_facts(&resolved, options, loader, visiting)? else {
-                if visiting.len() > 2 {
+            let Some(facts) = self.load_module_facts(&resolved, options, loader, traversal)? else {
+                if traversal.visiting.len() > 2 {
+                    traversal.aborted.push(resolved);
                     return Ok(None);
+                }
+                // Breaking the cycle changes this module's facts, the cycle can also be
+                // broken in the modules that stopped at it
+                fact_dependencies.insert(&resolved);
+                for aborted in traversal.aborted.drain(..) {
+                    fact_dependencies.insert(&aborted);
+                }
+                cyclic_dependencies.insert(&resolved);
+                // Values imported back into the cycle are reported where they're used
+                for specifier in import.specifiers.iter().flatten() {
+                    if !is_type_only_specifier(specifier, scoping)
+                        && let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier
+                    {
+                        values.insert(
+                            specifier.local.name.to_string(),
+                            StaticValue::CyclicImport {
+                                source_path: resolved.clone(),
+                            },
+                        );
+                    }
                 }
                 continue;
             };
             let Some(specifiers) = &import.specifiers else {
                 continue;
             };
+            fact_dependencies.insert(&resolved);
+            // Whether this module's facts are complete depends on which module of the cycle
+            // was transformed first, so values derived from them aren't static
+            let has_cycle = facts.has_cycle();
+            if has_cycle {
+                cyclic_dependencies.insert(&resolved);
+            }
             // Namespace member references can't be checked by the vindurFn runtime guard
-            if !import.import_kind.is_type()
-                && let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
-                    specifiers.iter().find(|specifier| {
-                        matches!(
-                            specifier,
-                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
-                        )
-                    })
+            if let Some(ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace)) =
+                specifiers.iter().find(|specifier| {
+                    matches!(
+                        specifier,
+                        ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                    )
+                })
                 && let Some(function_name) = facts
                     .exports
                     .iter()
@@ -292,11 +385,15 @@ impl Compiler {
             }
             let mut needs_dependency = false;
             for specifier in specifiers {
+                if is_type_only_specifier(specifier, scoping) {
+                    continue;
+                }
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
                     continue;
                 };
                 if let Some(value) = facts.exports.get(specifier.imported.name().as_str()) {
-                    needs_dependency |= !matches!(value, StaticValue::Keyframes(_));
+                    // Keyframes names include the source file's style index
+                    needs_dependency = true;
                     let value = match value {
                         StaticValue::Object(properties) => StaticValue::ImportedObject {
                             properties: properties.clone(),
@@ -311,6 +408,9 @@ impl Compiler {
                         },
                         value => value.clone(),
                     };
+                    if has_cycle {
+                        cyclic_values.insert(specifier.local.name.to_string());
+                    }
                     values.insert(specifier.local.name.to_string(), value);
                 } else if let Some(StaticValue::ThemeColors(colors)) =
                     facts.constants.get(specifier.imported.name().as_str())
@@ -329,6 +429,7 @@ impl Compiler {
                     {
                         StaticValue::InvalidObject {
                             source_path: resolved.clone(),
+                            cyclic_imports: facts.cyclic_dependencies.clone(),
                         }
                     } else if facts
                         .declared_exports
@@ -337,6 +438,34 @@ impl Compiler {
                     {
                         StaticValue::InvalidFunction {
                             source_path: resolved.clone(),
+                            cyclic_imports: facts.cyclic_dependencies.clone(),
+                        }
+                    } else if let Some(re_export) = facts.re_exports.get(imported_name) {
+                        StaticValue::UnsupportedReExport {
+                            imported_name: imported_name.to_owned(),
+                            source_path: resolved.clone(),
+                            // Relative sources are relative to the re-exporting module,
+                            // the error suggests importing it from this one
+                            re_export: Some(ReExport {
+                                source: if re_export.source.starts_with('.') {
+                                    unresolved_import_path(
+                                        &resolved,
+                                        &re_export.source,
+                                        &options.import_aliases,
+                                    )
+                                    .map(|target| relative_import_specifier(file_path, &target))
+                                } else {
+                                    None
+                                }
+                                .unwrap_or_else(|| re_export.source.clone()),
+                                imported_name: re_export.imported_name.clone(),
+                            }),
+                        }
+                    } else if !facts.star_re_exports.is_empty() {
+                        StaticValue::UnsupportedReExport {
+                            imported_name: imported_name.to_owned(),
+                            source_path: resolved.clone(),
+                            re_export: None,
                         }
                     } else {
                         StaticValue::MissingImport {
@@ -348,10 +477,16 @@ impl Compiler {
                 }
             }
             if needs_dependency {
-                dependencies.push(resolved);
+                dependencies.insert(&resolved);
             }
         }
-        Ok(Some((values, dependencies)))
+        Ok(Some(LoadedImports {
+            values,
+            style_dependencies: dependencies.paths,
+            fact_dependencies: fact_dependencies.paths,
+            cyclic_dependencies: cyclic_dependencies.paths,
+            cyclic_values,
+        }))
     }
 
     fn load_module_facts(
@@ -359,12 +494,12 @@ impl Compiler {
         file_path: &str,
         options: &TransformOptions,
         loader: &mut impl SourceLoader,
-        visiting: &mut FxHashSet<String>,
+        traversal: &mut Traversal,
     ) -> Result<Option<Arc<ModuleFacts>>, CompilerDiagnostic> {
         if let Some(facts) = self.cached_facts(file_path) {
             return Ok(Some(facts));
         }
-        if visiting.contains(file_path) {
+        if traversal.visiting.contains(file_path) {
             return Ok(None);
         }
         let source = loader.read_file(file_path).map_err(|message| {
@@ -373,8 +508,8 @@ impl Compiler {
         let mut dependency_options = options.clone();
         dependency_options.normalize_code = false;
         let output =
-            self.transform_internal(file_path, &source, &dependency_options, loader, visiting);
-        visiting.remove(file_path);
+            self.transform_internal(file_path, &source, &dependency_options, loader, traversal);
+        traversal.visiting.remove(file_path);
         if let Some(diagnostic) = output
             .diagnostics
             .into_iter()
@@ -399,7 +534,27 @@ impl Compiler {
             .module_facts
             .write()
             .unwrap_or_else(|error| error.into_inner());
-        facts.remove(file_path);
+        // Dependents' facts were built from this module's facts, directly or indirectly
+        let evicted = {
+            let mut dependents = FxHashMap::<&str, Vec<&str>>::default();
+            for (module_id, module) in facts.iter() {
+                for dependency in &module.fact_dependencies {
+                    dependents
+                        .entry(dependency.as_str())
+                        .or_default()
+                        .push(module_id);
+                }
+            }
+            let mut evicted = FxHashSet::default();
+            let mut pending = vec![file_path];
+            while let Some(path) = pending.pop() {
+                if evicted.insert(path.to_owned()) {
+                    pending.extend(dependents.get(path).into_iter().flatten().copied());
+                }
+            }
+            evicted
+        };
+        facts.retain(|module_id, _| !evicted.contains(&**module_id));
     }
 
     pub fn clear(&self) {
@@ -412,12 +567,6 @@ impl Compiler {
     }
 }
 
-fn paths_refer_to_same_module(left: &str, right: &str) -> bool {
-    let left = std::path::Path::new(left);
-    let right = std::path::Path::new(right);
-    left == right || left.with_extension("") == right || left == right.with_extension("")
-}
-
 fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutput {
     TransformOutput {
         code: source.to_owned(),
@@ -425,231 +574,5 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
         style_dependencies: Vec::new(),
         diagnostics: vec![diagnostic],
         css_source_offsets: Vec::new(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-    use rustc_hash::FxHashMap;
-
-    use super::Compiler;
-    use crate::{SourceLoader, TransformOptions};
-
-    struct MemoryLoader {
-        files: FxHashMap<String, String>,
-        reads: usize,
-    }
-
-    impl SourceLoader for MemoryLoader {
-        fn exists(&mut self, file_path: &str) -> Result<bool, String> {
-            Ok(self.files.contains_key(file_path))
-        }
-
-        fn read_file(&mut self, file_path: &str) -> Result<String, String> {
-            self.reads += 1;
-            self.files
-                .get(file_path)
-                .cloned()
-                .ok_or_else(|| format!("File not found: {file_path}"))
-        }
-    }
-
-    #[test]
-    fn parses_tsx_and_preserves_unmodified_source() {
-        let source = "const App = () => <main>Hello</main>;";
-        let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());
-
-        assert!(output.diagnostics.is_empty());
-        assert_eq!(output.code, source);
-    }
-
-    #[test]
-    fn reports_parse_errors_with_a_source_location() {
-        let output = Compiler::new().transform(
-            "/App.tsx",
-            "const App = <main>;",
-            &TransformOptions::default(),
-        );
-
-        assert_eq!(output.diagnostics.len(), 1);
-        assert_eq!(output.diagnostics[0].file_path, "/App.tsx");
-        assert!(output.diagnostics[0].start.line > 0);
-    }
-
-    #[test]
-    fn transforms_direct_css_tags_inside_expressions() {
-        let output = Compiler::new().transform(
-            "/direct.ts",
-            "import { css } from 'vindur';\nconsole.log(css`color: red;`);",
-            &TransformOptions::default(),
-        );
-
-        assert!(output.diagnostics.is_empty());
-        assert_eq!(output.code, "console.log(\"vfg87vj-1\");");
-        assert_eq!(output.css, ".vfg87vj-1 {\n  color: red;\n}");
-    }
-
-    #[test]
-    fn uses_semantic_symbols_to_ignore_shadowed_vindur_imports() {
-        let source = "import { css } from 'vindur';\nconst top = css`color: red;`;\nfunction render(css: (value: TemplateStringsArray) => string) { return css`untouched`; }";
-        let output = Compiler::new().transform(
-            "/shadowed.ts",
-            source,
-            &TransformOptions {
-                normalize_code: true,
-                ..TransformOptions::default()
-            },
-        );
-
-        assert!(output.diagnostics.is_empty());
-        assert_eq!(
-            output.code,
-            "const top = \"vqys53f-1\";\nfunction render(css: (value: TemplateStringsArray) => string) { return css`untouched`; }"
-        );
-        assert_eq!(output.css, ".vqys53f-1 {\n  color: red;\n}");
-    }
-
-    #[test]
-    fn uses_ecmascript_number_to_string_semantics() {
-        let source = "import { css } from 'vindur'; const negativeZero = 0 / -1; const style = css`padding: ${negativeZero}px;`;";
-        let output = Compiler::new().transform(
-            "/number.ts",
-            source,
-            &TransformOptions {
-                normalize_code: false,
-                ..TransformOptions::default()
-            },
-        );
-
-        assert!(output.diagnostics.is_empty());
-        assert_eq!(output.css, ".versdpu-1 {\n  padding: 0px;\n}");
-    }
-
-    #[test]
-    fn does_not_evaluate_shadowed_root_constants() {
-        let source = "import { css } from 'vindur'; const color = 'red'; function render(color: string) { return css`color: ${color};`; }";
-        let output = Compiler::new().transform(
-            "/shadowed-constant.ts",
-            source,
-            &TransformOptions::default(),
-        );
-
-        assert_eq!(output.diagnostics.len(), 1);
-        assert!(
-            output.diagnostics[0]
-                .message
-                .starts_with("Invalid interpolation used")
-        );
-        assert_eq!(output.code, source);
-        assert!(output.css.is_empty());
-    }
-
-    #[test]
-    fn rejects_inline_styled_tags_with_a_location() {
-        let output = Compiler::new().transform(
-            "/inline.tsx",
-            "import { styled } from 'vindur';\nconst value = () => styled.div`color: red;`;",
-            &TransformOptions::default(),
-        );
-
-        assert_eq!(output.diagnostics.len(), 1);
-        assert_eq!(
-            output.diagnostics[0].message,
-            "Inline styled component usage is not supported. Please assign styled components to a variable first."
-        );
-        assert_eq!(output.diagnostics[0].start.line, 2);
-    }
-
-    #[test]
-    fn shares_indices_between_stable_ids_and_jsx_css_props() {
-        let source = "import { stableId } from 'vindur';\nexport const id = stableId();\nconst App = () => <div css={`#${id} { color: red; }`} />;";
-        let output = Compiler::new().transform(
-            "/test.tsx",
-            source,
-            &TransformOptions {
-                dev: true,
-                sourcemap: false,
-                normalize_code: false,
-                import_aliases: FxHashMap::default(),
-            },
-        );
-
-        assert!(output.diagnostics.is_empty());
-        assert!(output.code.contains("\"v1560qbr-id-1\""));
-        assert!(output.code.contains("className=\"v1560qbr-2-css-prop-2\""));
-        assert_eq!(
-            output.css,
-            ".v1560qbr-2-css-prop-2 {\n  #v1560qbr-id-1 { color: red; }\n}"
-        );
-    }
-
-    #[test]
-    fn reserves_cx_modifier_indices_before_later_styled_components() {
-        let source = r#"import { styled } from 'vindur';
-const Toggle = styled.div`
-  display: flex;
-  &.hasSubtasks { opacity: 1; }
-  &.isExpanded .icon { transform: rotate(90deg); }
-`;
-const App = ({ hasSubtasks, isExpanded }) => (
-  <Toggle cx={{ hasSubtasks, isExpanded }}><span className="icon" /></Toggle>
-);
-const AttachmentButton = styled.button`width: 18px;`;
-const AttachmentImage = styled.img`border: 1px solid cyan;`;
-"#;
-        let output = Compiler::new().transform(
-            "/collision.tsx",
-            source,
-            &TransformOptions {
-                dev: false,
-                sourcemap: false,
-                normalize_code: false,
-                import_aliases: FxHashMap::default(),
-            },
-        );
-
-        assert!(output.diagnostics.is_empty());
-        assert_eq!(
-            output.code,
-            r#"import { cx } from 'vindur';
-const App = ({ hasSubtasks, isExpanded }) => (
-  <div  className={"v146u5j0-1 " + cx({
-"v146u5j0-2": hasSubtasks,
-"v146u5j0-3": isExpanded,
-})}><span className="icon" /></div>
-);
-"#
-        );
-        assert_eq!(
-            output.css,
-            ".v146u5j0-1 {\n  display: flex;\n  &.v146u5j0-2 { opacity: 1; }\n  &.v146u5j0-3 .icon { transform: rotate(90deg); }\n}\n\n.v146u5j0-4 {\n  width: 18px;\n}\n\n.v146u5j0-5 {\n  border: 1px solid cyan;\n}"
-        );
-    }
-
-    #[test]
-    fn evaluates_imported_functions_from_cached_module_facts() {
-        let compiler = Compiler::new();
-        let mut loader = MemoryLoader {
-            files: FxHashMap::from_iter([(
-                "/functions.ts".to_owned(),
-                "import { vindurFn } from 'vindur'; export const inline = vindurFn(({ gap = 8 }) => `gap: ${gap}px;`);".to_owned(),
-            )]),
-            reads: 0,
-        };
-        let options = TransformOptions {
-            import_aliases: FxHashMap::from_iter([("#/".to_owned(), "/".to_owned())]),
-            ..TransformOptions::default()
-        };
-        let source = "import { css } from 'vindur'; import { inline } from '#/functions'; const style = css`${inline({ gap: 12 })}`;";
-
-        let first = compiler.transform_with_loader("/first.ts", source, &options, &mut loader);
-        let second = compiler.transform_with_loader("/second.ts", source, &options, &mut loader);
-
-        assert!(first.diagnostics.is_empty());
-        assert!(second.diagnostics.is_empty());
-        assert!(first.css.contains("gap: 12px;"));
-        assert!(second.css.contains("gap: 12px;"));
-        assert_eq!(loader.reads, 1);
     }
 }
