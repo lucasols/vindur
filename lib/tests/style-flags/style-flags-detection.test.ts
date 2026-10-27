@@ -600,3 +600,50 @@ test('should detect and transform style flags inside pseudo-class functions', as
     "
   `);
 });
+
+test('should resolve exported type aliases used as style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      export type ButtonFlags = {
+        active: boolean;
+      };
+
+      const Button = styled.button<ButtonFlags>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      function Component({ active }: ButtonFlags) {
+        return <Button active={active} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export type ButtonFlags = {
+      active: boolean;
+    };
+    function Component({ active }: ButtonFlags) {
+      return (
+        <button
+          className={
+            "v1560qbr-1-Button" + (active ? " v1560qbr-1-Button-active" : "")
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.v1560qbr-1-Button-active {
+        color: red;
+      }
+    }
+    "
+  `);
+});

@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Program, PropertyKey, Statement, TSLiteral, TSPropertySignature, TSSignature, TSType,
-    TSTypeName,
+    Declaration, Program, PropertyKey, Statement, TSLiteral, TSPropertySignature, TSSignature,
+    TSType, TSTypeName,
 };
 use oxc_span::GetSpan;
 
@@ -116,8 +116,13 @@ fn colliding_class_name_error(
 
 fn find_type_alias<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a TSType<'a>> {
     program.body.iter().find_map(|statement| {
-        let Statement::TSTypeAliasDeclaration(alias) = statement else {
-            return None;
+        let alias = match statement {
+            Statement::TSTypeAliasDeclaration(alias) => alias,
+            Statement::ExportNamedDeclaration(export) => match &export.declaration {
+                Some(Declaration::TSTypeAliasDeclaration(alias)) => alias,
+                _ => return None,
+            },
+            _ => return None,
         };
         (alias.id.name.as_str() == name).then_some(&alias.type_annotation)
     })
