@@ -249,6 +249,16 @@ const SecondaryButton = styled(BaseButton)`
 `;
 ```
 
+`styled()` also extends custom components, local or imported. To extend the result of a call, like a HOC or `memo`, assign it to a const first, `styled(wrap(Button))` is a compile error:
+
+```tsx
+const ButtonWithTooltip = wrapWithTooltip(Button);
+
+const StyledButton = styled(ButtonWithTooltip)`
+  color: red;
+`;
+```
+
 ### Element Type Changes
 
 Change the HTML element while keeping styles using `withComponent`:
