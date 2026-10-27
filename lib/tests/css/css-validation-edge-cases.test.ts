@@ -301,7 +301,7 @@ test('should escape quotes of class names merged with a dynamic color', async ()
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = () => (
       <div
         {...color._sp("#fff", {

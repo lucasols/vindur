@@ -17,7 +17,7 @@ test('should merge the css prop class into dynamicColor', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = () => (
       <div
         {...color._sp("#fff", {
@@ -54,7 +54,7 @@ test('should merge the css prop class with className and dynamicColor', async ()
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ className }: { className: string }) => (
       <>
         <div
@@ -93,7 +93,7 @@ test('should merge the css prop class with spreads and dynamicColor', async () =
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = (props: { className?: string }) => (
       <div
         {...props}
@@ -124,7 +124,7 @@ test('should merge the cx prop class into dynamicColor', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ active }: { active: boolean }) => (
       <div
         {...color._sp("#fff", {
@@ -161,7 +161,7 @@ test('should merge styled component, css and cx prop classes into dynamicColor',
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, cx } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ active }: { active: boolean }) => (
       <div
         {...color._sp("#fff", {

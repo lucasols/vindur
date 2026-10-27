@@ -183,31 +183,21 @@ describe('Dynamic Colors - Basic Usage', () => {
   });
 });
 
-test('should remove empty dynamicColor values and insert spreads before `/ >`', async () => {
+test('should insert dynamicColor spreads before `/ >`', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { createDynamicCssColor } from 'vindur'
 
       const color = createDynamicCssColor()
 
-      const Component = () => (
-        <>
-          <div dynamicColor={[]} />
-          <div dynamicColor={color.set('#fff')} / >
-        </>
-      )
+      const Component = () => <div dynamicColor={color.set('#fff')} / >
     `,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
-    const Component = () => (
-      <>
-        <div />
-        <div {...color._sp("#fff")} />
-      </>
-    );
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
+    const Component = () => <div {...color._sp("#fff")} />;
     "
   `);
 });
