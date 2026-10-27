@@ -24,6 +24,7 @@ use super::{
         flag_classes, missing_style_flag_classes, other_element_flag_classes,
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
+    style_flags::{flags_without_base_styles, with_base_style_flags},
     styled::{
         StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
     },
@@ -182,18 +183,12 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             *transform.id_index += 1;
-            // The flags of the base component still apply, its own flags are added to them
-            let mut style_flags = base_component
-                .style_flags
-                .iter()
-                .filter(|flag| {
-                    !own_style_flags
-                        .iter()
-                        .any(|own| own.prop_name == flag.prop_name)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            style_flags.extend(own_style_flags.iter().cloned());
+            let style_flags = with_base_style_flags(
+                &base_component.style_flags,
+                &own_style_flags,
+                transform.file_path,
+                transform.source,
+            )?;
             let template_context = TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: "styled",
@@ -220,9 +215,12 @@ pub(super) fn process_variable_declaration(
                 let other_element_flags =
                     other_element_flag_classes(&content, &classes.other, &style_flags);
                 // Inherited flags are styled by the base component
-                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
-                    .into_iter()
-                    .filter(|class_name| !other_element_flags.contains(class_name));
+                let missing_flags = missing_style_flag_classes(
+                    &element_classes,
+                    &flags_without_base_styles(&base_component.style_flags, &own_style_flags),
+                )
+                .into_iter()
+                .filter(|class_name| !other_element_flags.contains(class_name));
                 transform
                     .warnings
                     .extend(missing_flags.map(|class_name| {

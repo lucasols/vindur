@@ -23,6 +23,7 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
+    pub span: Span,
 }
 
 /// JS identifiers can contain `$`, which is not valid in a CSS class name

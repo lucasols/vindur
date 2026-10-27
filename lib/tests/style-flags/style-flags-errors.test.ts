@@ -292,3 +292,45 @@ test('should throw error for style flags on a default exported styled component'
     loc: 3:28]
   `);
 });
+
+test('should throw error for a flag redeclared with another type by an extension', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ active: boolean }>\`
+          &.active { color: red; }
+        \`;
+
+        const IconButton = styled(Button)<{ active: 'on' | 'off' }>\`
+          &.active-on { color: blue; }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" is a boolean in the extended component, redeclare it with the same type
+    loc: 7:36]
+  `);
+});
+
+test('should throw error for interfaces used as style flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        interface Flags {
+          active: boolean;
+        }
+
+        const Button = styled.button<Flags>\`
+          &.active { color: red; }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flags must use a type alias, like "type Flags = { active: boolean }", interfaces are not supported
+    loc: 7:29]
+  `);
+});

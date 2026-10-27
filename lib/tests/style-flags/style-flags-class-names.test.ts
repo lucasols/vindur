@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 const componentPrefixedFlagsSource = dedent`
@@ -218,5 +219,79 @@ test('should give each component its own modifier classes for the same flag', as
       }
     }
     "
+  `);
+});
+
+test('should keep the base modifier classes for flags redeclared by an extension', async () => {
+  const warnings: TransformWarning[] = [];
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{ active: boolean; size: 'small' | 'large' }>\`
+        &.active {
+          color: red;
+        }
+        &.size-small {
+          padding: 4px;
+        }
+        &.size-large {
+          padding: 16px;
+        }
+      \`;
+
+      const IconButton = styled(Button)<{
+        active: boolean;
+        size: 'small' | 'large' | 'huge';
+        big: boolean;
+      }>\`
+        &.big {
+          font-size: 20px;
+        }
+      \`;
+
+      export const App = () => <IconButton active size="huge" big />;
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <button
+        className={
+          "v1560qbr-1-Button v1560qbr-2-IconButton v1560qbr-1-Button-active v1560qbr-1-Button-size-huge v1560qbr-2-IconButton-big"
+        }
+      />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.v1560qbr-1-Button-active {
+        color: red;
+      }
+      &.v1560qbr-1-Button-size-small {
+        padding: 4px;
+      }
+      &.v1560qbr-1-Button-size-large {
+        padding: 16px;
+      }
+    }
+
+    .v1560qbr-2-IconButton {
+      &.v1560qbr-2-IconButton-big {
+        font-size: 20px;
+      }
+    }
+    "
+  `);
+
+  expect(warnings.map((warning) => warning.message)).toMatchInlineSnapshot(`
+    [
+      "Warning: Missing modifier styles for "&.size-huge" in IconButton",
+    ]
   `);
 });

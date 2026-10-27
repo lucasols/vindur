@@ -360,6 +360,8 @@ pub(crate) fn undeclared_style_classes(
 
 #[cfg(test)]
 mod tests {
+    use oxc_span::Span;
+
     use super::{StyleFlag, StyleFlagKind, parsable_css, references_class, unescape_class};
 
     #[test]
@@ -368,6 +370,7 @@ mod tests {
             hashed_class_name: "h-_active".to_owned(),
             kind: StyleFlagKind::Boolean,
             prop_name: "$active".to_owned(),
+            span: Span::default(),
         }];
         assert_eq!(
             parsable_css("&.$active, &[href$=\"pdf\"] { color: red; }", &flags),
