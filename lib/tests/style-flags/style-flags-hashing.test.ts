@@ -528,3 +528,126 @@ test('should keep the base modifier classes for flags redeclared in production',
     "
   `);
 });
+
+test('should keep the base flags when an extension adds its own flags', async () => {
+  const warnings: TransformWarning[] = [];
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Button = styled.button<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const BigButton = styled(Button)<{ big: boolean }>\`
+        &.big {
+          font-size: 20px;
+        }
+      \`;
+
+      function Component({ active }: { active: boolean }) {
+        return <BigButton active={active} big />;
+      }
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ active }: { active: boolean }) {
+      return (
+        <button
+          className={
+            "v1560qbr-1-Button v1560qbr-2-BigButton v1560qbr-2-BigButton-big" +
+            (active ? " v1560qbr-1-Button-active" : "")
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.v1560qbr-1-Button-active {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2-BigButton {
+      &.v1560qbr-2-BigButton-big {
+        font-size: 20px;
+      }
+    }
+    "
+  `);
+
+  expect(warnings).toMatchInlineSnapshot(`[]`);
+});
+
+test('should not match a referenced flag that prefixes another flag', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Menu = styled.div<{ open: boolean; openMenu: boolean }>\`
+        &.open {
+          color: red;
+        }
+
+        &.openMenu {
+          color: blue;
+        }
+      \`;
+
+      const Item = styled.div\`
+        \${Menu}.openMenu & {
+          font-weight: bold;
+        }
+      \`;
+
+      function Component({ open }: { open: boolean }) {
+        return (
+          <Menu open={open} openMenu>
+            <Item />
+          </Menu>
+        );
+      }
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ open }: { open: boolean }) {
+      return (
+        <div className={"v1560qbr-1 vwchmz4" + (open ? " vodzbs9" : "")}>
+          <div className="v1560qbr-2" />
+        </div>
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      &.vodzbs9 {
+        color: red;
+      }
+
+      &.vwchmz4 {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2 {
+      .v1560qbr-1.vwchmz4 & {
+        font-weight: bold;
+      }
+    }
+    "
+  `);
+});

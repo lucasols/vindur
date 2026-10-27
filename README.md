@@ -1214,7 +1214,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: Apply the hashed class when `true` (e.g., `primary={true}` → `classHash-1`)
 - **String union props**: Apply the hashed class with the value suffix (e.g., `size="large"` → `classHash-2-large`)
 - **Dev class names**: In development the modifier class starts with the component class (e.g., `v1560qbr-1-Button-primary` and `v1560qbr-1-Button-size-large`). Production uses short hashes
-- **Extended components**: A `styled(Base)` that redeclares a flag of `Base` keeps the base modifier class, so the base modifier styles still apply
+- **Extended components**: A `styled(Base)` keeps the flags of `Base` and can add its own. Flags of `Base` that it redeclares keep the base modifier class, so the base modifier styles still apply
 
 #### Supported Prop Types
 

@@ -172,11 +172,7 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             *transform.id_index += 1;
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                with_base_flag_classes(own_style_flags, &base_component.style_flags)
-            };
+            let style_flags = with_base_style_flags(own_style_flags, &base_component.style_flags);
             // The base component styles its own flags, so only new flags need modifier styles
             let new_style_flags = style_flags
                 .iter()
@@ -513,24 +509,29 @@ fn validate_vindur_function_declaration(
     Ok(())
 }
 
-/// Flags redeclared by a `styled(Base)` keep the base classes, so the base modifier styles
-/// still match
-fn with_base_flag_classes(own_flags: Vec<StyleFlag>, base_flags: &[StyleFlag]) -> Vec<StyleFlag> {
-    own_flags
-        .into_iter()
-        .map(|flag| {
-            match base_flags
+/// A `styled(Base)` keeps the base flags, and flags it redeclares keep the base classes, so the
+/// base modifier styles still match
+fn with_base_style_flags(
+    mut own_flags: Vec<StyleFlag>,
+    base_flags: &[StyleFlag],
+) -> Vec<StyleFlag> {
+    let mut style_flags = base_flags
+        .iter()
+        .map(|base_flag| {
+            match own_flags
                 .iter()
-                .find(|base_flag| base_flag.prop_name == flag.prop_name)
+                .position(|flag| flag.prop_name == base_flag.prop_name)
             {
-                Some(base_flag) => StyleFlag {
+                Some(index) => StyleFlag {
                     hashed_class_name: base_flag.hashed_class_name.clone(),
-                    ..flag
+                    ..own_flags.remove(index)
                 },
-                None => flag,
+                None => base_flag.clone(),
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    style_flags.extend(own_flags);
+    style_flags
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

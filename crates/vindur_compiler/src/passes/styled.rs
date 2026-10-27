@@ -235,16 +235,18 @@ pub(crate) fn resolve_styled_references(
             for flag in &component.style_flags {
                 match &flag.kind {
                     StyleFlagKind::Boolean => {
-                        *rule = rule.replace(
-                            &format!(".{class_name}.{}", flag.prop_name),
-                            &format!(".{class_name}.{}", flag.hashed_class_name),
+                        *rule = replace_class_selector(
+                            rule,
+                            &format!("{class_name}.{}", flag.prop_name),
+                            &format!("{class_name}.{}", flag.hashed_class_name),
                         );
                     }
                     StyleFlagKind::StringUnion(values) => {
                         for value in values {
-                            *rule = rule.replace(
-                                &format!(".{class_name}.{}-{value}", flag.prop_name),
-                                &format!(".{class_name}.{}-{value}", flag.hashed_class_name),
+                            *rule = replace_class_selector(
+                                rule,
+                                &format!("{class_name}.{}-{value}", flag.prop_name),
+                                &format!("{class_name}.{}-{value}", flag.hashed_class_name),
                             );
                         }
                     }

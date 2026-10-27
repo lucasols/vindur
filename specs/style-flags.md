@@ -252,7 +252,7 @@ The CSS output includes both base styles and modifier classes with hashed names:
 
 - **Development**: the component class plus the prop name, `{componentClass}-{prop}` (e.g., `v1560qbr-1-Button-active`). String unions add the value (`v1560qbr-1-Button-size-small`)
 - **Production**: `v{murmur2(fileHash-prop)}` (e.g., `voctcyj`), plus `-{value}` for string unions
-- Components extended with `styled(Base)` reuse the base component's modifier classes, both when they declare no flags of their own and for base flags they redeclare
+- Components extended with `styled(Base)` keep the base component's flags and modifier classes, flags they declare are added to them and base flags they redeclare keep the base classes
 - Flags whose class name parts are the same (`$active` and `_active`, as `$` becomes `_`) are a compile error
 
 ## Class Application Logic
