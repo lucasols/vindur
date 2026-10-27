@@ -5,7 +5,7 @@ use crate::CompilerDiagnostic;
 
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::static_value::TemplateContext;
-use super::style_flag_selectors::{flag_validation_css, misplaced_flag_class_error};
+use super::style_flag_selectors::flag_validation_css;
 use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
@@ -101,17 +101,12 @@ pub(crate) fn validate_template_css(
 ) -> Result<(), CompilerDiagnostic> {
     let kind = BlockKind::from_tag_type(context.tag_type);
     let validate =
-        |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags), kind);
-    let Err(error) = validate(&evaluated.css) else {
+        |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags)?, kind);
+    let validation_css = flag_validation_css(&evaluated.css, context.style_flags)
+        .map_err(|error| evaluated.error_diagnostic(error, template, file_path, source))?;
+    let Err(error) = validate_style_block(&validation_css, kind) else {
         return Ok(());
     };
-    if let Some(misplaced) = misplaced_flag_class_error(
-        &flag_validation_css(&evaluated.css, context.style_flags),
-        &error,
-        context.style_flags,
-    ) {
-        return Err(evaluated.error_diagnostic(misplaced, template, file_path, source));
-    }
     let position = evaluated.error_position(&error, source, template);
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;

@@ -1,8 +1,14 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Range};
 
-use super::css_syntax::CssError;
-use super::cx_modifier_selectors::{ElementClass, ModifierCss, element_classes, rewrite_classes};
-use super::styled::{StyleFlag, StyleFlagKind};
+use oxc_css_parser::Allocator;
+use rustc_hash::FxHashMap;
+
+use super::css_syntax::{CssError, parse_style_block};
+use super::cx_modifier_selectors::{
+    ElementClass, ModifierCss, element_classes, rewrite_classes, style_block_classes,
+};
+use super::jsx_cx_component_references::referenced_classes;
+use super::styled::{StyleFlag, StyleFlagKind, StyledComponent};
 
 /// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
 struct FlagClass {
@@ -71,64 +77,64 @@ pub(crate) fn style_element_classes(
     Ok(classes)
 }
 
-/// The CSS to validate, with the `$` of the flag classes of the element parsed as `_`. `$` flag
-/// classes of other elements are kept, so they fail the validation
-pub(crate) fn flag_validation_css<'a>(css: &'a str, flags: &[StyleFlag]) -> Cow<'a, str> {
+/// The CSS to validate, with the `$` of the flag classes of the element parsed as `_`. Fails for
+/// `$` flag classes of other elements, like `& .$active` or `&:has(.$active)`, they are not valid
+/// CSS, so they can only be used in selectors of the element, where they are replaced by the
+/// hashed class. Escaped flag classes, like `&.\$active`, fail too, they wouldn't be hashed
+pub(crate) fn flag_validation_css<'a>(
+    css: &'a str,
+    flags: &[StyleFlag],
+) -> Result<Cow<'a, str>, CssError> {
     let parsable = parsable_css(css, flags);
     let Cow::Owned(parsable) = parsable else {
-        return parsable;
+        return Ok(parsable);
     };
     // Invalid CSS fails the validation with the same error
-    let Ok(classes) = element_classes(&parsable, ModifierCss::Block) else {
-        return Cow::Owned(parsable);
+    let Ok(classes) = style_block_classes(&parsable) else {
+        return Ok(Cow::Owned(parsable));
     };
     let flag_classes = flag_classes(flags);
-    let mut validation = css.to_owned();
-    for class in classes {
-        let range = class.start..class.end;
-        if flag_classes
+    let flag_at = |range: &Range<usize>| {
+        let written = css.get(range.clone())?;
+        flag_classes
             .iter()
-            .any(|flag| css.get(range.clone()) == Some(flag.original.as_str()))
-        {
-            validation.replace_range(range.clone(), &parsable[range]);
+            .find(|flag| flag.original == written.replace('\\', ""))
+            .map(|flag| (flag, written.contains('\\')))
+    };
+    let element = classes.element.iter().map(|class| class.start..class.end);
+    for range in element.clone().chain(classes.other.iter().cloned()) {
+        if let Some((flag, true)) = flag_at(&range) {
+            return Err(CssError::new(
+                format!(
+                    "Style flag \"{0}\" can't be escaped, write it as \"&.{0}\"",
+                    flag.original
+                ),
+                range.start,
+                range.end,
+            ));
         }
     }
-    Cow::Owned(validation)
-}
-
-/// The `$` style flag class in the `error` range of the `validation_css`, e.g. `$active` in
-/// `& .$active` or `&:has(.$active)`. It is not valid CSS, so it can only be used in selectors of
-/// the element, where it is replaced by the hashed class
-pub(crate) fn misplaced_flag_class_error(
-    validation_css: &str,
-    error: &CssError,
-    flags: &[StyleFlag],
-) -> Option<CssError> {
-    // The error can start inside the class, e.g. at `$on` in `.is$on`
-    let start = validation_css
-        .get(..error.start)?
-        .trim_end_matches(is_class_character)
-        .len();
-    let end = error.end.max(error.start + 1);
-    flag_classes(flags)
-        .into_iter()
-        .filter(|flag| flag.original.contains('$'))
-        .find_map(|flag| {
-            let selector = format!(".{}", flag.original);
-            let (dot, _) = validation_css.match_indices(&selector).find(|(dot, _)| {
-                dot + 1 >= start
-                    && *dot < end
-                    && !validation_css[dot + selector.len()..].starts_with(is_class_character)
-            })?;
-            Some(CssError::new(
+    for range in &classes.other {
+        if let Some((flag, false)) = flag_at(range)
+            && flag.original.contains('$')
+        {
+            return Err(CssError::new(
                 format!(
                     "Style flag \"{0}\" can only be used in selectors of the element itself, e.g. \"&.{0}\"",
                     flag.original
                 ),
-                dot + 1,
-                dot + selector.len(),
-            ))
-        })
+                range.start,
+                range.end,
+            ));
+        }
+    }
+    let mut validation = css.to_owned();
+    for range in element {
+        if flag_at(&range).is_some() {
+            validation.replace_range(range.clone(), &parsable[range]);
+        }
+    }
+    Ok(Cow::Owned(validation))
 }
 
 /// Renames the flag classes of the element selectors to their hashed names. Fails for flag classes
@@ -148,6 +154,61 @@ pub(crate) fn rewrite_style_flag_selectors(
             "Style flag \"{name}\" can't be used in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
         )
     })
+}
+
+/// Renames the flag classes selected through a reference to a styled component to their hashed
+/// names, e.g. `active` in `${Item}.active &`, `${Item}:hover.active &` or `${Item}:not(.active) &`
+pub(crate) fn hash_referenced_style_flags(
+    css_rules: &mut [String],
+    components: &FxHashMap<String, StyledComponent>,
+) -> Result<(), CssError> {
+    let references = components
+        .values()
+        .filter(|component| !component.style_flags.is_empty())
+        .filter_map(|component| {
+            let class_name = component.class_name.split_whitespace().last()?;
+            Some((class_name.to_owned(), flag_classes(&component.style_flags)))
+        })
+        .collect::<Vec<_>>();
+    for rule in css_rules.iter_mut() {
+        let referenced = references
+            .iter()
+            .filter(|(class_name, _)| rule.contains(class_name.as_str()))
+            .collect::<Vec<_>>();
+        if referenced.is_empty() {
+            continue;
+        }
+        let allocator = Allocator::default();
+        let stylesheet = parse_style_block(&allocator, rule)?;
+        let mut renames = Vec::new();
+        for (class_name, flags) in referenced {
+            for class in referenced_classes(
+                &stylesheet.statements,
+                std::slice::from_ref(class_name),
+                &[],
+            ) {
+                if let Some(flag) = flags.iter().find(|flag| flag.original == class.name) {
+                    renames.push((class.start..class.end, flag.hashed.as_str()));
+                }
+            }
+        }
+        if renames.is_empty() {
+            continue;
+        }
+        // A class can be selected through several references, e.g. `.item.other.active`
+        renames.sort_by_key(|(range, _)| range.start);
+        renames.dedup_by_key(|(range, _)| range.start);
+        let mut renamed = String::with_capacity(rule.len());
+        let mut last = 0;
+        for (range, hashed) in renames {
+            renamed.push_str(&rule[last..range.start]);
+            renamed.push_str(hashed);
+            last = range.end;
+        }
+        renamed.push_str(&rule[last..]);
+        *rule = renamed;
+    }
+    Ok(())
 }
 
 /// The selectors of the flag classes not used by the element, e.g. `&.active`

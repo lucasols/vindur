@@ -245,6 +245,69 @@ test('should throw for $ prefixed style flags used inside selectors of other ele
     [TransformError: /test.tsx: Style flag "is$on" can only be used in selectors of the element itself, e.g. "&.is$on"
     loc: 5:5]
   `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ $active: boolean }>\`
+          div {
+            & .$active {
+              color: blue;
+            }
+          }
+        \`;
+
+        export const App = () => <Button $active />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
+    loc: 5:7]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, layer } from 'vindur';
+
+        const Button = styled.button<{ $active: boolean }>\`
+          \${layer('base')} {
+            & .$active {
+              color: blue;
+            }
+          }
+        \`;
+
+        export const App = () => <Button $active />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
+    loc: 5:7]
+  `);
+});
+
+test('should throw for escaped style flag selectors', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ $active: boolean }>\`
+          &.\\\\$active {
+            color: red;
+          }
+        \`;
+
+        export const App = () => <Button $active />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "$active" can't be escaped, write it as "&.$active"
+    loc: 4:6]
+  `);
 });
 
 test('should not confuse $ prefixed style flags with _ prefixed classes', async () => {

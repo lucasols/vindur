@@ -62,12 +62,14 @@ pub(crate) fn component_reference_modifier_error(
             }
         };
         for modifier in candidates {
-            let mut collector = ReferencedClassCollector {
-                modifier,
-                classes: Vec::new(),
-            };
-            collector.statements(&stylesheet.statements);
-            if collector.classes.contains(&modifier.class_name.as_str()) {
+            if referenced_classes(
+                &stylesheet.statements,
+                &modifier.classes,
+                &modifier.placeholders,
+            )
+            .iter()
+            .any(|class| class.name == modifier.class_name)
+            {
                 return Some(CompilerDiagnostic::error(
                     file_path,
                     source,
@@ -83,11 +85,34 @@ pub(crate) fn component_reference_modifier_error(
     None
 }
 
-/// Collects the classes used with a reference to the styled component in a compound, e.g.
-/// `active` in `.item.active` or `.item:not(.active)`
-struct ReferencedClassCollector<'m, 'c> {
-    modifier: &'m HashedStyledModifier,
-    classes: Vec<&'c str>,
+/// A class used with a reference to a styled component in a compound, `start..end` is the name
+pub(crate) struct ReferencedClass<'c> {
+    pub name: &'c str,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// The classes used with a reference to a styled component in a compound, e.g. `active` in
+/// `.item.active` or `.item:not(.active)`. The component is referenced by its `classes` and its
+/// forward reference `placeholders`
+pub(crate) fn referenced_classes<'c>(
+    statements: &'c [Statement<'c>],
+    classes: &[String],
+    placeholders: &[String],
+) -> Vec<ReferencedClass<'c>> {
+    let mut collector = ReferencedClassCollector {
+        references: classes,
+        placeholders,
+        classes: Vec::new(),
+    };
+    collector.statements(statements);
+    collector.classes
+}
+
+struct ReferencedClassCollector<'r, 'c> {
+    references: &'r [String],
+    placeholders: &'r [String],
+    classes: Vec<ReferencedClass<'c>>,
 }
 
 impl<'c> ReferencedClassCollector<'_, 'c> {
@@ -143,7 +168,11 @@ impl<'c> ReferencedClassCollector<'_, 'c> {
             match simple {
                 SimpleSelector::Class(class) if is_component => {
                     if let InterpolableIdent::Literal(ident) = &class.name {
-                        self.classes.push(ident.name);
+                        self.classes.push(ReferencedClass {
+                            name: ident.name,
+                            start: ident.span.start,
+                            end: ident.span.end,
+                        });
                     }
                 }
                 SimpleSelector::PseudoClass(pseudo) => {
@@ -166,10 +195,8 @@ impl<'c> ReferencedClassCollector<'_, 'c> {
 
     fn is_reference(&self, simple: &SimpleSelector<'_>) -> bool {
         let (names, name) = match simple {
-            SimpleSelector::Class(class) => (&self.modifier.classes, &class.name),
-            SimpleSelector::Type(TypeSelector::TagName(tag)) => {
-                (&self.modifier.placeholders, &tag.name.name)
-            }
+            SimpleSelector::Class(class) => (self.references, &class.name),
+            SimpleSelector::Type(TypeSelector::TagName(tag)) => (self.placeholders, &tag.name.name),
             _ => return false,
         };
         let InterpolableIdent::Literal(ident) = name else {

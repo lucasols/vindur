@@ -39,6 +39,7 @@ use super::{
     },
     static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
+    style_flag_selectors::hash_referenced_style_flags,
     styled::{resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
@@ -510,6 +511,14 @@ pub(crate) fn transform_program(
             format!(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),
+        ));
+    }
+    if let Err(error) = hash_referenced_style_flags(&mut css_rules, &styled_components) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            oxc_span::Span::new(0, 0),
+            error.message,
         ));
     }
     if options.dev {

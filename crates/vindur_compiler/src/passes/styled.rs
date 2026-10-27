@@ -268,26 +268,6 @@ pub(crate) fn resolve_styled_references(
                 continue;
             };
             *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
-            for flag in &component.style_flags {
-                match &flag.kind {
-                    StyleFlagKind::Boolean => {
-                        *rule = replace_class_selector(
-                            rule,
-                            &format!(".{class_name}.{}", flag.prop_name),
-                            &format!(".{class_name}.{}", flag.hashed_class_name),
-                        );
-                    }
-                    StyleFlagKind::StringUnion(values) => {
-                        for value in values {
-                            *rule = replace_class_selector(
-                                rule,
-                                &format!(".{class_name}.{}-{value}", flag.prop_name),
-                                &format!(".{class_name}.{}-{value}", flag.hashed_class_name),
-                            );
-                        }
-                    }
-                }
-            }
         }
     }
     css_rules.iter().find_map(|rule| {
@@ -295,26 +275,6 @@ pub(crate) fn resolve_styled_references(
         let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
         hex_decode(encoded)
     })
-}
-
-/// Replaces the `selector` matches that end the class name, e.g. `.a.active` but not the
-/// `.a.active` of `.a.active-icon`
-fn replace_class_selector(css: &str, selector: &str, replacement: &str) -> String {
-    let mut output = String::with_capacity(css.len());
-    let mut last = 0;
-    for (index, _) in css.match_indices(selector) {
-        let end = index + selector.len();
-        let continues_class = css[end..].starts_with(|character: char| {
-            !character.is_ascii() || character.is_ascii_alphanumeric() || "-_\\".contains(character)
-        });
-        if !continues_class {
-            output.push_str(&css[last..index]);
-            output.push_str(replacement);
-            last = end;
-        }
-    }
-    output.push_str(&css[last..]);
-    output
 }
 
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";

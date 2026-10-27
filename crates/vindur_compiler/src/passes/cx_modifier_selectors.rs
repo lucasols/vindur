@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use oxc_css_parser::{
     Allocator,
     ast::{
@@ -119,10 +121,35 @@ pub(super) fn rewrites_any(mappings: &[(String, String, bool)]) -> bool {
 
 /// The class selectors that may apply to the element itself, sorted by position
 pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
+    Ok(collect_classes(css, kind, None)?.classes)
+}
+
+/// The class selectors of a style block
+pub(super) struct StyleBlockClasses {
+    /// The classes that may apply to the element itself, sorted by position
+    pub element: Vec<ElementClass>,
+    /// The class names of the selectors of other elements, e.g. `name` in `& .name`
+    pub other: Vec<Range<usize>>,
+}
+
+pub(super) fn style_block_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
+    let collector = collect_classes(css, ModifierCss::Block, Some(Vec::new()))?;
+    Ok(StyleBlockClasses {
+        element: collector.classes,
+        other: collector.other_classes.unwrap_or_default(),
+    })
+}
+
+fn collect_classes(
+    css: &str,
+    kind: ModifierCss,
+    other_classes: Option<Vec<Range<usize>>>,
+) -> Result<ElementClassCollector, CssError> {
     let allocator = Allocator::default();
     let stylesheet = parse_style_block(&allocator, css)?;
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
+        other_classes,
         scope_root: Subject::Other,
         nesting: Subject::Element,
     };
@@ -141,7 +168,7 @@ pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<Elemen
         ModifierCss::ClassRule => collector.statements(&stylesheet.statements, Context::Outer),
     }
     collector.classes.sort_by_key(|class| class.start);
-    Ok(collector.classes)
+    Ok(collector)
 }
 
 const ELEMENT: Context = Context::Nested(Subject::Element);
@@ -149,6 +176,8 @@ const OTHER: Context = Context::Nested(Subject::Other);
 
 struct ElementClassCollector {
     classes: Vec<ElementClass>,
+    /// Also collects the classes of other elements when set
+    other_classes: Option<Vec<Range<usize>>>,
     /// What the root of the enclosing `@scope` is, `:scope` is the element when it is
     scope_root: Subject,
     /// What `&` is in the selectors being walked
@@ -211,7 +240,7 @@ impl ElementClassCollector {
         };
         // `&` and `:scope` in the end selectors are the scope root, other compounds are its
         // descendants
-        if scope_root != Subject::Other
+        if (scope_root != Subject::Other || self.other_classes.is_some())
             && let Some(Some(list)) = end.map(|end| &end.selector)
         {
             let outer_scope_root = std::mem::replace(&mut self.scope_root, scope_root);
@@ -230,7 +259,10 @@ impl ElementClassCollector {
     /// e.g. `&:hover, & .child`. In rules nested in other elements only `:scope` can still be the
     /// element, e.g. `:scope.active &` in `@scope (&) { & .child { ... } }` or `:scope:has(&)`
     fn selector_list(&mut self, list: &SelectorList<'_>, nesting: Subject) -> Context {
-        if nesting == Subject::Other && self.scope_root == Subject::Other {
+        if nesting == Subject::Other
+            && self.scope_root == Subject::Other
+            && self.other_classes.is_none()
+        {
             return OTHER;
         }
         let outer_nesting = std::mem::replace(&mut self.nesting, nesting);
@@ -264,14 +296,19 @@ impl ElementClassCollector {
     fn compound(&mut self, compound: &CompoundSelector<'_>, subject: Subject) {
         for simple in &compound.children {
             match simple {
-                SimpleSelector::Class(class) if subject != Subject::Other => {
-                    if let InterpolableIdent::Literal(ident) = &class.name {
+                SimpleSelector::Class(class) => {
+                    let InterpolableIdent::Literal(ident) = &class.name else {
+                        continue;
+                    };
+                    if subject != Subject::Other {
                         self.classes.push(ElementClass {
                             start: ident.span.start,
                             end: ident.span.end,
                             name: ident.name.to_owned(),
                             mixed: subject == Subject::Mixed,
                         });
+                    } else if let Some(other_classes) = &mut self.other_classes {
+                        other_classes.push(ident.span.start..ident.span.end);
                     }
                 }
                 SimpleSelector::PseudoClass(pseudo) => {

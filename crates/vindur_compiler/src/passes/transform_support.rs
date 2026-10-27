@@ -181,7 +181,9 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
-            let style_flags = if own_style_flags.is_empty() {
+            // Inherited flags are styled by the base component
+            let inherits_style_flags = own_style_flags.is_empty();
+            let style_flags = if inherits_style_flags {
                 base_component.style_flags.clone()
             } else {
                 own_style_flags
@@ -208,20 +210,22 @@ pub(super) fn process_variable_declaration(
                 Vec::new()
             };
             if transform.dev {
-                transform.warnings.extend(
-                    missing_style_flag_selectors(&element_classes, &style_flags)
-                        .into_iter()
-                        .map(|selector| {
-                            CompilerDiagnostic::warning(
-                                "",
-                                transform.source,
-                                identifier.span,
-                                format!(
-                                    "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
-                                ),
-                            )
-                        }),
-                );
+                if !inherits_style_flags {
+                    transform.warnings.extend(
+                        missing_style_flag_selectors(&element_classes, &style_flags)
+                            .into_iter()
+                            .map(|selector| {
+                                CompilerDiagnostic::warning(
+                                    "",
+                                    transform.source,
+                                    identifier.span,
+                                    format!(
+                                        "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
+                                    ),
+                                )
+                            }),
+                    );
+                }
                 let usage_prefix = format!("<{variable_name}");
                 let suppress_undeclared = !base_component.class_name.is_empty()
                     || (transform.source.contains(&usage_prefix)
