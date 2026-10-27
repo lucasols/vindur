@@ -892,6 +892,8 @@ createGlobalStyle`
 `;
 ```
 
+`createGlobalStyle` must be a top-level statement or `const` declaration, other uses, e.g. `export default createGlobalStyle` or calls inside functions, are a compile error.
+
 Global styles support variable interpolation just like regular styles:
 
 ```tsx
@@ -1543,6 +1545,8 @@ Compiles to:
   }
 }
 ```
+
+`layer` can only be used inside vindur styles, using it elsewhere is a compile error.
 
 ## License
 

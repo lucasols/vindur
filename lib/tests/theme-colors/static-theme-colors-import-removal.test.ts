@@ -252,6 +252,10 @@ test.each([
     'const token = { toString: () => registerTheme() }; export const label = `${token}`;',
   ],
   [
+    'a getter in styled attrs',
+    "import { styled } from 'vindur'; export const B = styled.div.attrs({ get title() { return registerTheme(); } })`color: red;`;",
+  ],
+  [
     'a computed key',
     'const token = { toString: () => registerTheme() }; export const map = { [token]: 1 };',
   ],
@@ -321,6 +325,80 @@ test('should keep a side effect import next to type-only specifiers of a module 
     import { type Theme, Mode } from "#/theme";
     export const styles = "v1560qbr-1-styles";
     export const getMode = (theme: Theme): Mode => theme.mode;
+    "
+  `);
+});
+
+test('should keep a side effect import when only type references of the colors remain', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const styles = css\`
+        color: \${colors.primary.var};
+      \`;
+
+      export type Palette = typeof colors;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors, createGlobalStyle } from 'vindur';
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        createGlobalStyle\`
+          body {
+            margin: 0;
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import "#/theme";
+    import { colors } from "#/theme";
+    export const styles = "v1560qbr-1-styles";
+    export type Palette = typeof colors;
+    "
+  `);
+});
+
+test('should keep a side effect import of a styled component only used in selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Button } from '#/theme';
+
+      export const Box = styled.div\`
+        \${Button}:hover & {
+          color: red;
+        }
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { styled, createGlobalStyle } from 'vindur';
+
+        export const Button = styled.button\`
+          color: blue;
+        \`;
+
+        createGlobalStyle\`
+          body {
+            margin: 0;
+          }
+        \`;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import "#/theme";
+    import { Button } from "#/theme";
+    export const Box = _vSC("div", "v1560qbr-1-Box");
     "
   `);
 });

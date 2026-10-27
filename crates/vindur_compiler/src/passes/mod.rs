@@ -1,4 +1,5 @@
 mod color_math;
+mod compile_time_references;
 mod css;
 mod css_balance;
 mod css_syntax;

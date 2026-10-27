@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     ArrayExpressionElement, BindingPattern, Declaration, ExportDefaultDeclarationKind, Expression,
-    ObjectPropertyKind, Program, Statement, UnaryOperator, VariableDeclaration,
+    ObjectPropertyKind, Program, PropertyKind, Statement, UnaryOperator, VariableDeclaration,
     VariableDeclarationKind,
 };
 use rustc_hash::FxHashMap;
@@ -134,12 +134,14 @@ impl PurityCheck<'_> {
             }
             Expression::ObjectExpression(object) => {
                 object.properties.iter().all(|property| match property {
+                    // Vindur calls read their arguments, e.g. `attrs`, which runs getters
                     ObjectPropertyKind::ObjectProperty(property) => {
-                        (!property.computed
-                            || property
-                                .key
-                                .as_expression()
-                                .is_some_and(is_primitive_literal))
+                        property.kind == PropertyKind::Init
+                            && (!property.computed
+                                || property
+                                    .key
+                                    .as_expression()
+                                    .is_some_and(is_primitive_literal))
                             && self.is_pure_expression(&property.value)
                     }
                     ObjectPropertyKind::SpreadProperty(_) => false,

@@ -21,9 +21,10 @@ pub(crate) fn remove_resolved_imports(
     imported_values: &FxHashMap<String, StaticValue>,
     side_effect_sources: &FxHashSet<String>,
 ) -> Result<String, CompilerDiagnostic> {
-    if !imported_values
-        .values()
-        .any(|value| !is_runtime_value(value))
+    if side_effect_sources.is_empty()
+        && !imported_values
+            .values()
+            .any(|value| !is_runtime_value(value))
     {
         return Ok(code);
     }
@@ -95,7 +96,9 @@ fn collect_resolved_import_edits(
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         let mut has_value_specifiers = false;
+        let mut has_resolved_values = false;
         for specifier in specifiers {
+            has_resolved_values |= imported_values.contains_key(specifier.local().name.as_str());
             let compile_time_value = match specifier {
                 ImportDeclarationSpecifier::ImportSpecifier(named) => imported_values
                     .get(named.local.name.as_str())
@@ -131,6 +134,19 @@ fn collect_resolved_import_edits(
             };
         }
         if compile_time_count == 0 {
+            // Uses consumed by vindur styles can leave only type or unused references, e.g.
+            // a styled component used in a selector, TypeScript compilers drop such imports
+            // with the module
+            if keeps_module && has_resolved_values && !has_value_specifiers {
+                edits.push(Edit {
+                    span: declaration.span,
+                    replacement: format!(
+                        "import \"{}\";\n{}",
+                        declaration.source.value,
+                        &source[declaration.span.start as usize..declaration.span.end as usize]
+                    ),
+                });
+            }
             continue;
         }
         let has_runtime_specifiers = default_specifier.is_some() || !runtime_specifiers.is_empty();
