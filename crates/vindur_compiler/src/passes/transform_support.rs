@@ -15,14 +15,17 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
-    static_value::{TemplateContext, evaluate_template},
-    style_flags::rewrite_style_flag_selectors,
+    static_value::{TemplateContext, evaluate_template, locate_template_error},
+    style_flag_selectors::{
+        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
+    },
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
-        styled_tag_component_with_attrs, undeclared_style_classes,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -179,10 +182,22 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
+            // The flags of the base component still apply, its own flags are added to them
+            let mut style_flags = base_component
+                .style_flags
+                .iter()
+                .filter(|flag| {
+                    !own_style_flags
+                        .iter()
+                        .any(|own| own.prop_name == flag.prop_name)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            style_flags.extend(own_style_flags.iter().cloned());
+            let template_context = TemplateContext {
+                variable_name: Some(variable_name),
+                tag_type: "styled",
+                style_flags: &style_flags,
             };
             let content = evaluate_template(
                 &tagged.quasi,
@@ -190,28 +205,48 @@ pub(super) fn process_variable_declaration(
                 transform.scoping,
                 transform.file_path,
                 transform.source,
-                &TemplateContext {
-                    variable_name: Some(variable_name),
-                    tag_type: "styled",
-                    style_flags: &style_flags,
-                },
+                &template_context,
             )?;
             let content = clean_css(&content);
+            let classes = if transform.dev || !style_flags.is_empty() {
+                style_classes(&content, &style_flags).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
+            } else {
+                StyleBlockClasses::default()
+            };
+            let element_classes = classes.element;
             if transform.dev {
-                transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &style_flags)
-                        .into_iter()
-                        .map(|selector| {
-                            CompilerDiagnostic::warning(
-                                "",
-                                transform.source,
-                                identifier.span,
-                                format!(
-                                    "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
-                                ),
-                            )
-                        }),
-                );
+                let other_element_flags =
+                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                // Inherited flags are styled by the base component
+                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
+                    .into_iter()
+                    .filter(|class_name| !other_element_flags.contains(class_name));
+                transform
+                    .warnings
+                    .extend(missing_flags.map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "Warning: Missing modifier styles for \"&.{class_name}\" in {variable_name}"
+                            ),
+                        )
+                    }));
+                transform
+                    .warnings
+                    .extend(other_element_flags.iter().map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "The style flag class \"{class_name}\" is used in a selector of another element in {variable_name}, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \"&.{class_name}\""
+                            ),
+                        )
+                    }));
                 let usage_prefix = format!("<{variable_name}");
                 let suppress_undeclared = !base_component.class_name.is_empty()
                     || (transform.source.contains(&usage_prefix)
@@ -228,7 +263,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared_style_classes(&element_classes, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -249,7 +284,32 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content =
+                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        let located = locate_template_error(
+                            &tagged.quasi,
+                            transform.constants,
+                            transform.scoping,
+                            transform.file_path,
+                            transform.source,
+                            &template_context,
+                            |css| {
+                                let classes = style_classes(css, &style_flags).ok()?.element;
+                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                            },
+                        )?;
+                        return Err(located.unwrap_or_else(|| {
+                            css_error_diagnostic(
+                                transform.file_path,
+                                transform.source,
+                                tagged.span,
+                                error,
+                            )
+                        }));
+                    }
+                };
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
@@ -281,7 +341,10 @@ pub(super) fn process_variable_declaration(
             };
             transform.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(generated_name.clone()),
+                StaticValue::ClassName {
+                    name: generated_name.clone(),
+                    style_flags: flag_classes(&style_flags),
+                },
             );
             let has_own_attrs = own_attrs.is_some();
             let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {

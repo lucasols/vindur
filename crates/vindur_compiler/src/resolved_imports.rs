@@ -65,7 +65,7 @@ fn is_runtime_value(value: &StaticValue) -> bool {
             | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
-            | StaticValue::ClassName(_)
+            | StaticValue::ClassName { .. }
     )
 }
 

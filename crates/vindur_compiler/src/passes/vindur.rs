@@ -39,6 +39,7 @@ use super::{
     },
     static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
+    style_flag_selectors::hash_referenced_style_flags,
     styled::{resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
@@ -372,7 +373,7 @@ pub(crate) fn transform_program(
             constants: &constants,
             scoping,
             styled_components: &styled_components,
-            exported_names: &exported_names.values().cloned().collect(),
+            exported_names: &exported_names,
             file_hash: &file_hash,
             file_path,
             source,
@@ -512,6 +513,21 @@ pub(crate) fn transform_program(
             ),
         ));
     }
+    if let Err(error) =
+        hash_referenced_style_flags(&mut css_rules, &facts.constants, &styled_components)
+    {
+        let span = scoping
+            .get_root_binding(error.component.as_str().into())
+            .map_or(oxc_span::Span::new(0, 0), |symbol| {
+                scoping.symbol_span(symbol)
+            });
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            error.error.message,
+        ));
+    }
     if options.dev {
         warnings.extend(raw_hashed_cx_key_warnings(
             &cx_key_usages,
@@ -540,7 +556,7 @@ pub(crate) fn transform_program(
 fn is_style_value(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::ClassName(_)
+        StaticValue::ClassName { .. }
             | StaticValue::CssClass { .. }
             | StaticValue::DynamicColor { .. }
             | StaticValue::DynamicColorPath { .. }

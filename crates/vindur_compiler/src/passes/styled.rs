@@ -268,24 +268,6 @@ pub(crate) fn resolve_styled_references(
                 continue;
             };
             *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
-            for flag in &component.style_flags {
-                match &flag.kind {
-                    StyleFlagKind::Boolean => {
-                        *rule = rule.replace(
-                            &format!(".{class_name}.{}", flag.prop_name),
-                            &format!(".{class_name}.{}", flag.hashed_class_name),
-                        );
-                    }
-                    StyleFlagKind::StringUnion(values) => {
-                        for value in values {
-                            *rule = rule.replace(
-                                &format!(".{class_name}.{}-{value}", flag.prop_name),
-                                &format!(".{class_name}.{}-{value}", flag.hashed_class_name),
-                            );
-                        }
-                    }
-                }
-            }
         }
     }
     css_rules.iter().find_map(|rule| {
@@ -304,96 +286,8 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
-pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
-    let mut missing = Vec::new();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                if !contains_class_selector(&css, &flag.prop_name)
-                    && !contains_class_selector(&css, &flag.hashed_class_name)
-                {
-                    missing.push(format!("&.{}", flag.prop_name));
-                }
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    let original = format!("{}-{value}", flag.prop_name);
-                    let hashed = format!("{}-{value}", flag.hashed_class_name);
-                    if !contains_class_selector(&css, &original)
-                        && !contains_class_selector(&css, &hashed)
-                    {
-                        missing.push(format!("&.{original}"));
-                    }
-                }
-            }
-        }
-    }
-    missing
-}
-
-pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
-    let declared = flags
-        .iter()
-        .flat_map(|flag| match &flag.kind {
-            StyleFlagKind::Boolean => vec![flag.prop_name.clone()],
-            StyleFlagKind::StringUnion(values) => values
-                .iter()
-                .map(|value| format!("{}-{value}", flag.prop_name))
-                .collect(),
-        })
-        .collect::<rustc_hash::FxHashSet<_>>();
-    let mut classes: Vec<String> = Vec::new();
-    for name in ampersand_compound_classes(&css) {
-        if !declared.contains(name) && !classes.iter().any(|class| class == name) {
-            classes.push(name.to_owned());
-        }
-    }
-    classes
-}
-
-fn is_compound_boundary(byte: u8) -> bool {
-    byte.is_ascii_whitespace() || matches!(byte, b',' | b'{' | b'}' | b'>' | b'+' | b'~' | b';')
-}
-
-// Only classes in the same compound selector as `&` (`&.active`,
-// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not
-fn ampersand_compound_classes(css: &str) -> Vec<&str> {
-    let bytes = css.as_bytes();
-    let mut names = Vec::new();
-    let mut compound_end = 0usize;
-    for (ampersand, _) in css.match_indices('&') {
-        if ampersand < compound_end {
-            continue;
-        }
-        let start = bytes[..ampersand]
-            .iter()
-            .rposition(|byte| is_compound_boundary(*byte))
-            .map_or(0, |index| index + 1);
-        compound_end = bytes[ampersand..]
-            .iter()
-            .position(|byte| is_compound_boundary(*byte))
-            .map_or(bytes.len(), |index| ampersand + index);
-        let compound = &css[start..compound_end];
-        for (dot, _) in compound.match_indices('.') {
-            let name_start = dot + 1;
-            let name_end = compound[name_start..]
-                .find(|character: char| {
-                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
-                })
-                .map_or(compound.len(), |index| name_start + index);
-            let name = &compound[name_start..name_end];
-            if name
-                .chars()
-                .next()
-                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
-            {
-                names.push(name);
-            }
-        }
-    }
-    names
+pub(crate) fn is_styled_ref_placeholder(text: &str) -> bool {
+    text.starts_with(STYLED_REF_PREFIX)
 }
 
 pub(super) fn strip_css_comments(css: &str) -> String {
@@ -405,39 +299,6 @@ pub(super) fn strip_css_comments(css: &str) -> String {
             return output;
         };
         rest = &rest[start + relative_end + 4..];
-    }
-    output.push_str(rest);
-    output
-}
-
-fn contains_class_selector(css: &str, name: &str) -> bool {
-    let needle = format!(".{name}");
-    css.match_indices(&needle).any(|(index, _)| {
-        css[index + needle.len()..]
-            .chars()
-            .next()
-            .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
-    })
-}
-
-pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
-    let needle = format!(".{original}");
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(index) = rest.find(&needle) {
-        let end = index + needle.len();
-        let next_is_word = rest[end..]
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_');
-        if next_is_word {
-            output.push_str(&rest[..end]);
-        } else {
-            output.push_str(&rest[..index]);
-            output.push('.');
-            output.push_str(replacement);
-        }
-        rest = &rest[end..];
     }
     output.push_str(rest);
     output

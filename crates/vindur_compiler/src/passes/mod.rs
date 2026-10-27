@@ -32,6 +32,7 @@ mod source_map;
 mod stable;
 mod static_evaluation;
 mod static_value;
+mod style_flag_selectors;
 mod style_flags;
 mod styled;
 mod styled_attrs;
