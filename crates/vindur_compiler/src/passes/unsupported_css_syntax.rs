@@ -1,7 +1,7 @@
 use oxc_span::Span;
 
 use super::css_tokens::{
-    decode_ident, ident_end, is_ident_char, skipped_token_end, unprefixed_at_rule_name,
+    block_end, decode_ident, ident_end, is_ident_char, skipped_token_end, unprefixed_at_rule_name,
 };
 use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 use crate::CompilerDiagnostic;
@@ -138,8 +138,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             // Braces and semicolons inside parentheses are part of the prelude or
             // value, e.g. `@supports (--x: {a:b})`
             _ if paren_depth > 0 => {}
+            // Braces in custom property values are part of the value, so the whole balanced
+            // block is skipped, e.g. `--x: { @keyframes y {} };`
             b'{' if is_custom_property_value(css, prelude_start) => {
-                index = custom_property_block_end(css, index);
+                index = block_end(css, index).unwrap_or(css.len());
                 continue;
             }
             b'{' => {
@@ -203,32 +205,6 @@ fn is_custom_property_value(css: &str, prelude_start: Option<usize>) -> bool {
             || (css[start..].starts_with('\\')
                 && decode_ident(&css[start..ident_end(css, start)]).starts_with("--"))
     })
-}
-
-// Braces in custom property values are part of the value, so the whole
-// balanced block is skipped, e.g. `--x: { @keyframes y {} };`
-fn custom_property_block_end(css: &str, start: usize) -> usize {
-    let bytes = css.as_bytes();
-    let mut depth = 0_usize;
-    let mut index = start;
-    while index < bytes.len() {
-        if let Some(end) = skipped_token_end(css, index) {
-            index = end;
-            continue;
-        }
-        match bytes[index] {
-            b'{' => depth += 1,
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return index + 1;
-                }
-            }
-            _ => {}
-        }
-        index += css[index..].chars().next().map_or(1, char::len_utf8);
-    }
-    css.len()
 }
 
 fn prelude_at_rule(css: &str, prelude_start: Option<usize>) -> Option<(&str, String)> {

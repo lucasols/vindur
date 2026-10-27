@@ -73,7 +73,8 @@ pub(super) fn scan_string(css: &str, start: usize) -> (usize, bool) {
             // An escaped newline continues the string, `\r\n` is a single newline
             b'\\' if css[index + 1..].starts_with("\r\n") => index += 3,
             b'\\' => index += 2,
-            b'\n' => return (index, false),
+            // CSS strings end at any newline, also a CR or a form feed
+            b'\n' | b'\r' | b'\x0C' => return (index, false),
             byte if byte == quote => return (index + 1, true),
             _ => index += 1,
         }
@@ -127,7 +128,15 @@ fn url_function_paren(css: &str, index: usize) -> Option<usize> {
     {
         return None;
     }
-    let name_end = ident_end(css, index);
+    // `url` is 3 code points, each one maybe escaped, so the name is never scanned further
+    let mut name_end = index;
+    for _ in 0..3 {
+        match css[name_end..].chars().next() {
+            Some('\\') => name_end = escape_end(css, name_end),
+            Some(character) if is_ident_char(character) => name_end += character.len_utf8(),
+            _ => return None,
+        }
+    }
     (css.as_bytes().get(name_end) == Some(&b'(')
         && decode_ident(&css[index..name_end]).eq_ignore_ascii_case("url"))
     .then_some(name_end)
@@ -189,14 +198,11 @@ pub(super) fn unprefixed_at_rule_name(decoded_name: &str) -> Option<String> {
     }
 }
 
-/// Whether `index` is inside the block opened by the `{` at `brace`
-pub(super) fn is_inside_block(css: &str, brace: usize, index: usize) -> bool {
-    if css.as_bytes().get(brace) != Some(&b'{') || index <= brace {
-        return false;
-    }
+/// The end of the block opened by the `{` at `brace`, after its `}`, `None` when it isn't closed
+pub(super) fn block_end(css: &str, brace: usize) -> Option<usize> {
     let mut depth = 0usize;
     let mut position = brace;
-    while position < index.min(css.len()) {
+    while position < css.len() {
         if let Some(end) = skipped_token_end(css, position) {
             position = end;
             continue;
@@ -206,14 +212,21 @@ pub(super) fn is_inside_block(css: &str, brace: usize, index: usize) -> bool {
             b'}' => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
-                    return false;
+                    return Some(position + 1);
                 }
             }
             _ => {}
         }
         position += css[position..].chars().next().map_or(1, char::len_utf8);
     }
-    depth > 0
+    None
+}
+
+/// Whether `index` is inside the block opened by the `{` at `brace`
+pub(super) fn is_inside_block(css: &str, brace: usize, index: usize) -> bool {
+    css.as_bytes().get(brace) == Some(&b'{')
+        && index > brace
+        && block_end(css, brace).is_none_or(|end| index < end)
 }
 
 pub(super) fn is_ident_char(character: char) -> bool {

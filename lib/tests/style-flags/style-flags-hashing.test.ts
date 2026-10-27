@@ -280,3 +280,42 @@ test('should hash every style flag of a compound component reference', async () 
     "
   `);
 });
+
+test('should hash flag classes after a repeated component reference', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      const Button = styled.div<{ active: boolean }>\`
+        &.active { color: red; }
+      \`
+      const Wrapper = styled.div\`
+        \${Button}\${Button}.active { color: blue; }
+      \`
+      export const App = () => <Wrapper><Button active /></Wrapper>
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div className="v1560qbr-2-Wrapper">
+        <div className={"v1560qbr-1-Button voctcyj-active"} />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      &.voctcyj-active {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2-Wrapper {
+      .v1560qbr-1-Button.v1560qbr-1-Button.voctcyj-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});

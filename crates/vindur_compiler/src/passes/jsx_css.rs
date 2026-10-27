@@ -1,10 +1,10 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind,
-    Program,
+    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectProperty,
+    ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
@@ -112,6 +112,16 @@ impl JsxCssVisitor<'_> {
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
             return;
         };
+        if let Some(span) = nested_scoped_variable_key(&container.expression) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                span,
+                "Scoped variables must be keys of an inline `style={{ ... }}` object to be renamed"
+                    .to_owned(),
+            ));
+            return;
+        }
         let JSXExpression::ObjectExpression(object) = &container.expression else {
             return;
         };
@@ -480,4 +490,44 @@ pub(super) fn is_foreign_css_attribute(
                     Some(StaticValue::CssClass { .. })
                 )
         )
+}
+
+/// A `---` key that isn't a direct key of an inline `style={{ ... }}` object, like one in a
+/// conditional or a nested object, which isn't renamed
+fn nested_scoped_variable_key(expression: &JSXExpression<'_>) -> Option<Span> {
+    let mut finder = NestedScopedKeyFinder { found: None };
+    match expression {
+        JSXExpression::ObjectExpression(object) => {
+            for property in &object.properties {
+                match property {
+                    ObjectPropertyKind::ObjectProperty(property) => {
+                        finder.visit_expression(&property.value);
+                    }
+                    ObjectPropertyKind::SpreadProperty(spread) => {
+                        finder.visit_spread_element(spread);
+                    }
+                }
+            }
+        }
+        expression => finder.visit_jsx_expression(expression),
+    }
+    finder.found
+}
+
+struct NestedScopedKeyFinder {
+    found: Option<Span>,
+}
+
+impl<'a> Visit<'a> for NestedScopedKeyFinder {
+    fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
+        if property
+            .key
+            .static_name()
+            .is_some_and(|name| name.starts_with("---"))
+        {
+            self.found.get_or_insert(property.key.span());
+        } else {
+            walk::walk_object_property(self, property);
+        }
+    }
 }

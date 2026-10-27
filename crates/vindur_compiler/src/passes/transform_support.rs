@@ -16,6 +16,7 @@ use super::{
     block_validation::starts_with_stylesheet_start_rule,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_modifier_selectors::{ModifierCss, element_class_names},
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
@@ -23,7 +24,7 @@ use super::{
     style_flags::rewrite_style_flag_selectors,
     styled::{
         StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
-        styled_tag_component_with_attrs, undeclared_style_classes,
+        strip_css_comments, styled_tag_component_with_attrs, undeclared_style_classes,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -56,6 +57,8 @@ pub(super) struct VariableTransform<'a> {
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
 
+pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`";
+
 /// The styles of a file are joined in source order, and browsers drop `@charset`, `@import` and
 /// `@namespace` after another rule
 pub(super) fn push_global_style(
@@ -65,7 +68,11 @@ pub(super) fn push_global_style(
     source: &str,
     span: oxc_span::Span,
 ) -> Result<(), CompilerDiagnostic> {
-    if !css_rules.is_empty() && starts_with_stylesheet_start_rule(&content) {
+    // Comments don't make browsers drop them
+    let has_styles = css_rules
+        .iter()
+        .any(|rule| !strip_css_comments(rule).trim().is_empty());
+    if has_styles && starts_with_stylesheet_start_rule(&content) {
         return Err(CompilerDiagnostic::error(
             file_path,
             source,
@@ -227,17 +234,18 @@ pub(super) fn process_variable_declaration(
             )?;
             let content = clean_css(&content);
             if transform.dev {
+                let element_classes =
+                    element_class_names(&content, ModifierCss::Block).map_err(|error| {
+                        css_error_diagnostic(
+                            transform.file_path,
+                            transform.source,
+                            tagged.span,
+                            error,
+                        )
+                    })?;
                 transform.warnings.extend(
                     // The base styles its own flags, an extension only needs the flags it declares
-                    missing_style_flag_selectors(&content, &own_style_flags)
-                        .map_err(|error| {
-                            css_error_diagnostic(
-                                transform.file_path,
-                                transform.source,
-                                tagged.span,
-                                error,
-                            )
-                        })?
+                    missing_style_flag_selectors(&element_classes, &own_style_flags)
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(
@@ -266,7 +274,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared_style_classes(&element_classes, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -415,7 +423,7 @@ pub(super) fn process_variable_declaration(
                     transform.file_path,
                     transform.source,
                     identifier.span,
-                    "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`".to_owned(),
+                    GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
                 ));
             }
             // The whole declaration is removed with it
@@ -425,6 +433,22 @@ pub(super) fn process_variable_declaration(
                     transform.source,
                     declaration.span,
                     "createGlobalStyle must use its own variable declaration".to_owned(),
+                ));
+            }
+            if identifier.symbol_id.get().is_some_and(|symbol_id| {
+                !transform
+                    .scoping
+                    .get_resolved_reference_ids(symbol_id)
+                    .is_empty()
+            }) {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    format!(
+                        "`{}` can't be referenced, createGlobalStyle returns nothing and its declaration is removed",
+                        identifier.name
+                    ),
                 ));
             }
             let content = evaluate_template(

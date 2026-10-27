@@ -761,7 +761,7 @@ const Component = () => {
 };
 ```
 
-Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error.
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, keys in a conditional, a nested object or `.attrs()` are a compile error, and keys of a separate object constant are not renamed.
 
 ### Stable IDs
 
@@ -906,7 +906,7 @@ createGlobalStyle`
 
 `@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, since browsers drop them after other rules.
 
-`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
+`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported or referenced. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
@@ -1241,7 +1241,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
-Flag props are never passed to the element. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it.
+Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it. A default exported styled component can't have flags, assign it to a `const` first.
 
 #### CSS Selector Patterns
 

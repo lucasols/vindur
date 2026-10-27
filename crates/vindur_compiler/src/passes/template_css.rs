@@ -4,7 +4,6 @@ use oxc_span::{GetSpan, Span};
 use crate::CompilerDiagnostic;
 
 use super::css::layer_markers_in_text;
-use super::css_balance::LINE_COMMENT_ERROR;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
 use super::css_tokens::is_inside_block;
 use super::static_value::TemplateContext;
@@ -147,20 +146,11 @@ pub(crate) fn validate_template_css(
     }
     let (span, in_interpolation) = evaluated.source_span(&error, source, template);
     let is_syntax_error = error.syntax_error.is_some();
-    let is_line_comment = evaluated
-        .css
-        .get(error.start..)
-        .is_some_and(|rest| rest.starts_with("//"));
     let message = error.syntax_error.map_or(error.message, |description| {
         let variable_context = context.variable_name.map_or_else(
             || context.tag_type.to_owned(),
             |name| format!("... {name} = {}", context.tag_type),
         );
-        let description = if is_line_comment {
-            LINE_COMMENT_ERROR.to_owned()
-        } else {
-            description
-        };
         format!("Invalid CSS at `{variable_context}`: {description}")
     });
     // Syntax errors found in a static value point to the interpolation, not to the CSS token

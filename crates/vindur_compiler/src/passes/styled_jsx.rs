@@ -82,7 +82,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.source,
                 span,
                 format!(
-                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `await` or tagged templates, as it's read twice, assign it to a variable first"
+                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `delete`, `await` or tagged templates, as it's read twice, assign it to a variable first"
                 ),
             ));
             return;

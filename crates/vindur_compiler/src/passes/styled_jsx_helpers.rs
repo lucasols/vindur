@@ -1,9 +1,9 @@
 use oxc_ast::ast::{
     AssignmentExpression, AwaitExpression, CallExpression, Expression, JSXAttribute,
     JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, NewExpression,
-    TaggedTemplateExpression, UpdateExpression,
+    TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression,
 };
-use oxc_ast_visit::Visit;
+use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
@@ -154,6 +154,14 @@ impl<'a> Visit<'a> for SideEffectFinder {
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         self.found.get_or_insert(tagged.span);
+    }
+
+    fn visit_unary_expression(&mut self, unary: &UnaryExpression<'a>) {
+        if unary.operator == UnaryOperator::Delete {
+            self.found.get_or_insert(unary.span);
+        } else {
+            walk::walk_unary_expression(self, unary);
+        }
     }
 }
 

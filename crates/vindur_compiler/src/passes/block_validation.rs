@@ -1,4 +1,4 @@
-use oxc_css_parser::ast::{AtRule, Statement};
+use oxc_css_parser::ast::{AtRule, AtRulePrelude, Statement};
 
 use super::css_syntax::{BlockKind, CssError};
 use super::css_tokens::{decode_ident, ident_end, skipped_token_end, unprefixed_at_rule_name};
@@ -53,6 +53,17 @@ pub(super) fn validate_block_kind(
 
 /// The block of an at-rule in global styles, grouping rules hold a stylesheet
 fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssError> {
+    // The parser keeps an `@import` tail it doesn't understand, like a next `@import` after a
+    // missing `;`, browsers drop the whole rule. Remove once oxc-css-parser reports it
+    if let Some(AtRulePrelude::Import(prelude)) = &rule.prelude
+        && let Some(modifiers) = &prelude.modifiers
+    {
+        return Err(CssError::syntax(
+            "invalid `@import` conditions, a `;` may be missing before the next rule".to_owned(),
+            modifiers.span.start,
+            modifiers.span.end,
+        ));
+    }
     let Some(block) = &rule.block else {
         return Ok(());
     };
@@ -136,7 +147,8 @@ fn reject_stray_semicolons(
         if let Some(statement) = statement {
             gap_start = statement_span(statement).end;
             after_block = ends_with_block(statement);
-            allows_semicolon = !ends_with_block(statement) && !source[..gap_start].ends_with(';');
+            allows_semicolon =
+                !ends_with_block(statement) && !ends_with_terminator(&source[..gap_start]);
         }
     }
     Ok(())
@@ -262,7 +274,7 @@ fn reject_unterminated_global_end(
     let Some(Statement::AtRule(rule)) = statements.last() else {
         return Ok(());
     };
-    if rule.block.is_some() || source[..rule.span.end].ends_with(';') {
+    if rule.block.is_some() || ends_with_terminator(&source[..rule.span.end]) {
         return Ok(());
     }
     let mut index = rule.span.end;
@@ -290,6 +302,12 @@ fn reject_unterminated_global_end(
         rule.span.start,
         rule.span.end,
     ))
+}
+
+/// Whether the text ends with a `;` that isn't escaped, `@layer a\;` names the layer `a;`
+fn ends_with_terminator(text: &str) -> bool {
+    text.strip_suffix(';')
+        .is_some_and(|before| (before.len() - before.trim_end_matches('\\').len()) % 2 == 0)
 }
 
 fn ends_with_block(statement: &Statement<'_>) -> bool {

@@ -348,3 +348,92 @@ test('should throw for a scoped variable missing its `;`', async () => {
     loc: 4:10]
   `);
 });
+
+test('should throw for quoted scoped names in `@property` initial values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        createGlobalStyle\`
+          @property ---anim { syntax: "*"; inherits: false; initial-value: "---spin" 1s; }
+          @keyframes "---spin" { from { opacity: 0; } to { opacity: 1; } }
+          body { animation: var(---anim); }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---spin\` without quotes or the string directly in the property that uses it
+    loc: 3:67]
+  `);
+});
+
+test('should throw for scoped names next to null cells in grid area strings', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const a = css\`
+          grid-template-areas: "---head...side";
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names are not supported in grid area strings, write \`head\` as a plain name, area names are already local to their grid container
+    loc: 3:23]
+  `);
+});
+
+test('should throw for non-ASCII scoped font family names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        createGlobalStyle\`
+          @font-face { font-family: "---Ä"; src: url(a.woff2); }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped font family name \`---Ä\` must only use lowercase ASCII letters, as font family names match case-insensitively
+    loc: 3:29]
+  `);
+});
+
+test('should throw for scoped names with an escaped prefix', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const a = css\`
+          ---foo: red;
+          color: var(\\2d --foo);
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped name \`\\2d --foo\` can't contain escapes, write it without them
+    loc: 4:13]
+  `);
+});
+
+test('should not treat style() values in a font property as font names', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      export const a = css\`
+        ---theme: ---Dark;
+        font-family: if(style(---theme: ---Dark): serif; else: sans-serif);
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-a {
+      --v1560qbr-2-theme: --v1560qbr-3-Dark;
+      font-family: if(
+        style(--v1560qbr-2-theme: --v1560qbr-3-Dark): serif; else: sans-serif
+      );
+    }
+    "
+  `);
+});

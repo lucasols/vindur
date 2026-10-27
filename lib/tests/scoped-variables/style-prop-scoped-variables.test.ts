@@ -109,3 +109,37 @@ test('should throw for style prop scoped variables no style of the file uses', a
     loc: 7:40]
   `);
 });
+
+test('should throw for scoped variable keys outside an inline style object', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Card = styled.div\`
+          width: var(---w);
+        \`
+        export const App = ({ a }) => <Card style={a ? { '---w': '2px' } : undefined} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables must be keys of an inline \`style={{ ... }}\` object to be renamed
+    loc: 5:49]
+  `);
+});
+
+test('should throw for scoped variable keys in attrs', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Card = styled.div.attrs({ style: { '---w': '2px' } })\`
+          width: var(---w);
+        \`
+        export const App = () => <Card />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: styled.*.attrs() cannot set scoped variables, set them in the \`style\` prop where the component is rendered
+    loc: 2:41]
+  `);
+});

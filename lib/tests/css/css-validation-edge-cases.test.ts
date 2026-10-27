@@ -447,3 +447,19 @@ test('should interpolate css constants in strings as their selector', async () =
     "
   `);
 });
+
+test('should throw for a string ended by a carriage return', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const a = css\`
+          &::before { content: "a\r b"; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... a = css\`: unclosed string, add \`"\`
+    loc: 3:23]
+  `);
+});

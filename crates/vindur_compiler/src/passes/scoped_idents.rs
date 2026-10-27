@@ -10,7 +10,7 @@ use oxc_css_parser::{
 };
 
 use super::css_syntax::{BlockKind, CssError, with_style_block};
-use super::css_tokens::{ident_end, is_ident_char, skipped_token_end};
+use super::css_tokens::{decode_ident, ident_end, is_ident_char, skipped_token_end};
 
 /// How a scoped variable identifier is used
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -308,7 +308,10 @@ impl ScopedIdentCollector<'_> {
     ) {
         let (_, content) = string_content(self.source, span);
         if self.error.is_none()
-            && let Some(name) = content.split_whitespace().find(|word| is_scoped_name(word))
+            // Grid area cells are also separated by `.` null cells, like `"---head...side"`
+            && let Some(name) = content
+                .split(|character: char| character.is_whitespace() || character == '.')
+                .find(|word| is_scoped_name(word))
         {
             self.error = Some(CssError::new(message(name), span.start, span.end));
         }
@@ -364,11 +367,14 @@ impl ScopedIdentCollector<'_> {
                     self.value(variable, ScopedRole::Read);
                     // A `style()` value is compared with a custom property's value
                     let quoted_names = self.quoted_names;
+                    let names_fonts = self.names_fonts;
                     if is_function_named(&function.name, "style") {
                         self.quoted_names = Some(QuotedNames::Unknown);
+                        self.names_fonts = false;
                     }
                     self.values(rest);
                     self.quoted_names = quoted_names;
+                    self.names_fonts = names_fonts;
                 }
                 _ => self.values(&function.args),
             },
@@ -396,6 +402,18 @@ impl ScopedIdentCollector<'_> {
     }
 
     fn push(&mut self, start: usize, end: usize, raw: &str, role: ScopedRole) {
+        // An escaped prefix, like `\2d --foo`, is the scoped name `---foo` too
+        if raw.contains('\\')
+            && !raw.starts_with(SCOPED_PREFIX)
+            && decode_ident(raw).starts_with(SCOPED_PREFIX)
+            && self.error.is_none()
+        {
+            self.error = Some(CssError::new(
+                format!("Scoped name `{raw}` can't contain escapes, write it without them"),
+                start,
+                end,
+            ));
+        }
         if raw.len() > SCOPED_PREFIX.len() && raw.starts_with(SCOPED_PREFIX) {
             // Names are matched as written, `---sp\69n` and `---spin` would get different hashes
             if raw.contains('\\') && self.error.is_none() {
@@ -406,20 +424,25 @@ impl ScopedIdentCollector<'_> {
                 ));
             }
             // Font family names match case-insensitively, `---Brand` and `---brand` would get
-            // different hashes
+            // different hashes. Non-ASCII letters have case variants too, so they aren't allowed
             if self.names_fonts
                 && role == ScopedRole::Name
-                && raw.chars().any(|character| character.is_ascii_uppercase())
+                && raw
+                    .chars()
+                    .any(|character| !character.is_ascii() || character.is_ascii_uppercase())
                 && self.error.is_none()
             {
-                self.error = Some(CssError::new(
+                let message = if raw.is_ascii() {
                     format!(
                         "Scoped font family name `{raw}` must be lowercase, as font family names match case-insensitively, use `{}`",
                         raw.to_ascii_lowercase()
-                    ),
-                    start,
-                    end,
-                ));
+                    )
+                } else {
+                    format!(
+                        "Scoped font family name `{raw}` must only use lowercase ASCII letters, as font family names match case-insensitively"
+                    )
+                };
+                self.error = Some(CssError::new(message, start, end));
             }
             self.idents.push(ScopedIdent {
                 start: start - self.offset,
@@ -447,7 +470,8 @@ enum QuotedNames {
 }
 
 fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
-    if property.starts_with("--") {
+    // `@property` gives its `initial-value` to the custom property
+    if property.starts_with("--") || property.eq_ignore_ascii_case("initial-value") {
         return Some(QuotedNames::Unknown);
     }
     let property = ["-webkit-", "-moz-", "-o-", "-ms-"]

@@ -332,7 +332,7 @@ test('should throw for string union style flag values with side effects', async 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
     loc: 8:47]
   `);
 });
@@ -356,4 +356,55 @@ test('should throw for style flag classes in rules matching other elements too',
     [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
     loc: 3:12]
   `);
+});
+
+test('should throw for style flags on a default exported styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        export default styled.button<{ active: boolean }>\`
+          &.active { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flags are not supported on a default exported styled component, assign it to a \`const\` and export that
+    loc: 2:28]
+  `);
+});
+
+test('should throw for delete in string union style flag values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Box = styled.div<{ size: 'small' | 'large' }>\`
+          &.size-small { width: 1px; }
+          &.size-large { width: 2px; }
+        \`
+        export const App = ({ obj }) => <Box size={'pending' in obj ? (delete obj.pending, 'small') : 'large'} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
+    loc: 6:63]
+  `);
+});
+
+test('should not warn about classes of descendants in :has()', async () => {
+  const warnings: TransformWarning[] = [];
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      const Box = styled.div<{ active: boolean }>\`
+        &.active { color: red; }
+        &:has(.icon) { color: blue; }
+      \`
+      export const App = () => <Box active />
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(warnings).toHaveLength(0);
 });

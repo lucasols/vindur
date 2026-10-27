@@ -358,7 +358,7 @@ test('should throw for createGlobalStyle outside the top level', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: createGlobalStyle can only be used at the top level of the module, as a statement or in its own \`const\` declaration
+    [TransformError: /test.tsx: createGlobalStyle can't be exported, its styles are added where it is declared, remove the \`export\`
     loc: 3:15]
   `);
 
@@ -418,5 +418,108 @@ test('should validate at-rules nested in @scope of global styles', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`!important\` is ignored in keyframes, remove it
     loc: 7:13]
+  `);
+});
+
+test('should throw for an `@import` missing its `;` before the next rule', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        createGlobalStyle\`
+          @import url('https://fonts.googleapis.com/css2?family=Inter')
+          @import url('https://fonts.googleapis.com/css2?family=Roboto');
+          body { margin: 0; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: invalid \`@import\` conditions, a \`;\` may be missing before the next rule
+    loc: 4:2]
+  `);
+});
+
+test('should keep `@import` layers, supports conditions and media queries', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+      createGlobalStyle\`
+        @import url(a.css) layer(base) supports(display: grid) screen and (orientation: landscape);
+        @import "b.css" print;
+        body { margin: 0; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@import url(a.css) layer(base) supports(display: grid) screen and
+      (orientation: landscape);
+    @import "b.css" print;
+    body {
+      margin: 0;
+    }
+    "
+  `);
+});
+
+test('should accept a `;` after an escaped `;` in a layer name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+      createGlobalStyle\`
+        @layer foo\\\; ;
+        body { margin: 0; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@layer foo\\;;
+    body {
+      margin: 0;
+    }
+    "
+  `);
+});
+
+test('should allow `@import` after a global style with only comments', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+      createGlobalStyle\`
+        /* reset */
+      \`
+      createGlobalStyle\`
+        @import url(a.css);
+        body { margin: 0; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "/* reset */
+
+    @import url(a.css);
+    body {
+      margin: 0;
+    }
+    "
+  `);
+});
+
+test('should throw for references to a createGlobalStyle binding', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        const Global = createGlobalStyle\`
+          body { margin: 0; }
+        \`
+        console.log(Global)
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`Global\` can't be referenced, createGlobalStyle returns nothing and its declaration is removed
+    loc: 2:6]
   `);
 });

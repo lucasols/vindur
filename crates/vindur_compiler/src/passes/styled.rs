@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
     Argument, CallExpression, Expression, JSXAttribute, JSXAttributeName, JSXElement, JSXFragment,
-    ObjectExpression, Program, Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
-    TemplateLiteral,
+    ObjectExpression, ObjectProperty, Program, Statement, TSTypeParameterInstantiation,
+    TaggedTemplateExpression, TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -10,9 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
-use super::css_syntax::CssError;
 use super::css_tokens::{is_ident_char, skipped_token_end};
-use super::cx_modifier_selectors::{ModifierCss, element_class_names};
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -315,7 +313,13 @@ fn replace_reference_flag_classes(
     }
     let mut output = String::with_capacity(css.len());
     let mut copied = 0;
+    let mut scanned = 0;
     for start in class_selector_starts(css, class_name) {
+        // A repeated reference, e.g. `${Button}${Button}.active`, was already scanned as part of
+        // the compound of the first one
+        if start < scanned {
+            continue;
+        }
         let mut index = start + 1 + class_name.len();
         while css[index..].starts_with('.') {
             let name_start = index + 1;
@@ -329,6 +333,7 @@ fn replace_reference_flag_classes(
             }
             index = name_end;
         }
+        scanned = index;
     }
     if copied == 0 {
         return None;
@@ -422,11 +427,11 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
 }
 
 /// The flag classes no selector of the element uses, like `&.active`
+/// The flag selectors without styles, from the classes used on the element itself
 pub(crate) fn missing_style_flag_selectors(
-    css: &str,
+    element_classes: &[String],
     flags: &[StyleFlag],
-) -> Result<Vec<String>, CssError> {
-    let element_classes = element_class_names(css, ModifierCss::Block)?;
+) -> Vec<String> {
     let is_styled = |original: &str, hashed: &str| {
         element_classes
             .iter()
@@ -450,65 +455,26 @@ pub(crate) fn missing_style_flag_selectors(
             }
         }
     }
-    Ok(missing)
+    missing
 }
 
-pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
+/// Classes used on the element itself that no flag declares, classes of other elements like
+/// `& .child` or `&:has(.icon)` are not modifiers
+pub(crate) fn undeclared_style_classes(
+    element_classes: &[String],
+    flags: &[StyleFlag],
+) -> Vec<String> {
     let declared = flags
         .iter()
         .flat_map(StyleFlag::class_names)
         .collect::<rustc_hash::FxHashSet<_>>();
     let mut classes: Vec<String> = Vec::new();
-    for name in ampersand_compound_classes(&css) {
-        if !declared.contains(name) && !classes.iter().any(|class| class == name) {
-            classes.push(name.to_owned());
+    for name in element_classes {
+        if !declared.contains(name) && !classes.contains(name) {
+            classes.push(name.clone());
         }
     }
     classes
-}
-
-fn is_compound_boundary(byte: u8) -> bool {
-    byte.is_ascii_whitespace() || matches!(byte, b',' | b'{' | b'}' | b'>' | b'+' | b'~' | b';')
-}
-
-// Only classes in the same compound selector as `&` (`&.active`,
-// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not
-fn ampersand_compound_classes(css: &str) -> Vec<&str> {
-    let bytes = css.as_bytes();
-    let mut names = Vec::new();
-    let mut compound_end = 0usize;
-    for (ampersand, _) in css.match_indices('&') {
-        if ampersand < compound_end {
-            continue;
-        }
-        let start = bytes[..ampersand]
-            .iter()
-            .rposition(|byte| is_compound_boundary(*byte))
-            .map_or(0, |index| index + 1);
-        compound_end = bytes[ampersand..]
-            .iter()
-            .position(|byte| is_compound_boundary(*byte))
-            .map_or(bytes.len(), |index| ampersand + index);
-        let compound = &css[start..compound_end];
-        for (dot, _) in compound.match_indices('.') {
-            let name_start = dot + 1;
-            let name_end = compound[name_start..]
-                .find(|character: char| {
-                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
-                })
-                .map_or(compound.len(), |index| name_start + index);
-            let name = &compound[name_start..name_end];
-            if name
-                .chars()
-                .next()
-                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
-            {
-                names.push(name);
-            }
-        }
-    }
-    names
 }
 
 pub(super) fn strip_css_comments(css: &str) -> String {
@@ -533,6 +499,7 @@ fn continues_class_name(css: &str, index: usize) -> bool {
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
 const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+const ATTRS_SCOPED_VARIABLE_ERROR: &str = "styled.*.attrs() cannot set scoped variables, set them in the `style` prop where the component is rendered";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -566,6 +533,20 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
                 .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
         } else {
             walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    // Only scoped variable keys of the `style` prop are renamed
+    fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
+        if property
+            .key
+            .static_name()
+            .is_some_and(|name| name.starts_with("---"))
+        {
+            self.found
+                .get_or_insert((property.key.span(), ATTRS_SCOPED_VARIABLE_ERROR));
+        } else {
+            walk::walk_object_property(self, property);
         }
     }
 

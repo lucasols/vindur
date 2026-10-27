@@ -42,7 +42,8 @@ use super::{
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{
-        VariableTransform, imported_tag_name, process_variable_declaration, push_global_style,
+        GLOBAL_STYLE_EXPORT_ERROR, VariableTransform, imported_tag_name,
+        process_variable_declaration, push_global_style,
     },
     value_references::collect_value_referenced_names,
     vindur_fn_references::runtime_vindur_fn_reference_error,
@@ -275,8 +276,28 @@ pub(crate) fn transform_program(
             Statement::ExportDefaultDeclaration(export) => {
                 if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
                     &export.declaration
+                    && imported_tag_name(&tagged.tag, &imports) == Some("createGlobalStyle")
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        tagged.span,
+                        GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
+                    ));
+                }
+                if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
+                    &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)
                 {
+                    // Style flags need a component name to rewrite its JSX
+                    if let Some(type_arguments) = &tagged.type_arguments {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            type_arguments.span,
+                            "Style flags are not supported on a default exported styled component, assign it to a `const` and export that".to_owned(),
+                        ));
+                    }
                     let generated_name = format!("{file_hash}-{id_index}");
                     id_index += 1;
                     let content = evaluate_template(

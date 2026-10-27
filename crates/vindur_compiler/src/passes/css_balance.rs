@@ -4,8 +4,7 @@ use super::css_tokens::{
     skipped_token_end,
 };
 
-pub(super) const LINE_COMMENT_ERROR: &str =
-    "`//` comments are not supported in CSS, use `/* ... */`";
+const LINE_COMMENT_ERROR: &str = "`//` comments are not supported in CSS, use `/* ... */`";
 
 /// Fails on an unclosed comment, an unclosed `(`, `[` or `url(`, or an unexpected `)` or `]`.
 /// oxc-css-parser 0.0.17 does not report these inside nested blocks, where they swallow the rules
