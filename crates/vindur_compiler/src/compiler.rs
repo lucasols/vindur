@@ -36,9 +36,11 @@ struct LoadedImports {
     cyclic_dependencies: Vec<String>,
     /// Local names of values imported from modules whose facts depend on an import cycle
     cyclic_values: FxHashSet<String>,
-    /// Import sources of modules with global styles, kept as side effect imports when all
+    /// Import sources of modules with side effects, kept as side effect imports when all
     /// their imported values are resolved at compile time
-    global_style_sources: FxHashSet<String>,
+    side_effect_sources: FxHashSet<String>,
+    /// Some import loads a module with side effects, or one whose facts aren't known
+    has_side_effects: bool,
 }
 
 /// Modules of the current transform, a module importing one of the `visiting` modules is in
@@ -208,6 +210,7 @@ impl Compiler {
             .clone_from(&imports.style_dependencies);
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
         pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
+        pass_output.facts.has_side_effects |= imports.has_side_effects;
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -217,7 +220,7 @@ impl Compiler {
             edited_code,
             source_type,
             &imports.values,
-            &imports.global_style_sources,
+            &imports.side_effect_sources,
         ) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -266,13 +269,22 @@ impl Compiler {
         let mut fact_dependencies = DependencyList::new(file_path);
         let mut cyclic_dependencies = DependencyList::new(file_path);
         let mut cyclic_values = FxHashSet::default();
-        let mut global_style_sources = FxHashSet::default();
+        let mut side_effect_sources = FxHashSet::default();
+        let mut has_side_effects = false;
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
             };
             if import.source.value.as_str() == "vindur" || is_type_only_import(import, scoping) {
                 continue;
+            }
+            // Bare imports load styles or run code, e.g. `import './reset.css'`
+            if import
+                .specifiers
+                .as_ref()
+                .is_none_or(|specifiers| specifiers.is_empty())
+            {
+                has_side_effects = true;
             }
             let resolved = resolve_import_path(
                 file_path,
@@ -337,6 +349,7 @@ impl Compiler {
                     fact_dependencies.insert(&aborted);
                 }
                 cyclic_dependencies.insert(&resolved);
+                has_side_effects = true;
                 // Values imported back into the cycle are reported where they're used
                 for specifier in import.specifiers.iter().flatten() {
                     if !is_type_only_specifier(specifier, scoping)
@@ -356,8 +369,9 @@ impl Compiler {
                 continue;
             };
             fact_dependencies.insert(&resolved);
-            if facts.has_global_styles {
-                global_style_sources.insert(import.source.value.to_string());
+            if facts.has_side_effects {
+                has_side_effects = true;
+                side_effect_sources.insert(import.source.value.to_string());
             }
             // Whether this module's facts are complete depends on which module of the cycle
             // was transformed first, so values derived from them aren't static
@@ -501,7 +515,8 @@ impl Compiler {
             fact_dependencies: fact_dependencies.paths,
             cyclic_dependencies: cyclic_dependencies.paths,
             cyclic_values,
-            global_style_sources,
+            side_effect_sources,
+            has_side_effects,
         }))
     }
 

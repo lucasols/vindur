@@ -270,3 +270,24 @@ pub(super) fn collect_vindur_imports(
     }
     Ok(())
 }
+
+/// Whether evaluating the module does more than declaring bindings, e.g. top-level calls or
+/// re-exported modules, `createGlobalStyle` statements are compiled to CSS instead
+pub(super) fn has_top_level_side_effects(
+    program: &Program<'_>,
+    imports: &VindurImports<'_>,
+) -> bool {
+    program.body.iter().any(|statement| match statement {
+        Statement::ExpressionStatement(statement) => !matches!(
+            &statement.expression,
+            Expression::TaggedTemplateExpression(tagged)
+                if imports.get_expression(&tagged.tag) == Some("createGlobalStyle")
+        ),
+        Statement::ExportNamedDeclaration(export) => {
+            export.source.is_some() && !export.export_kind.is_type()
+        }
+        Statement::ExportAllDeclaration(export) => !export.export_kind.is_type(),
+        Statement::EmptyStatement(_) => false,
+        statement => !statement.is_declaration() && !statement.is_module_declaration(),
+    })
+}

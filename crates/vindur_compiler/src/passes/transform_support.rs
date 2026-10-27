@@ -51,7 +51,7 @@ pub(super) struct VariableTransform<'a> {
     pub statement_start: u32,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
-    pub has_global_styles: &'a mut bool,
+    pub has_side_effects: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
@@ -397,7 +397,7 @@ pub(super) fn process_variable_declaration(
             })?;
             if !content.is_empty() {
                 transform.css_rules.push(content);
-                *transform.has_global_styles = true;
+                *transform.has_side_effects = true;
             }
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
