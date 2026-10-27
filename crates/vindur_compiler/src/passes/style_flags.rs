@@ -14,7 +14,6 @@ use super::styled::{
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
-    file_hash: &str,
     dev: bool,
     component_class: &str,
     program: &Program<'_>,
@@ -82,15 +81,7 @@ pub(super) fn extract_style_flags(
     properties
         .into_iter()
         .map(|property| {
-            style_flag_from_property(
-                property,
-                file_hash,
-                dev,
-                component_class,
-                program,
-                file_path,
-                source,
-            )
+            style_flag_from_property(property, dev, component_class, program, file_path, source)
         })
         .collect()
 }
@@ -147,7 +138,6 @@ fn simple_type_reference_name<'r>(
 
 fn style_flag_from_property(
     property: &TSPropertySignature<'_>,
-    file_hash: &str,
     dev: bool,
     component_class: &str,
     program: &Program<'_>,
@@ -250,11 +240,12 @@ fn style_flag_from_property(
             ));
         }
     };
-    // Dev names start with the component class, e.g. `v1560qbr-1-Button-active`
+    // Both names are scoped to the component class, dev ones start with it, e.g.
+    // `v1560qbr-1-Button-active`
     let hashed_class_name = if dev {
         format!("{component_class}-{}", css_class_name_part(&prop_name))
     } else {
-        format!("v{}", murmur2(&format!("{file_hash}-{prop_name}")))
+        format!("v{}", murmur2(&format!("{component_class}-{prop_name}")))
     };
     Ok(StyleFlag {
         hashed_class_name,

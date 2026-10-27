@@ -91,7 +91,7 @@ test('should hash modifier class names without suffix in production mode', async
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return <div className={"v1560qbr-1 voctcyj"}>Content</div>;
+      return <div className={"v1560qbr-1 vmabrr"}>Content</div>;
     }
     "
   `);
@@ -100,11 +100,11 @@ test('should hash modifier class names without suffix in production mode', async
     ".v1560qbr-1 {
       background: white;
 
-      &.voctcyj {
+      &.vmabrr {
         background: blue;
       }
 
-      &.vnwmeu {
+      &.vxwlrrj {
         border: 2px solid gold;
       }
     }
@@ -164,7 +164,7 @@ test('referencing styled component with flags preserves style flag hash', async 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ active }: { active: boolean }) {
       return (
-        <div className={"v1560qbr-2" + (active ? " voctcyj" : "")}>
+        <div className={"v1560qbr-2" + (active ? " v1exp0sy" : "")}>
           <div className="v1560qbr-1" />
           <div className="v1560qbr-3">Child</div>
         </div>
@@ -178,7 +178,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.voctcyj & {
+      .v1560qbr-2.v1exp0sy & {
         border-left: 4px solid orange;
       }
     }
@@ -187,7 +187,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       padding: 8px;
       background: white;
 
-      &.voctcyj {
+      &.v1exp0sy {
         background: yellow;
         font-weight: bold;
       }
@@ -197,7 +197,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.voctcyj & {
+      .v1560qbr-2.v1exp0sy & {
         border-left: 4px solid orange;
       }
     }
@@ -389,11 +389,11 @@ test('should keep production modifier class names unchanged', async () => {
       return (
         <>
           <button
-            className={"v1560qbr-1 vr4ikfs-small" + (active ? " voctcyj" : "")}
+            className={"v1560qbr-1 v16ujyv9-small" + (active ? " vmabrr" : "")}
           >
             <span className="v1560qbr-3">Button</span>
           </button>
-          <button className={"v1560qbr-1 v1560qbr-2 voctcyj vr4ikfs-large"} />
+          <button className={"v1560qbr-1 v1560qbr-2 vmabrr v16ujyv9-large"} />
         </>
       );
     }
@@ -404,15 +404,15 @@ test('should keep production modifier class names unchanged', async () => {
     ".v1560qbr-1 {
       padding: 8px;
 
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
 
-      &.vr4ikfs-small {
+      &.v16ujyv9-small {
         padding: 4px;
       }
 
-      &.vr4ikfs-large {
+      &.v16ujyv9-large {
         padding: 16px;
       }
     }
@@ -420,13 +420,13 @@ test('should keep production modifier class names unchanged', async () => {
     .v1560qbr-2 {
       gap: 4px;
 
-      &.voctcyj {
+      &.vmabrr {
         color: blue;
       }
     }
 
     .v1560qbr-3 {
-      .v1560qbr-1.voctcyj & {
+      .v1560qbr-1.vmabrr & {
         font-weight: bold;
       }
     }
@@ -506,7 +506,7 @@ test('should keep the base modifier classes for flags redeclared in production',
     "function Component({ active }: { active: boolean }) {
       return (
         <button
-          className={"v1560qbr-1 v1560qbr-2 v1x4k6wd" + (active ? " voctcyj" : "")}
+          className={"v1560qbr-1 v1560qbr-2 v1jk93k" + (active ? " vmabrr" : "")}
         />
       );
     }
@@ -515,13 +515,13 @@ test('should keep the base modifier classes for flags redeclared in production',
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
     }
 
     .v1560qbr-2 {
-      &.v1x4k6wd {
+      &.v1jk93k {
         font-size: 20px;
       }
     }
@@ -624,7 +624,7 @@ test('should not match a referenced flag that prefixes another flag', async () =
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ open }: { open: boolean }) {
       return (
-        <div className={"v1560qbr-1 vwchmz4" + (open ? " vodzbs9" : "")}>
+        <div className={"v1560qbr-1 v1r8z3y2" + (open ? " vc2c9p2" : "")}>
           <div className="v1560qbr-2" />
         </div>
       );
@@ -634,17 +634,17 @@ test('should not match a referenced flag that prefixes another flag', async () =
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.vodzbs9 {
+      &.vc2c9p2 {
         color: red;
       }
 
-      &.vwchmz4 {
+      &.v1r8z3y2 {
         color: blue;
       }
     }
 
     .v1560qbr-2 {
-      .v1560qbr-1.vwchmz4 & {
+      .v1560qbr-1.v1r8z3y2 & {
         font-weight: bold;
       }
     }

@@ -137,7 +137,7 @@ test('should resolve every flag chained to a component reference', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ open }: { open: boolean }) {
       return (
-        <div className={"v1560qbr-1 vr4ikfs-small" + (open ? " vodzbs9" : "")}>
+        <div className={"v1560qbr-1 v16ujyv9-small" + (open ? " vc2c9p2" : "")}>
           <span className="v1560qbr-2" />
         </div>
       );
@@ -147,17 +147,17 @@ test('should resolve every flag chained to a component reference', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.vodzbs9 {
+      &.vc2c9p2 {
         color: red;
       }
 
-      &.vr4ikfs-small {
+      &.v16ujyv9-small {
         padding: 4px;
       }
     }
 
     .v1560qbr-2 {
-      .v1560qbr-1.vodzbs9.vr4ikfs-small & {
+      .v1560qbr-1.vc2c9p2.v16ujyv9-small & {
         font-weight: bold;
       }
     }
@@ -241,14 +241,14 @@ test('should not rewrite classes that start with a flag name', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ active }: { active: boolean }) {
-      return <button className={"v1560qbr-1" + (active ? " voctcyj" : "")} />;
+      return <button className={"v1560qbr-1" + (active ? " vmabrr" : "")} />;
     }
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
 
@@ -498,18 +498,18 @@ test('should not rewrite flag names inside strings and urls', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ active }: { active: boolean }) {
-      return <button className={"v1560qbr-1" + (active ? " voctcyj" : "")} />;
+      return <button className={"v1560qbr-1" + (active ? " vmabrr" : "")} />;
     }
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         background: url(icon.active.svg);
       }
 
-      &.voctcyj::after {
+      &.vmabrr::after {
         content: ".active";
       }
     }

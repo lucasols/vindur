@@ -50,7 +50,6 @@ pub(crate) struct StyledTagContext<'a> {
     pub class_name: &'a str,
     pub components: &'a FxHashMap<String, StyledComponent>,
     pub dev: bool,
-    pub file_hash: &'a str,
     pub file_path: &'a str,
     pub imports: &'a VindurImports<'a>,
     pub program: &'a Program<'a>,
@@ -139,7 +138,6 @@ pub(crate) fn styled_tag_component_with_attrs(
     let style_flags = match type_arguments {
         Some(type_arguments) => extract_style_flags(
             &type_arguments.params,
-            context.file_hash,
             context.dev,
             context.class_name,
             context.program,

@@ -159,7 +159,6 @@ pub(super) fn process_variable_declaration(
                 class_name: &component_class,
                 components: transform.styled_components,
                 dev: transform.dev,
-                file_hash: transform.file_hash,
                 file_path: transform.file_path,
                 imports: transform.imports,
                 program: transform.program,
