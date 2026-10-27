@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('createStaticThemeColors', () => {
   describe('minified color output', () => {
@@ -403,6 +403,133 @@ test('should interpolate defaultHex of static theme colors as written', async ()
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-styles {
       content: "#FF0000";
+    }
+    "
+  `);
+});
+
+test('should resolve static colors to hex in every kind of style in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, css, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      createGlobalStyle\`
+        body {
+          color: \${colors.primary.value};
+        }
+      \`;
+
+      const Box = styled.div\`
+        color: \${colors.primary.value};
+      \`;
+
+      export const A = () => (
+        <>
+          <div className={css\`border-color: \${colors.primary.value};\`} />
+          <div css={\`outline-color: \${colors.primary.value};\`} />
+          <Box />
+        </>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      color: #007bff;
+    }
+
+    .v1560qbr-2 {
+      color: #007bff;
+    }
+
+    .v1560qbr-4 {
+      border-color: #007bff;
+    }
+
+    .v1560qbr-3 {
+      outline-color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should keep user written --stc- text as is in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+      const label = '"var(--stc-example, #f00)"';
+
+      createGlobalStyle\`
+        body {
+          --stc-brand: #00f;
+          color: var(--stc-brand, #f00);
+        }
+        h1::before {
+          content: \${label};
+        }
+      \`;
+
+      const Box = styled.div\`
+        ---stc-gap: 4px;
+        gap: var(---stc-gap);
+        color: \${colors.primary.value};
+      \`;
+
+      export const A = () => <Box />;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      --stc-brand: #00f;
+      color: var(--stc-brand, #f00);
+    }
+    h1::before {
+      content: "var(--stc-example, #f00)";
+    }
+
+    .v1560qbr-2 {
+      --v1560qbr-3: 4px;
+      gap: var(--v1560qbr-3);
+      color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should resolve imported static colors to hex in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const a = css\`
+        color: \${colors.primary.value};
+        background: \${colors.primary.alpha(0.5)};
+        border-color: \${colors.primary.contrast.value};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors } from 'vindur';
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+      `,
+    }),
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: #007bff;
+      background: #007bff80;
+      border-color: #fff;
     }
     "
   `);

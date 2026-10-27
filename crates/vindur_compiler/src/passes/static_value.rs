@@ -216,8 +216,8 @@ fn build_template_css(
                 | StaticValue::DynamicColorPath { .. }
                 | StaticValue::ThemeColor { .. }
                 | StaticValue::ThemeColorContrast { .. }
-                | StaticValue::ThemeColors(_)
-                | StaticValue::UnexportedThemeColors(_)
+                | StaticValue::ThemeColors { .. }
+                | StaticValue::UnexportedThemeColors { .. }
         ) || is_unresolved_import(&value)
         {
             return Err(interpolation_error(expression, file_path, source, context));

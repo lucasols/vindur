@@ -364,8 +364,8 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
         StaticValue::String(_) => unreachable!(),
         StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
-        | StaticValue::ThemeColors(_)
-        | StaticValue::UnexportedThemeColors(_) => "[theme color]".to_owned(),
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. } => "[theme color]".to_owned(),
         StaticValue::Undefined => unreachable!(),
     }
 }

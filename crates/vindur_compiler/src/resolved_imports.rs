@@ -64,7 +64,7 @@ fn is_runtime_value(value: &StaticValue) -> bool {
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
             | StaticValue::ClassName(_)
-            | StaticValue::ThemeColors(_)
+            | StaticValue::ThemeColors { .. }
     )
 }
 

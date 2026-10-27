@@ -70,31 +70,34 @@ fn normalized_hex(raw: &str) -> Option<String> {
 
 pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
-        StaticValue::ThemeColors(colors) | StaticValue::UnexportedThemeColors(colors) => {
+        StaticValue::ThemeColors { colors, dev }
+        | StaticValue::UnexportedThemeColors { colors, dev } => {
             let default_hex = colors.get(property)?;
             Some(StaticValue::ThemeColor {
                 name: property.to_owned(),
                 hex: normalized_hex(default_hex)?,
                 default_hex: default_hex.clone(),
+                dev: *dev,
             })
         }
         // The runtime `defaultHex` is the hex as written
         StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
             Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex, .. } if is_value_property(property) => Some(
-            StaticValue::String(format!("var(--stc-{}-var, {hex})", css_name(name))),
-        ),
-        StaticValue::ThemeColor { name, hex, .. } if property == "contrast" => {
+        StaticValue::ThemeColor { name, hex, dev, .. } if is_value_property(property) => {
+            Some(color_value(name, "var", hex, *dev))
+        }
+        StaticValue::ThemeColor { name, hex, dev, .. } if property == "contrast" => {
             Some(StaticValue::ThemeColorContrast {
                 name: name.clone(),
                 hex: contrast_hex(hex),
                 base_hex: hex.clone(),
+                dev: *dev,
             })
         }
-        StaticValue::ThemeColorContrast { name, hex, .. } if is_value_property(property) => Some(
-            StaticValue::String(format!("var(--stc-{}-contrast-var, {hex})", css_name(name))),
-        ),
+        StaticValue::ThemeColorContrast { name, hex, dev, .. } if is_value_property(property) => {
+            Some(color_value(name, "contrast-var", hex, *dev))
+        }
         _ => None,
     }
 }
@@ -104,9 +107,9 @@ pub(super) fn theme_method(
     method: &str,
     amount: Option<f64>,
 ) -> Option<StaticValue> {
-    let (name, hex, prefix) = match receiver {
-        StaticValue::ThemeColor { name, hex, .. } => (name, hex, ""),
-        StaticValue::ThemeColorContrast { name, hex, .. } => (name, hex, "contrast-"),
+    let (name, hex, dev, prefix) = match receiver {
+        StaticValue::ThemeColor { name, hex, dev, .. } => (name, hex, *dev, ""),
+        StaticValue::ThemeColorContrast { name, hex, dev, .. } => (name, hex, *dev, "contrast-"),
         _ => return None,
     };
     if !is_color_method(!prefix.is_empty(), method) {
@@ -143,10 +146,16 @@ pub(super) fn theme_method(
             format!("{prefix}{method}-{escaped_amount}")
         },
     );
-    Some(StaticValue::String(format!(
-        "var(--stc-{}-{operation}, {result})",
-        css_name(name)
-    )))
+    Some(color_value(name, &operation, &result, dev))
+}
+
+/// Production styles use the hex, dev keeps the color name and operation for debugging
+fn color_value(name: &str, operation: &str, hex: &str, dev: bool) -> StaticValue {
+    StaticValue::String(if dev {
+        format!("var(--stc-{}-{operation}, {hex})", css_name(name))
+    } else {
+        hex.to_owned()
+    })
 }
 
 /// Theme color keys can have characters like `$` that are invalid in a custom property name
@@ -183,24 +192,4 @@ fn optimal_contrast_hex(base_hex: &str) -> Option<String> {
 fn alpha_hex(rgb: (u8, u8, u8), amount: f64) -> String {
     let alpha = (amount.clamp(0.0, 1.0) * 255.0).round() as u8;
     compress_hex(rgb, Some(alpha))
-}
-
-pub(super) fn static_color_fallbacks(css: &str) -> String {
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(start) = rest.find("var(--stc-") {
-        output.push_str(&rest[..start]);
-        let Some(comma) = rest[start..].find(", ").map(|index| start + index) else {
-            output.push_str(&rest[start..]);
-            return output;
-        };
-        let Some(end) = rest[comma + 2..].find(')').map(|index| comma + 2 + index) else {
-            output.push_str(&rest[start..]);
-            return output;
-        };
-        output.push_str(&rest[comma + 2..end]);
-        rest = &rest[end + 1..];
-    }
-    output.push_str(rest);
-    output
 }
