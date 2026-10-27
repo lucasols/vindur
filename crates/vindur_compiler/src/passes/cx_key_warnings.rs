@@ -65,7 +65,7 @@ pub(super) fn raw_hashed_cx_key_warnings(
                 source,
                 *span,
                 format!(
-                    "cx key \"{name}\" is hashed, but the selector \"{selector}\" uses the class \".{name}\", which will never match it. Use \"${name}\" to keep the class name, or rename one of the classes",
+                    "cx key \"{name}\" is hashed, so the class \".{name}\" in the selector \"{selector}\" never matches elements with this cx key. If the selector targets them, use \"${name}\" to keep the class name, otherwise rename one of the classes",
                     selector = rule[selector.start..selector.end].trim()
                 ),
             ));
@@ -76,8 +76,10 @@ pub(super) fn raw_hashed_cx_key_warnings(
 
 /// Collects the classes of the compounds that select ancestors or siblings of other elements, e.g.
 /// `active` in `.active &`, `.active + .item` or `:not(.active) &`, with the selector they are used
-/// in. In nested rules only the compounds before `&` are collected, the others select the parent
-/// element or its descendants and later siblings, like the `:has()` arguments
+/// in. In nested rules only the compounds before the last `&` are collected, the others select the
+/// parent element or its descendants and later siblings, like the `:has()` arguments. Classes of
+/// nested rules never become context of their own nested rules, e.g. `.active` in
+/// `&.active { .icon {} }`, as it's the same as `&.active .icon`
 #[derive(Default)]
 struct ContextClassCollector<'c> {
     classes: Vec<(&'c str, CssSpan)>,
@@ -162,7 +164,8 @@ impl<'c> ContextClassCollector<'c> {
         }
     }
 
-    /// A selector without `&` is nested as `& selector`, so the parent is an ancestor
+    /// A selector without `&` is nested as `& selector`, so the parent is an ancestor. Selector
+    /// arguments without `&`, like `.active *` in `&:is(.active *)`, are not nested
     fn nested_selector(
         &mut self,
         selector: &'c ComplexSelector<'c>,
@@ -170,20 +173,26 @@ impl<'c> ContextClassCollector<'c> {
         root: &RootClasses<'c>,
     ) {
         let chain = compounds(selector);
-        let anchor = chain.iter().position(|compound| contains_nesting(compound));
-        if anchor.is_none_or(|anchor| anchor + 1 < chain.len()) {
+        let first = chain.iter().position(|compound| contains_nesting(compound));
+        if first.is_none_or(|first| first + 1 < chain.len()) {
             self.classes.extend_from_slice(root);
         }
-        let Some(anchor) = anchor else {
+        let Some(last) = chain
+            .iter()
+            .rposition(|compound| contains_nesting(compound))
+        else {
             return;
         };
-        for compound in &chain[..anchor] {
-            self.context_compound(compound, outer);
-        }
-        for compound in &chain[anchor..] {
+        for compound in &chain[..=last] {
+            if !contains_nesting(compound) {
+                self.context_compound(compound, outer);
+                continue;
+            }
             for argument in selector_arguments(compound) {
                 if compounds(argument).into_iter().any(contains_nesting) {
                     self.nested_selector(argument, outer, root);
+                } else {
+                    self.top_level_selector(argument, outer);
                 }
             }
         }
@@ -293,8 +302,11 @@ mod tests {
                 warns(".item { @scope (.active &) { .icon { color: red; } } }"),
                 warns(".active { & .icon { color: red; } }"),
                 warns(".active { &:hover { .icon { color: red; } } }"),
+                warns(".item { & .active & { color: red; } }"),
+                warns(".item { &:is(.active *) { color: red; } }"),
+                warns(".item { &:where(.active .menu) { color: red; } }"),
             ],
-            [true; 9]
+            [true; 12]
         );
     }
 
@@ -318,8 +330,12 @@ mod tests {
                 warns(".item { @scope (&) to (.active) { .icon { color: red; } } }"),
                 warns(".item { @scope (.active) { .icon { color: red; } } }"),
                 warns(".active { color: red; }"),
+                warns(".item { &.active + & { color: red; } }"),
+                warns(".item { &:is(.active) { color: red; } }"),
+                warns(".item { & .icon:is(.active *) { color: red; } }"),
+                warns(".item { &.active { .icon { color: red; } } }"),
             ],
-            [false; 16]
+            [false; 20]
         );
     }
 }

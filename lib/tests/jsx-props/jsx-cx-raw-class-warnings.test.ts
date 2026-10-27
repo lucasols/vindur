@@ -53,10 +53,10 @@ test('should warn when a hashed cx key is used as a raw class in other selectors
   expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
     "
     - TransformWarning#:
-        message: 'cx key "isOpen" is hashed, but the selector ".isOpen .icon" uses the class ".isOpen", which will never match it. Use "$isOpen" to keep the class name, or rename one of the classes'
+        message: 'cx key "isOpen" is hashed, so the class ".isOpen" in the selector ".isOpen .icon" never matches elements with this cx key. If the selector targets them, use "$isOpen" to keep the class name, otherwise rename one of the classes'
         loc: '/test.tsx:27:16'
     - TransformWarning#:
-        message: 'cx key "isActive" is hashed, but the selector ".isActive &" uses the class ".isActive", which will never match it. Use "$isActive" to keep the class name, or rename one of the classes'
+        message: 'cx key "isActive" is hashed, so the class ".isActive" in the selector ".isActive &" never matches elements with this cx key. If the selector targets them, use "$isActive" to keep the class name, otherwise rename one of the classes'
         loc: '/test.tsx:27:30'
     "
   `);
