@@ -95,19 +95,19 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
         ));
     }
     // `color: red\n width: 1px;` is parsed as a single `color` declaration. Custom property values
-    // can contain `name:` on any line, so they are not checked
-    if name.name.starts_with("--") {
-        return Ok(());
-    }
-    let next_property = declaration.value.windows(2).position(|pair| match pair {
-        [
-            ComponentValue::TokenWithSpan(ident),
-            ComponentValue::TokenWithSpan(colon),
-        ] => {
-            matches!(ident.token, TokenData::Ident(_)) && matches!(colon.token, TokenData::Colon(_))
+    // can contain `name:` anywhere, so only scoped variables are checked, and only for a `name:`
+    // starting a line outside brackets
+    let next_property = if name.name.starts_with("--") {
+        if !name.raw.starts_with("---") {
+            return Ok(());
         }
-        _ => false,
-    });
+        next_property_on_new_line(&declaration.value, source)
+    } else {
+        declaration
+            .value
+            .windows(2)
+            .position(|pair| is_property_start(pair))
+    };
     let Some(index) = next_property else {
         return Ok(());
     };
@@ -136,6 +136,42 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
             ))
         }
     }
+}
+
+fn is_property_start(pair: &[ComponentValue<'_>]) -> bool {
+    match pair {
+        [
+            ComponentValue::TokenWithSpan(ident),
+            ComponentValue::TokenWithSpan(colon),
+        ] => {
+            matches!(ident.token, TokenData::Ident(_)) && matches!(colon.token, TokenData::Colon(_))
+        }
+        _ => false,
+    }
+}
+
+/// A `name:` at the top level of a custom property value that starts a new line
+fn next_property_on_new_line(values: &[ComponentValue<'_>], source: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, value) in values.iter().enumerate() {
+        if let ComponentValue::TokenWithSpan(token) = value {
+            match token.token {
+                TokenData::LParen(_) | TokenData::LBracket(_) | TokenData::LBrace(_) => depth += 1,
+                TokenData::RParen(_) | TokenData::RBracket(_) | TokenData::RBrace(_) => {
+                    depth = depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+        }
+        let starts_line = index.checked_sub(1).is_some_and(|previous| {
+            source[values[previous].span().end..value.span().start].contains('\n')
+        });
+        if depth == 0 && starts_line && values.get(index..index + 2).is_some_and(is_property_start)
+        {
+            return Some(index);
+        }
+    }
+    None
 }
 
 pub(super) fn statement_span(statement: &Statement<'_>) -> oxc_css_parser::Span {

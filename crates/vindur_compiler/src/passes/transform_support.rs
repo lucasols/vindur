@@ -230,6 +230,14 @@ pub(super) fn process_variable_declaration(
                 transform.warnings.extend(
                     // The base styles its own flags, an extension only needs the flags it declares
                     missing_style_flag_selectors(&content, &own_style_flags)
+                        .map_err(|error| {
+                            css_error_diagnostic(
+                                transform.file_path,
+                                transform.source,
+                                tagged.span,
+                                error,
+                            )
+                        })?
                         .into_iter()
                         .map(|selector| {
                             CompilerDiagnostic::warning(
@@ -278,7 +286,10 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
-            let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content =
+                rewrite_style_flag_selectors(&content, &style_flags).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?;
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,

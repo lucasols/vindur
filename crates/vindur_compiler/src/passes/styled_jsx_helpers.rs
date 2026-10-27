@@ -1,8 +1,11 @@
 use oxc_ast::ast::{
-    Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
+    AssignmentExpression, AwaitExpression, CallExpression, Expression, JSXAttribute,
+    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, NewExpression,
+    TaggedTemplateExpression, UpdateExpression,
 };
+use oxc_ast_visit::Visit;
 use oxc_semantic::Scoping;
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::edit::Edit;
@@ -94,6 +97,63 @@ pub(super) fn collect_flag_class(
             }
             _ => {}
         },
+    }
+}
+
+/// String union flag values are read twice in the emitted class, so they must have no side
+/// effects. Returns the flag name and the span of the first expression that may have one
+pub(super) fn side_effect_in_string_flag_value<'f>(
+    element: &JSXElement<'_>,
+    component: &'f StyledComponent,
+) -> Option<(&'f str, Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        let flag = component.style_flags.iter().find(|flag| {
+            flag.prop_name == name.name.as_str()
+                && matches!(flag.kind, StyleFlagKind::StringUnion(_))
+        })?;
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let expression = container.expression.as_expression()?;
+        let mut finder = SideEffectFinder { found: None };
+        finder.visit_expression(expression);
+        finder.found.map(|span| (flag.prop_name.as_str(), span))
+    })
+}
+
+struct SideEffectFinder {
+    found: Option<Span>,
+}
+
+impl<'a> Visit<'a> for SideEffectFinder {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        self.found.get_or_insert(call.span);
+    }
+
+    fn visit_new_expression(&mut self, new: &NewExpression<'a>) {
+        self.found.get_or_insert(new.span);
+    }
+
+    fn visit_assignment_expression(&mut self, assignment: &AssignmentExpression<'a>) {
+        self.found.get_or_insert(assignment.span);
+    }
+
+    fn visit_update_expression(&mut self, update: &UpdateExpression<'a>) {
+        self.found.get_or_insert(update.span);
+    }
+
+    fn visit_await_expression(&mut self, await_expression: &AwaitExpression<'a>) {
+        self.found.get_or_insert(await_expression.span);
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        self.found.get_or_insert(tagged.span);
     }
 }
 

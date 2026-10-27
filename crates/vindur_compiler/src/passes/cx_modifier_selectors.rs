@@ -82,7 +82,7 @@ pub(super) fn rewrite_modifiers(
         if class.mixed {
             return Err(CssError::new(
                 format!(
-                    "cx prop class \"{0}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{0}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${0}).",
+                    "Class \"{0}\" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like \"&.{0}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. ${0}).",
                     class.name
                 ),
                 class.start,

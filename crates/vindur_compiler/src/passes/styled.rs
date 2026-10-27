@@ -10,7 +10,9 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::css_syntax::CssError;
 use super::css_tokens::{is_ident_char, skipped_token_end};
+use super::cx_modifier_selectors::{ModifierCss, element_class_names};
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -419,32 +421,36 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
-pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
+/// The flag classes no selector of the element uses, like `&.active`
+pub(crate) fn missing_style_flag_selectors(
+    css: &str,
+    flags: &[StyleFlag],
+) -> Result<Vec<String>, CssError> {
+    let element_classes = element_class_names(css, ModifierCss::Block)?;
+    let is_styled = |original: &str, hashed: &str| {
+        element_classes
+            .iter()
+            .any(|class| class == original || class == hashed)
+    };
     let mut missing = Vec::new();
     for flag in flags {
         match &flag.kind {
             StyleFlagKind::Boolean => {
-                if !contains_class_selector(&css, &flag.prop_name)
-                    && !contains_class_selector(&css, &flag.hashed_class_name)
-                {
+                if !is_styled(&flag.prop_name, &flag.hashed_class_name) {
                     missing.push(format!("&.{}", flag.prop_name));
                 }
             }
             StyleFlagKind::StringUnion(values) => {
                 for value in values {
                     let original = format!("{}-{value}", flag.prop_name);
-                    let hashed = format!("{}-{value}", flag.hashed_class_name);
-                    if !contains_class_selector(&css, &original)
-                        && !contains_class_selector(&css, &hashed)
-                    {
+                    if !is_styled(&original, &format!("{}-{value}", flag.hashed_class_name)) {
                         missing.push(format!("&.{original}"));
                     }
                 }
             }
         }
     }
-    missing
+    Ok(missing)
 }
 
 pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<String> {
@@ -522,33 +528,6 @@ pub(super) fn strip_css_comments(css: &str) -> String {
 /// Whether a class name continues after `index`
 fn continues_class_name(css: &str, index: usize) -> bool {
     css[index..].chars().next().is_some_and(is_ident_char)
-}
-
-fn contains_class_selector(css: &str, name: &str) -> bool {
-    !class_selector_starts(css, name).is_empty()
-}
-
-/// `None` when the CSS doesn't select the class
-pub(super) fn replace_class_selector(
-    css: &str,
-    original: &str,
-    replacement: &str,
-) -> Option<String> {
-    let starts = class_selector_starts(css, original);
-    if starts.is_empty() {
-        return None;
-    }
-    let needle_len = original.len() + 1;
-    let mut output = String::with_capacity(css.len());
-    let mut copied = 0;
-    for start in starts {
-        output.push_str(&css[copied..start]);
-        output.push('.');
-        output.push_str(replacement);
-        copied = start + needle_len;
-    }
-    output.push_str(&css[copied..]);
-    Some(output)
 }
 
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";

@@ -407,24 +407,21 @@ test('should reject cx modifiers in rules matching both the element and other el
     export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
   `;
 
-  await expect(
-    transformWithFormat({ source: styled('&:hover, & .child') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
+  await expect(transformWithFormat({ source: styled('&:hover, & .child') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
-  await expect(
-    transformWithFormat({ source: styled(':where(&, .x)') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
+  await expect(transformWithFormat({ source: styled(':where(&, .x)') })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
-  await expect(
-    transformWithFormat({ source: styled('@scope (&, & .x)') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
+  await expect(transformWithFormat({ source: styled('@scope (&, & .x)') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
@@ -437,7 +434,7 @@ test('should reject cx modifiers in rules matching both the element and other el
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
+    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
     loc: 2:12]
   `);
 });
@@ -462,16 +459,14 @@ test('should reject cx modifiers declared by an extended styled component', asyn
     );
   `;
 
-  await expect(
-    transformWithFormat({ source: source('active') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+  await expect(transformWithFormat({ source: source('active') })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Child", its "&.active" styles are declared in the styled component it extends. Move the modifier styles into "Child" or use a $-prefixed class (e.g. $active).
     loc: 14:17]
   `);
 
-  await expect(
-    transformWithFormat({ source: source('$active') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+  await expect(transformWithFormat({ source: source('$active') })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
     loc: 14:17]
   `);
@@ -496,9 +491,8 @@ test('should reject hashed cx modifiers selected through a component reference',
     );
   `;
 
-  await expect(
-    transformWithFormat({ source: source('& ${Item}.active') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+  await expect(transformWithFormat({ source: source('& ${Item}.active') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Item", other styles select it through a component reference, like "\${Item}.active", which would stop matching. Use a $-prefixed class (e.g. $active) or a style flag.
     loc: 13:16]
   `);

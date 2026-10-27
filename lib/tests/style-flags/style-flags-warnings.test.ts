@@ -196,7 +196,7 @@ describe('Style Flags Warning System', () => {
 
           const ComplexButton = styled.button<{
             active: boolean;
-            disabled: boolean;
+            muted: boolean;
             size: 'small' | 'large';
             variant: 'primary' | 'secondary';
           }>\`
@@ -210,7 +210,7 @@ describe('Style Flags Warning System', () => {
               padding: 4px 8px;
             }
   
-            /* Missing: disabled, size-large, variant-primary, variant-secondary */
+            /* Missing: muted, size-large, variant-primary, variant-secondary */
           \`;
         `,
         onWarning: (warning) => {
@@ -221,7 +221,7 @@ describe('Style Flags Warning System', () => {
       expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
         "
         - TransformWarning#:
-            message: 'Warning: Missing modifier styles for "&.disabled" in ComplexButton'
+            message: 'Warning: Missing modifier styles for "&.muted" in ComplexButton'
             loc: 'current_file:3:6'
         - TransformWarning#:
             message: 'Warning: Missing modifier styles for "&.size-large" in ComplexButton'
@@ -300,7 +300,7 @@ describe('Style Flags Warning System', () => {
 
           const CompleteButton = styled.button<{
             active: boolean;
-            disabled: boolean;
+            muted: boolean;
             size: 'small' | 'large';
             variant: 'primary' | 'secondary';
           }>\`
@@ -310,7 +310,7 @@ describe('Style Flags Warning System', () => {
               transform: scale(1.05);
             }
   
-            &.disabled {
+            &.muted {
               opacity: 0.5;
             }
   

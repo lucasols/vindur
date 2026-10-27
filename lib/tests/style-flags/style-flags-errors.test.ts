@@ -285,7 +285,7 @@ test('should throw for style flag names containing `$`', async () => {
   `);
 });
 
-test('should throw for style flags named like props React or vindur handle', async () => {
+test('should throw for style flags named like props React, vindur or the element handle', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -297,7 +297,63 @@ test('should throw for style flags named like props React or vindur handle', asy
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag \`key\` is a prop React or vindur handles, style flags are turned into classes, so use another name
+    [TransformError: /test.tsx: Style flag \`key\` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name
     loc: 3:26]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button<{ disabled: boolean }>\`
+          &.disabled { opacity: 0.5; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`disabled\` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name
+    loc: 3:31]
+  `);
+});
+
+test('should throw for string union style flag values with side effects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ size: 'small' | 'large' }>\`
+          &.size-small { width: 1px; }
+          &.size-large { width: 2px; }
+        \`
+
+        export const App = ({ getSize }) => <Box size={getSize()} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
+    loc: 8:47]
+  `);
+});
+
+test('should throw for style flag classes in rules matching other elements too', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &:hover, & .child {
+            &.active { color: red; }
+          }
+        \`
+
+        export const App = () => <Box active />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
+    loc: 3:12]
   `);
 });

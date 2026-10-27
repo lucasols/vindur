@@ -1,5 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
+import { compactSnapshot } from '@ls-stack/utils/testUtils';
 import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
 test('should work with existing className', async () => {
@@ -474,6 +476,48 @@ test('should only rewrite style flag classes in selectors', async () => {
         color: blue;
       }
     }
+    "
+  `);
+});
+
+test('should only rename style flag classes of the element itself', async () => {
+  const warnings: TransformWarning[] = [];
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const List = styled.ul<{ active: boolean; expanded: boolean }>\`
+        &.active { color: blue; }
+        & > li.expanded { color: red; }
+        .expanded & { color: green; }
+      \`
+
+      export const App = () => <List active expanded />
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-List {
+      &.voctcyj-active {
+        color: blue;
+      }
+      & > li.expanded {
+        color: red;
+      }
+      .expanded & {
+        color: green;
+      }
+    }
+    "
+  `);
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: 'Warning: Missing modifier styles for "&.expanded" in List'
+        loc: 'current_file:3:6'
     "
   `);
 });

@@ -75,14 +75,14 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
         source: dedent`
           import { styled, cx } from 'vindur';
 
-          const Button = styled.button<{ active: boolean; disabled: boolean }>\`
+          const Button = styled.button<{ active: boolean; muted: boolean }>\`
             padding: 8px;
 
             &.active {
               background: blue;
             }
 
-            &.disabled {
+            &.muted {
               opacity: 0.5;
             }
           \`;
@@ -91,8 +91,8 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
             return (
               <Button
                 active={isActive}
-                disabled={isDisabled}
-                cx={{ active: isActive, disabled: isDisabled }}
+                muted={isDisabled}
+                cx={{ active: isActive, muted: isDisabled }}
               >
                 Click me
               </Button>
@@ -102,7 +102,7 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Style flag props [active, disabled] conflict with cx prop keys on Button. Use different names to avoid conflicts.
+      [TransformError: /test.tsx: Style flag props [active, muted] conflict with cx prop keys on Button. Use different names to avoid conflicts.
       loc: 17:4]
     `,
     );

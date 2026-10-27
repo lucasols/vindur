@@ -44,9 +44,9 @@ describe('Styled components', () => {
       source: dedent`
         import { styled } from 'vindur'
 
-        const CheckboxContainer = styled.button<{ checked: boolean }>\`
+        const CheckboxContainer = styled.button<{ ticked: boolean }>\`
           opacity: 0.8;
-          &.checked {
+          &.ticked {
             background: lime;
             border-color: lime;
             opacity: 1;

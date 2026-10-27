@@ -51,6 +51,7 @@ pub(super) fn collect_scoped_idents(
         offset,
         idents: Vec::new(),
         quoted_names: None,
+        names_fonts: false,
         error: None,
     };
     collector.statements(statements)?;
@@ -67,6 +68,8 @@ struct ScopedIdentCollector<'a> {
     idents: Vec<ScopedIdent>,
     /// How strings in the current declaration name things
     quoted_names: Option<QuotedNames>,
+    /// Whether names in the current declaration are font families
+    names_fonts: bool,
     /// The first unsupported scoped name
     error: Option<CssError>,
 }
@@ -263,12 +266,15 @@ impl ScopedIdentCollector<'_> {
 
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         let quoted_names = self.quoted_names;
+        let names_fonts = self.names_fonts;
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
             self.quoted_names = quoted_names_kind(name.name);
+            self.names_fonts = is_font_property(name.name);
         }
         self.values(&declaration.value);
         self.quoted_names = quoted_names;
+        self.names_fonts = names_fonts;
     }
 
     /// Some properties name things with strings, `animation: "---spin" 1s` uses `---spin`, also in
@@ -276,26 +282,35 @@ impl ScopedIdentCollector<'_> {
     fn string(&mut self, span: oxc_css_parser::Span) {
         match self.quoted_names {
             Some(QuotedNames::Whole) => self.quoted_name(span),
-            Some(QuotedNames::GridAreas) => self.quoted_area_names(span),
-            Some(QuotedNames::Unknown) => self.reject_custom_property_quoted_name(span),
+            // Area names are already local to their grid container, and the lines they imply,
+            // like `head-start`, couldn't be renamed to match
+            Some(QuotedNames::GridAreas) => self.reject_quoted_scoped_word(span, |name| {
+                format!(
+                    "Scoped names are not supported in grid area strings, write `{}` as a plain name, area names are already local to their grid container",
+                    &name[SCOPED_PREFIX.len()..]
+                )
+            }),
+            // Custom property values can be used by any property, so a quoted scoped name in them
+            // can't be told apart from text, also in a grid area string like `"---head ---tail"`
+            Some(QuotedNames::Unknown) => self.reject_quoted_scoped_word(span, |name| {
+                format!(
+                    "Quoted scoped names are not supported in custom properties, write `{name}` without quotes or the string directly in the property that uses it"
+                )
+            }),
             None => {}
         }
     }
 
-    /// Custom property values can be used by any property, so a quoted scoped name in them can't
-    /// be told apart from text, also in a grid area string like `"---head ---tail"`
-    fn reject_custom_property_quoted_name(&mut self, span: oxc_css_parser::Span) {
+    fn reject_quoted_scoped_word(
+        &mut self,
+        span: oxc_css_parser::Span,
+        message: impl Fn(&str) -> String,
+    ) {
         let (_, content) = string_content(self.source, span);
         if self.error.is_none()
             && let Some(name) = content.split_whitespace().find(|word| is_scoped_name(word))
         {
-            self.error = Some(CssError::new(
-                format!(
-                    "Quoted scoped names are not supported in custom properties, write `{name}` without quotes or the string directly in the property that uses it"
-                ),
-                span.start,
-                span.end,
-            ));
+            self.error = Some(CssError::new(message(name), span.start, span.end));
         }
     }
 
@@ -309,30 +324,6 @@ impl ScopedIdentCollector<'_> {
                 content,
                 ScopedRole::Name,
             );
-        }
-    }
-
-    /// Grid area strings hold whitespace separated names, `"---head ---head"`
-    fn quoted_area_names(&mut self, span: oxc_css_parser::Span) {
-        let (content_start, content) = string_content(self.source, span);
-        let mut index = 0;
-        while index < content.len() {
-            let Some(character) = content[index..].chars().next() else {
-                break;
-            };
-            if is_ident_char(character) {
-                let end = ident_end(content, index);
-                let name = &content[index..end];
-                self.push(
-                    content_start + index,
-                    content_start + end,
-                    name,
-                    ScopedRole::Name,
-                );
-                index = end;
-            } else {
-                index += character.len_utf8();
-            }
         }
     }
 
@@ -414,6 +405,22 @@ impl ScopedIdentCollector<'_> {
                     end,
                 ));
             }
+            // Font family names match case-insensitively, `---Brand` and `---brand` would get
+            // different hashes
+            if self.names_fonts
+                && role == ScopedRole::Name
+                && raw.chars().any(|character| character.is_ascii_uppercase())
+                && self.error.is_none()
+            {
+                self.error = Some(CssError::new(
+                    format!(
+                        "Scoped font family name `{raw}` must be lowercase, as font family names match case-insensitively, use `{}`",
+                        raw.to_ascii_lowercase()
+                    ),
+                    start,
+                    end,
+                ));
+            }
             self.idents.push(ScopedIdent {
                 start: start - self.offset,
                 end: end - self.offset,
@@ -460,6 +467,10 @@ fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
     } else {
         None
     }
+}
+
+fn is_font_property(property: &str) -> bool {
+    property.eq_ignore_ascii_case("font") || property.eq_ignore_ascii_case("font-family")
 }
 
 fn has_initial_value(rule: &AtRule<'_>) -> bool {

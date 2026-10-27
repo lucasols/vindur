@@ -76,6 +76,17 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             walk::walk_jsx_element(self, element);
             return;
         }
+        if let Some((flag_name, span)) = side_effect_in_string_flag_value(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `await` or tagged templates, as it's read twice, assign it to a variable first"
+                ),
+            ));
+            return;
+        }
         let has_dynamic_color = element.opening_element.attributes.iter().any(|item| {
             let JSXAttributeItem::Attribute(attribute) = item else {
                 return false;

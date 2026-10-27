@@ -341,13 +341,60 @@ font-palette: ---brand;"
     }
 
     #[test]
-    fn rewrites_quoted_font_grid_and_nested_animation_names() {
+    fn rewrites_quoted_font_and_nested_animation_names() {
         assert_eq!(
             process_kind(
-                "@font-face { font-family: \"---brand\"; } .a { font-family: ---brand, \"x ---brand\"; grid-template-areas: \"---head ---head\" \". ---side\"; grid-area: ---head; animation: var(--a, \"---spin\" 1s); -webkit-animation-name: \"---spin\"; }",
+                "@font-face { font-family: \"---brand\"; } .a { font-family: ---brand, \"x ---brand\"; animation: var(--a, \"---spin\" 1s); -webkit-animation-name: \"---spin\"; }",
                 BlockKind::Global
             ),
-            "@font-face { font-family: \"--v1-1-brand\"; } .a { font-family: --v1-1-brand, \"x ---brand\"; grid-template-areas: \"--v1-2-head --v1-2-head\" \". --v1-3-side\"; grid-area: --v1-2-head; animation: var(--a, \"--v1-4-spin\" 1s); -webkit-animation-name: \"--v1-4-spin\"; }"
+            "@font-face { font-family: \"--v1-1-brand\"; } .a { font-family: --v1-1-brand, \"x ---brand\"; animation: var(--a, \"--v1-2-spin\" 1s); -webkit-animation-name: \"--v1-2-spin\"; }"
+        );
+    }
+
+    fn error_message(css: &str) -> String {
+        match process_scoped_variables(
+            css,
+            BlockKind::Style,
+            Span::default(),
+            "v1",
+            true,
+            &mut 1,
+            &mut ScopedVariables::default(),
+        ) {
+            Ok(output) => panic!("expected an error, got {output}"),
+            Err(error) => error.message,
+        }
+    }
+
+    #[test]
+    fn rejects_scoped_names_in_grid_area_strings() {
+        assert_eq!(
+            [
+                error_message("grid-template-areas: \"---head ---head\" \". side\";"),
+                error_message("grid-template: \"a ---side\" 1fr / 1fr 1fr;"),
+            ],
+            [
+                "Scoped names are not supported in grid area strings, write `head` as a plain name, area names are already local to their grid container",
+                "Scoped names are not supported in grid area strings, write `side` as a plain name, area names are already local to their grid container",
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_uppercase_scoped_font_family_names() {
+        assert_eq!(
+            [
+                error_message("font-family: \"---Brand\";"),
+                error_message("font: 16px ---Brand, serif;"),
+            ],
+            [
+                "Scoped font family name `---Brand` must be lowercase, as font family names match case-insensitively, use `---brand`",
+                "Scoped font family name `---Brand` must be lowercase, as font family names match case-insensitively, use `---brand`",
+            ]
+        );
+        assert_eq!(
+            process("font-family: var(---Font); ---Font: x;"),
+            "font-family: var(--v1-1-Font); --v1-1-Font: x;"
         );
     }
 

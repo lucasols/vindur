@@ -745,7 +745,7 @@ Compiles to scoped CSS variables:
 
 Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
-Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name`, `@keyframes` and grid area strings. In custom properties, write them without quotes.
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be lowercase, as font families match case-insensitively. Grid area strings can't use scoped names, area names are already local to their grid container. A scoped variable value can't continue on a line starting with `name:`, add the missing `;`.
 
 #### Dynamic Variables
 
@@ -1241,7 +1241,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
-Flag props are never passed to the element, so don't name a flag after an attribute the element needs, like `disabled`. Flag names can't contain `$` or be a prop vindur or React handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`). `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it.
+Flag props are never passed to the element. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it.
 
 #### CSS Selector Patterns
 
@@ -1256,6 +1256,8 @@ Flag props are never passed to the element, so don't name a flag after an attrib
   /* styles when prop equals 'value' */
 }
 ```
+
+Only classes of the element itself are flag classes, like `&.active` or `&:not(.active)`. Classes of other elements, like `& .active` or `.active &`, are kept as is. A flag class can't be used in a rule that matches both the element and other elements, like `&.active` nested in `&:hover, & .child`.
 
 ## Theme Colors
 

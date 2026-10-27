@@ -3,10 +3,14 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, replace_class_selector};
+use super::{
+    css_syntax::CssError,
+    cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
+    styled::{StyleFlag, StyleFlagKind},
+};
 
 /// Props that would stop working as style flags, which are removed and turned into classes
-const RESERVED_PROP_NAMES: [&str; 8] = [
+const RESERVED_PROP_NAMES: [&str; 16] = [
     "className",
     "style",
     "css",
@@ -15,6 +19,14 @@ const RESERVED_PROP_NAMES: [&str; 8] = [
     "key",
     "ref",
     "children",
+    "disabled",
+    "hidden",
+    "checked",
+    "required",
+    "readOnly",
+    "selected",
+    "multiple",
+    "open",
 ];
 
 pub(super) fn extract_style_flags(
@@ -149,7 +161,7 @@ fn style_flag_from_property(
             source,
             key.span,
             format!(
-                "Style flag `{}` is a prop React or vindur handles, style flags are turned into classes, so use another name",
+                "Style flag `{}` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name",
                 key.name
             ),
         ));
@@ -337,29 +349,29 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
     (!values.is_empty()).then_some(values)
 }
 
-pub(crate) fn rewrite_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> String {
-    let mut output = css.to_owned();
-    for flag in flags {
-        match &flag.kind {
+/// Renames the flag classes of the element selectors, like `&.active`, classes of other elements,
+/// like `& .active`, are kept as is
+pub(crate) fn rewrite_style_flag_selectors(
+    css: &str,
+    flags: &[StyleFlag],
+) -> Result<String, CssError> {
+    let mappings = flags
+        .iter()
+        .flat_map(|flag| match &flag.kind {
             StyleFlagKind::Boolean => {
-                if let Some(replaced) =
-                    replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name)
-                {
-                    output = replaced;
-                }
+                vec![(flag.prop_name.clone(), flag.hashed_class_name.clone(), true)]
             }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    if let Some(replaced) = replace_class_selector(
-                        &output,
-                        &format!("{}-{value}", flag.prop_name),
-                        &format!("{}-{value}", flag.hashed_class_name),
-                    ) {
-                        output = replaced;
-                    }
-                }
-            }
-        }
-    }
-    output
+            StyleFlagKind::StringUnion(values) => values
+                .iter()
+                .map(|value| {
+                    (
+                        format!("{}-{value}", flag.prop_name),
+                        format!("{}-{value}", flag.hashed_class_name),
+                        true,
+                    )
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    rewrite_modifiers(css, ModifierCss::Block, &mappings)
 }
