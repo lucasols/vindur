@@ -1,6 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Argument, CallExpression, Expression, IdentifierReference, JSXElement, JSXFragment,
+    ObjectExpression, Program, Statement, TSTypeParameterInstantiation, TSTypeQuery,
+    TaggedTemplateExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -9,6 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::import_analysis::is_compile_time_import;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
@@ -324,6 +326,7 @@ pub(super) fn strip_css_comments(css: &str) -> String {
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
 const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+const ATTRS_COMPILE_TIME_ERROR: &str = "styled.*.attrs() values cannot use vindur functions that are compiled away, eg. layer() or createClassName(), define the value in a module level constant and reference it";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -369,4 +372,19 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
             walk::walk_call_expression(self, call);
         }
     }
+
+    // The import of a compile-time function is removed, so it can't stay in the copied object
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self
+            .imports
+            .get_identifier(identifier)
+            .is_some_and(is_compile_time_import)
+        {
+            self.found
+                .get_or_insert((identifier.span, ATTRS_COMPILE_TIME_ERROR));
+        }
+    }
+
+    // `typeof css` in types has no runtime reference
+    fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
 }

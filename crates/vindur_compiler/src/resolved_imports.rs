@@ -1,7 +1,11 @@
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, Statement};
+use oxc_ast::ast::{
+    IdentifierReference, ImportDeclaration, ImportDeclarationSpecifier, Program, Statement,
+    TSTypeQuery,
+};
+use oxc_ast_visit::Visit;
 use oxc_parser::Parser;
-use oxc_semantic::{Scoping, SemanticBuilder};
+use oxc_semantic::{Scoping, SemanticBuilder, SymbolId};
 use oxc_span::{GetSpan, SourceType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -20,8 +24,9 @@ pub(crate) fn remove_resolved_imports(
     source_type: SourceType,
     imported_values: &FxHashMap<String, StaticValue>,
     side_effect_sources: &FxHashSet<String>,
+    consumed_imports: &FxHashSet<String>,
 ) -> Result<String, CompilerDiagnostic> {
-    if side_effect_sources.is_empty()
+    if consumed_imports.is_empty()
         && !imported_values
             .values()
             .any(|value| !is_runtime_value(value))
@@ -50,12 +55,91 @@ pub(crate) fn remove_resolved_imports(
         &code,
         imported_values,
         side_effect_sources,
+        consumed_imports,
         &mut edits,
     );
     if edits.is_empty() {
         return Ok(code);
     }
     apply_edits(file_path, &code, &mut edits)
+}
+
+/// Imports of modules with side effects whose value references are all replaced by `edits`,
+/// e.g. a styled component only used in a selector, the edited code may no longer load them
+pub(crate) fn consumed_side_effect_imports(
+    program: &Program<'_>,
+    scoping: &Scoping,
+    edits: &[Edit],
+    side_effect_sources: &FxHashSet<String>,
+) -> FxHashSet<String> {
+    if edits.is_empty() || side_effect_sources.is_empty() {
+        return FxHashSet::default();
+    }
+    let mut candidates = FxHashMap::default();
+    for statement in &program.body {
+        let Statement::ImportDeclaration(declaration) = statement else {
+            continue;
+        };
+        if declaration.import_kind.is_type()
+            || !side_effect_sources.contains(declaration.source.value.as_str())
+        {
+            continue;
+        }
+        for specifier in declaration.specifiers.iter().flatten() {
+            let local = specifier.local();
+            if let Some(symbol_id) = local.symbol_id.get()
+                && scoping
+                    .get_resolved_references(symbol_id)
+                    .any(|reference| reference.is_value())
+            {
+                candidates.insert(symbol_id, (local.name.as_str(), true));
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return FxHashSet::default();
+    }
+    let mut visitor = ConsumedReferenceVisitor {
+        scoping,
+        edits,
+        candidates,
+    };
+    visitor.visit_program(program);
+    visitor
+        .candidates
+        .into_values()
+        .filter(|(_, is_consumed)| *is_consumed)
+        .map(|(name, _)| name.to_owned())
+        .collect()
+}
+
+struct ConsumedReferenceVisitor<'s, 'e, 'n> {
+    scoping: &'s Scoping,
+    edits: &'e [Edit],
+    /// Local name and whether every value reference seen so far is inside an edit
+    candidates: FxHashMap<SymbolId, (&'n str, bool)>,
+}
+
+impl<'a> Visit<'a> for ConsumedReferenceVisitor<'_, '_, '_> {
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        let reference = self.scoping.get_reference(identifier.reference_id());
+        let Some((_, is_consumed)) = reference
+            .symbol_id()
+            .and_then(|symbol_id| self.candidates.get_mut(&symbol_id))
+        else {
+            return;
+        };
+        if reference.is_value()
+            && !self.edits.iter().any(|edit| {
+                edit.span.start <= identifier.span.start && identifier.span.end <= edit.span.end
+            })
+        {
+            *is_consumed = false;
+        }
+    }
+
+    // `typeof colors` in types has no runtime reference
+    fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
 }
 
 fn is_runtime_value(value: &StaticValue) -> bool {
@@ -76,6 +160,7 @@ fn collect_resolved_import_edits(
     source: &str,
     imported_values: &FxHashMap<String, StaticValue>,
     side_effect_sources: &FxHashSet<String>,
+    consumed_imports: &FxHashSet<String>,
     edits: &mut Vec<Edit>,
 ) {
     for statement in &program.body {
@@ -96,9 +181,9 @@ fn collect_resolved_import_edits(
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         let mut has_value_specifiers = false;
-        let mut has_resolved_values = false;
+        let mut has_consumed_values = false;
         for specifier in specifiers {
-            has_resolved_values |= imported_values.contains_key(specifier.local().name.as_str());
+            has_consumed_values |= consumed_imports.contains(specifier.local().name.as_str());
             let compile_time_value = match specifier {
                 ImportDeclarationSpecifier::ImportSpecifier(named) => imported_values
                     .get(named.local.name.as_str())
@@ -137,7 +222,7 @@ fn collect_resolved_import_edits(
             // Uses consumed by vindur styles can leave only type or unused references, e.g.
             // a styled component used in a selector, TypeScript compilers drop such imports
             // with the module
-            if keeps_module && has_resolved_values && !has_value_specifiers {
+            if keeps_module && has_consumed_values && !has_value_specifiers {
                 edits.push(Edit {
                     span: declaration.span,
                     replacement: format!(

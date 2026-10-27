@@ -178,7 +178,15 @@ impl PurityCheck<'_> {
                 .imports
                 .get_expression(identifier)
                 .is_some_and(|name| !matches!(name, "cx" | "mergeClassNames" | "mergeStyles")),
-            Expression::StaticMemberExpression(member) => self.is_vindur_callee(&member.object),
+            // Only `styled.tag` and `.attrs()` chains, others like `fn.call` can run any code
+            Expression::StaticMemberExpression(member) => {
+                match member.object.get_inner_expression() {
+                    identifier @ Expression::Identifier(_) => {
+                        self.imports.get_expression(identifier) == Some("styled")
+                    }
+                    object => member.property.name == "attrs" && self.is_vindur_callee(object),
+                }
+            }
             call @ Expression::CallExpression(_) => self.is_pure_expression(call),
             _ => false,
         }

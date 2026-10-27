@@ -259,6 +259,10 @@ test.each([
     'a computed key',
     'const token = { toString: () => registerTheme() }; export const map = { [token]: 1 };',
   ],
+  [
+    'a method call on a vindur function',
+    'export const r = createStaticThemeColors.call.call(() => registerTheme(), undefined);',
+  ],
 ])(
   'should keep a side effect import of a colors module with %s',
   async (_, statement) => {
@@ -399,6 +403,32 @@ test('should keep a side effect import of a styled component only used in select
     import "#/theme";
     import { Button } from "#/theme";
     export const Box = _vSC("div", "v1560qbr-1-Box");
+    "
+  `);
+});
+
+test('should not add a side effect import for an unused import of a module with side effects', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { helper } from '#/lib';
+
+      export const styles = css\`
+        color: red;
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'lib.ts': dedent`
+        registerHelpers();
+
+        export const helper = () => 1;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { helper } from "#/lib";
+    export const styles = "v1560qbr-1-styles";
     "
   `);
 });

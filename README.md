@@ -801,7 +801,7 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
-export const elementClassName = createClassName('vhash-1');
+export const elementClassName = { selector: '.vhash-1', value: 'vhash-1' };
 export const genericPurposeId = 'vhash-2';
 ```
 
