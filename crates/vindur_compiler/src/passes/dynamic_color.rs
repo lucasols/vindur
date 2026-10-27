@@ -21,9 +21,7 @@ use super::{
     runtime_helpers::RuntimeHelperNames,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
-    styled_jsx_helpers::{
-        DynamicFlagClass, collect_flag_class, decode_jsx_entities, js_string_literal,
-    },
+    styled_jsx_helpers::{decode_jsx_entities, js_string_literal, style_flag_classes},
 };
 
 pub(super) struct DynamicColorTransform<'a> {
@@ -141,7 +139,7 @@ impl DynamicColorVisitor<'_> {
         // Runtime components add their own class
         let compiled_component = component.filter(|component| !component.runtime);
         let flags = compiled_component.map_or_else(VindurClass::default, |component| {
-            style_flag_classes(element, component, self.output.source, self.output.edits)
+            remove_style_flags(element, component, self.output.source, self.output.edits)
         });
         let merge = color_merge_object(
             class_expression.map_or_else(
@@ -510,45 +508,21 @@ fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<SpreadSource> {
 }
 
 /// Removes the style flag props of a styled component and returns their classes
-fn style_flag_classes(
+fn remove_style_flags(
     element: &JSXElement<'_>,
     component: &StyledComponent,
     source: &str,
     edits: &mut Vec<Edit>,
 ) -> VindurClass {
-    let mut static_classes = Vec::new();
-    let mut dynamic_classes = Vec::new();
-    for item in &element.opening_element.attributes {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            continue;
-        };
-        let JSXAttributeName::Identifier(name) = &attribute.name else {
-            continue;
-        };
-        let Some(flag) = component
-            .style_flags
-            .iter()
-            .find(|flag| flag.prop_name == name.name.as_str())
-        else {
-            continue;
-        };
+    let flags = style_flag_classes(element, component, source);
+    for span in &flags.attribute_spans {
         edits.push(Edit {
-            span: attribute.span,
+            span: *span,
             replacement: String::new(),
         });
-        collect_flag_class(
-            attribute,
-            flag,
-            source,
-            &mut static_classes,
-            &mut dynamic_classes,
-        );
     }
     VindurClass {
-        literal: static_classes.join(" "),
-        dynamic_suffix: dynamic_classes
-            .into_iter()
-            .map(|class: DynamicFlagClass| class.concat)
-            .collect(),
+        literal: flags.static_classes.join(" "),
+        dynamic_suffix: flags.dynamic_suffix(),
     }
 }
