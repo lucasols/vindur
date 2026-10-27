@@ -237,7 +237,11 @@ test('should support style flags with $ prefixed names', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <div className={"v1560qbr-1-Widget v1560qbr-1-Widget-_active v1560qbr-1-Widget-_size-small"} />
+        <div
+          className={
+            "v1560qbr-1-Widget v1560qbr-1-Widget-_active v1560qbr-1-Widget-_size-small"
+          }
+        />
       );
     }
     "

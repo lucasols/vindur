@@ -318,12 +318,12 @@ test('should merge explicit className with spread props on style flag components
             {...p}
             className={cx(
               mergeClassNames(["a", p], "v1560qbr-1-Flag"),
-              x && "voctcyj-active",
+              x && "v1560qbr-1-Flag-active",
             )}
           />
           <div
             {...p}
-            className={"v1560qbr-1-Flag a" + (x ? " voctcyj-active" : "")}
+            className={"v1560qbr-1-Flag a" + (x ? " v1560qbr-1-Flag-active" : "")}
           />
         </>
       );
@@ -356,7 +356,7 @@ test('should keep css nested in className of style flag components with spread p
           className={
             "v1560qbr-1-Box " +
             ("v1560qbr-2" || "") +
-            (active ? " voctcyj-active" : "")
+            (active ? " v1560qbr-1-Box-active" : "")
           }
         />
       );
@@ -367,7 +367,7 @@ test('should keep css nested in className of style flag components with spread p
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
       color: red;
-      &.voctcyj-active {
+      &.v1560qbr-1-Box-active {
         color: blue;
       }
     }

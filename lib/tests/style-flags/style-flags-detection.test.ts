@@ -325,7 +325,9 @@ test('reproduce bug', async () => {
       return (
         <ButtonElement
           css={css}
-          className={"v1560qbr-1-Btn" + (value ? " v1560qbr-1-Btn-value-" + value : "")}
+          className={
+            "v1560qbr-1-Btn" + (value ? " v1560qbr-1-Btn-value-" + value : "")
+          }
         >
           Content
         </ButtonElement>
