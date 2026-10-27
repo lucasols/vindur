@@ -928,9 +928,9 @@ const Button = styled.button`
 
 `vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
 
-Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`.
+Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`.
 
-Imported values from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, are not static. Break the cycle to derive values from them.
+Values can't be imported back into an import cycle, e.g. `Sidebar.tsx` interpolating `HEADER_HEIGHT` from `Layout.tsx`, which imports `Sidebar.tsx`: move them to a module outside the cycle. Other values imported from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, and `export { SIZE }` are not static.
 
 ### JSX CSS Prop
 

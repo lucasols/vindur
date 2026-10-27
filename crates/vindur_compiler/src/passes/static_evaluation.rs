@@ -352,9 +352,9 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
         }
         StaticValue::Keyframes(value) => value.clone(),
         StaticValue::LayerFunction => String::new(),
-        StaticValue::MissingImport { .. } | StaticValue::UnsupportedReExport { .. } => {
-            String::new()
-        }
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. } => String::new(),
         StaticValue::InvalidFunction { .. } => String::new(),
         StaticValue::InvalidObject { .. } => String::new(),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
@@ -376,7 +376,8 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
 pub(super) fn is_unresolved_import(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::MissingImport { .. }
+        StaticValue::CyclicImport { .. }
+            | StaticValue::MissingImport { .. }
             | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }
@@ -398,7 +399,8 @@ pub(super) fn evaluate_identifier(
         StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
         // Unresolved imports are reported when interpolated directly, values derived
         // from them, e.g. `${INSET}px`, are not static
-        StaticValue::MissingImport { .. }
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
         | StaticValue::UnsupportedReExport { .. }
         | StaticValue::InvalidFunction { .. }
         | StaticValue::InvalidObject { .. } => None,

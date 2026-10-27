@@ -331,3 +331,102 @@ fn recompiles_values_derived_through_import_cycles_once_the_cycle_is_removed() {
         assert!(recompiled.css.contains("top: 4px;"), "{first_file}");
     }
 }
+
+fn memory_loader(files: &[(&str, &str)]) -> MemoryLoader {
+    MemoryLoader {
+        files: files
+            .iter()
+            .map(|(path, source)| ((*path).to_owned(), (*source).to_owned()))
+            .collect(),
+        reads: 0,
+    }
+}
+
+#[test]
+fn reports_values_imported_back_into_an_import_cycle() {
+    let compiler = Compiler::new();
+    let mut loader = memory_loader(&[
+        (
+            "/Layout.tsx",
+            "import { Sidebar } from '#/Sidebar'; export const HEADER_HEIGHT = 4; export const App = () => <Sidebar />;",
+        ),
+        (
+            "/Sidebar.tsx",
+            "import { css } from 'vindur'; import { HEADER_HEIGHT } from '#/Layout'; export const Sidebar = () => <div className={css`top: ${HEADER_HEIGHT}px;`} />;",
+        ),
+    ]);
+
+    assert_eq!(
+        error_messages(&transform_file(&compiler, &mut loader, "/Layout.tsx")),
+        [
+            "\"HEADER_HEIGHT\" imported from /Layout.tsx can't be evaluated, /Layout.tsx is in an import cycle with /Sidebar.tsx, move the value to a module outside the cycle"
+        ]
+    );
+}
+
+#[test]
+fn rejects_values_passed_through_an_import_cycle_in_any_transform_order() {
+    let files = [
+        ("/A.ts", "import { b } from '#/B'; export const AV = 4;"),
+        (
+            "/B.ts",
+            "import { AV } from '#/A'; export const b = 1; export { AV };",
+        ),
+        (
+            "/D.tsx",
+            "import { css } from 'vindur'; import { AV } from '#/B'; const style = css`width: ${AV}px;`;",
+        ),
+    ];
+    let expected = [
+        "\"AV\" imported from /B.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated, note that /B.ts depends on an import cycle through /A.ts, values that depend on modules in an import cycle can't be evaluated statically",
+    ];
+
+    for first_file in ["/D.tsx", "/A.ts", "/B.ts"] {
+        let compiler = Compiler::new();
+        let mut loader = memory_loader(&files);
+        transform_file(&compiler, &mut loader, first_file);
+
+        assert_eq!(
+            error_messages(&transform_file(&compiler, &mut loader, "/D.tsx")),
+            expected,
+            "{first_file}"
+        );
+    }
+}
+
+#[test]
+fn recompiles_once_an_import_cycle_is_removed_at_the_module_it_closes_at() {
+    let compiler = Compiler::new();
+    let mut loader = memory_loader(&[
+        (
+            "/R.ts",
+            "import { A_VAL } from '#/A'; export const R_VAL = 8; export const R_A = A_VAL;",
+        ),
+        (
+            "/A.ts",
+            "import { B_VAL } from '#/B'; export const A_VAL = B_VAL;",
+        ),
+        (
+            "/B.ts",
+            "import { R_VAL } from '#/R'; export const B_VAL = R_VAL;",
+        ),
+        (
+            "/C.tsx",
+            "import { css } from 'vindur'; import { A_VAL } from '#/A'; const style = css`top: ${A_VAL}px;`;",
+        ),
+    ]);
+    assert!(
+        transform_file(&compiler, &mut loader, "/R.ts")
+            .diagnostics
+            .is_empty()
+    );
+
+    loader
+        .files
+        .insert("/R.ts".to_owned(), "export const R_VAL = 8;".to_owned());
+    compiler.invalidate("/R.ts");
+
+    let recompiled = transform_file(&compiler, &mut loader, "/C.tsx");
+    assert!(recompiled.diagnostics.is_empty());
+    assert!(recompiled.css.contains("top: 8px;"));
+}

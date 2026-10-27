@@ -43,7 +43,8 @@ struct LoadedImports {
 #[derive(Default)]
 struct Traversal {
     visiting: FxHashSet<String>,
-    /// Modules that stopped at an import cycle, so their facts aren't cached
+    /// Modules that stopped at an import cycle, so their facts aren't cached, and the
+    /// modules they stopped at
     aborted: Vec<String>,
 }
 
@@ -317,6 +318,7 @@ impl Compiler {
             };
             let Some(facts) = self.load_module_facts(&resolved, options, loader, traversal)? else {
                 if traversal.visiting.len() > 2 {
+                    traversal.aborted.push(resolved);
                     return Ok(None);
                 }
                 // Breaking the cycle changes this module's facts, the cycle can also be
@@ -326,6 +328,19 @@ impl Compiler {
                     fact_dependencies.insert(&aborted);
                 }
                 cyclic_dependencies.insert(&resolved);
+                // Values imported back into the cycle are reported where they're used
+                for specifier in import.specifiers.iter().flatten() {
+                    if !is_type_only_specifier(specifier, scoping)
+                        && let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier
+                    {
+                        values.insert(
+                            specifier.local.name.to_string(),
+                            StaticValue::CyclicImport {
+                                source_path: resolved.clone(),
+                            },
+                        );
+                    }
+                }
                 continue;
             };
             let Some(specifiers) = &import.specifiers else {

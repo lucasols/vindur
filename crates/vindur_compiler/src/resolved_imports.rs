@@ -58,7 +58,8 @@ pub(crate) fn remove_resolved_imports(
 fn is_runtime_value(value: &StaticValue) -> bool {
     matches!(
         value,
-        StaticValue::MissingImport { .. }
+        StaticValue::CyclicImport { .. }
+            | StaticValue::MissingImport { .. }
             | StaticValue::UnsupportedReExport { .. }
             | StaticValue::InvalidFunction { .. }
             | StaticValue::InvalidObject { .. }

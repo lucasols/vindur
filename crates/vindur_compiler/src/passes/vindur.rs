@@ -447,9 +447,11 @@ pub(crate) fn transform_program(
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
     // Unresolved imports exported with `export { name }` describe paths relative to this
-    // module, importers report them as values of this module instead
+    // module, importers report them as values of this module instead. Values from modules
+    // in an import cycle aren't passed on either, their facts depend on the transform order
     let exports = exported_names
         .iter()
+        .filter(|(_, local)| !cyclic_values.contains(*local))
         .filter_map(|(name, local)| {
             constants
                 .get(local)

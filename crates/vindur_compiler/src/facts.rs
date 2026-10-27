@@ -69,6 +69,11 @@ pub enum StaticValue {
         path: String,
         dev: bool,
     },
+    /// Imported from a module skipped because it's in an import cycle with the importer,
+    /// its value depends on which module of the cycle was transformed first
+    CyclicImport {
+        source_path: String,
+    },
     Keyframes(String),
     LayerFunction,
     MissingImport {

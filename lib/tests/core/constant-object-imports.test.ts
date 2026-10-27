@@ -630,7 +630,7 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Function "baseSize" not found in /constants.ts
+    [TransformError: /test.tsx: "baseSize" not found in /constants.ts
     loc: 5:13]
   `,
   );

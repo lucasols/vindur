@@ -21,10 +21,14 @@ pub(super) fn unresolved_import_error(
 ) -> Option<CompilerDiagnostic> {
     let (identifier, value) = find_unresolved_import(expression, constants, scoping)?;
     let message = match value {
+        StaticValue::CyclicImport { source_path } => format!(
+            "\"{}\" imported from {source_path} can't be evaluated, {source_path} is in an import cycle with {file_path}, move the value to a module outside the cycle",
+            identifier.name
+        ),
         StaticValue::MissingImport {
             imported_name,
             source_path,
-        } => format!("Function \"{imported_name}\" not found in {source_path}"),
+        } => format!("\"{imported_name}\" not found in {source_path}"),
         StaticValue::InvalidFunction {
             source_path,
             cyclic_imports,
@@ -40,12 +44,14 @@ pub(super) fn unresolved_import_error(
         } => re_export_message(imported_name, source_path, re_export.as_ref()),
         _ => return None,
     };
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        expression.span(),
-        message,
-    ))
+    let diagnostic = CompilerDiagnostic::error(file_path, source, expression.span(), message);
+    // Only reached while collecting a dependency's facts, a linted file's own imports are
+    // never skipped, so lint can't locate it
+    Some(if matches!(value, StaticValue::CyclicImport { .. }) {
+        diagnostic.ignored_in_lint()
+    } else {
+        diagnostic
+    })
 }
 
 pub(super) fn not_static_import_message(
@@ -93,7 +99,8 @@ fn re_export_message(
 }
 
 /// First unresolved imported name the expression reads, e.g. `SIZE` in `${px(SIZE + 1)}`.
-/// Callees are only checked for re-exports, other invalid callees get the vindurFn error
+/// Callees are only checked for re-exports and import cycles, other invalid callees get the
+/// vindurFn error
 fn find_unresolved_import<'a, 'b, 'c>(
     expression: &'a Expression<'b>,
     constants: &'c FxHashMap<String, StaticValue>,
@@ -105,7 +112,12 @@ fn find_unresolved_import<'a, 'b, 'c>(
             .map(|value| (&**identifier, value)),
         Expression::CallExpression(call) => {
             find_unresolved_import(&call.callee, constants, scoping)
-                .filter(|(_, value)| matches!(value, StaticValue::UnsupportedReExport { .. }))
+                .filter(|(_, value)| {
+                    matches!(
+                        value,
+                        StaticValue::CyclicImport { .. } | StaticValue::UnsupportedReExport { .. }
+                    )
+                })
                 .or_else(|| {
                     call.arguments.iter().find_map(|argument| {
                         find_unresolved_import(argument.as_expression()?, constants, scoping)
