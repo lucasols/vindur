@@ -98,16 +98,7 @@ pub(super) fn evaluate_expression(
         Expression::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
             Some(StaticValue::Undefined)
         }
-        Expression::Identifier(identifier) => {
-            match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
-                // Imports without a static value can't be evaluated
-                StaticValue::MissingImport { .. }
-                | StaticValue::InvalidFunction { .. }
-                | StaticValue::InvalidObject { .. } => None,
-                value => Some(value.clone()),
-            }
-        }
+        Expression::Identifier(identifier) => evaluate_identifier(identifier, constants, scoping),
         Expression::ArrayExpression(array) => evaluate_array(array, constants, scoping),
         Expression::StaticMemberExpression(member) => {
             let analysis = StaticAnalysisContext { constants, scoping };
@@ -116,9 +107,9 @@ pub(super) fn evaluate_expression(
             }
             let value = evaluate_expression(&member.object, constants, scoping)?;
             match &value {
-                StaticValue::ClassName(value) => match member.property.name.as_str() {
-                    "selector" => Some(StaticValue::String(format!(".{value}"))),
-                    "value" => Some(StaticValue::String(value.clone())),
+                StaticValue::ClassName { name, .. } => match member.property.name.as_str() {
+                    "selector" => Some(StaticValue::String(format!(".{name}"))),
+                    "value" => Some(StaticValue::String(name.clone())),
                     _ => None,
                 },
                 StaticValue::Object(properties)
@@ -152,9 +143,18 @@ pub(super) fn evaluate_expression(
                 }
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-                let amount = color_method_amount(&call.arguments, constants, scoping).ok()?;
-                dynamic_color_method(&receiver, callee.property.name.as_str(), amount)
-                    .or_else(|| theme_method(&receiver, callee.property.name.as_str(), amount))
+                let method = callee.property.name.as_str();
+                let amount = match call.arguments.as_slice() {
+                    [argument] => color_method_amount(method, argument, constants, scoping)?,
+                    [] => None,
+                    _ => return None,
+                };
+                // Out of range amounts make invalid CSS, see `invalid_color_method_error`
+                if amount.is_some_and(|amount| !(0.0..=1.0).contains(&amount)) {
+                    return None;
+                }
+                dynamic_color_method(&receiver, method, amount)
+                    .or_else(|| theme_method(&receiver, method, amount))
             } else {
                 None
             }
@@ -195,28 +195,6 @@ pub(super) fn evaluate_expression(
             evaluate_expression(&parenthesized.expression, constants, scoping)
         }
         _ => None,
-    }
-}
-
-/// The amount of a color method call, e.g. `0.5` in `color.alpha(0.5)` or
-/// `color.contrast.optimal({ alpha: 0.5 })`, an error if it isn't a static number
-pub(super) fn color_method_amount(
-    arguments: &[Argument<'_>],
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-) -> Result<Option<f64>, ()> {
-    let Some(argument) = arguments.first() else {
-        return Ok(None);
-    };
-    let expression = argument.as_expression().ok_or(())?;
-    match evaluate_expression(expression, constants, scoping).ok_or(())? {
-        StaticValue::Number(value) => Ok(Some(value)),
-        StaticValue::Object(properties) => match properties.get("alpha") {
-            Some(StaticValue::Number(value)) => Ok(Some(*value)),
-            Some(_) => Err(()),
-            None => Ok(None),
-        },
-        _ => Err(()),
     }
 }
 
@@ -325,9 +303,14 @@ fn evaluate_template_value(
                 .as_str(),
         );
         if let Some(expression) = template.expressions.get(index) {
-            output.push_str(&static_value_to_string(&evaluate_expression(
-                expression, constants, scoping,
-            )?)?);
+            let value = evaluate_expression(expression, constants, scoping)?;
+            // Compiler values, e.g. keyframes or dynamic colors, stringify differently at
+            // runtime and an imported module's styles are only loaded while it's imported,
+            // so they can only be interpolated directly in vindur styles
+            if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
+                return None;
+            }
+            output.push_str(&static_value_to_string(&value)?);
         }
     }
     Some(output)
@@ -345,12 +328,15 @@ pub(super) fn evaluate_binary(
         {
             None
         }
-        // Objects and arrays are compared by identity, which static values don't have
-        (left, BinaryOperator::StrictEquality | BinaryOperator::StrictInequality, right)
-            if !is_primitive(&left) && !is_primitive(&right) =>
-        {
-            None
-        }
+        // Two objects or compiler values compare by identity, which is not evaluated
+        (
+            left,
+            BinaryOperator::Equality
+            | BinaryOperator::StrictEquality
+            | BinaryOperator::Inequality
+            | BinaryOperator::StrictInequality,
+            right,
+        ) if oxc_constant_value(&left).is_none() && oxc_constant_value(&right).is_none() => None,
         (left, BinaryOperator::Equality | BinaryOperator::StrictEquality, right) => {
             Some(StaticValue::Boolean(static_values_equal(&left, &right)))
         }
@@ -387,16 +373,6 @@ fn same_primitive_type(left: &StaticValue, right: &StaticValue) -> bool {
     )
 }
 
-fn is_primitive(value: &StaticValue) -> bool {
-    matches!(
-        value,
-        StaticValue::Boolean(_)
-            | StaticValue::Number(_)
-            | StaticValue::String(_)
-            | StaticValue::Undefined
-    )
-}
-
 fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
     match (left, right) {
         (StaticValue::Boolean(left), StaticValue::Boolean(right)) => left == right,
@@ -427,7 +403,7 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
                 .collect::<Option<Vec<_>>>()?
                 .join(","),
         ),
-        StaticValue::ClassName(value) => Some(format!(".{value}")),
+        StaticValue::ClassName { name, .. } => Some(format!(".{name}")),
         StaticValue::Keyframes(value) => Some(value.clone()),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
         StaticValue::Boolean(_)
@@ -449,15 +425,49 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
         | StaticValue::ImportedObject { .. }
         | StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
-        | StaticValue::ThemeColors(_)
-        | StaticValue::UnexportedThemeColors(_) => None,
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. }
+        | StaticValue::CyclicImport { .. }
+        | StaticValue::UnsupportedReExport { .. } => None,
     }
+}
+
+/// An imported name whose value couldn't be evaluated in its module, e.g.
+/// `export const hover = getColor()`, or that is missing or only re-exported, it has no
+/// CSS value
+pub(super) fn is_unresolved_import(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::CyclicImport { .. }
+            | StaticValue::MissingImport { .. }
+            | StaticValue::UnsupportedReExport { .. }
+            | StaticValue::InvalidFunction { .. }
+            | StaticValue::InvalidObject { .. }
+    )
 }
 
 pub(super) fn static_value_to_boolean(value: &StaticValue) -> bool {
     oxc_constant_value(value)
         .and_then(|value| value.to_boolean(&WithoutGlobalReferenceInformation))
         .unwrap_or(true)
+}
+
+pub(super) fn evaluate_identifier(
+    identifier: &IdentifierReference<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<StaticValue> {
+    match resolved_constant(identifier, constants, scoping)? {
+        StaticValue::ImportedValue { value, .. } => Some(*value.clone()),
+        // Unresolved imports are reported when interpolated directly, values derived
+        // from them, e.g. `${INSET}px`, are not static
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. } => None,
+        value => Some(value.clone()),
+    }
 }
 
 pub(super) fn resolved_constant<'a>(
@@ -556,5 +566,30 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
 
     fn unknown_global_side_effects(&self) -> bool {
         true
+    }
+}
+
+/// The amount of a color method, e.g. `darker(0.2)` or `optimal({ alpha: 0.5 })`.
+/// `None` when the argument can't be evaluated, so the caller fails instead of using 0.
+/// An `undefined` argument or alpha is the same as omitting it
+fn color_method_amount(
+    method: &str,
+    argument: &Argument<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> Option<Option<f64>> {
+    match evaluate_expression(argument.as_expression()?, constants, scoping)? {
+        StaticValue::Number(value) if method != "optimal" => Some(Some(value)),
+        StaticValue::Undefined => Some(None),
+        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. }
+            if method == "optimal" =>
+        {
+            match properties.get("alpha") {
+                Some(StaticValue::Number(value)) => Some(Some(*value)),
+                Some(StaticValue::Undefined) | None => Some(None),
+                Some(_) => None,
+            }
+        }
+        _ => None,
     }
 }

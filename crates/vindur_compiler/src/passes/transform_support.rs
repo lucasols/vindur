@@ -3,7 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     CompilerDiagnostic,
@@ -15,16 +15,20 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
-    static_value::{TemplateContext, evaluate_template},
-    style_flags::rewrite_style_flag_selectors,
-    styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, missing_style_flag_selectors,
-        styled_tag_component_with_attrs, undeclared_style_classes,
+    static_value::{TemplateContext, evaluate_template, locate_template_error},
+    style_flag_selectors::{
+        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
-    theme_color::{parse_theme_colors, static_color_fallbacks},
+    styled::{
+        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
+    },
+    styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
+    theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
 
@@ -42,8 +46,15 @@ pub(super) struct VariableTransform<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
     pub is_exported: bool,
+    /// Styled components referenced as values stay runtime components
+    pub value_referenced_names: &'a FxHashSet<String>,
+    /// Styled components other styled components are built from
+    pub extended_names: &'a FxHashSet<String>,
+    /// Start of the statement holding the declaration, including its `export`
+    pub statement_start: u32,
     pub needs_styled_helper: &'a mut bool,
     pub needs_style_flags_helper: &'a mut bool,
+    pub has_side_effects: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
@@ -81,11 +92,20 @@ pub(super) fn process_variable_declaration(
                         .to_owned(),
                 ));
             }
-            let id = format!("{}-{}", transform.file_hash, *transform.id_index);
+            // Dev ids include the variable name, like other dev class names
+            let id = generated_name(
+                transform.file_hash,
+                *transform.id_index,
+                &identifier.name,
+                transform.dev,
+            );
             *transform.id_index += 1;
             transform.constants.insert(
                 identifier.name.to_string(),
-                StaticValue::DynamicColor { id: id.clone() },
+                StaticValue::DynamicColor {
+                    id: id.clone(),
+                    dev: transform.dev,
+                },
             );
             transform.edits.push(Edit {
                 span: call.span,
@@ -109,7 +129,10 @@ pub(super) fn process_variable_declaration(
             })?;
             transform.constants.insert(
                 identifier.name.to_string(),
-                StaticValue::ThemeColors(colors),
+                StaticValue::ThemeColors {
+                    colors,
+                    dev: transform.dev,
+                },
             );
             continue;
         }
@@ -156,10 +179,22 @@ pub(super) fn process_variable_declaration(
                 transform.dev,
             );
             *transform.id_index += 1;
-            let style_flags = if own_style_flags.is_empty() {
-                base_component.style_flags.clone()
-            } else {
-                own_style_flags
+            // The flags of the base component still apply, its own flags are added to them
+            let mut style_flags = base_component
+                .style_flags
+                .iter()
+                .filter(|flag| {
+                    !own_style_flags
+                        .iter()
+                        .any(|own| own.prop_name == flag.prop_name)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            style_flags.extend(own_style_flags.iter().cloned());
+            let template_context = TemplateContext {
+                variable_name: Some(variable_name),
+                tag_type: "styled",
+                style_flags: &style_flags,
             };
             let content = evaluate_template(
                 &tagged.quasi,
@@ -167,33 +202,48 @@ pub(super) fn process_variable_declaration(
                 transform.scoping,
                 transform.file_path,
                 transform.source,
-                &TemplateContext {
-                    variable_name: Some(variable_name),
-                    tag_type: "styled",
-                    style_flags: &style_flags,
-                },
+                &template_context,
             )?;
             let content = clean_css(&content);
-            let content = if transform.dev {
-                content
+            let classes = if transform.dev || !style_flags.is_empty() {
+                style_classes(&content, &style_flags).map_err(|error| {
+                    css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
+                })?
             } else {
-                static_color_fallbacks(&content)
+                StyleBlockClasses::default()
             };
+            let element_classes = classes.element;
             if transform.dev {
-                transform.warnings.extend(
-                    missing_style_flag_selectors(&content, &style_flags)
-                        .into_iter()
-                        .map(|selector| {
-                            CompilerDiagnostic::warning(
-                                "",
-                                transform.source,
-                                identifier.span,
-                                format!(
-                                    "Warning: Missing modifier styles for \"{selector}\" in {variable_name}"
-                                ),
-                            )
-                        }),
-                );
+                let other_element_flags =
+                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                // Inherited flags are styled by the base component
+                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
+                    .into_iter()
+                    .filter(|class_name| !other_element_flags.contains(class_name));
+                transform
+                    .warnings
+                    .extend(missing_flags.map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "Warning: Missing modifier styles for \"&.{class_name}\" in {variable_name}"
+                            ),
+                        )
+                    }));
+                transform
+                    .warnings
+                    .extend(other_element_flags.iter().map(|class_name| {
+                        CompilerDiagnostic::warning(
+                            "",
+                            transform.source,
+                            identifier.span,
+                            format!(
+                                "The style flag class \"{class_name}\" is used in a selector of another element in {variable_name}, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \"&.{class_name}\""
+                            ),
+                        )
+                    }));
                 let usage_prefix = format!("<{variable_name}");
                 let suppress_undeclared = !base_component.class_name.is_empty()
                     || (transform.source.contains(&usage_prefix)
@@ -205,12 +255,12 @@ pub(super) fn process_variable_declaration(
                         .constants
                         .values()
                         .filter_map(|value| match value {
-                            StaticValue::DynamicColor { id } => Some(format!("{id}-")),
+                            StaticValue::DynamicColor { id, .. } => Some(format!("{id}-")),
                             _ => None,
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&content, &style_flags)
+                        undeclared_style_classes(&element_classes, &style_flags)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -231,7 +281,32 @@ pub(super) fn process_variable_declaration(
                 }
             }
             // Flag selectors like `&.$active` are not valid CSS until they are rewritten
-            let content = rewrite_style_flag_selectors(&content, &style_flags);
+            let content =
+                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                    Ok(content) => content,
+                    Err(error) => {
+                        let located = locate_template_error(
+                            &tagged.quasi,
+                            transform.constants,
+                            transform.scoping,
+                            transform.file_path,
+                            transform.source,
+                            &template_context,
+                            |css| {
+                                let classes = style_classes(css, &style_flags).ok()?.element;
+                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                            },
+                        )?;
+                        return Err(located.unwrap_or_else(|| {
+                            css_error_diagnostic(
+                                transform.file_path,
+                                transform.source,
+                                tagged.span,
+                                error,
+                            )
+                        }));
+                    }
+                };
             let content = process_scoped_variables(
                 &content,
                 BlockKind::Style,
@@ -263,10 +338,36 @@ pub(super) fn process_variable_declaration(
             };
             transform.constants.insert(
                 variable_name.to_owned(),
-                StaticValue::ClassName(generated_name.clone()),
+                StaticValue::ClassName {
+                    name: generated_name.clone(),
+                    style_flags: flag_classes(&style_flags),
+                },
             );
-            let attrs = own_attrs.or_else(|| base_component.attrs.clone());
-            let runtime = transform.is_exported || attrs.is_some() || base_component.runtime;
+            let has_own_attrs = own_attrs.is_some();
+            let attrs = match merge_attrs(base_component.attrs.as_deref(), own_attrs) {
+                // Derived components reuse the attrs, so they are evaluated only once
+                Some(value)
+                    if has_own_attrs && transform.extended_names.contains(variable_name) =>
+                {
+                    Some(hoist_attrs(
+                        variable_name,
+                        &value,
+                        &AttrsHoisting {
+                            program: transform.program,
+                            scoping: transform.scoping,
+                            file_path: transform.file_path,
+                            source: transform.source,
+                            statement_start: transform.statement_start,
+                        },
+                        transform.edits,
+                    )?)
+                }
+                attrs => attrs,
+            };
+            let runtime = transform.is_exported
+                || transform.value_referenced_names.contains(variable_name)
+                || attrs.is_some()
+                || base_component.runtime;
             if runtime {
                 let attrs_argument = attrs
                     .as_ref()
@@ -386,6 +487,7 @@ pub(super) fn process_variable_declaration(
             })?;
             if !content.is_empty() {
                 transform.css_rules.push(content);
+                *transform.has_side_effects = true;
             }
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
@@ -419,11 +521,6 @@ pub(super) fn process_variable_declaration(
             },
         )?;
         let content = clean_css(&content);
-        let content = if transform.dev {
-            content
-        } else {
-            static_color_fallbacks(&content)
-        };
         let content = process_scoped_variables(
             &content,
             BlockKind::from_tag_type(tag_name),

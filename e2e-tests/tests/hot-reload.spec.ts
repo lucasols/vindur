@@ -359,6 +359,68 @@ test('should update imported keyframes when external file changes', async ({
   await expect(box).toHaveCSS('background-color', 'rgb(255, 0, 0)'); // red
 });
 
+test('should keep imported keyframes names in sync when their file changes', async ({
+  page,
+}) => {
+  await using env = await startEnv('hot-reload-keyframes-name', {
+    'animations.ts': dedent`
+      import { keyframes } from "vindur";
+
+      export const fadeIn = keyframes\`
+        from { opacity: 0; }
+        to { opacity: 1; }
+      \`;
+    `,
+    'App.tsx': dedent`
+      import { css } from "vindur";
+      import { fadeIn } from "#src/animations";
+
+      const boxClass = css\`
+        animation: \${fadeIn} 100s;
+      \`;
+
+      export default function App() {
+        return <div data-testid="box" className={boxClass}>Keyframes</div>;
+      }
+    `,
+  });
+
+  await page.goto(env.baseUrl);
+  const box = page.getByTestId('box');
+
+  const readAnimation = () =>
+    box.evaluate((element) => {
+      const name = getComputedStyle(element).animationName;
+      const hasKeyframes = Array.from(document.styleSheets).some((sheet) =>
+        Array.from(sheet.cssRules).some(
+          (rule) => rule instanceof CSSKeyframesRule && rule.name === name,
+        ),
+      );
+      return { name, hasKeyframes };
+    });
+
+  await expect
+    .poll(async () => (await readAnimation()).hasKeyframes)
+    .toBe(true);
+  const { name: initialName } = await readAnimation();
+
+  // A style before the keyframes changes their generated name
+  env.getFile('animations.ts').replace([
+    ['import { keyframes }', 'import { css, keyframes }'],
+    [
+      'export const fadeIn',
+      'export const base = css`color: red;`;\n\nexport const fadeIn',
+    ],
+  ]);
+
+  await expect
+    .poll(async () => {
+      const { name, hasKeyframes } = await readAnimation();
+      return { renamed: name !== initialName, hasKeyframes };
+    })
+    .toEqual({ renamed: true, hasKeyframes: true });
+});
+
 test('should update imported theme colors when external file changes', async ({
   page,
 }) => {
@@ -378,7 +440,7 @@ test('should update imported theme colors when external file changes', async ({
       import { colors } from "#src/theme";
 
       const themeStyles = css\`
-        background: \${colors.primary.var};
+        background: \${colors.primary.value};
         color: white;
         padding: 20px;
         border-radius: 8px;
@@ -386,7 +448,7 @@ test('should update imported theme colors when external file changes', async ({
       \`;
 
       const secondaryStyles = css\`
-        background: \${colors.secondary.var};
+        background: \${colors.secondary.value};
         color: black;
         padding: 15px;
       \`;

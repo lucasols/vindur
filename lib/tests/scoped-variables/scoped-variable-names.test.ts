@@ -58,9 +58,9 @@ test('should not reuse scoped variable indices across nested css props', async (
       height: var(--v1560qbr-3);
     }
 
-    .v1560qbr-2 {
-      --v1560qbr-4: 3px;
-      margin: var(--v1560qbr-4);
+    .v1560qbr-4 {
+      --v1560qbr-5: 3px;
+      margin: var(--v1560qbr-5);
     }
     "
   `);

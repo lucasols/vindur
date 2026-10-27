@@ -8,8 +8,51 @@ import {
   mergeClassNames,
   mergeStyles,
 } from '../../src/main';
+import { isForwardRefComponent } from './runtimeComponents.typeGuards';
+
+function renderProps(
+  component: unknown,
+  props: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!isForwardRefComponent(component)) {
+    throw new Error('Expected a forwardRef component');
+  }
+  return component.render(props, null).props;
+}
 
 describe('_vSC', () => {
+  test('should add the class of a compiled css prop', () => {
+    const Component = _vSC('div', 'base');
+
+    expect(
+      renderProps(Component, { css: 'css-prop', className: 'user' }),
+    ).toEqual({ className: 'base css-prop user', ref: null });
+  });
+
+  test('should keep the attrs className with a passed className', () => {
+    const Component = _vSC('button', 'base', {
+      className: 'attrs-class',
+      type: 'button',
+    });
+
+    expect(renderProps(Component, {})).toEqual({
+      className: 'base attrs-class',
+      type: 'button',
+      ref: null,
+    });
+    expect(
+      renderProps(Component, { className: 'user', type: 'submit' }),
+    ).toEqual({ className: 'base attrs-class user', type: 'submit', ref: null });
+  });
+
+  test('should forward the css prop of a styled custom component', () => {
+    const Component = _vSC(() => null, 'base');
+
+    expect(
+      renderProps(Component, { css: 'label', className: 'user' }),
+    ).toEqual({ className: 'base user', css: 'label', ref: null });
+  });
+
   test('should create component with correct displayName', () => {
     const Component = _vSC('div', 'test-class');
     expect(Component.displayName).toBe('Styled(div)');
@@ -42,6 +85,40 @@ describe('_vCWM', () => {
 
     expect(Component.displayName).toBe('StyledWithModifiers(button)');
   });
+
+  test('should apply style flags and the class of a compiled css prop', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', 'button');
+
+    expect(
+      renderProps(Component, { active: true, css: 'css-prop', id: 'a' }),
+    ).toEqual({ className: 'base active-class css-prop', id: 'a', ref: null });
+  });
+
+  test('should apply default style flags from attrs', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', 'button', {
+      active: true,
+      className: 'attrs-class',
+    });
+
+    expect(renderProps(Component, {})).toEqual({
+      className: 'base attrs-class active-class',
+      ref: null,
+    });
+    expect(renderProps(Component, { active: false })).toEqual({
+      className: 'base attrs-class',
+      ref: null,
+    });
+  });
+
+  test('should forward the css prop of a styled custom component', () => {
+    const Component = _vCWM([['active', 'active-class']], 'base', () => null);
+
+    expect(renderProps(Component, { active: true, css: 'label' })).toEqual({
+      className: 'base active-class',
+      css: 'label',
+      ref: null,
+    });
+  });
 });
 
 describe('createDynamicCssColor', () => {
@@ -54,14 +131,17 @@ describe('createDynamicCssColor', () => {
   test('should not require merge props in _sp', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color._sp(undefined, undefined)).toEqual({});
+    expect(color._sp(undefined, undefined)).toEqual({
+      className: 'test-hash-self-isNotDefined test-hash-container-isNotDefined',
+      style: {},
+    });
     expect(color._sp('#ff0000', undefined).className).toBeTypeOf('string');
   });
 
   test('should create color object with proper methods in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color.var).toBe('var(--test-hash)');
+    expect(color.value).toBe('var(--test-hash)');
     expect(color.alpha(0.5)).toBe(
       'color-mix(in srgb, var(--test-hash) 50%, transparent)',
     );
@@ -72,10 +152,10 @@ describe('createDynamicCssColor', () => {
       'color-mix(in srgb, var(--test-hash) 70%, #fff)',
     );
     expect(color.saturatedDarker(0.4)).toBe(
-      'color-mix(in srgb, var(--test-hash) 60%, hsl(from var(--test-hash) h 100% 20%))',
+      'hsl(var(--test-hash-h), var(--test-hash-sds), calc(var(--test-hash-l) * 0.6))',
     );
 
-    expect(color.contrast.var).toBe('var(--test-hash-c)');
+    expect(color.contrast.value).toBe('var(--test-hash-c)');
     expect(color.contrast.optimal()).toBe('var(--test-hash-c-optimal)');
     expect(color.contrast.optimal({ alpha: 0.8 })).toBe(
       'color-mix(in srgb, var(--test-hash-c-optimal) 80%, transparent)',
@@ -85,14 +165,14 @@ describe('createDynamicCssColor', () => {
     );
   });
 
-  test('should generate dev-mode class names', () => {
+  test('should generate readable class names in dev mode', () => {
     const color = createDynamicCssColor('test-hash', true);
 
-    expect(color.self.isDark).toBe('&.test-hash-self-is-dark');
-    expect(color.self.isLight).toBe('&.test-hash-self-is-light');
-    expect(color.container.isDefined).toBe('.test-hash-container-is-defined &');
+    expect(color.self.isDark).toBe('&.test-hash-self-isDark');
+    expect(color.self.isLight).toBe('&.test-hash-self-isLight');
+    expect(color.container.isDefined).toBe('.test-hash-container-isDefined');
     expect(color.container.isNotDefined).toBe(
-      '.test-hash-container-is-not-defined &',
+      '.test-hash-container-isNotDefined',
     );
   });
 
@@ -101,67 +181,98 @@ describe('createDynamicCssColor', () => {
 
     expect(color.self.isDark).toBe('&.test-hash-s0');
     expect(color.self.isLight).toBe('&.test-hash-s1');
-    expect(color.container.isDefined).toBe('.test-hash-c2 &');
-    expect(color.container.isNotDefined).toBe('.test-hash-c3 &');
+    expect(color.container.isDefined).toBe('.test-hash-c2');
+    expect(color.container.isNotDefined).toBe('.test-hash-c3');
   });
 
   test('should handle setProps for light colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#ffffff', { className: 'user-class' });
 
-    expect(result.className).toContain('user-class');
-    expect(result.className).toContain('test-hash-self-is-light');
-    expect(result.className).toContain('test-hash-self-is-defined');
-    expect(result.className).toContain('test-hash-self-is-not-very-dark');
-    expect(result.className).toContain('test-hash-self-is-very-light');
+    expect(result.className).toBe(
+      'user-class test-hash-s1 test-hash-c1 test-hash-s2 test-hash-c2 test-hash-s5 test-hash-c5 test-hash-s6 test-hash-c6',
+    );
 
     expect(result.style).toEqual({
       '--test-hash': '#ffffff',
-      '--test-hash-c': '#000000',
-      '--test-hash-c-optimal': '#000000',
+      '--test-hash-c': '#000',
+      '--test-hash-c-optimal': '#242424',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '0%',
+      '--test-hash-l': '100%',
     });
   });
 
   test('should handle setProps for dark colors', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color.setProps('#000000');
 
-    expect(result.className).toContain('test-hash-self-is-dark');
-    expect(result.className).toContain('test-hash-self-is-defined');
-    expect(result.className).toContain('test-hash-self-is-very-dark');
-    expect(result.className).toContain('test-hash-self-is-not-very-light');
+    expect(result.className).toBe(
+      'test-hash-s0 test-hash-c0 test-hash-s2 test-hash-c2 test-hash-s4 test-hash-c4 test-hash-s7 test-hash-c7',
+    );
 
     expect(result.style).toEqual({
       '--test-hash': '#000000',
-      '--test-hash-c': '#ffffff',
-      '--test-hash-c-optimal': '#ffffff',
+      '--test-hash-c': '#fff',
+      '--test-hash-c-optimal': '#fff',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '0%',
+      '--test-hash-l': '0%',
     });
   });
 
   test('should handle _sp method with null color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp(null, {
       className: 'base',
       style: { margin: '10px' },
     });
 
-    expect(result).toEqual({ className: 'base', style: { margin: '10px' } });
+    expect(result).toEqual({
+      className: 'base test-hash-s3 test-hash-c3',
+      style: { margin: '10px' },
+    });
   });
 
   test('should handle _sp method with valid color', () => {
-    const color = createDynamicCssColor('test-hash', true);
+    const color = createDynamicCssColor('test-hash', false);
     const result = color._sp('#ff0000', {
       className: 'base',
       style: { margin: '10px' },
     });
 
-    expect(result.className).toContain('base');
-    expect(result.className).toContain('test-hash-self-is-dark');
+    expect(result.className).toBe(
+      'base test-hash-s0 test-hash-c0 test-hash-s2 test-hash-c2 test-hash-s5 test-hash-c5 test-hash-s7 test-hash-c7',
+    );
     expect(result.style).toEqual({
       margin: '10px',
       '--test-hash': '#ff0000',
-      '--test-hash-c': '#ffffff',
-      '--test-hash-c-optimal': '#ffffff',
+      '--test-hash-c': '#fff',
+      '--test-hash-c-optimal': '#fff',
+      '--test-hash-h': '0',
+      '--test-hash-sds': '100%',
+      '--test-hash-l': '50%',
+    });
+  });
+
+  test('should handle _sp method without props to merge', () => {
+    const color = createDynamicCssColor('test-hash', true);
+
+    expect(color._sp(null, undefined)).toEqual({
+      className: 'test-hash-self-isNotDefined test-hash-container-isNotDefined',
+      style: {},
+    });
+    expect(color._sp('#ff0000', undefined)).toEqual({
+      className:
+        'test-hash-self-isDark test-hash-container-isDark test-hash-self-isDefined test-hash-container-isDefined test-hash-self-isNotVeryDark test-hash-container-isNotVeryDark test-hash-self-isNotVeryLight test-hash-container-isNotVeryLight',
+      style: {
+        '--test-hash': '#ff0000',
+        '--test-hash-c': '#fff',
+        '--test-hash-c-optimal': '#fff',
+        '--test-hash-h': '0',
+        '--test-hash-sds': '100%',
+        '--test-hash-l': '50%',
+      },
     });
   });
 
@@ -268,6 +379,40 @@ describe('mergeClassNames', () => {
     expect(result).toBe('valid-class vindur-class');
   });
 
+  test('should ignore className properties a JSX spread does not copy', () => {
+    const inherited: Record<string, unknown> = {};
+    Object.setPrototypeOf(inherited, { className: undefined });
+    const hidden = Object.defineProperty({}, 'className', {
+      value: undefined,
+      enumerable: false,
+    });
+
+    const result = mergeClassNames(
+      [{ className: 'visible' }, inherited, hidden],
+      'vindur-class',
+    );
+
+    expect(result).toBe('visible vindur-class');
+  });
+
+  test('should treat a later non-string className as none', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: 5 }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('vindur-class');
+  });
+
+  test('should drop boolean class names like React', () => {
+    const result = mergeClassNames(
+      [{ className: 'hidden' }, { className: false }],
+      'vindur-class',
+    );
+
+    expect(result).toBe('vindur-class');
+  });
+
   test('should ignore null and undefined spread props', () => {
     const result = mergeClassNames(
       ['explicit', null, undefined],
@@ -282,13 +427,6 @@ describe('mergeClassNames', () => {
       'vindur-class',
     );
     expect(result).toBe('vindur-class');
-  });
-
-  test('should ignore inherited className properties', () => {
-    const inherited: Record<string, unknown> = {};
-    Object.setPrototypeOf(inherited, { className: undefined });
-    const result = mergeClassNames(['explicit', inherited], 'vindur-class');
-    expect(result).toBe('explicit vindur-class');
   });
 
   test('should not add a separator for an empty vindur className', () => {
@@ -311,20 +449,26 @@ describe('mergeStyles', () => {
     expect(mergeStyles([{ id: 'x' }], { display: 'none' })).toEqual({
       display: 'none',
     });
-    expect(mergeStyles([{ style: { color: 'red' } }], { display: 'none' })).toEqual({
+    expect(
+      mergeStyles([{ style: { color: 'red' } }], { display: 'none' }),
+    ).toEqual({
       color: 'red',
     });
   });
 
   test('should clear the style when a later spread has an undefined style', () => {
-    expect(mergeStyles([{ style: undefined }], { display: 'none' })).toBeUndefined();
+    expect(
+      mergeStyles([{ style: undefined }], { display: 'none' }),
+    ).toBeUndefined();
   });
 
   test('should ignore inherited style properties', () => {
     const inherited: Record<string, unknown> = {};
     Object.setPrototypeOf(inherited, { style: { display: 'none' } });
 
-    expect(mergeStyles([inherited], { color: 'red' })).toEqual({ color: 'red' });
+    expect(mergeStyles([inherited], { color: 'red' })).toEqual({
+      color: 'red',
+    });
   });
 
   test('should handle empty props', () => {

@@ -10,13 +10,13 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Button = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = () => {
         const buttonProps = { onClick: () => {}, disabled: false }
-        return <Button {...buttonProps} dynamicColor={color}>Click me</Button>;
+        return <Button {...buttonProps} dynamicColor={color.set('#ff6b6b')}>Click me</Button>;
       }
     `;
 
@@ -26,7 +26,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         const buttonProps = {
           onClick: () => {},
@@ -49,8 +49,8 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Button {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -63,7 +63,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
         padding: 20px;
       \`
 
@@ -89,7 +89,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         const styleProps = {
           style: {
@@ -125,7 +125,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Box = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
       \`
 
       const Component = () => {
@@ -151,7 +151,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeStyles } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         const boxProps = {
           className: "flex-item",
@@ -183,7 +183,7 @@ describe('Dynamic Colors - Spread Props', () => {
       const color = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color.var};
+        background: \${color.value};
         padding: 20px;
       \`
 
@@ -210,7 +210,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = () => {
         const styleProps = {
           style: {
@@ -241,10 +241,64 @@ describe('Dynamic Colors - Spread Props', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-Card {
-        background: var(--v1560qbr-1);
+        background: var(--v1560qbr-1-color);
         padding: 20px;
       }
       "
     `);
   });
+});
+
+test('should merge className before spread props with dynamic colors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const Button = styled.button\`
+        background: \${color.value};
+      \`
+
+      const Component = ({ buttonProps, props, value }) => {
+        return (
+          <>
+            <Button className="base" {...buttonProps} dynamicColor={color.set(value)}>Click me</Button>
+            <div {...props} dynamicColor={color.set(value)} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
+    const Component = ({ buttonProps, props, value }) => {
+      return (
+        <>
+          <button
+            {...buttonProps}
+            {...color._sp(value, {
+              className: mergeClassNames(
+                ["base", buttonProps],
+                "v1560qbr-2-Button",
+              ),
+              style: mergeStyles([buttonProps]),
+            })}
+          >
+            Click me
+          </button>
+          <div
+            {...props}
+            {...color._sp(value, {
+              className: mergeClassNames([props], ""),
+              style: mergeStyles([props]),
+            })}
+          />
+        </>
+      );
+    };
+    "
+  `);
 });

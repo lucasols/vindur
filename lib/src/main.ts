@@ -58,13 +58,25 @@ interface VindurClassNameBasedAttributes {
 }
 
 export interface VindurAttributes extends VindurClassNameBasedAttributes {
-  dynamicColor?: DynamicColorSet;
+  dynamicColor?: DynamicColorSet | DynamicColorSet[];
 }
+
+// A non-object `cx` stays the native attribute, eg. `<Dot cx="50" />` on a styled circle
+type WithNativeCx<Props extends { cx?: unknown }> = Omit<Props, 'cx'>
+  & Omit<VindurAttributes, 'cx'> & {
+    cx?: Props['cx'] | NonNullable<VindurAttributes['cx']>;
+  };
 
 type IntrinsicElementType = keyof JSX.IntrinsicElements;
 
+// The compiler only keeps a native, non-object `cx` on these elements
+type NativeCxTag = 'circle' | 'ellipse' | 'radialGradient';
+
 type StyledComponentProps<Tag extends IntrinsicElementType> =
-  JSX.IntrinsicElements[Tag] & VindurAttributes;
+  Tag extends NativeCxTag ? WithNativeCx<JSX.IntrinsicElements[Tag]>
+  : 'cx' extends keyof JSX.IntrinsicElements[Tag] ?
+    Omit<JSX.IntrinsicElements[Tag], 'cx'> & VindurAttributes
+  : JSX.IntrinsicElements[Tag] & VindurAttributes;
 
 type ValidExtraProps = Record<string, string | boolean>;
 
@@ -74,7 +86,7 @@ type StyledComponent<
 > = FC<StyledComponentProps<Tag> & ExtraProps> & {
   withComponent<NewTag extends keyof JSX.IntrinsicElements>(
     tag: NewTag,
-  ): FC<JSX.IntrinsicElements[NewTag] & VindurAttributes>;
+  ): FC<StyledComponentProps<NewTag>>;
 
   withComponent<C extends ComponentType<any>>(component: C): C;
 };
@@ -105,12 +117,35 @@ type StyledFnReturn<T extends {}> = {
   (strings: TemplateStringsArray, ...values: StyleInterpolationValues[]): FC<T>;
 };
 
+// Vindur's attributes replace a custom component's own props of the same name
+type WithVindurComponentAttributes<
+  Props,
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  Props extends unknown ?
+    [Extract<keyof Props, keyof Attributes>] extends [never] ?
+      Props & Attributes
+    : Omit<Props, keyof Attributes> & Attributes
+  : never;
+
+// A required `cx` prop can't be passed, `cx` is always vindur's on styled components
+type StyledComponentFnReturn<
+  Props extends {},
+  Attributes extends VindurClassNameBasedAttributes,
+> =
+  'cx' extends keyof Props ?
+    {} extends Pick<Props, 'cx'> ?
+      StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>
+    : never
+  : StyledFnReturn<WithVindurComponentAttributes<Props, Attributes>>;
+
 type StyledFn = <T extends {}>(
   component: ComponentType<T>,
 ) => keyof VindurAttributes extends keyof T ? StyledFnReturn<T>
-: 'className' | 'style' extends keyof T ? StyledFnReturn<T & VindurAttributes>
+: 'className' | 'style' extends keyof T ?
+  StyledComponentFnReturn<T, VindurAttributes>
 : 'className' extends keyof T ?
-  StyledFnReturn<T & VindurClassNameBasedAttributes>
+  StyledComponentFnReturn<T, VindurClassNameBasedAttributes>
 : never;
 
 interface Styled extends StyledTags, StyledFn {}
@@ -124,20 +159,49 @@ export const styled: Styled = new Proxy(
   },
 ) as any;
 
+type StyledAttrs = Record<string, string | number | boolean>;
+
+// The attrs className is always added, so a className passed to the component, or
+// compiled from its css or cx prop, doesn't drop it
+function splitAttrsClassName(
+  className: string,
+  attrs: StyledAttrs | null | undefined,
+): [string, StyledAttrs | null] {
+  if (!attrs) return [className, null];
+  const { className: attrsClassName, ...defaultProps } = attrs;
+  return [
+    attrsClassName ? `${className} ${attrsClassName}` : className,
+    defaultProps,
+  ];
+}
+
 export function _vSC(
   tagOrComponent: string | ComponentType<any>,
   className: string,
-  attrs?: Record<string, string | number | boolean> | null,
+  attrs?: StyledAttrs | null,
 ): ComponentType<any> {
   // Runtime helper for exported styled components
 
-  const Component = forwardRef<any, any>((props, ref) => {
-    const { className: userClassName, ...rest } = props;
-    const finalClassName =
-      userClassName ? `${className} ${userClassName}` : className;
+  const [ownClassName, defaultProps] = splitAttrsClassName(className, attrs);
+  // A styled DOM element takes a compiled `css` prop as a class name, a styled
+  // custom component forwards it to the wrapped component
+  const appliesCss = typeof tagOrComponent === 'string';
 
+  const Component = forwardRef<any, any>((props, ref) => {
     // Merge attrs with user props, giving user props precedence
-    const finalProps = attrs ? { ...attrs, ...rest } : rest;
+    const {
+      className: userClassName,
+      css: cssProp,
+      ...finalProps
+    } = defaultProps ? { ...defaultProps, ...props } : props;
+
+    let finalClassName = ownClassName;
+    if (appliesCss) {
+      if (cssProp) finalClassName += ` ${cssProp}`;
+    } else if (cssProp !== undefined) {
+      finalProps.css = cssProp;
+    }
+    if (userClassName) finalClassName += ` ${userClassName}`;
 
     return createElement(tagOrComponent, {
       ...finalProps,
@@ -161,9 +225,15 @@ export function _vCWM(
   modifiers: Array<[string, string]>,
   baseClassName: string,
   elementType: string | ComponentType<any>,
-  attrs?: Record<string, string | number | boolean> | null,
+  attrs?: StyledAttrs | null,
 ): ComponentType<any> {
   // Runtime helper for styled components with style flags
+
+  const [ownClassName, defaultProps] = splitAttrsClassName(
+    baseClassName,
+    attrs,
+  );
+  const appliesCss = typeof elementType === 'string';
 
   // Precompute modifier map once per component instance
   const modifierMap = new Map<string, string>();
@@ -173,7 +243,12 @@ export function _vCWM(
   const modifierEntries = Array.from(modifierMap.entries());
 
   const Component = forwardRef<any, any>((props, ref) => {
-    const { className: userClassName, ...otherProps } = props;
+    // Merge attrs with user props first, so attrs can set default style flags
+    const {
+      className: userClassName,
+      css: cssProp,
+      ...otherProps
+    } = defaultProps ? { ...defaultProps, ...props } : props;
 
     // Separate style flag props from other props
     const styleProps: Record<string, boolean | string> = {};
@@ -194,7 +269,7 @@ export function _vCWM(
     }
 
     // Build className with modifiers
-    let finalClassName = baseClassName;
+    let finalClassName = ownClassName;
 
     // Add modifier classes for active props
     for (const [propName, hashedClassName] of modifierEntries) {
@@ -209,16 +284,20 @@ export function _vCWM(
       }
     }
 
+    // Add the class name of a compiled `css` prop, see `_vSC`
+    if (appliesCss) {
+      if (cssProp) finalClassName += ` ${cssProp}`;
+    } else if (cssProp !== undefined) {
+      finalProps.css = cssProp;
+    }
+
     // Add user className if provided
     if (userClassName) {
       finalClassName += ` ${userClassName}`;
     }
 
-    // Merge attrs with finalProps, giving finalProps precedence
-    const propsWithAttrs = attrs ? { ...attrs, ...finalProps } : finalProps;
-
     return createElement(elementType, {
-      ...propsWithAttrs,
+      ...finalProps,
       className: finalClassName,
       ref,
     });
@@ -287,6 +366,9 @@ export function cx(
 
 /**
  * Merge classNames from spread props with vindur-generated classNames
+ *
+ * Inputs are spread props and explicit `className` values in source order. Like
+ * JSX, the last input that sets `className` wins, even when it's nullish
  */
 export function mergeClassNames(
   spreadProps: (Record<string, unknown> | string | null | undefined)[],
@@ -299,10 +381,10 @@ export function mergeClassNames(
     if (typeof prop === 'string') {
       finalClassName = prop;
     } else if (
-      prop &&
-      typeof prop === 'object' &&
+      prop
+      && typeof prop === 'object'
       // JSX spreads only copy own enumerable properties
-      Object.prototype.propertyIsEnumerable.call(prop, 'className')
+      && Object.prototype.propertyIsEnumerable.call(prop, 'className')
     ) {
       const className = prop.className;
       finalClassName = typeof className === 'string' ? className : '';
@@ -327,13 +409,14 @@ export function mergeStyles(
 
   for (const prop of spreadProps) {
     if (
-      prop &&
-      typeof prop === 'object' &&
+      prop
+      && typeof prop === 'object'
       // JSX spreads only copy own enumerable properties
-      Object.prototype.propertyIsEnumerable.call(prop, 'style')
+      && Object.prototype.propertyIsEnumerable.call(prop, 'style')
     ) {
       const style = prop.style;
-      finalStyle = typeof style === 'object' && style !== null ? style : undefined;
+      finalStyle =
+        typeof style === 'object' && style !== null ? style : undefined;
     }
   }
 

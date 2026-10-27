@@ -3,7 +3,7 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part, replace_class_selector};
+use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -121,6 +121,7 @@ fn style_flag_from_property(
     let kind = match type_annotation {
         TSType::TSBooleanKeyword(_) => StyleFlagKind::Boolean,
         TSType::TSUnionType(union) => {
+            invalid_union_value_error(&union.types, &prop_name, file_path, source)?;
             let Some(values) = string_union_values(&union.types) else {
                 return Err(CompilerDiagnostic::error(
                     file_path,
@@ -156,6 +157,7 @@ fn style_flag_from_property(
             match resolved {
                 TSType::TSBooleanKeyword(_) => StyleFlagKind::Boolean,
                 TSType::TSUnionType(union) => {
+                    invalid_union_value_error(&union.types, &prop_name, file_path, source)?;
                     let Some(values) = string_union_values(&union.types) else {
                         return Err(CompilerDiagnostic::error(
                             file_path,
@@ -239,6 +241,42 @@ fn type_string(type_node: &TSType<'_>) -> String {
     }
 }
 
+// Union values become class names like `size-small` in the CSS and the generated code, so
+// they must be plain class name characters
+fn invalid_union_value_error(
+    types: &[TSType<'_>],
+    prop_name: &str,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    let invalid = types.iter().find_map(|union_type| {
+        let TSType::TSLiteralType(literal_type) = union_type else {
+            return None;
+        };
+        let TSLiteral::StringLiteral(literal) = &literal_type.literal else {
+            return None;
+        };
+        let value = literal.value.as_str();
+        let is_valid = !value.is_empty()
+            && value.chars().all(|character| {
+                character.is_ascii_alphanumeric() || character == '_' || character == '-'
+            });
+        (!is_valid).then_some(literal)
+    });
+    match invalid {
+        Some(literal) => Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            literal.span,
+            format!(
+                "Style flag \"{prop_name}\" value \"{}\" must only contain letters, digits, - and _, as it becomes part of a class name",
+                literal.value
+            ),
+        )),
+        None => Ok(()),
+    }
+}
+
 fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
     let mut values = Vec::with_capacity(types.len());
     for union_type in types {
@@ -251,25 +289,4 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
         values.push(literal.value.to_string());
     }
     (!values.is_empty()).then_some(values)
-}
-
-pub(crate) fn rewrite_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> String {
-    let mut output = css.to_owned();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                output = replace_class_selector(&output, &flag.prop_name, &flag.hashed_class_name);
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    output = replace_class_selector(
-                        &output,
-                        &format!("{}-{value}", flag.prop_name),
-                        &format!("{}-{value}", flag.hashed_class_name),
-                    );
-                }
-            }
-        }
-    }
-    output
 }

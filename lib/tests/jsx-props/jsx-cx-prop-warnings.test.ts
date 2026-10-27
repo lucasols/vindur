@@ -435,7 +435,7 @@ describe('Warnings for Missing CSS Classes', () => {
           height: 36px;
           border: none;
           background: transparent;
-          color: \${colors.deprecated_text.var};
+          color: \${colors.deprecated_text.value};
           text-align: left;
           cursor: pointer;
           font-size: 16px;
@@ -444,7 +444,7 @@ describe('Warnings for Missing CSS Classes', () => {
           \${transition()};
 
           &.active {
-            color: \${colors.lime.var};
+            color: \${colors.lime.value};
             opacity: 1;
           }
 
@@ -503,7 +503,6 @@ describe('Warnings for Missing CSS Classes', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import { cx } from "vindur";
       import { ButtonElement } from "#/button";
-      import { colors } from "#/colors";
       function Component({ isActive }) {
         return (
           <>
@@ -566,7 +565,7 @@ describe('Warnings for Missing CSS Classes', () => {
     `);
   });
 
-  test('should warn about cx modifiers only used in unsupported selector forms', async () => {
+  test('should only warn about cx modifiers that are not classes of the element', async () => {
     const warnings: TransformWarning[] = [];
 
     const result = await transformWithFormat({
@@ -577,7 +576,57 @@ describe('Warnings for Missing CSS Classes', () => {
           &:not(.active) {
             opacity: 0.5;
           }
+
+          & .loading {
+            opacity: 0;
+          }
         \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box cx={{ active: on, loading: !on }} />
+        );
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: 'Warning: Missing CSS classes for cx modifiers in Box: loading'
+          loc: 'current_file:14:2'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Box {
+        &:not(.v1560qbr-2-active) {
+          opacity: 0.5;
+        }
+
+        & .loading {
+          opacity: 0;
+        }
+      }
+      "
+    `);
+  });
+
+  test('should warn about cx modifiers only declared outside the styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        export const other = css\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Box = styled.div\`\`;
 
         export const App = ({ on }: { on: boolean }) => <Box cx={{ active: on }} />;
       `,
@@ -590,14 +639,45 @@ describe('Warnings for Missing CSS Classes', () => {
       "
       - TransformWarning#:
           message: 'Warning: Missing CSS classes for cx modifiers in Box: active'
-          loc: 'current_file:9:48'
+          loc: 'current_file:11:48'
+      "
+    `);
+  });
+
+  test('should not warn about cx modifiers declared in the css prop of a styled component', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box css={\`&.active { color: blue; }\`} cx={{ active: on }} />
+        );
+      `,
+      onWarning: (warning) => {
+        warnings.push(warning);
+      },
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      []
       "
     `);
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Box {
-        &:not(.active) {
-          opacity: 0.5;
+        color: red;
+      }
+
+      .v1560qbr-2-css-prop-2 {
+        &.v1560qbr-3-active {
+          color: blue;
         }
       }
       "

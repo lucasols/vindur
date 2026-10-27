@@ -1,17 +1,23 @@
-use oxc_ast::ast::{Expression, IdentifierReference, Program, Statement, TemplateLiteral};
+use oxc_ast::ast::{Expression, Program, Statement, TemplateElement, TemplateLiteral};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
+use super::css_syntax::CssError;
+use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::import_errors::{
+    member_root_identifier, not_static_import_message, unresolved_import_error,
+};
 use super::interpolation_validation::{
-    invalid_array_argument_error, invalid_color_method_error, invalid_layer_error,
-    unevaluable_import_error, vindur_function_call_error,
+    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+    vindur_function_call_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, resolved_constant, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
+    static_value_to_string,
 };
 use super::styled::{StyleFlag, styled_ref_placeholder};
 use super::template_css::{EvaluatedTemplate, validate_template_css};
@@ -28,23 +34,24 @@ pub(crate) fn collect_constants(
     program: &Program<'_>,
     scoping: &Scoping,
     imports: &VindurImports<'_>,
-    constants: &mut FxHashMap<String, StaticValue>,
-) {
+    mut constants: FxHashMap<String, StaticValue>,
+) -> FxHashMap<String, StaticValue> {
     for statement in &program.body {
         match statement {
             Statement::VariableDeclaration(declaration) => {
-                collect_declaration_constants(declaration, constants, scoping, imports);
+                collect_declaration_constants(declaration, &mut constants, scoping, imports);
             }
             Statement::ExportNamedDeclaration(export) => {
                 if let Some(oxc_ast::ast::Declaration::VariableDeclaration(declaration)) =
                     &export.declaration
                 {
-                    collect_declaration_constants(declaration, constants, scoping, imports);
+                    collect_declaration_constants(declaration, &mut constants, scoping, imports);
                 }
             }
             _ => {}
         }
     }
+    constants
 }
 
 /// Evaluates a style template to CSS, the result is validated with the CSS parser
@@ -82,6 +89,30 @@ pub(crate) fn evaluate_template(
     Ok(evaluated.css)
 }
 
+/// Locates an error found after evaluation, e.g. by rewriting the flag selectors of the CSS. The
+/// CSS is evaluated again, as the offsets of the cleaned CSS don't map to the source
+pub(crate) fn locate_template_error(
+    template: &TemplateLiteral<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    file_path: &str,
+    source: &str,
+    context: &TemplateContext<'_>,
+    find_error: impl Fn(&str) -> Option<CssError>,
+) -> Result<Option<CompilerDiagnostic>, CompilerDiagnostic> {
+    let evaluated = build_template_css(
+        template,
+        constants,
+        scoping,
+        file_path,
+        source,
+        context,
+        &[],
+    )?;
+    Ok(find_error(&evaluated.css)
+        .map(|error| evaluated.error_diagnostic(error, template, file_path, source)))
+}
+
 /// `forced_extensions` evaluates the CSS class interpolations at those indices as style
 /// extensions, as if they were followed by `;`
 fn build_template_css(
@@ -97,14 +128,7 @@ fn build_template_css(
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
         let quasi_start = evaluated.css.len();
-        evaluated.css.push_str(
-            quasi
-                .value
-                .cooked
-                .as_ref()
-                .unwrap_or(&quasi.value.raw)
-                .as_str(),
-        );
+        evaluated.css.push_str(quasi_text(quasi));
         evaluated.map_quasi(quasi_start, quasi);
         let Some(expression) = template.expressions.get(index) else {
             continue;
@@ -116,6 +140,23 @@ fn build_template_css(
         }
         if let Some(diagnostic) =
             invalid_layer_error(expression, constants, scoping, file_path, source)
+        {
+            return Err(diagnostic);
+        }
+        // Global styles have no `&`, a container selector there styles the elements under it
+        if context.tag_type != "createGlobalStyle"
+            && let Some(diagnostic) = container_selector_error(
+                expression,
+                // The evaluated CSS so far, so earlier interpolations count as part of the selector
+                (
+                    &evaluated.css,
+                    template.quasis.get(index + 1).map(quasi_text),
+                ),
+                constants,
+                scoping,
+                file_path,
+                source,
+            )
         {
             return Err(diagnostic);
         }
@@ -141,7 +182,7 @@ fn build_template_css(
             ));
         }
         if let Some(diagnostic) =
-            unevaluable_import_error(expression, constants, scoping, file_path, source)
+            unresolved_import_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -198,6 +239,20 @@ fn build_template_css(
             }
             return Err(interpolation_error(expression, file_path, source, context));
         };
+        // Colors and palettes are objects, only their `.value` and methods are CSS values
+        if matches!(
+            value,
+            StaticValue::LayerFunction
+                | StaticValue::DynamicColor { .. }
+                | StaticValue::DynamicColorPath { .. }
+                | StaticValue::ThemeColor { .. }
+                | StaticValue::ThemeColorContrast { .. }
+                | StaticValue::ThemeColors { .. }
+                | StaticValue::UnexportedThemeColors { .. }
+        ) || is_unresolved_import(&value)
+        {
+            return Err(interpolation_error(expression, file_path, source, context));
+        }
         let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
             next.value
                 .cooked
@@ -228,9 +283,17 @@ fn build_template_css(
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
             StaticValue::CssClass { name, .. } => format!(".{name}"),
-            // Functions, objects and colors without `.var` have no CSS representation
-            value => static_value_to_string(value)
-                .ok_or_else(|| interpolation_error(expression, file_path, source, context))?,
+            // Functions, objects and colors without `.value` have no CSS representation
+            value => {
+                let value = static_value_to_string(value)
+                    .ok_or_else(|| interpolation_error(expression, file_path, source, context))?;
+                if let Some(diagnostic) =
+                    interpolated_scoped_variable_error(&value, expression, file_path, source)
+                {
+                    return Err(diagnostic);
+                }
+                value
+            }
         };
         if matches!(expression, Expression::CallExpression(_)) {
             let preserves_boundary =
@@ -322,11 +385,14 @@ fn invalid_object_access_error(
                 expression.span(),
                 format!("Object \"{imported_name}\" not found in {source_path}"),
             )),
-            StaticValue::InvalidObject { source_path } => Some(CompilerDiagnostic::error(
+            StaticValue::InvalidObject {
+                source_path,
+                cyclic_imports,
+            } => Some(CompilerDiagnostic::error(
                 file_path,
                 source,
                 expression.span(),
-                format!("Object \"{}\" not found in {source_path}", root.name),
+                not_static_import_message(&root.name, source_path, cyclic_imports),
             )),
             _ => None,
         };
@@ -352,16 +418,6 @@ fn invalid_object_access_error(
             "Nested property access is not supported, only one level property access is allowed at `{variable_context}` ... ${{{expression_source}}}"
         ),
     ))
-}
-
-fn member_root_identifier<'a, 'b>(
-    expression: &'a Expression<'b>,
-) -> Option<&'a IdentifierReference<'b>> {
-    match expression {
-        Expression::Identifier(identifier) => Some(identifier),
-        Expression::StaticMemberExpression(member) => member_root_identifier(&member.object),
-        _ => None,
-    }
 }
 
 fn imported_function_preserves_boundary(
@@ -447,4 +503,13 @@ fn interpolation_error(
     } else {
         diagnostic
     }
+}
+
+fn quasi_text<'q>(quasi: &'q TemplateElement<'_>) -> &'q str {
+    quasi
+        .value
+        .cooked
+        .as_ref()
+        .unwrap_or(&quasi.value.raw)
+        .as_str()
 }

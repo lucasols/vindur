@@ -12,6 +12,7 @@ Vindur is experimental (0.x): breaking changes are acceptable and don't need dep
 - When code falls outside the supported set, emit a clear error (or a warning when the output is still correct) that tells the user what to write instead. Never guess, fall back, or silently compile to something wrong
 - Do not add special-case handling for rare patterns (aliased imports, re-exports, indirect references, computed values, unusual module shapes, etc.) unless there is a real use case. Rejecting them with a good error is the default
 - When fixing a bug in an edge case, first consider whether the pattern should be unsupported instead of handled, even if it is already supported: removing support and erroring is preferred over complex handling, but confirm with the user before removing support for an already supported pattern. A pattern that builds without error and then breaks at runtime is never an acceptable "leave as is"
+- Do not add compiler checks or tailored error messages for misuse the public types already reject (e.g. passing the wrong value to a typed prop); a generic compile error for invalid input is enough
 - Keep the supported surface easy to describe in the README. If a feature needs a long list of exceptions to explain, it is probably too broad
 
 ## Performance
@@ -107,14 +108,10 @@ When implementing features:
 
 # Feature implementation guidelines
 
-1. Add or adjust documentation in README.md
-2. If the feature has complex implementation, document it in SPEC.md
-3. Implement the tests
-   - The feature may be already implemented, so run the tests first
-4. If the feature is not simple, wait me for review the tests first
-5. Implement the feature
-6. Ensure all tests pass and no other features are broken
-7. Run tsc and lint and fix all errors
+1. Add or adjust documentation in README.md, it is the only documentation to change. Describe the behavior for users, implementation details are not relevant
+2. Implement the feature and its tests
+3. Ensure all tests pass and no other features are broken
+4. Run tsc and lint and fix all errors
 
 # Static Analysis and Template Literals
 

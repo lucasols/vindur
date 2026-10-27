@@ -10,7 +10,28 @@ use crate::{
 
 use super::css_syntax::is_layer_name;
 use super::function_evaluation::evaluate_argument;
-use super::static_evaluation::{color_method_amount, evaluate_expression, resolved_constant};
+use super::id_order::scoped_variable_names;
+use super::import_errors::unresolved_import_error;
+use super::static_evaluation::resolved_constant;
+
+/// Scoped variables must be written in the template text, values interpolated from constants or
+/// vindurFn calls can't add them
+pub(super) fn interpolated_scoped_variable_error(
+    value: &str,
+    expression: &Expression<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let name = scoped_variable_names(value).into_iter().next()?;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        expression.span(),
+        format!(
+            "Interpolated values can't contain scoped variables like \"---{name}\", write scoped variables directly in the template"
+        ),
+    ))
+}
 
 pub(super) fn invalid_layer_error(
     expression: &Expression<'_>,
@@ -51,44 +72,6 @@ pub(super) fn invalid_layer_error(
         source,
         span,
         "layer() must be called with a string literal layer name".to_owned(),
-    ))
-}
-
-pub(super) fn invalid_color_method_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::CallExpression(call) = expression else {
-        return None;
-    };
-    let Expression::StaticMemberExpression(callee) = &call.callee else {
-        return None;
-    };
-    let method = callee.property.name.as_str();
-    if !matches!(method, "alpha" | "darker" | "lighter" | "saturatedDarker") {
-        return None;
-    }
-    let receiver = evaluate_expression(&callee.object, constants, scoping)?;
-    if !matches!(
-        receiver,
-        StaticValue::DynamicColor { .. }
-            | StaticValue::DynamicColorPath { .. }
-            | StaticValue::ThemeColor { .. }
-            | StaticValue::ThemeColorContrast { .. }
-    ) || matches!(
-        color_method_amount(&call.arguments, constants, scoping),
-        Ok(Some(_))
-    ) {
-        return None;
-    }
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        call.span,
-        format!("Method {method} requires a numeric argument"),
     ))
 }
 
@@ -137,39 +120,6 @@ pub(super) fn invalid_array_argument_error(
     None
 }
 
-/// Errors for imported names without a static value, e.g. `export const GAP = rem(4)`
-pub(super) fn unevaluable_import_error(
-    expression: &Expression<'_>,
-    constants: &FxHashMap<String, StaticValue>,
-    scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::Identifier(identifier) = expression else {
-        return None;
-    };
-    let message = match resolved_constant(identifier, constants, scoping)? {
-        StaticValue::MissingImport {
-            imported_name,
-            source_path,
-        } => format!("\"{imported_name}\" not found in {source_path}"),
-        StaticValue::InvalidFunction { source_path }
-        | StaticValue::InvalidObject { source_path } => {
-            format!(
-                "\"{}\" from {source_path} can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles",
-                identifier.name
-            )
-        }
-        _ => return None,
-    };
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        expression.span(),
-        message,
-    ))
-}
-
 /// Errors for a vindurFn call that can't be evaluated, on the first argument that can't be
 /// evaluated or, when all can, on the call
 pub(super) fn vindur_function_call_error(
@@ -198,7 +148,7 @@ pub(super) fn vindur_function_call_error(
         if value.is_none()
             && let Some(expression) = argument.as_expression()
             && let Some(diagnostic) =
-                unevaluable_import_error(expression, constants, scoping, file_path, source)
+                unresolved_import_error(expression, constants, scoping, file_path, source)
         {
             return Some(diagnostic);
         }
@@ -209,7 +159,7 @@ pub(super) fn vindur_function_call_error(
             )
         } else if value.is_some() {
             format!(
-                "Argument of vindurFn \"{}\" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use `.var` to pass a color",
+                "Argument of vindurFn \"{}\" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use `.value` to pass a color",
                 callee.name
             )
         } else {
@@ -278,18 +228,20 @@ fn is_plain_data(value: &StaticValue) -> bool {
         | StaticValue::DynamicColorPath { .. }
         | StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
-        | StaticValue::ThemeColors(_)
-        | StaticValue::UnexportedThemeColors(_)
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. }
         | StaticValue::Function(_)
         | StaticValue::ImportedFunction(_)
         | StaticValue::LayerFunction
+        | StaticValue::CyclicImport { .. }
         | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. }
         | StaticValue::InvalidFunction { .. }
         | StaticValue::InvalidObject { .. }
         | StaticValue::ImportedObject { .. }
         | StaticValue::CssClass { .. } => false,
         StaticValue::Boolean(_)
-        | StaticValue::ClassName(_)
+        | StaticValue::ClassName { .. }
         | StaticValue::Keyframes(_)
         | StaticValue::Number(_)
         | StaticValue::String(_)

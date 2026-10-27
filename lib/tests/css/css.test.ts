@@ -1,7 +1,7 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
 import { transform } from '../../src/transform';
-import { createFsMock } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 // Top-level regexes to avoid creating new RegExp objects on each function call
 const CLASS_PATTERN_REGEX = /\.v[a-z0-9]+-1 \{/;
@@ -537,6 +537,26 @@ describe('error handling', () => {
       loc: 3:25]
     `,
     );
+  });
+
+  test('should throw error for values derived from object comparisons', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const obj = {}
+          const same = \`\${obj === obj}\`
+          const style = css\`
+            content: '\${same}';
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${same}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+      loc: 6:14
+      ignoreInLint: true]
+    `);
   });
 });
 

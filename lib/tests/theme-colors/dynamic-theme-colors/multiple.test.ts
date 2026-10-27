@@ -11,14 +11,14 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const color2 = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${color1.var};
-        color: \${color1.contrast.var};
-        border: 2px solid \${color2.var};
+        background: \${color1.value};
+        color: \${color1.contrast.value};
+        border: 2px solid \${color2.value};
       \`
 
       const Component = () => {
         return (
-          <div dynamicColor={[color1, color2]}>
+          <div dynamicColor={[color1.set('#ff6b6b'), color2.set('#ff6b6b')]}>
             <Card>Card with multiple colors</Card>
           </div>
         );
@@ -31,8 +31,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color1 = createDynamicCssColor("v1560qbr-1", true);
-      const color2 = createDynamicCssColor("v1560qbr-2", true);
+      const color1 = createDynamicCssColor("v1560qbr-1-color1", true);
+      const color2 = createDynamicCssColor("v1560qbr-2-color2", true);
       const Component = () => {
         return (
           <div {...color1._sp("#ff6b6b", color2._sp("#ff6b6b"))}>
@@ -45,9 +45,9 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-3-Card {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
-        border: 2px solid var(--v1560qbr-2);
+        background: var(--v1560qbr-1-color1);
+        color: var(--v1560qbr-1-color1-c);
+        border: 2px solid var(--v1560qbr-2-color2);
       }
       "
     `);
@@ -61,7 +61,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const secondaryColor = createDynamicCssColor()
 
       const Card = styled.div\`
-        border: 2px solid \${secondaryColor.var};
+        border: 2px solid \${secondaryColor.value};
 
         \${primaryColor.self.isDark} {
           border-style: dashed;
@@ -74,7 +74,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
       const Component = () => {
         return (
-          <div dynamicColor={[primaryColor, secondaryColor]}>
+          <div dynamicColor={[primaryColor.set('#ff6b6b'), secondaryColor.set('#ff6b6b')]}>
             <Card>Multiple colors with cross-references</Card>
           </div>
         );
@@ -87,8 +87,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const primaryColor = createDynamicCssColor("v1560qbr-1", true);
-      const secondaryColor = createDynamicCssColor("v1560qbr-2", true);
+      const primaryColor = createDynamicCssColor("v1560qbr-1-primaryColor", true);
+      const secondaryColor = createDynamicCssColor("v1560qbr-2-secondaryColor", true);
       const Component = () => {
         return (
           <div {...primaryColor._sp("#ff6b6b", secondaryColor._sp("#ff6b6b"))}>
@@ -103,13 +103,13 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-3-Card {
-        border: 2px solid var(--v1560qbr-2);
+        border: 2px solid var(--v1560qbr-2-secondaryColor);
 
-        &.v1560qbr-1-s0 {
+        &.v1560qbr-1-primaryColor-self-isDark {
           border-style: dashed;
         }
 
-        .v1560qbr-2-c1 & {
+        .v1560qbr-2-secondaryColor-container-isLight & {
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
       }
@@ -125,8 +125,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
       const secondaryColor = createDynamicCssColor()
 
       const Card = styled.div\`
-        background: \${primaryColor.var};
-        border: 2px solid \${secondaryColor.var};
+        background: \${primaryColor.value};
+        border: 2px solid \${secondaryColor.value};
       \`
 
       const Component = () => {
@@ -136,7 +136,7 @@ describe('Dynamic Colors - Multiple Colors', () => {
           <Card 
             {...cardProps}
             {...styleProps}
-            dynamicColor={[primaryColor, secondaryColor]}
+            dynamicColor={[primaryColor.set('#ff6b6b'), secondaryColor.set('#ff6b6b')]}
             onClick={() => console.log('clicked')}
           >
             Multi-color card
@@ -151,8 +151,8 @@ describe('Dynamic Colors - Multiple Colors', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-      const primaryColor = createDynamicCssColor("v1560qbr-1", true);
-      const secondaryColor = createDynamicCssColor("v1560qbr-2", true);
+      const primaryColor = createDynamicCssColor("v1560qbr-1-primaryColor", true);
+      const secondaryColor = createDynamicCssColor("v1560qbr-2-secondaryColor", true);
       const Component = () => {
         const cardProps = {
           "data-testid": "themed-card",

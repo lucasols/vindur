@@ -558,7 +558,7 @@ test('should error on vindurFn usage in templates of runtime vindur imports', as
       overrideDefaultFs: transitionFs,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "transition" can only be used in vindur style templates (css, styled, keyframes, createGlobalStyle and css prop template literals, e.g. css={\`\${transition(...)}\`}), vindurFn functions are evaluated at compile time and cannot be called or referenced at runtime
-    loc: /test.tsx|4:30]
+    [TransformError: /test.tsx: vindur's "cx" can only be called directly, eg. cx("base", { active: isActive }), other references to it are not supported
+    loc: 4:25]
   `);
 });

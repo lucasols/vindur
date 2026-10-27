@@ -2,7 +2,7 @@ import { dedent } from '@ls-stack/utils/dedent';
 import { expect, test } from 'vitest';
 import { createFsMock, transformWithFormat } from '../../testUtils';
 
-test('should error when a theme color without .var is passed to a vindurFn', async () => {
+test('should error when a theme color without .value is passed to a vindurFn', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -24,7 +24,7 @@ test('should error when a theme color without .var is passed to a vindurFn', asy
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Argument of vindurFn "border" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use \`.var\` to pass a color
+    [TransformError: /test.tsx: Argument of vindurFn "border" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use \`.value\` to pass a color
     loc: 7:11]
   `);
 });
@@ -166,8 +166,8 @@ test('should error when an imported object with a __proto__ setter is passed to 
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "VALUES" from /values.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
-    loc: 6:9]
+    [TransformError: /test.tsx: "VALUES" imported from /values.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 6:4]
   `);
 });
 

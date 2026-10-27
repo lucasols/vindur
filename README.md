@@ -101,6 +101,8 @@ export default defineConfig({
 
 The vindur transform runs before other `enforce: 'pre'` transforms (e.g. the React Compiler), so the compiler receives the vindur output regardless of plugin order.
 
+Import vindur's exports by name, eg. `import { styled } from 'vindur'`. Aliased, namespace and default imports are not supported, and names starting with `_v` are reserved for generated code.
+
 ## Quick Start
 
 ```tsx
@@ -190,6 +192,15 @@ const Container = styled.main`
 `;
 ```
 
+Styled components used as JSX elements compile to the plain element with its class name. A styled component that is exported or referenced as a value (passed as a prop, picked in a conditional) is kept as a lightweight runtime component instead:
+
+```tsx
+<Card>...</Card>; // compiles to <div className="...">
+<Menu container={Card} />; // Card is kept as a runtime component
+```
+
+Styled components are matched in JSX by name, so a local binding can't reuse a styled component's name (e.g. a `Card` parameter in a file that declares a styled `Card`).
+
 Styled components must be declared in module level variables. `export default styled.tag`...`` is also supported, other default exported forms (`styled(Component)`, `.attrs()` or type arguments) must be declared as a variable first.
 
 ### Variable Interpolation
@@ -260,6 +271,8 @@ const Div = Button.withComponent('div'); // Same styles, <div> element
 const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
 ```
 
+`withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
+
 ### Default Attributes
 
 Set default attributes on styled components using `attrs`:
@@ -286,7 +299,9 @@ const StyledDiv = styled.div.attrs({
 </div>;
 ```
 
-`attrs` can also be used with styled extensions:
+`attrs` are default props, props passed to the component override them. They can also set a default style flag, or a `className` that is always added to the component's classes.
+
+`attrs` values can't contain JSX (pass the element as a prop where the component is rendered), vindur templates (reference a module level `css` constant) or `stableId()` calls (reference a module level constant). `attrs` can also be used with styled extensions, the extension's attrs are merged over the base attrs:
 
 ```tsx
 const StyledDiv = styled(Component).attrs({
@@ -732,6 +747,8 @@ Compiles to scoped CSS variables:
 }
 ```
 
+Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+
 #### Dynamic Variables
 
 Scoped variables can be set dynamically with the `style` prop:
@@ -891,7 +908,7 @@ createGlobalStyle`
 
 `createGlobalStyle` must be used at module level. It has no runtime value, so it can't be exported or referenced, e.g. as `<GlobalStyle />`.
 
-`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and for classes used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
+`:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
 ### Mixins and Functions
 
@@ -934,6 +951,10 @@ const Button = styled.button`
 
 `vindurFn` functions must be declared in a module level variable, e.g. `export const name = vindurFn(...)`, and imported by name from the module that declares them. Default exports, renamed exports (`export { fn as other }`), re-exports from another module (`export { fn }` of an imported `vindurFn`, `export { fn } from` and `export * from`) and namespace imports (`import * as styles`) of modules that export them are compile errors.
 
+Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`.
+
+Values can't be imported back into an import cycle, e.g. `Sidebar.tsx` interpolating `HEADER_HEIGHT` from `Layout.tsx`, which imports `Sidebar.tsx`: move them to a module outside the cycle. Other values imported from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, and `export { SIZE }` are not static.
+
 ### JSX CSS Prop
 
 Apply styles directly to JSX elements using the `css` prop, similar to styled-components and emotion:
@@ -973,7 +994,7 @@ const App = () => (
 );
 ```
 
-When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop.
+When css prop is used on a custom component, it is not compiled to a className attribute. Instead the generated class is injected to the `css` prop. Styled components used where the compiler can't see them as styled (imported, or picked in a conditional) receive it the same way: styled DOM elements add it to their className, styled custom components like `styled(Pie)` forward it to the wrapped component.
 
 ```tsx
 const CustomComponent = ({
@@ -1001,11 +1022,17 @@ const CustomComponent = ({
 <CustomComponent css="v1234hash-css-prop-1">Content</CustomComponent>;
 ```
 
+Other `css` values on custom components (strings or non-vindur values) are left untouched as the component's own prop. On styled components `css` is vindur's: a styled custom component like `styled(Pie)` only forwards references to non-css values, and any other `css` value is a compile error.
+
 ### JSX CX Prop
 
 Apply conditional classes using object syntax with the `cx` prop, similar to the popular `classnames` library.
 
-Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing.
+Classes used in `cx` prop will be compiled to bundle size optimized hashes by default. Use `$` prefix to prevent hashing. Hashed keys must be plain class names (letters, digits, `-` and `_`) and must not start with `---`, which is reserved for scoped variables, and each `$` key must be a single class. A class can't be both hashed and `$`-prefixed in the `cx` props of the same styles, like `<Box cx={{ active }} />` and `<Box cx={{ $active }} />`.
+
+In the styles, a `cx` class is hashed where it applies to the element itself: `&.active`, `&.active.disabled`, `.parent &.active` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `& + .active` or `&:has(.active)`, are not hashed. A hashed class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }` or `:where(&, .x) { &.active { ... } }`, is a compile error, split it into separate rules.
+
+Hashing only renames the `&.class` selectors of the element's own styles. Use the `$` prefix when the class is also used by other selectors, e.g. `.active &` in another component, global styles, other files or JS. Vindur warns when another selector of the same file uses a hashed class on an ancestor or sibling, like `.active &`.
 
 ```tsx
 const Container = styled.div`
@@ -1051,11 +1078,20 @@ const App = ({ isActive, isDisabled }) => (
       background: red;
     `}
     // cx can be used with the dynamicColor
-    dynamicColor={dynamicColor}
+    dynamicColor={dynamicColor.set('#ff6b6b')}
   >
     Content with conditional classes
   </Container>
 );
+```
+
+On a styled component, `cx` only hashes the styled component's own modifiers. Modifiers declared in a css reference passed to it (`<Box css={styles} cx={{ active }} />` or `className={styles}`) or in a styled component it extends (`styled(Base)`) are a compile error, use `$` keys or move them into the styled component. Hashed modifiers of an exported css reference are a compile error too, as other files using it wouldn't get the hashed classes. A css reference inside a `className` expression, like `className={cx(styles)}`, can't declare hashed modifiers, pass it directly. Selecting a hashed class through a component reference, like `${Item}.active` in another styled component, is a compile error too, use a `$` key or a style flag.
+
+On `circle`, `ellipse` and `radialGradient` (including styled versions of them) and on custom components, non-object `cx` values are kept as regular props, so their native `cx` attribute or prop keeps working. On styled custom components like `styled(Pie)` and on other elements, `cx` must be an object literal:
+
+```tsx
+<circle cx="50" cy="50" r="10" />
+<Pie cx="50%" data={data} />
 ```
 
 ### `cx` utility function
@@ -1079,6 +1115,8 @@ const className = cx(
 // returns:
 ('class-1 class-2 merge short-circuit');
 ```
+
+`cx` must be called directly. Other references, like `const join = cx` or passing `cx` as a value, are a compile error.
 
 ### Automatic `cx()` Optimization
 
@@ -1204,7 +1242,7 @@ The CSS classes are automatically applied based on prop values:
 #### Supported Prop Types
 
 - **Boolean props**: `active: boolean` → applies class when `true`
-- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix
+- **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
 #### CSS Selector Patterns
 
@@ -1219,6 +1257,12 @@ The CSS classes are automatically applied based on prop values:
   /* styles when prop equals 'value' */
 }
 ```
+
+Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. So `$`-prefixed flags, which are not valid CSS classes, can only be used in selectors of the element itself. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
+
+A styled component extending one with flags, like `styled(Item)<{ big: boolean }>`, keeps the flags of `Item` and adds its own.
+
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. `$`-prefixed flags can't be selected through a reference, like `${Item}.$active`, use a flag without `$`.
 
 ## Theme Colors
 
@@ -1238,8 +1282,8 @@ const colors = createStaticThemeColors({
 
 // Each color provides a complete theming API
 const Button = styled.button`
-  background: ${colors.primary.var};
-  color: ${colors.primary.contrast.var};
+  background: ${colors.primary.value};
+  color: ${colors.primary.contrast.value};
 
   &:hover {
     background: ${colors.primary.darker(0.1)};
@@ -1259,11 +1303,11 @@ The generated css will be optimized with the values of the colors:
   color: #fff;
 
   &:hover {
-    background: #0056b3;
+    background: #006fe6;
   }
 
   &:active {
-    background: #0056b380;
+    background: #007bffcc;
   }
 }
 ```
@@ -1276,27 +1320,32 @@ In dev mode, the output will show the color name for easier debugging:
   color: var(--stc-primary-contrast-var, #fff);
 
   &:hover {
-    background: var(--stc-primary-darker-0\.1, #0056b3);
+    background: var(--stc-primary-darker-0\.1, #006fe6);
   }
 
   &:active {
-    background: var(--stc-primary-alpha-0\.8, #0056b380);
+    background: var(--stc-primary-alpha-0\.8, #007bffcc);
   }
 }
 ```
+
+An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. This only happens when the colors module contains just imports of `vindur`, types or other such modules, and declarations of literals, functions, static constants, objects or arrays of those, and vindur styles. Anything else, like `createGlobalStyle` styles, function calls, classes, re-exports or imports of packages and CSS files, keeps the module as a side effect import (`import './colors'`).
 
 ### Color API
 
 Each color in your theme provides:
 
-- **`var`**: CSS variable reference for the color
+- **`value`**: CSS variable reference for the color. `var` (and `contrast.var`) still works as a deprecated alias
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
-- **`darker(amount)`**: Creates a darker variant (0-1 scale)
-- **`lighter(amount)`**: Creates a lighter variant (0-1 scale)
-- **`contrast.var`**: CSS variable for optimal contrast color
+- **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
+- **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
+- **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
+- **`contrast.value`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
+
+Amounts, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
 
 ## Dynamic Theme Colors
 
@@ -1308,8 +1357,8 @@ import { createDynamicCssColor } from 'vindur';
 const dynamicColor = createDynamicCssColor();
 
 const Container = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   /* use self selectors to conditionally style the component that is setting the color */
   ${dynamicColor.self.isDark} {
@@ -1318,28 +1367,29 @@ const Container = styled.div`
 `;
 
 const Card = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   &:hover {
     background: ${dynamicColor.darker(0.1)};
   }
 
   /* use container selectors to conditionally style child components */
-  ${dynamicColor.container.isLight} {
+  ${dynamicColor.container.isLight} & {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 `;
 
 const ChildElement = styled.div`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 `;
 
-// for dom elements, and styled components you can use the dynamicColors prop to set the color
-const MyComponent = () => {
+// for dom elements and styled components, use the dynamicColor prop to set the color
+// the value is required: `dynamicColor={dynamicColor}` is a compile error
+const MyComponent = ({ color }: { color: string | null }) => {
   return (
-    <div dynamicColor={dynamicColor}>
+    <div dynamicColor={dynamicColor.set(color)}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1357,7 +1407,9 @@ const MyComponent = () => {
 // multiple colors can be passed to dynamicColor prop
 const MyComponent = () => {
   return (
-    <div dynamicColor={[dynamicColor1, dynamicColor2]}>
+    <div
+      dynamicColor={[dynamicColor1.set('#ff6b6b'), dynamicColor2.set('#333')]}
+    >
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1371,15 +1423,18 @@ Dynamic colors provide the same color manipulation functions as static colors, p
 #### Color Setting
 
 - **`setProps(hexColor, options?)`**: Sets the color value and returns className and style props
-  - `hexColor`: The color to set
+  - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `value` and `contrast.value` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `value` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
-  - `options.setColorScheme?`: Configure color scheme detection with fallback
+  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
+  - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
+
+Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3), and `isDark`/`isLight` follow it: a color is light when black text has more contrast. `contrast.optimal()` uses `saturatedDarker(0.86)` of the color on light colors instead of black. `saturatedDarker(amount)` moves the lightness toward 0% while forcing the saturation to 0% for near gray colors and 100% otherwise.
 
 #### Conditional Selectors
 
-- **`self.*`**: Selectors for the component that sets the color
-- **`container.*`**: Selectors for child components
+- **`self.*`**: Selectors for the component that sets the color, e.g. `${color.self.isDark} { ... }`
+- **`container.*`**: Selectors for descendants of the component that sets the color, used as an ancestor selector, e.g. `${color.container.isDark} & { ... }`. Using one as a rule selector without `&`, e.g. `${color.container.isDark} { ... }` or `${color.container.isDark}:hover { ... }`, is a compile error outside `createGlobalStyle`. When the same color is set on nested elements, a descendant matches the conditions of every ancestor that sets it, not only the nearest one
 
 Available conditional selectors:
 
@@ -1396,7 +1451,7 @@ Available conditional selectors:
 
 ```tsx
 // Color setting with additional styles
-const { className, style } = dynamicColor.setInComponent('#007bff', {
+const { className, style } = dynamicColor.setProps('#007bff', {
   style: { padding: '20px' },
   className: 'custom-card',
   setColorScheme: { fallback: 'dark' },
@@ -1404,15 +1459,15 @@ const { className, style } = dynamicColor.setInComponent('#007bff', {
 
 // Conditional styling based on color properties
 const AdaptiveButton = styled.button`
-  background: ${dynamicColor.var};
-  color: ${dynamicColor.contrast.var};
+  background: ${dynamicColor.value};
+  color: ${dynamicColor.contrast.value};
 
   /* Different styles for dark vs light colors */
-  &${dynamicColor.self.isDark} {
+  ${dynamicColor.self.isDark} {
     border: 1px solid ${dynamicColor.lighter(0.2)};
   }
 
-  &${dynamicColor.self.isLight} {
+  ${dynamicColor.self.isLight} {
     border: 1px solid ${dynamicColor.darker(0.2)};
   }
 

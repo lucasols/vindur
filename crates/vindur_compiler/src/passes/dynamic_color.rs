@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, JSXAttribute, JSXAttributeItem, JSXAttributeName,
-    JSXAttributeValue, JSXElement, JSXExpression, Program,
+    Argument, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
+    JSXElement, JSXExpression, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -17,11 +17,11 @@ use super::{
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
+    jsx_class_name::{ClassNameSources, edited_class_name_concat_source, merge_class_name_inputs},
+    runtime_helpers::RuntimeHelperNames,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
-    styled_jsx_helpers::{
-        class_name_concat_source, decode_jsx_entities, js_string_literal, merge_class_name_inputs,
-    },
+    styled_jsx_helpers::{decode_jsx_entities, js_string_literal, style_flag_classes},
 };
 
 pub(super) struct DynamicColorTransform<'a> {
@@ -33,6 +33,7 @@ pub(super) struct DynamicColorTransform<'a> {
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub needs_merge_class_names: &'a mut bool,
     pub needs_merge_styles: &'a mut bool,
+    pub helper_names: &'a RuntimeHelperNames,
     /// Merged className expressions emitted by the css and cx prop passes, by element start
     pub class_expressions: &'a FxHashMap<u32, String>,
 }
@@ -84,10 +85,17 @@ impl DynamicColorVisitor<'_> {
             }
             self.error(
                 container.expression.span(),
-                "dynamicColor prop must reference a dynamic color or color.set(...)".to_owned(),
+                "dynamicColor prop must be `color.set(value)`, or an array of them, where `color` is a dynamic color and `set` takes exactly one argument".to_owned(),
             );
             return;
         };
+        if colors.is_empty() {
+            self.error(
+                container.expression.span(),
+                "dynamicColor array must contain at least one color.set(...)".to_owned(),
+            );
+            return;
+        }
         let element_name = jsx_name(&element.opening_element.name);
         let component = element_name.and_then(|name| self.output.styled_components.get(name));
         let class_expression = self.output.class_expressions.get(&element.span.start);
@@ -128,21 +136,26 @@ impl DynamicColorVisitor<'_> {
             }
         }
 
-        let base_class = component.map(|component| component.class_name.as_str());
-        let class_inputs = merge_class_name_inputs(
-            element,
-            self.output.source,
-            self.output.constants,
-            self.output.scoping,
-        )
-        .0;
+        // Runtime components add their own class
+        let compiled_component = component.filter(|component| !component.runtime);
+        let flags = compiled_component.map_or_else(VindurClass::default, |component| {
+            remove_style_flags(element, component, self.output.source, self.output.edits)
+        });
         let merge = color_merge_object(
-            class_expression.map_or(
-                ClassNameSource::Attributes {
-                    base_class,
-                    class_inputs: &class_inputs,
+            class_expression.map_or_else(
+                || ClassNameSource::Attributes {
+                    vindur_class: VindurClass {
+                        literal: compiled_component
+                            .map(|component| component.class_name.as_str())
+                            .into_iter()
+                            .chain((!flags.literal.is_empty()).then_some(flags.literal.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                        dynamic_suffix: flags.dynamic_suffix.clone(),
+                    },
+                    element,
                 },
-                |expression| ClassNameSource::Merged(expression),
+                |expression| ClassNameSource::Merged(format!("{expression}{}", flags.suffix())),
             ),
             class_attribute,
             style_attribute,
@@ -153,8 +166,11 @@ impl DynamicColorVisitor<'_> {
                 scoping: self.output.scoping,
                 edits: self.output.edits,
             },
-            self.output.needs_merge_class_names,
-            self.output.needs_merge_styles,
+            &mut MergeHelpers {
+                names: self.output.helper_names,
+                needs_merge_class_names: self.output.needs_merge_class_names,
+                needs_merge_styles: self.output.needs_merge_styles,
+            },
         );
         let call = colors.iter().rev().fold(merge, |inner, color| {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
@@ -211,39 +227,18 @@ impl DynamicColorVisitor<'_> {
 
     fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
         match expression {
-            JSXExpression::Identifier(identifier) => self.identifier_color(identifier),
             JSXExpression::CallExpression(call) => self.call_color(call),
             JSXExpression::ArrayExpression(array) => array
                 .elements
                 .iter()
-                .map(|element| {
-                    let expression = element.as_expression()?;
-                    match expression {
-                        Expression::Identifier(identifier) => self.identifier_color(identifier),
-                        Expression::CallExpression(call) => self.call_color(call),
-                        _ => None,
-                    }
+                .map(|element| match element.as_expression()? {
+                    Expression::CallExpression(call) => self.call_color(call),
+                    _ => None,
                 })
                 .collect::<Option<Vec<_>>>()
                 .map(|groups| groups.into_iter().flatten().collect()),
             _ => None,
         }
-    }
-
-    fn identifier_color(
-        &self,
-        identifier: &IdentifierReference<'_>,
-    ) -> Option<Vec<ColorExpression>> {
-        matches!(
-            resolved_constant(identifier, self.output.constants, self.output.scoping),
-            Some(StaticValue::DynamicColor { .. })
-        )
-        .then(|| {
-            vec![ColorExpression {
-                name: identifier.name.to_string(),
-                value: "\"#ff6b6b\"".to_owned(),
-            }]
-        })
     }
 
     fn call_color(&self, call: &oxc_ast::ast::CallExpression<'_>) -> Option<Vec<ColorExpression>> {
@@ -263,9 +258,13 @@ impl DynamicColorVisitor<'_> {
             return None;
         }
         let [Argument::StringLiteral(value)] = call.arguments.as_slice() else {
+            // A spread would also fill the `_sp` merge argument
             let [argument] = call.arguments.as_slice() else {
                 return None;
             };
+            if matches!(argument, Argument::SpreadElement(_)) {
+                return None;
+            }
             let span = argument.span();
             return Some(vec![ColorExpression {
                 name: color.name.to_string(),
@@ -294,13 +293,46 @@ struct ColorExpression {
 }
 
 enum ClassNameSource<'a> {
-    /// Already merged by the css or cx prop passes
-    Merged(&'a str),
-    /// Built from the styled component class, className attributes and spreads
+    /// Already merged by the css or cx prop passes, with the style flag classes appended
+    Merged(String),
+    /// Built from the styled component and style flag classes, className attributes and spreads
     Attributes {
-        base_class: Option<&'a str>,
-        class_inputs: &'a [String],
+        vindur_class: VindurClass,
+        element: &'a JSXElement<'a>,
     },
+}
+
+/// Classes vindur adds to an element, `dynamic_suffix` concatenates the classes of style flags
+/// with a runtime value
+#[derive(Default)]
+struct VindurClass {
+    literal: String,
+    dynamic_suffix: String,
+}
+
+impl VindurClass {
+    fn expression(&self) -> Option<String> {
+        (!self.literal.is_empty() || !self.dynamic_suffix.is_empty()).then(|| {
+            format!(
+                "{}{}",
+                js_string_literal(&self.literal),
+                self.dynamic_suffix
+            )
+        })
+    }
+
+    /// Appended to a merged className expression
+    fn suffix(&self) -> String {
+        if self.literal.is_empty() {
+            self.dynamic_suffix.clone()
+        } else {
+            format!(
+                " + {}{}",
+                js_string_literal(&format!(" {}", self.literal)),
+                self.dynamic_suffix
+            )
+        }
+    }
 }
 
 fn color_merge_object(
@@ -309,8 +341,7 @@ fn color_merge_object(
     style_attribute: Option<&JSXAttribute<'_>>,
     spreads: &[SpreadSource],
     sources: &mut AttributeSources<'_>,
-    needs_merge_class_names: &mut bool,
-    needs_merge_styles: &mut bool,
+    helpers: &mut MergeHelpers<'_>,
 ) -> Option<String> {
     let last_spread_start = spreads.last().map_or(0, |spread| spread.start);
     let class_after_spreads = class_attribute
@@ -318,36 +349,60 @@ fn color_merge_object(
     let style_after_spreads = style_attribute
         .is_some_and(|attribute| spreads.is_empty() || attribute.span.start > last_spread_start);
     let class_name = match class_source {
-        ClassNameSource::Merged(expression) => Some(expression.to_owned()),
+        ClassNameSource::Merged(expression) => Some(expression),
         ClassNameSource::Attributes {
-            base_class,
-            class_inputs,
+            vindur_class,
+            element,
         } if !spreads.is_empty() && !class_after_spreads => {
-            *needs_merge_class_names = true;
+            *helpers.needs_merge_class_names = true;
+            let (class_inputs, _) = merge_class_name_inputs(
+                element,
+                &ClassNameSources {
+                    source: sources.source,
+                    constants: sources.constants,
+                    scoping: sources.scoping,
+                },
+                sources.edits,
+            );
             Some(format!(
-                "mergeClassNames([{}], {})",
+                "{}([{}], {})",
+                helpers.names.merge_class_names,
                 class_inputs.join(", "),
-                base_class.map_or("\"\"".to_owned(), |base| format!("\"{base}\""))
+                vindur_class
+                    .expression()
+                    .unwrap_or_else(|| "\"\"".to_owned())
             ))
         }
-        ClassNameSource::Attributes { base_class, .. } => match (base_class, class_attribute) {
-            (None, None) => None,
-            (Some(base), None) => Some(format!("\"{base}\"")),
-            (None, Some(attribute)) => Some(sources.value(attribute)),
-            (Some(base), Some(attribute)) => match &attribute.value {
-                Some(JSXAttributeValue::StringLiteral(value)) => Some(js_string_literal(&format!(
-                    "{base} {}",
-                    decode_jsx_entities(&value.value)
-                ))),
-                _ => Some(format!(
-                    "\"{base} \" + {}",
-                    sources.class_name_concat(attribute)
-                )),
-            },
-        },
+        ClassNameSource::Attributes { vindur_class, .. } => {
+            match (vindur_class.expression(), class_attribute) {
+                (None, None) => None,
+                (Some(vindur), None) => Some(vindur),
+                (None, Some(attribute)) => Some(sources.value(attribute)),
+                (Some(_), Some(attribute)) => {
+                    let VindurClass {
+                        literal,
+                        dynamic_suffix,
+                    } = vindur_class;
+                    Some(match &attribute.value {
+                        Some(JSXAttributeValue::StringLiteral(value)) => format!(
+                            "{}{dynamic_suffix}",
+                            js_string_literal(&format!(
+                                "{literal} {}",
+                                decode_jsx_entities(&value.value)
+                            ))
+                        ),
+                        _ => format!(
+                            "{} + {}{dynamic_suffix}",
+                            js_string_literal(&format!("{literal} ")),
+                            sources.class_name_concat(attribute)
+                        ),
+                    })
+                }
+            }
+        }
     };
     let style = if !spreads.is_empty() && !style_after_spreads {
-        *needs_merge_styles = true;
+        *helpers.needs_merge_styles = true;
         // Only spreads after the explicit style can override it
         let style_start = style_attribute.map_or(0, |attribute| attribute.span.start);
         let overriding_spreads = spreads
@@ -356,11 +411,12 @@ fn color_merge_object(
             .map(|spread| spread.source.as_str())
             .collect::<Vec<_>>()
             .join(", ");
+        let merge_styles = &helpers.names.merge_styles;
         Some(style_attribute.map_or_else(
-            || format!("mergeStyles([{overriding_spreads}])"),
+            || format!("{merge_styles}([{overriding_spreads}])"),
             |attribute| {
                 format!(
-                    "mergeStyles([{overriding_spreads}], {})",
+                    "{merge_styles}([{overriding_spreads}], {})",
                     sources.value(attribute)
                 )
             },
@@ -379,6 +435,13 @@ fn color_merge_object(
         properties.push(format!("style: {style}"));
     }
     Some(format!("{{\n{},\n}}", properties.join(",\n")))
+}
+
+/// The runtime merge helpers the merge object calls
+struct MergeHelpers<'a> {
+    names: &'a RuntimeHelperNames,
+    needs_merge_class_names: &'a mut bool,
+    needs_merge_styles: &'a mut bool,
 }
 
 /// Copies the values of attributes the merge replaces, with the edits earlier passes made inside
@@ -403,8 +466,16 @@ impl AttributeSources<'_> {
         }
     }
 
-    fn class_name_concat(&self, attribute: &JSXAttribute<'_>) -> String {
-        class_name_concat_source(attribute, self.source, self.constants, self.scoping)
+    fn class_name_concat(&mut self, attribute: &JSXAttribute<'_>) -> String {
+        edited_class_name_concat_source(
+            attribute,
+            &ClassNameSources {
+                source: self.source,
+                constants: self.constants,
+                scoping: self.scoping,
+            },
+            self.edits,
+        )
     }
 }
 
@@ -434,4 +505,24 @@ fn spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<SpreadSource> {
             })
         })
         .collect()
+}
+
+/// Removes the style flag props of a styled component and returns their classes
+fn remove_style_flags(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+    edits: &mut Vec<Edit>,
+) -> VindurClass {
+    let flags = style_flag_classes(element, component, source);
+    for span in &flags.attribute_spans {
+        edits.push(Edit {
+            span: *span,
+            replacement: String::new(),
+        });
+    }
+    VindurClass {
+        literal: flags.static_classes.join(" "),
+        dynamic_suffix: flags.dynamic_suffix(),
+    }
 }

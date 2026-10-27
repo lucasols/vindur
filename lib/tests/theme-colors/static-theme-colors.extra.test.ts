@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('createStaticThemeColors', () => {
   describe('minified color output', () => {
@@ -45,7 +45,7 @@ describe('createStaticThemeColors', () => {
       `);
     });
 
-    test('should output minified 3-character hex codes for .var properties', async () => {
+    test('should output minified 3-character hex codes for .value properties', async () => {
       const source = dedent`
         import { createStaticThemeColors, styled } from 'vindur'
 
@@ -58,11 +58,11 @@ describe('createStaticThemeColors', () => {
         })
 
         const Component = styled.div\`
-          color: \${colors.red.var};
-          background: \${colors.green.var};
-          border-color: \${colors.blue.var};
-          outline-color: \${colors.white.var};
-          text-shadow: 1px 1px \${colors.black.var};
+          color: \${colors.red.value};
+          background: \${colors.green.value};
+          border-color: \${colors.blue.value};
+          outline-color: \${colors.white.value};
+          text-shadow: 1px 1px \${colors.black.value};
         \`
       `;
 
@@ -90,8 +90,8 @@ describe('createStaticThemeColors', () => {
         })
 
         const Component = styled.div\`
-          color: \${colors.primary.contrast.var};
-          background: \${colors.light.contrast.var};
+          color: \${colors.primary.contrast.value};
+          background: \${colors.light.contrast.value};
           border: 1px solid \${colors.primary.contrast.alpha(0.2)};
         \`
       `;
@@ -127,8 +127,8 @@ describe('createStaticThemeColors', () => {
 
       expect(result.css).toMatchInlineSnapshot(`
         ".v1560qbr-1-Component {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
-          color: var(--stc-secondary-lighter-0\\.2, #f66);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
+          color: var(--stc-secondary-lighter-0\\.2, #f33);
         }
         "
       `);
@@ -250,7 +250,7 @@ describe('createStaticThemeColors', () => {
           `,
         }),
       ).rejects.toThrowErrorMatchingInlineSnapshot(`
-        [TransformError: /test.tsx: Method alpha requires a numeric argument
+        [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${colors.primary.alpha()}, function must be statically analyzable and correctly imported with the configured aliases
         loc: 6:11]
       `);
     });
@@ -270,10 +270,351 @@ describe('createStaticThemeColors', () => {
 
       expect(result.css).toMatchInlineSnapshot(`
         ".v1560qbr-1-style {
-          color: var(--stc-primary-contrast-optimal-alpha-0\\.5, #ffffff80);
+          color: var(--stc-primary-contrast-optimal-0\\.5, #ffffff80);
         }
         "
       `);
     });
   });
+});
+
+test('should evaluate constant amounts of static theme color methods', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+      const AMOUNT = 0.2;
+      const OPTIONS = { alpha: 0.5 };
+
+      export const style = css\`
+        color: \${colors.primary.darker(AMOUNT)};
+        background: \${colors.primary.lighter(0.1)};
+        border-color: \${colors.primary.contrast.optimal(OPTIONS)};
+        outline-color: \${colors.primary.contrast.optimal({ alpha: 0 })};
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: var(--stc-primary-darker-0\\.2, #0062cc);
+      background: var(--stc-primary-lighter-0\\.1, #1a88ff);
+      border-color: var(--stc-primary-contrast-optimal-0\\.5, #ffffff80);
+      outline-color: var(--stc-primary-contrast-optimal-0, #fff0);
+    }
+    "
+  `);
+});
+
+test('should fail on static theme color method amounts that are not static', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createStaticThemeColors } from 'vindur';
+
+        const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        export const style = css\`
+          color: \${colors.primary.darker(getAmount())};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${colors.primary.darker(getAmount())}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: 6:11]
+  `);
+});
+
+test('should fail on color method amounts outside 0 and 1', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createStaticThemeColors } from 'vindur';
+
+        const colors = createStaticThemeColors({ primary: '#007bff' });
+
+        export const style = css\`
+          background: \${colors.primary.lighter(-0.1)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method lighter amount must be between 0 and 1, got -0.1
+    loc: 6:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+        const AMOUNT = 1.5;
+
+        export const style = css\`
+          background: \${color.alpha(AMOUNT)};
+          color: \${color.contrast.alpha(0.5)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method alpha amount must be between 0 and 1, got 1.5
+    loc: 7:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createDynamicCssColor } from 'vindur';
+
+        const color = createDynamicCssColor();
+
+        export const style = css\`
+          color: \${color.contrast.alpha(1.2)};
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Method alpha amount must be between 0 and 1, got 1.2
+    loc: 6:11]
+  `);
+});
+
+test('should accept color method amounts of 0 and 1', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createDynamicCssColor, createStaticThemeColors } from 'vindur';
+
+      const color = createDynamicCssColor();
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      export const style = css\`
+        color: \${color.darker(0)};
+        background: \${color.lighter(1)};
+        border-color: \${colors.primary.saturatedDarker(1)};
+        outline-color: \${colors.primary.contrast.alpha(0)};
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2-style {
+      color: color-mix(in srgb, var(--v1560qbr-1-color) 100%, #000);
+      background: color-mix(in srgb, var(--v1560qbr-1-color) 0%, #fff);
+      border-color: var(--stc-primary-saturatedDarker-1, #000);
+      outline-color: var(--stc-primary-contrast-alpha-0, #fff0);
+    }
+    "
+  `);
+});
+
+test('should treat an undefined optimal contrast option as omitted', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createStaticThemeColors, createDynamicCssColor } from 'vindur';
+
+      const colors = createStaticThemeColors({ light: '#f7fafc' });
+      const color = createDynamicCssColor();
+
+      export const styles = css\`
+        color: \${colors.light.contrast.optimal(undefined)};
+        border-color: \${colors.light.contrast.optimal({ alpha: undefined })};
+        background: \${color.contrast.optimal(undefined)};
+        outline-color: \${color.contrast.optimal({ alpha: undefined })};
+      \`;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2 {
+      color: #002a46;
+      border-color: #002a46;
+      background: var(--v1560qbr-1-c-optimal);
+      outline-color: var(--v1560qbr-1-c-optimal);
+    }
+    "
+  `);
+});
+
+test('should evaluate constant amounts of dynamic color methods', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createDynamicCssColor } from 'vindur';
+
+      const AMOUNT = 0.2;
+      const color = createDynamicCssColor();
+
+      export const styles = css\`
+        color: \${color.saturatedDarker(AMOUNT)};
+        background: \${color.darker(AMOUNT)};
+        border-color: \${color.alpha(AMOUNT)};
+      \`;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2 {
+      color: hsl(
+        var(--v1560qbr-1-h),
+        var(--v1560qbr-1-sds),
+        calc(var(--v1560qbr-1-l) * 0.8)
+      );
+      background: color-mix(in srgb, var(--v1560qbr-1) 80%, #000);
+      border-color: color-mix(in srgb, var(--v1560qbr-1) 20%, transparent);
+    }
+    "
+  `);
+});
+
+test('should interpolate defaultHex of static theme colors as written', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createStaticThemeColors, css } from 'vindur'
+
+      const colors = createStaticThemeColors({
+        primary: '#FF0000',
+      })
+
+      const styles = css\`
+        content: "\${colors.primary.defaultHex}";
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-styles {
+      content: "#FF0000";
+    }
+    "
+  `);
+});
+
+test('should resolve static colors to hex in every kind of style in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, css, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+
+      createGlobalStyle\`
+        body {
+          color: \${colors.primary.value};
+        }
+      \`;
+
+      const Box = styled.div\`
+        color: \${colors.primary.value};
+      \`;
+
+      export const A = () => (
+        <>
+          <div className={css\`border-color: \${colors.primary.value};\`} />
+          <div css={\`outline-color: \${colors.primary.value};\`} />
+          <Box />
+        </>
+      );
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      color: #007bff;
+    }
+
+    .v1560qbr-2 {
+      color: #007bff;
+    }
+
+    .v1560qbr-4 {
+      border-color: #007bff;
+    }
+
+    .v1560qbr-3 {
+      outline-color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should keep user written --stc- text as is in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle, styled, createStaticThemeColors } from 'vindur';
+
+      const colors = createStaticThemeColors({ primary: '#007bff' });
+      const label = '"var(--stc-example, #f00)"';
+
+      createGlobalStyle\`
+        body {
+          --stc-brand: #00f;
+          color: var(--stc-brand, #f00);
+        }
+        h1::before {
+          content: \${label};
+        }
+      \`;
+
+      const Box = styled.div\`
+        ---stc-gap: 4px;
+        gap: var(---stc-gap);
+        color: \${colors.primary.value};
+      \`;
+
+      export const A = () => <Box />;
+    `,
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "body {
+      --stc-brand: #00f;
+      color: var(--stc-brand, #f00);
+    }
+    h1::before {
+      content: "var(--stc-example, #f00)";
+    }
+
+    .v1560qbr-2 {
+      --v1560qbr-3: 4px;
+      gap: var(--v1560qbr-3);
+      color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should resolve imported static colors to hex in production', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import { colors } from '#/theme';
+
+      export const a = css\`
+        color: \${colors.primary.value};
+        background: \${colors.primary.alpha(0.5)};
+        border-color: \${colors.primary.contrast.value};
+      \`;
+    `,
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        import { createStaticThemeColors } from 'vindur';
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' });
+      `,
+    }),
+    production: true,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: #007bff;
+      background: #007bff80;
+      border-color: #fff;
+    }
+    "
+  `);
 });

@@ -107,7 +107,7 @@ test('should keep default and type imports when removing compile-time specifiers
 
   expect(result.code).toMatchInlineSnapshot(`
     "import Widget from "#/constants";
-    import type { Props } from "#/constants";
+    import type { Props, LABEL } from "#/constants";
     import { type Item } from "#/constants";
     const styles = "v1560qbr-1-styles";
     export const A = (props: Props & Item) => (

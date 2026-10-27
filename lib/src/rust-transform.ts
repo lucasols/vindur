@@ -12,13 +12,21 @@ import { createCssSourceMapFromOffsets } from './css-source-map';
 
 const { Compiler } = nativeBinding;
 
-const compilers = new WeakMap<TransformFunctionCache, CompilerInstance>();
+// Keyed by mode too, the cached module facts include dev or prod class names and ids
+const compilers = new WeakMap<
+  TransformFunctionCache,
+  Map<boolean, CompilerInstance>
+>();
 
 export function invalidateRustTransformCache(
   transformFunctionCache: TransformFunctionCache,
   filePath: string,
 ): void {
-  compilers.get(transformFunctionCache)?.invalidate(filePath);
+  const modeCompilers = compilers.get(transformFunctionCache);
+  if (!modeCompilers) return;
+  for (const compiler of modeCompilers.values()) {
+    compiler.invalidate(filePath);
+  }
 }
 
 export function transformWithRust({
@@ -40,10 +48,15 @@ export function transformWithRust({
     importAliases,
     source,
   });
-  let compiler = compilers.get(transformFunctionCache);
+  let modeCompilers = compilers.get(transformFunctionCache);
+  if (!modeCompilers) {
+    modeCompilers = new Map();
+    compilers.set(transformFunctionCache, modeCompilers);
+  }
+  let compiler = modeCompilers.get(dev);
   if (!compiler) {
     compiler = new Compiler();
-    compilers.set(transformFunctionCache, compiler);
+    modeCompilers.set(dev, compiler);
   }
 
   const result = compiler.transform(

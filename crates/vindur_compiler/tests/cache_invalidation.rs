@@ -53,6 +53,39 @@ fn invalidates_changed_dependency_facts_for_hmr() {
 }
 
 #[test]
+fn invalidates_modules_that_use_a_changed_file_indirectly() {
+    let compiler = Compiler::new();
+    let mut loader = MemoryLoader {
+        files: HashMap::from_iter([
+            (
+                "/constants.ts".to_owned(),
+                "export const UNIT = 4;".to_owned(),
+            ),
+            (
+                "/derived.ts".to_owned(),
+                "import { UNIT } from '#/constants'; export const GAP = UNIT * 2;".to_owned(),
+            ),
+        ]),
+    };
+    let source = "import { css } from 'vindur'; import { GAP } from '#/derived'; const style = css`gap: ${GAP}px;`;";
+
+    let first = compiler.transform_with_loader("/app.ts", source, &options(), &mut loader);
+    assert!(first.css.contains("gap: 8px;"));
+    assert_eq!(
+        first.style_dependencies,
+        vec!["/derived.ts".to_owned(), "/constants.ts".to_owned()]
+    );
+
+    loader.files.insert(
+        "/constants.ts".to_owned(),
+        "export const UNIT = 8;".to_owned(),
+    );
+    compiler.invalidate("/constants.ts");
+    let second = compiler.transform_with_loader("/app.ts", source, &options(), &mut loader);
+    assert!(second.css.contains("gap: 16px;"));
+}
+
+#[test]
 fn preserves_legacy_unexported_theme_color_extraction() {
     let compiler = Compiler::new();
     let mut loader = MemoryLoader {
@@ -61,7 +94,7 @@ fn preserves_legacy_unexported_theme_color_extraction() {
             "import { createStaticThemeColors } from 'vindur'; const colors = createStaticThemeColors({ primary: '#ff0000' });".to_owned(),
         )]),
     };
-    let source = "import { css } from 'vindur'; import { colors } from '#/theme'; const style = css`background: ${colors.primary.var};`;";
+    let source = "import { css } from 'vindur'; import { colors } from '#/theme'; const style = css`background: ${colors.primary.value};`;";
 
     let output = compiler.transform_with_loader("/App.ts", source, &options(), &mut loader);
 
@@ -78,14 +111,22 @@ const App = ({ active }) => <div className={cx('base', { active })} css={`color:
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());
 
     assert!(output.diagnostics.is_empty());
-    assert!(output.code.contains("cx('base', { active })"));
+    // The css class is merged around the className expression, so the cx call inside is still optimized
+    assert!(
+        output
+            .code
+            .contains(r#"(("base" + (active ? " active" : "")) || "") + " "#),
+        "{}",
+        output.code
+    );
     assert!(output.css.contains("color: red;"));
 }
 
 #[test]
 fn merges_mixed_vindur_import_cleanup_after_cx_optimization() {
     let source = r#"import { cx, styled } from 'vindur';
-const Box = styled.div<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
+import { Card } from 'ui';
+const Box = styled(Card)<{ tone: 'soft' | 'hard' }>`color: red; &.tone-soft { opacity: 0.8; } &.tone-hard { opacity: 1; }`;
 const App = ({ active, css }) => <Box tone="soft" css={css} className={cx({ active })} />;"#;
 
     let output = Compiler::new().transform("/App.tsx", source, &TransformOptions::default());

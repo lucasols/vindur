@@ -20,8 +20,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -35,8 +35,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -61,8 +60,8 @@ describe('createStaticThemeColors', () => {
       })
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -112,8 +111,8 @@ describe('createStaticThemeColors', () => {
       import { theme } from '#/theme'
 
       const Button = styled.button\`
-        background: \${theme.primary.var};
-        color: \${theme.primary.contrast.var};
+        background: \${theme.primary.value};
+        color: \${theme.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -128,8 +127,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { theme } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -163,7 +161,7 @@ describe('createStaticThemeColors', () => {
       const Alert = styled.div\`
         background: \${colors.danger.alpha(0.1)};
         border: 1px solid \${colors.danger.alpha(0.3)};
-        color: \${colors.danger.var};
+        color: \${colors.danger.value};
       \`
 
       const Component = () => {
@@ -177,8 +175,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const Component = () => {
+      "const Component = () => {
         return <div className="v1560qbr-1-Alert">Warning message</div>;
       };
       "
@@ -210,7 +207,7 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
+        background: \${colors.primary.value};
   
         &:hover {
           background: \${colors.primary.darker(0.1)};
@@ -236,8 +233,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -248,15 +244,15 @@ describe('createStaticThemeColors', () => {
         background: var(--stc-primary-var, #007bff);
 
         &:hover {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
         }
 
         &:active {
-          background: var(--stc-primary-darker-0\\.2, #004a99);
+          background: var(--stc-primary-darker-0\\.2, #0062cc);
         }
 
         &:disabled {
-          background: var(--stc-primary-lighter-0\\.3, #99caff);
+          background: var(--stc-primary-lighter-0\\.3, #4da3ff);
         }
       }
       "
@@ -273,13 +269,13 @@ describe('createStaticThemeColors', () => {
       })
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
         border: 1px solid \${colors.primary.contrast.alpha(0.2)};
   
         &.light {
-          background: \${colors.light.var};
-          color: \${colors.light.contrast.optimal({ saturation: 0.8 })};
+          background: \${colors.light.value};
+          color: \${colors.light.contrast.optimal()};
         }
       \`
 
@@ -312,7 +308,7 @@ describe('createStaticThemeColors', () => {
 
         &.light {
           background: var(--stc-light-var, #f8f9fa);
-          color: var(--stc-light-contrast-optimal, #000);
+          color: var(--stc-light-contrast-optimal, #232323);
         }
       }
       "
@@ -345,13 +341,13 @@ describe('createStaticThemeColors', () => {
       import { statusColors } from '#/status-colors'
 
       const SuccessButton = styled.button\`
-        background: \${statusColors.success.var};
-        color: \${statusColors.success.contrast.var};
+        background: \${statusColors.success.value};
+        color: \${statusColors.success.contrast.value};
       \`
 
       const PrimaryButton = styled.button\`
-        background: \${brandColors.primary.var};
-        color: \${brandColors.primary.contrast.var};
+        background: \${brandColors.primary.value};
+        color: \${brandColors.primary.contrast.value};
       \`
 
       const Component = () => {
@@ -370,9 +366,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { brandColors } from "#/brand-colors";
-      import { statusColors } from "#/status-colors";
-      const Component = () => {
+      "const Component = () => {
         return (
           <div>
             <button className="v1560qbr-1-SuccessButton">Success</button>
@@ -417,12 +411,12 @@ describe('createStaticThemeColors', () => {
         padding: 12px 24px;
         border: none;
         border-radius: 4px;
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
   
         &.warning {
-          background: \${colors.warning.var};
-          color: \${colors.warning.contrast.var};
+          background: \${colors.warning.value};
+          color: \${colors.warning.contrast.value};
         }
       \`
 
@@ -437,8 +431,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const buttonStyles = "v1560qbr-1-buttonStyles";
+      "const buttonStyles = "v1560qbr-1-buttonStyles";
       const Component = () => {
         return <button className={buttonStyles}>Click me</button>;
       };
@@ -506,8 +499,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { theme } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return (
           <div className="v1560qbr-1-Card">
             <div className="header">Header</div>
@@ -527,7 +519,7 @@ describe('createStaticThemeColors', () => {
         }
 
         .header {
-          background: var(--stc-primary-lighter-0\\.4, #cce5ff);
+          background: var(--stc-primary-lighter-0\\.4, #66b0ff);
           color: var(--stc-primary-contrast-alpha-0\\.8, #fffc);
         }
       }
@@ -552,8 +544,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/colors'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
   
         &:hover {
           background: \${colors.primary.darker(0.1)};
@@ -578,8 +570,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -591,12 +582,12 @@ describe('createStaticThemeColors', () => {
         color: var(--stc-primary-contrast-var, #fff);
 
         &:hover {
-          background: var(--stc-primary-darker-0\\.1, #0062cc);
+          background: var(--stc-primary-darker-0\\.1, #006fe6);
           box-shadow: 0 2px 4px var(--stc-primary-alpha-0\\.3, #007bff4d);
         }
 
         &:disabled {
-          background: var(--stc-secondary-lighter-0\\.2, #a1a8ae);
+          background: var(--stc-secondary-lighter-0\\.2, #899197);
           color: var(--stc-secondary-contrast-alpha-0\\.5, #ffffff80);
         }
       }
@@ -622,8 +613,8 @@ describe('createStaticThemeColors', () => {
       import { colors } from '#/theme'
 
       const Button = styled.button\`
-        background: \${colors.primary.var};
-        color: \${colors.primary.contrast.var};
+        background: \${colors.primary.value};
+        color: \${colors.primary.contrast.value};
         border: 1px solid \${colors.primary.alpha(0.2)};
   
         &:hover {
@@ -631,7 +622,7 @@ describe('createStaticThemeColors', () => {
         }
   
         &.danger {
-          background: \${colors.danger.var};
+          background: \${colors.danger.value};
           color: \${colors.danger.contrast.alpha(0.9)};
         }
       \`
@@ -648,8 +639,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1">Click me</button>;
       };
       "
@@ -662,7 +652,7 @@ describe('createStaticThemeColors', () => {
         border: 1px solid #007bff33;
 
         &:hover {
-          background: #0062cc;
+          background: #006fe6;
         }
 
         &.danger {

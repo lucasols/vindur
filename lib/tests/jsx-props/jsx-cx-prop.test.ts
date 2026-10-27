@@ -766,4 +766,29 @@ describe('JSX cx prop transformation', () => {
       });
     });
   });
+
+  test('should escape quotes in passthrough cx keys', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        export const App = ({ active }) => (
+          <div css={\`color: red;\`} cx={{ '$before:content-["hello"]': active }} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      export const App = ({ active }) => (
+        <div
+          className={
+            "v1560qbr-1-css-prop-1 " +
+            cx({
+              'before:content-["hello"]': active,
+            })
+          }
+        />
+      );
+      "
+    `);
+  });
 });

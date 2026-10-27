@@ -11,7 +11,7 @@ use super::{
     css_syntax::{BlockKind, css_error_diagnostic},
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template},
-    styled::is_styled_tag,
+    vindur_fn_references::is_styled_tag,
 };
 
 pub(crate) struct DirectTransform<'a> {

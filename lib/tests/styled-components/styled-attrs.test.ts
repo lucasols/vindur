@@ -295,14 +295,12 @@ describe('styled components - attrs functionality', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { _vSC } from "vindur";
-      const BaseButton = _vSC("button", "v1560qbr-1-BaseButton", {
+      const _vBaseButtonAttrs = {
         type: "button",
         "data-testid": "base-button",
-      });
-      export const LinkButton = _vSC("a", "v1560qbr-1-BaseButton", {
-        type: "button",
-        "data-testid": "base-button",
-      });
+      };
+      const BaseButton = _vSC("button", "v1560qbr-1-BaseButton", _vBaseButtonAttrs);
+      export const LinkButton = _vSC("a", "v1560qbr-1-BaseButton", _vBaseButtonAttrs);
       const Component = () => {
         return <LinkButton href="/test">Link</LinkButton>;
       };
@@ -477,6 +475,98 @@ describe('styled components - attrs functionality', () => {
       loc: 3:18]
     `,
     );
+  });
+
+  test('should throw error for JSX in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Icon = styled.span\`
+            color: red;
+          \`
+
+          export const Button = styled.button.attrs({ children: <Icon /> })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered
+      loc: 7:54]
+    `,
+    );
+  });
+
+  test('should throw error for vindur templates in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled, css } from 'vindur'
+
+          export const Button = styled.button.attrs({ className: css\`color: red;\` })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it
+      loc: 3:55]
+    `);
+  });
+
+  test('should throw error for stableId calls in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled, stableId } from 'vindur'
+
+          export const Input = styled.input.attrs({ id: stableId() })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it
+      loc: 3:46]
+    `);
+  });
+
+  test('should merge the attrs of a styled extension with the attrs of its base', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button.attrs({ type: 'button', title: 'base' })\`
+          color: red;
+        \`
+
+        const IconButton = styled(Button).attrs({ title: 'icon' })\`
+          padding: 0;
+        \`
+
+        export const App = () => <IconButton />
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      const _vButtonAttrs = {
+        type: "button",
+        title: "base",
+      };
+      const Button = _vSC("button", "v1560qbr-1-Button", _vButtonAttrs);
+      const IconButton = _vSC("button", "v1560qbr-1-Button v1560qbr-2-IconButton", {
+        ..._vButtonAttrs,
+        ...{
+          title: "icon",
+        },
+      });
+      export const App = () => <IconButton />;
+      "
+    `);
   });
 
   test('should handle function calls and expressions in attrs', async () => {

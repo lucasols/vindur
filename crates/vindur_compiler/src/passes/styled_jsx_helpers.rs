@@ -8,8 +8,9 @@ use rustc_hash::FxHashMap;
 use crate::edit::Edit;
 
 use super::{
+    jsx_class_name::{ClassNameSources, class_name_concat_source},
     static_evaluation::resolved_constant,
-    styled::{StyleFlag, StyleFlagKind},
+    styled::{StyleFlag, StyleFlagKind, StyledComponent},
 };
 
 pub(super) fn css_attribute_is_compile_time(
@@ -102,13 +103,109 @@ pub(super) fn collect_flag_class(
     }
 }
 
+/// The classes of the style flag props set on a compiled styled component
+pub(super) struct StyleFlagClasses {
+    pub(super) attribute_spans: Vec<oxc_span::Span>,
+    pub(super) static_classes: Vec<String>,
+    pub(super) dynamic_classes: Vec<DynamicFlagClass>,
+}
+
+impl StyleFlagClasses {
+    /// Concatenates the classes of the flags with a runtime value
+    pub(super) fn dynamic_suffix(&self) -> String {
+        self.dynamic_classes
+            .iter()
+            .map(|class| class.concat.as_str())
+            .collect()
+    }
+}
+
+pub(super) fn style_flag_classes(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+) -> StyleFlagClasses {
+    let mut classes = StyleFlagClasses {
+        attribute_spans: Vec::new(),
+        static_classes: Vec::new(),
+        dynamic_classes: Vec::new(),
+    };
+    for item in &element.opening_element.attributes {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            continue;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            continue;
+        };
+        let Some(flag) = component
+            .style_flags
+            .iter()
+            .find(|flag| flag.prop_name == name.name.as_str())
+        else {
+            continue;
+        };
+        classes.attribute_spans.push(attribute.span);
+        collect_flag_class(
+            attribute,
+            flag,
+            source,
+            &mut classes.static_classes,
+            &mut classes.dynamic_classes,
+        );
+    }
+    classes
+}
+
+/// The classes a compiled styled component adds to the className emitted for its css or
+/// cx prop. With a `dynamicColor` prop the dynamic color pass adds the style flag classes
+pub(super) struct InlinedComponentClasses {
+    pub(super) literal: String,
+    pub(super) flag_suffix: String,
+}
+
+pub(super) fn inlined_component_classes(
+    element: &JSXElement<'_>,
+    component: &StyledComponent,
+    source: &str,
+) -> InlinedComponentClasses {
+    if has_dynamic_color_attribute(element) {
+        return InlinedComponentClasses {
+            literal: component.class_name.clone(),
+            flag_suffix: String::new(),
+        };
+    }
+    let flags = style_flag_classes(element, component, source);
+    InlinedComponentClasses {
+        literal: std::iter::once(component.class_name.as_str())
+            .chain(flags.static_classes.iter().map(String::as_str))
+            .collect::<Vec<_>>()
+            .join(" "),
+        flag_suffix: flags.dynamic_suffix(),
+    }
+}
+
+/// `literal` followed by the classes of dynamic style flags and a cx call
+pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx_call: Option<&str>) -> String {
+    match (flag_suffix.is_empty(), cx_call) {
+        (true, None) => js_string_literal(literal),
+        (true, Some(cx_call)) => {
+            format!("{} + {cx_call}", js_string_literal(&format!("{literal} ")))
+        }
+        (false, None) => format!("{}{flag_suffix}", js_string_literal(literal)),
+        (false, Some(cx_call)) => {
+            format!(
+                "{}{flag_suffix} + \" \" + {cx_call}",
+                js_string_literal(literal)
+            )
+        }
+    }
+}
+
 pub(super) fn class_name_expression(
     attribute: &oxc_ast::ast::JSXAttribute<'_>,
     styled_class_name: &str,
     static_classes: &[String],
-    source: &str,
-    constants: &FxHashMap<String, crate::facts::StaticValue>,
-    scoping: &Scoping,
+    sources: &ClassNameSources<'_>,
 ) -> String {
     let static_suffix = static_classes
         .iter()
@@ -120,30 +217,18 @@ pub(super) fn class_name_expression(
             decode_jsx_entities(&value.value)
         )),
         Some(JSXAttributeValue::ExpressionContainer(_)) => {
-            let existing = class_name_concat_source(attribute, source, constants, scoping);
+            let existing = class_name_concat_source(attribute, sources);
             if static_suffix.is_empty() {
                 format!("\"{styled_class_name} \" + {existing}")
             } else {
-                format!("\"{styled_class_name} \" + {existing} + \"{static_suffix}\"")
+                format!(
+                    "\"{styled_class_name} \" + {existing} + {}",
+                    js_string_literal(&static_suffix)
+                )
             }
         }
-        _ => format!("\"{styled_class_name}{static_suffix}\""),
+        _ => js_string_literal(&format!("{styled_class_name}{static_suffix}")),
     }
-}
-
-pub(super) fn jsx_spread_sources(element: &JSXElement<'_>, source: &str) -> Vec<String> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
-            let span = spread.argument.span();
-            Some(source[span.start as usize..span.end as usize].to_owned())
-        })
-        .collect()
 }
 
 pub(super) fn has_spread_attribute(element: &JSXElement<'_>) -> bool {
@@ -198,52 +283,29 @@ pub(super) fn emit_class_name(
     });
 }
 
-pub(super) struct StyledSpread {
-    pub(super) start: u32,
-}
-
 pub(super) struct InvalidStyledSpread {
     pub(super) span: oxc_span::Span,
     pub(super) source: String,
 }
 
-pub(super) fn styled_spread_sources(
+/// Only references to variables can be spread on elements vindur merges the className of
+pub(super) fn validate_styled_spreads(
     element: &JSXElement<'_>,
     source: &str,
-) -> Result<Vec<StyledSpread>, InvalidStyledSpread> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::SpreadAttribute(spread) = item else {
-                return None;
-            };
+) -> Result<(), InvalidStyledSpread> {
+    for item in &element.opening_element.attributes {
+        let JSXAttributeItem::SpreadAttribute(spread) = item else {
+            continue;
+        };
+        if !matches!(&spread.argument, Expression::Identifier(_)) {
             let span = spread.argument.span();
-            if matches!(&spread.argument, Expression::Identifier(_)) {
-                Some(Ok(StyledSpread { start: span.start }))
-            } else {
-                Some(Err(InvalidStyledSpread {
-                    span: spread.span,
-                    source: source[span.start as usize..span.end as usize].to_owned(),
-                }))
-            }
-        })
-        .collect()
-}
-
-pub(super) fn class_name_attributes<'a>(element: &'a JSXElement<'a>) -> Vec<&'a JSXAttribute<'a>> {
-    element
-        .opening_element
-        .attributes
-        .iter()
-        .filter_map(|item| {
-            let JSXAttributeItem::Attribute(attribute) = item else {
-                return None;
-            };
-            is_named_attribute(attribute, "className").then_some(&**attribute)
-        })
-        .collect()
+            return Err(InvalidStyledSpread {
+                span: spread.span,
+                source: source[span.start as usize..span.end as usize].to_owned(),
+            });
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn is_named_attribute(attribute: &JSXAttribute<'_>, expected: &str) -> bool {
@@ -269,66 +331,6 @@ pub(super) fn format_spread_expression(source: &str) -> String {
     source.replace("{ ", "{\n  ").replace(" }", "\n}")
 }
 
-pub(super) fn class_name_value_source(
-    attribute: &oxc_ast::ast::JSXAttribute<'_>,
-    source: &str,
-) -> String {
-    let Some(value) = &attribute.value else {
-        return "undefined".to_owned();
-    };
-    match value {
-        JSXAttributeValue::ExpressionContainer(container) => match &container.expression {
-            oxc_ast::ast::JSXExpression::EmptyExpression(_) => "undefined".to_owned(),
-            expression => {
-                let span = expression.span();
-                source[span.start as usize..span.end as usize].to_owned()
-            }
-        },
-        JSXAttributeValue::StringLiteral(value) => {
-            js_string_literal(&decode_jsx_entities(&value.value))
-        }
-        _ => "undefined".to_owned(),
-    }
-}
-
-/// Returns the existing className expression to be concatenated with vindur class names,
-/// guarding values that can be falsy at runtime, e.g. an optional `className` prop
-pub(super) fn class_name_concat_source(
-    attribute: &JSXAttribute<'_>,
-    source: &str,
-    constants: &FxHashMap<String, crate::facts::StaticValue>,
-    scoping: &Scoping,
-) -> String {
-    let value_source = class_name_value_source(attribute, source);
-    let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
-        return match &attribute.value {
-            Some(JSXAttributeValue::StringLiteral(_)) => value_source,
-            _ => "\"\"".to_owned(),
-        };
-    };
-    match &container.expression {
-        oxc_ast::ast::JSXExpression::Identifier(identifier)
-            if matches!(
-                resolved_constant(identifier, constants, scoping),
-                Some(
-                    crate::facts::StaticValue::CssClass { .. }
-                        | crate::facts::StaticValue::String(_)
-                )
-            ) =>
-        {
-            value_source
-        }
-        oxc_ast::ast::JSXExpression::StringLiteral(_)
-        | oxc_ast::ast::JSXExpression::TemplateLiteral(_) => value_source,
-        // Operands that bind tighter than `||` don't need to be parenthesized
-        oxc_ast::ast::JSXExpression::Identifier(_)
-        | oxc_ast::ast::JSXExpression::StaticMemberExpression(_)
-        | oxc_ast::ast::JSXExpression::ComputedMemberExpression(_)
-        | oxc_ast::ast::JSXExpression::CallExpression(_) => format!("({value_source} || \"\")"),
-        _ => format!("(({value_source}) || \"\")"),
-    }
-}
-
 /// Whether a generated CSS rule is the root rule of `class_name`, including `@layer` sections
 pub(super) fn is_class_rule(rule: &str, class_name: &str) -> bool {
     let selector = format!(".{class_name} {{");
@@ -337,110 +339,6 @@ pub(super) fn is_class_rule(rule: &str, class_name: &str) -> bool {
             .strip_prefix("@layer ")
             .and_then(|layered| layered.split_once(" {\n  "))
             .is_some_and(|(_, inner)| inner.starts_with(&selector))
-}
-
-/// Replaces `&.original` modifier selectors with `&.hashed`, skipping longer class names
-/// that share the same prefix, e.g. `&.active-extra` when replacing `active`
-pub(super) fn replace_modifier_selector(css: &str, original: &str, hashed: &str) -> String {
-    let mut result = String::with_capacity(css.len());
-    let mut last = 0;
-    for start in modifier_selector_starts(css, original) {
-        result.push_str(&css[last..=start]);
-        result.push_str(hashed);
-        last = start + 1 + original.len();
-    }
-    result.push_str(&css[last..]);
-    result
-}
-
-/// Whether `css` has a `&.original` modifier selector, ignoring longer class names that share
-/// the same prefix
-pub(super) fn contains_modifier_selector(css: &str, original: &str) -> bool {
-    !modifier_selector_starts(css, original).is_empty()
-}
-
-/// Byte offsets of the `.` of each `.original` class in a compound selector starting with `&`,
-/// e.g. both classes of `&.active.disabled`, skipping strings and comments
-fn modifier_selector_starts(css: &str, original: &str) -> Vec<usize> {
-    let bytes = css.as_bytes();
-    let pattern = format!(".{original}");
-    let mut starts = Vec::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            // An unescaped line break ends a string, like in the CSS tokenizer, so a stray
-            // quote (e.g. in a `//` comment) doesn't swallow the rest of the css
-            quote @ (b'"' | b'\'') => {
-                index += 1;
-                while index < bytes.len() && bytes[index] != quote && bytes[index] != b'\n' {
-                    index += if bytes[index] == b'\\' { 2 } else { 1 };
-                }
-                index += 1;
-            }
-            b'/' if bytes.get(index + 1) == Some(&b'*') => {
-                index = css[index + 2..]
-                    .find("*/")
-                    .map_or(bytes.len(), |end| index + 2 + end + 2);
-            }
-            b'.' if css[index..].starts_with(&pattern)
-                && is_class_name_end(&css[index + pattern.len()..])
-                && is_compound_of_parent(&css[..index]) =>
-            {
-                starts.push(index);
-                index += pattern.len();
-            }
-            _ => index += 1,
-        }
-    }
-    starts
-}
-
-/// Whether the selector text before a class continues a compound selector of `&`
-fn is_compound_of_parent(before: &str) -> bool {
-    let parent =
-        before.trim_end_matches(|character| character == '.' || is_class_name_character(character));
-    let chain = &before[parent.len()..];
-    parent.ends_with('&') && (chain.is_empty() || chain.starts_with('.'))
-}
-
-fn is_class_name_end(rest: &str) -> bool {
-    rest.chars()
-        .next()
-        .is_none_or(|character| !is_class_name_character(character))
-}
-
-fn is_class_name_character(character: char) -> bool {
-    character.is_alphanumeric() || matches!(character, '-' | '_') || !character.is_ascii()
-}
-
-/// `mergeClassNames` inputs: spread props and explicit `className` values in source order,
-/// plus the spans of the `className` attributes they replace
-pub(super) fn merge_class_name_inputs(
-    element: &JSXElement<'_>,
-    source: &str,
-    constants: &FxHashMap<String, crate::facts::StaticValue>,
-    scoping: &Scoping,
-) -> (Vec<String>, Vec<oxc_span::Span>) {
-    let mut inputs = Vec::new();
-    let mut replaced_attributes = Vec::new();
-    for item in &element.opening_element.attributes {
-        match item {
-            JSXAttributeItem::SpreadAttribute(spread) => {
-                let span = spread.argument.span();
-                inputs.push(source[span.start as usize..span.end as usize].to_owned());
-            }
-            JSXAttributeItem::Attribute(attribute)
-                if is_named_attribute(attribute, "className") =>
-            {
-                inputs.push(class_name_concat_source(
-                    attribute, source, constants, scoping,
-                ));
-                replaced_attributes.push(attribute.span);
-            }
-            JSXAttributeItem::Attribute(_) => {}
-        }
-    }
-    (inputs, replaced_attributes)
 }
 
 /// Rewrites a JSX attribute string keeping its raw content and quotes, so entities still work

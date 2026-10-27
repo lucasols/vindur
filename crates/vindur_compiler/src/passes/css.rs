@@ -115,7 +115,7 @@ fn split_layer_sections(css: &str) -> Result<Option<Vec<LayerSection<'_>>>, CssE
     Ok(Some(sections))
 }
 
-fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<String> {
+pub(super) fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<String> {
     decode_layer_marker(&css[rule.selector.span.start..rule.selector.span.end])
 }
 

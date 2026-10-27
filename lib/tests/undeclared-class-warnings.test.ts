@@ -481,6 +481,47 @@ describe('Selector position', () => {
     `);
   });
 
+  test('should check classes of the element in nested selectors', async () => {
+    const warnings: TransformWarning[] = [];
+
+    await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          --label: &.label;
+          content: "&.content";
+          :is(&.wrapped) {
+            color: red;
+          }
+          @scope (&.scoped) {
+            :scope.root {
+              color: blue;
+            }
+          }
+          &:has(.descendant) {
+            color: green;
+          }
+        \`
+      `,
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "The class 'wrapped' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      - TransformWarning#:
+          message: "The class 'scoped' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      - TransformWarning#:
+          message: "The class 'root' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      "
+    `);
+  });
+
   test('should not warn about dynamic color self selectors', async () => {
     const warnings: TransformWarning[] = [];
 

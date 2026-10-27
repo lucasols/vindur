@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
+import { invalidateTransformCache, transform } from '../../src/transform';
 import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('keyframes cross-file imports', () => {
@@ -47,7 +48,11 @@ describe('keyframes cross-file imports', () => {
       "
     `);
 
-    expect(result.styleDependencies).toMatchInlineSnapshot(`[]`);
+    expect(result.styleDependencies).toMatchInlineSnapshot(`
+      [
+        "/animations.ts",
+      ]
+    `);
   });
 
   test('should handle multiple imported keyframes', async () => {
@@ -302,9 +307,74 @@ describe('keyframes cross-file imports', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "animation" from /derived.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
+      [TransformError: /test.tsx: "animation" imported from /derived.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
       loc: 5:15]
     `,
     );
+  });
+
+  test('should recompile when the keyframes source file changes', () => {
+    const files = {
+      '/animations.ts': dedent`
+        import { keyframes } from 'vindur'
+
+        export const fadeIn = keyframes\`
+          from { opacity: 0; }
+          to { opacity: 1; }
+        \`
+      `,
+    };
+    const transformFunctionCache = {};
+    const transformComponent = () =>
+      transform({
+        fileAbsPath: '/Component.tsx',
+        source: dedent`
+          import { fadeIn } from '#/animations'
+          import { css } from 'vindur'
+
+          const style = css\`
+            animation: \${fadeIn} 1s;
+          \`
+        `,
+        fs: {
+          readFile: (filePath) => {
+            if (filePath === '/animations.ts') return files['/animations.ts'];
+            throw new Error(`File not found: ${filePath}`);
+          },
+          exists: (filePath) => filePath === '/animations.ts',
+        },
+        transformFunctionCache,
+        transformDynamicColorCache: {},
+        importAliases: { '#/': '/' },
+        dev: true,
+      });
+
+    const first = transformComponent();
+    expect(first.styleDependencies).toEqual(['/animations.ts']);
+    expect(first.css).toMatchInlineSnapshot(`
+      ".v1l918vr-1-style {
+        animation: v1gz5uqy-1-fadeIn 1s;
+      }"
+    `);
+
+    files['/animations.ts'] = dedent`
+      import { css, keyframes } from 'vindur'
+
+      export const base = css\`
+        color: red;
+      \`
+
+      export const fadeIn = keyframes\`
+        from { opacity: 0; }
+        to { opacity: 1; }
+      \`
+    `;
+    invalidateTransformCache(transformFunctionCache, '/animations.ts');
+
+    expect(transformComponent().css).toMatchInlineSnapshot(`
+      ".v1l918vr-1-style {
+        animation: v1gz5uqy-2-fadeIn 1s;
+      }"
+    `);
   });
 });

@@ -76,7 +76,7 @@ test('should error on aliased vindur imports', async () => {
         const bg = dynamicColor();
 
         export const box = css\`
-          background: \${bg.var};
+          background: \${bg.value};
         \`;
       `,
     }),
@@ -193,7 +193,7 @@ test('should error on namespace imports from vindur', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: namespace and default imports from "vindur" are not supported, import the functions by name, e.g. import { css } from "vindur"
+    [TransformError: /test.tsx: namespace vindur imports are not supported, import the names you use, eg. import { styled } from "vindur"
     loc: 2:7]
   `);
 });
@@ -210,27 +210,36 @@ test('should error on default imports from vindur', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: namespace and default imports from "vindur" are not supported, import the functions by name, e.g. import { css } from "vindur"
+    [TransformError: /test.tsx: default vindur imports are not supported, import the names you use, eg. import { styled } from "vindur"
     loc: 1:7]
   `);
 });
 
-test('should error when a name needed for a runtime helper is already declared', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import type { cx } from 'vindur';
+test('should alias the cx helper when cx is only imported as a type', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import type { cx } from 'vindur';
 
-        export type Cx = typeof cx;
+      export type Cx = typeof cx;
 
-        export const Component = ({ active }: { active: boolean }) => (
-          <div cx={{ $active: active }} />
-        );
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "cx" is already declared, vindur needs this name for its runtime helper, rename it or import it as a value with import { cx } from "vindur"
-    loc: 1:14]
+      export const Component = ({ active }: { active: boolean }) => (
+        <div cx={{ $active: active }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx as _vCx } from "vindur";
+    import type { cx } from "vindur";
+    export type Cx = typeof cx;
+    export const Component = ({ active }: { active: boolean }) => (
+      <div
+        className={_vCx({
+          active: active,
+        })}
+      />
+    );
+    "
   `);
 });
 

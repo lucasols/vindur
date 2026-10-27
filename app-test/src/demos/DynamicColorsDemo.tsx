@@ -10,8 +10,8 @@ const StyledCard = styled.div`
   padding: 20px;
   border-radius: 12px;
   margin: 12px 0;
-  background: ${primaryColor.var};
-  color: ${primaryColor.contrast.var};
+  background: ${primaryColor.value};
+  color: ${primaryColor.contrast.value};
   transition: all 0.3s ease;
   cursor: pointer;
 
@@ -31,9 +31,9 @@ const StyledCard = styled.div`
 
 const AccentButton = styled.button`
   padding: 12px 24px;
-  border: 2px solid ${accentColor.var};
+  border: 2px solid ${accentColor.value};
   background: ${accentColor.alpha(0.1)};
-  color: ${accentColor.var};
+  color: ${accentColor.value};
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
@@ -41,8 +41,8 @@ const AccentButton = styled.button`
   transition: all 0.2s ease;
 
   &:hover {
-    background: ${accentColor.var};
-    color: ${accentColor.contrast.var};
+    background: ${accentColor.value};
+    color: ${accentColor.contrast.value};
   }
 
   ${accentColor.self.isVeryDark} {
@@ -82,12 +82,12 @@ const ChildContainer = styled.div`
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
 
-  ${primaryColor.container.isDark} {
+  ${primaryColor.container.isDark} & {
     background: rgba(255, 255, 255, 0.1);
     color: white;
   }
 
-  ${primaryColor.container.isLight} {
+  ${primaryColor.container.isLight} & {
     background: rgba(0, 0, 0, 0.1);
     color: #333;
   }

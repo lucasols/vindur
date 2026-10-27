@@ -15,6 +15,43 @@ pub struct ModuleFacts {
     pub constants: FxHashMap<String, StaticValue>,
     pub exports: FxHashMap<String, StaticValue>,
     pub dependencies: Vec<String>,
+    /// Modules whose facts were read directly, including ones whose values aren't static
+    #[serde(default)]
+    pub fact_dependencies: Vec<String>,
+    /// Modules skipped while collecting facts because they're in an import cycle with
+    /// this module, their values are missing from it, and imported modules whose facts
+    /// depend on an import cycle
+    #[serde(default)]
+    pub cyclic_dependencies: Vec<String>,
+    /// Names re-exported with `export { name } from 'source'` or `export * as name from
+    /// 'source'`, keyed by exported name
+    #[serde(default)]
+    pub re_exports: FxHashMap<String, ReExport>,
+    /// Sources of `export * from 'source'`
+    #[serde(default)]
+    pub star_re_exports: Vec<String>,
+    /// Loading the module can do more than declaring its exports: `createGlobalStyle` styles,
+    /// top-level code outside the side effect free set, value re-exports, or imports other
+    /// than vindur, types and modules without side effects
+    #[serde(default)]
+    pub has_side_effects: bool,
+}
+
+impl ModuleFacts {
+    /// Facts collected in an import cycle depend on which module of the cycle was
+    /// transformed first
+    #[must_use]
+    pub fn has_cycle(&self) -> bool {
+        !self.cyclic_dependencies.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReExport {
+    pub source: String,
+    /// Name exported by `source`, `None` for `export * as name from 'source'`
+    pub imported_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -22,17 +59,29 @@ pub struct ModuleFacts {
 pub enum StaticValue {
     Array(Vec<StaticValue>),
     Boolean(bool),
-    ClassName(String),
+    ClassName {
+        name: String,
+        /// The flag classes of a styled component, hashed where a reference to it selects them
+        style_flags: Vec<StyleFlagClass>,
+    },
     CssClass {
         name: String,
         css: String,
     },
     DynamicColor {
         id: String,
+        /// Dev selectors use readable class names, e.g. `{id}-self-isDark`
+        dev: bool,
     },
     DynamicColorPath {
         id: String,
         path: String,
+        dev: bool,
+    },
+    /// Imported from a module skipped because it's in an import cycle with the importer,
+    /// its value depends on which module of the cycle was transformed first
+    CyclicImport {
+        source_path: String,
     },
     Keyframes(String),
     LayerFunction,
@@ -52,24 +101,58 @@ pub enum StaticValue {
     },
     InvalidFunction {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     InvalidObject {
         source_path: String,
+        #[serde(default)]
+        cyclic_imports: Vec<String>,
     },
     Number(f64),
+    /// Imported name that only exists through a re-export, `re_export` is `None` when it
+    /// may come from `export * from`
+    UnsupportedReExport {
+        imported_name: String,
+        source_path: String,
+        re_export: Option<ReExport>,
+    },
     Object(FxHashMap<String, StaticValue>),
     String(String),
     ThemeColor {
         name: String,
+        /// Normalized hex used for the compiled colors, e.g. `#f00`
         hex: String,
+        /// The hex as written in `createStaticThemeColors`, e.g. `#FF0000`
+        default_hex: String,
+        /// Dev values keep the color name, e.g. `var(--stc-primary-var, #f00)`
+        dev: bool,
     },
     ThemeColorContrast {
         name: String,
         hex: String,
+        base_hex: String,
+        dev: bool,
     },
-    ThemeColors(FxHashMap<String, String>),
-    UnexportedThemeColors(FxHashMap<String, String>),
+    ThemeColors {
+        /// Color names to their hex as written, validated by `parse_theme_colors`
+        colors: FxHashMap<String, String>,
+        dev: bool,
+    },
+    UnexportedThemeColors {
+        colors: FxHashMap<String, String>,
+        dev: bool,
+    },
     Undefined,
+}
+
+/// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleFlagClass {
+    /// The class as written in the CSS, e.g. `$size-small`
+    pub original: String,
+    pub hashed: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

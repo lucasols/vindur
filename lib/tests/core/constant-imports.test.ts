@@ -334,7 +334,7 @@ test('should error on imported values that cannot be evaluated', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "gap" from /constants.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
+    [TransformError: /test.tsx: "gap" imported from /constants.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
     loc: 5:9]
   `);
 });
@@ -363,8 +363,8 @@ test('should error on imported values that cannot be evaluated in vindurFn argum
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "gap" from /constants.ts can't be evaluated at compile time, only static values (strings, numbers, and arrays or objects of them) can be used in vindur styles
-    loc: 6:11]
+    [TransformError: /test.tsx: "gap" imported from /constants.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 6:4]
   `);
 });
 

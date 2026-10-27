@@ -17,8 +17,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       import { themeColor } from '#/colors'
 
       const Button = styled.button\`
-        background: \${themeColor.var};
-        color: \${themeColor.contrast.var};
+        background: \${themeColor.value};
+        color: \${themeColor.contrast.value};
 
         \${themeColor.self.isDark} {
           border: 1px solid white;
@@ -57,14 +57,14 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Button {
-        background: var(--vip4ilp-1);
-        color: var(--vip4ilp-1-c);
+        background: var(--vip4ilp-1-themeColor);
+        color: var(--vip4ilp-1-themeColor-c);
 
-        &.vip4ilp-1-s0 {
+        &.vip4ilp-1-themeColor-self-isDark {
           border: 1px solid white;
         }
 
-        .vip4ilp-1-c1 & {
+        .vip4ilp-1-themeColor-container-isLight & {
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
       }
@@ -79,8 +79,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ condition }) => {
@@ -98,7 +98,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ condition }) => {
         return (
           <button
@@ -115,8 +115,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -129,8 +129,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ themeColor }) => {
@@ -148,7 +148,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ themeColor }) => {
         return (
           <button
@@ -165,8 +165,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -179,8 +179,8 @@ describe('Dynamic Colors - Edge Cases', () => {
       const color = createDynamicCssColor()
 
       const StyledButton = styled.button\`
-        background: \${color.var};
-        color: \${color.contrast.var};
+        background: \${color.value};
+        color: \${color.contrast.value};
       \`
 
       const Component = ({ isActive }) => {
@@ -198,7 +198,7 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.code).toMatchInlineSnapshot(`
       "import { createDynamicCssColor } from "vindur";
-      const color = createDynamicCssColor("v1560qbr-1", true);
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
       const Component = ({ isActive }) => {
         return (
           <button
@@ -215,8 +215,8 @@ describe('Dynamic Colors - Edge Cases', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-2-StyledButton {
-        background: var(--v1560qbr-1);
-        color: var(--v1560qbr-1-c);
+        background: var(--v1560qbr-1-color);
+        color: var(--v1560qbr-1-color-c);
       }
       "
     `);
@@ -231,7 +231,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ condition }) => {
@@ -258,7 +258,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ hasColor }) => {
@@ -285,7 +285,7 @@ describe('Dynamic Colors - Edge Cases', () => {
           const color = createDynamicCssColor()
 
           const StyledButton = styled.button\`
-            background: \${color.var};
+            background: \${color.value};
           \`
 
           const Component = ({ shouldApplyColor }) => {
@@ -300,6 +300,40 @@ describe('Dynamic Colors - Edge Cases', () => {
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
       [TransformError: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(shouldApplyColor ? '#ff6b6b' : null)
       loc: 11:32]
+    `);
+  });
+
+  test('should throw error for an empty dynamicColor array', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          const Component = () => <div dynamicColor={[]} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: dynamicColor array must contain at least one color.set(...)
+      loc: 5:43]
+    `);
+  });
+
+  test('should throw when set receives a spread argument', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ args }) => <div dynamicColor={color.set(...args)} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: dynamicColor prop must be \`color.set(value)\`, or an array of them, where \`color\` is a dynamic color and \`set\` takes exactly one argument
+      loc: 5:52]
     `);
   });
 });

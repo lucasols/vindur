@@ -16,27 +16,36 @@ use crate::{
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
     cx_optimize::optimize_cx_calls,
+    cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
     id_order::{IdEvent, collect_jsx_id_events, jsx_id_starts},
     import_analysis::{
-        assigned_tag_spans, collect_export_bindings, collect_exported_object_names,
-        collect_vindur_imports,
+        assigned_tag_spans, collect_exported_names, collect_exported_object_names,
+        collect_re_exports, collect_vindur_imports,
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
+    jsx_cx_component_references::component_reference_modifier_error,
+    runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
+    side_effects::has_top_level_side_effects,
     source_map::css_template_offsets,
     stable::{
         StableDeclarationTransform, StableInlineTransform, transform_inline_stable_calls,
         transform_stable_declaration,
     },
+    static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
-    styled::{is_styled_tag, resolve_styled_references, styled_tag_element},
+    style_flag_selectors::hash_referenced_style_flags,
+    styled::{resolve_styled_references, styled_tag_element},
+    styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
-    vindur_fn_references::runtime_vindur_fn_reference_error,
+    value_references::collect_value_referenced_names,
+    vindur_fn_references::{is_styled_tag, runtime_vindur_fn_reference_error},
 };
 
 pub(crate) struct PassOutput {
@@ -54,19 +63,19 @@ pub(crate) fn transform_program(
     source: &str,
     options: &TransformOptions,
     imported_values: &FxHashMap<String, StaticValue>,
+    cyclic_values: &FxHashSet<String>,
 ) -> Result<PassOutput, CompilerDiagnostic> {
     let mut imports = VindurImports::new(scoping);
     let mut edits = Vec::new();
     collect_vindur_imports(program, file_path, source, &mut imports, &mut edits)?;
-    let export_bindings = collect_export_bindings(program);
-    // Local bindings exported by the module, under any name
-    let exported_names = export_bindings
-        .iter()
-        .filter_map(|(_, local)| local.as_deref())
-        .collect::<FxHashSet<_>>();
+    let exported_names = collect_exported_names(program);
 
-    // Imported values come first, so module constants can be computed from them
-    let mut constants = imported_values
+    // Imported values come first so local constants can reference them, e.g.
+    // `export const INSET = IMPORTED_INSET`. Local style values, e.g. `css` classes and
+    // theme colors, are only known after `collect_constants`, imported ones are added after
+    // it too, so constants derived from them aren't static in both cases. Values from
+    // modules in an import cycle are added after it too, they can only be used directly
+    let (late_values, imported_constants): (FxHashMap<_, _>, _) = imported_values
         .iter()
         .map(|(name, value)| {
             let value = match value {
@@ -75,8 +84,9 @@ pub(crate) fn transform_program(
             };
             (name.clone(), value)
         })
-        .collect();
-    collect_constants(program, scoping, &imports, &mut constants);
+        .partition(|(name, value)| is_style_value(value) || cyclic_values.contains(name));
+    let mut constants = collect_constants(program, scoping, &imports, imported_constants);
+    constants.extend(late_values);
     for (local_name, imported_name) in imports.iter_names() {
         if imported_name == "layer" {
             constants.insert(local_name.to_owned(), StaticValue::LayerFunction);
@@ -92,6 +102,9 @@ pub(crate) fn transform_program(
         })
         .map(|(name, _)| name.as_str())
         .collect();
+    if let Some(diagnostic) = non_call_cx_reference_error(program, scoping, file_path, source) {
+        return Err(diagnostic);
+    }
     if let Some(diagnostic) = runtime_vindur_fn_reference_error(
         program,
         scoping,
@@ -110,11 +123,18 @@ pub(crate) fn transform_program(
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
+    let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
+    let mut hashed_styled_modifiers = Vec::new();
+    let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
+    let mut cx_key_usages = CxKeyUsages::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
+    let value_referenced_names =
+        collect_value_referenced_names(program, scoping, &imports, file_path, source)?;
+    let extended_names = collect_extended_names(program, &imports);
     let exported_object_names = collect_exported_object_names(program);
     let jsx_id_events = collect_jsx_id_events(program);
     let mut jsx_event_index = 0_usize;
@@ -159,15 +179,19 @@ pub(crate) fn transform_program(
                         styled_components: &mut styled_components,
                         file_path,
                         source,
-                        is_exported: exported_names.contains(
+                        is_exported: exported_names.values().any(|local| {
                             declaration
                                 .declarations
                                 .first()
                                 .and_then(|declarator| declarator.id.get_binding_identifier())
-                                .map_or("", |identifier| identifier.name.as_str()),
-                        ),
+                                .is_some_and(|identifier| identifier.name == local.as_str())
+                        }),
+                        value_referenced_names: &value_referenced_names,
+                        extended_names: &extended_names,
+                        statement_start: declaration.span.start,
                         needs_styled_helper: &mut needs_styled_helper,
                         needs_style_flags_helper: &mut needs_style_flags_helper,
+                        has_side_effects: &mut has_side_effects,
                         scoped_variables: &mut scoped_variables,
                         warnings: &mut warnings,
                     },
@@ -206,8 +230,12 @@ pub(crate) fn transform_program(
                             file_path,
                             source,
                             is_exported: true,
+                            value_referenced_names: &value_referenced_names,
+                            extended_names: &extended_names,
+                            statement_start: export.span.start,
                             needs_styled_helper: &mut needs_styled_helper,
                             needs_style_flags_helper: &mut needs_style_flags_helper,
+                            has_side_effects: &mut has_side_effects,
                             scoped_variables: &mut scoped_variables,
                             warnings: &mut warnings,
                         },
@@ -243,6 +271,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     if !content.is_empty() {
                         css_rules.push(content);
+                        has_side_effects = true;
                     }
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
@@ -357,6 +386,7 @@ pub(crate) fn transform_program(
             constants: &constants,
             scoping,
             styled_components: &styled_components,
+            exported_names: &exported_names,
             file_hash: &file_hash,
             file_path,
             source,
@@ -366,10 +396,13 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             elements: &mut cx_elements,
+            hashed_styled_modifiers: &mut hashed_styled_modifiers,
             class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
+            key_usages: &mut cx_key_usages,
         },
     )?;
 
@@ -388,6 +421,7 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             css_rules: &mut css_rules,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
             cx_elements: &cx_elements,
             class_expressions: &mut class_expressions,
             scoped_variables: &mut scoped_variables,
@@ -403,6 +437,7 @@ pub(crate) fn transform_program(
             file_path,
             needs_merge_class_names: &mut needs_merge_helper,
             needs_merge_styles: &mut needs_merge_styles_helper,
+            helper_names: &helper_names,
             source,
             styled_components: &styled_components,
             class_expressions: &class_expressions,
@@ -420,75 +455,67 @@ pub(crate) fn transform_program(
             source,
             needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
+            helper_names: &helper_names,
         },
     )?;
 
-    let mut runtime_helpers = Vec::new();
-    if needs_styled_helper {
-        runtime_helpers.push("_vSC");
-    }
-    if needs_style_flags_helper {
-        runtime_helpers.push("_vCWM");
-    }
-    if needs_cx_helper {
-        runtime_helpers.push("cx");
-    }
-    if needs_merge_helper {
-        runtime_helpers.push("mergeClassNames");
-    }
-    if needs_merge_styles_helper {
-        runtime_helpers.push("mergeStyles");
-    }
-    runtime_helpers.retain(|helper| !has_named_vindur_import(program, helper));
-    if let Some((helper, symbol)) = runtime_helpers.iter().find_map(|helper| {
-        scoping
-            .get_root_binding((*helper).into())
-            .map(|symbol| (helper, symbol))
-    }) {
-        return Err(CompilerDiagnostic::error(
-            file_path,
-            source,
-            scoping.symbol_span(symbol),
-            format!(
-                "\"{helper}\" is already declared, vindur needs this name for its runtime helper, rename it or import it as a value with import {{ {helper} }} from \"vindur\""
-            ),
-        ));
-    }
-    if !runtime_helpers.is_empty() {
-        let quote = vindur_import_quote(program, source);
-        edits.push(Edit {
-            span: oxc_span::Span::new(0, 0),
-            replacement: format!(
-                "import {{ {} }} from {quote}vindur{quote};\n",
-                runtime_helpers.join(", "),
-            ),
-        });
-    }
+    let needed_helpers = [
+        (needs_styled_helper, "_vSC"),
+        (needs_style_flags_helper, "_vCWM"),
+        (needs_cx_helper, "cx"),
+        (needs_merge_helper, "mergeClassNames"),
+        (needs_merge_styles_helper, "mergeStyles"),
+    ]
+    .into_iter()
+    .filter_map(|(needed, helper)| needed.then_some(helper))
+    .collect::<Vec<_>>();
+    edits.extend(runtime_helper_import(
+        program,
+        source,
+        &helper_names,
+        &needed_helpers,
+    ));
 
-    optimize_cx_calls(program, source, &mut edits);
+    // The user's `cx` import is kept while generated code calls it under its own name
+    let calls_user_cx = needs_cx_helper && helper_names.cx == "cx";
+
+    optimize_cx_calls(program, scoping, source, &mut edits, calls_user_cx);
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
-    let exports = export_bindings
+    // Unresolved imports exported with `export { name }` describe paths relative to this
+    // module, importers report them as values of this module instead. Values from modules
+    // in an import cycle aren't passed on either, their facts depend on the transform order
+    let exports = exported_names
         .iter()
-        .filter_map(|(exported, local)| {
+        .filter(|(_, local)| !cyclic_values.contains(*local))
+        .filter_map(|(name, local)| {
             constants
-                .get(local.as_deref()?)
+                .get(local)
+                .filter(|value| !is_unresolved_import(value))
                 .cloned()
-                .map(|value| (exported.clone(), value))
+                .map(|value| (name.clone(), value))
         })
         .collect();
+    let (re_exports, star_re_exports) = collect_re_exports(program);
     let facts = ModuleFacts {
-        declared_exports: export_bindings
-            .iter()
-            .map(|(exported, _)| exported.clone())
-            .collect(),
+        declared_exports: exported_names.into_keys().collect(),
         declared_object_exports: exported_object_names.iter().cloned().collect(),
         source_hash: hasher.finish(),
         constants,
         exports,
-        dependencies: Vec::new(),
+        re_exports,
+        star_re_exports,
+        has_side_effects,
+        // Filled in by the compiler from the loaded imports
+        ..ModuleFacts::default()
     };
+    // Every style is generated here, also the css props after the cx pass
+    if let Some(diagnostic) =
+        component_reference_modifier_error(&css_rules, &hashed_styled_modifiers, file_path, source)
+    {
+        return Err(diagnostic);
+    }
     if let Some(reference) = resolve_styled_references(&mut css_rules, &styled_components) {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -498,6 +525,29 @@ pub(crate) fn transform_program(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),
         ));
+    }
+    if let Err(error) =
+        hash_referenced_style_flags(&mut css_rules, &facts.constants, &styled_components)
+    {
+        let span = scoping
+            .get_root_binding(error.component.as_str().into())
+            .map_or(oxc_span::Span::new(0, 0), |symbol| {
+                scoping.symbol_span(symbol)
+            });
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            error.error.message,
+        ));
+    }
+    if options.dev {
+        warnings.extend(raw_hashed_cx_key_warnings(
+            &cx_key_usages,
+            &css_rules,
+            file_path,
+            source,
+        )?);
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variable_warnings(
@@ -515,49 +565,20 @@ pub(crate) fn transform_program(
     })
 }
 
-fn vindur_import_quote(program: &Program<'_>, source: &str) -> char {
-    program
-        .body
-        .iter()
-        .find_map(|statement| {
-            let Statement::ImportDeclaration(import) = statement else {
-                return None;
-            };
-            if import.source.value.as_str() != "vindur" {
-                return None;
-            }
-            source
-                .as_bytes()
-                .get(import.source.span.start as usize)
-                .copied()
-                .map(char::from)
-        })
-        .filter(|quote| matches!(quote, '\'' | '"'))
-        .unwrap_or('"')
-}
-
-/// A value import of `name`, type-only imports are erased and can't provide runtime helpers
-fn has_named_vindur_import(program: &Program<'_>, name: &str) -> bool {
-    program.body.iter().any(|statement| {
-        let Statement::ImportDeclaration(import) = statement else {
-            return false;
-        };
-        if import.source.value.as_str() != "vindur" || import.import_kind.is_type() {
-            return false;
-        }
-        import.specifiers.as_ref().is_some_and(|specifiers| {
-            specifiers.iter().any(|specifier| {
-                let oxc_ast::ast::ImportDeclarationSpecifier::ImportSpecifier(specifier) =
-                    specifier
-                else {
-                    return false;
-                };
-                !specifier.import_kind.is_type()
-                    && specifier.imported.name().as_str() == name
-                    && specifier.local.name.as_str() == name
-            })
-        })
-    })
+/// Values created by vindur APIs, they are registered while transforming their declarations
+fn is_style_value(value: &StaticValue) -> bool {
+    matches!(
+        value,
+        StaticValue::ClassName { .. }
+            | StaticValue::CssClass { .. }
+            | StaticValue::DynamicColor { .. }
+            | StaticValue::DynamicColorPath { .. }
+            | StaticValue::Keyframes(_)
+            | StaticValue::ThemeColor { .. }
+            | StaticValue::ThemeColorContrast { .. }
+            | StaticValue::ThemeColors { .. }
+            | StaticValue::UnexportedThemeColors { .. }
+    )
 }
 
 fn scoped_variable_warnings(

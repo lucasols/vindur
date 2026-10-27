@@ -90,6 +90,35 @@ pub(crate) fn unresolved_import_path(
     Some(normalize_path(&unresolved))
 }
 
+/// Import specifier for `target` from `importer`, e.g. `./ui/styles` or `../tokens`
+pub(crate) fn relative_import_specifier(importer: &str, target: &str) -> String {
+    let importer_dir = Path::new(importer)
+        .parent()
+        .map(|parent| parent.components().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let target = Path::new(target).components().collect::<Vec<_>>();
+    let common = importer_dir
+        .iter()
+        .zip(&target)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let parents = importer_dir.len() - common;
+    let prefix = if parents == 0 {
+        vec![".".to_owned()]
+    } else {
+        vec!["..".to_owned(); parents]
+    };
+    prefix
+        .into_iter()
+        .chain(
+            target[common..]
+                .iter()
+                .map(|component| component.as_os_str().to_string_lossy().into_owned()),
+        )
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 pub(crate) fn has_source_extension(path: &str) -> bool {
     Path::new(path).extension().is_some_and(|extension| {
         matches!(
@@ -137,7 +166,7 @@ mod tests {
     use rustc_hash::{FxHashMap, FxHashSet};
     use tempfile::tempdir;
 
-    use super::{SourceLoader, resolve_import_path};
+    use super::{SourceLoader, relative_import_specifier, resolve_import_path};
 
     struct Files(FxHashSet<String>);
 
@@ -149,6 +178,18 @@ mod tests {
         fn read_file(&mut self, file_path: &str) -> Result<String, String> {
             Err(format!("unused read: {file_path}"))
         }
+    }
+
+    #[test]
+    fn builds_relative_import_specifiers() {
+        assert_eq!(
+            relative_import_specifier("/src/app.tsx", "/src/ui/styles"),
+            "./ui/styles"
+        );
+        assert_eq!(
+            relative_import_specifier("/src/pages/home.tsx", "/src/ui/styles"),
+            "../ui/styles"
+        );
     }
 
     #[test]

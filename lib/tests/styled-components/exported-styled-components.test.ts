@@ -275,6 +275,34 @@ describe('Exported styled components', () => {
     `);
   });
 
+  test('should keep components default exported through a wrapped expression', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button\`
+          background: red;
+        \`
+
+        export default (Button satisfies object)
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      const Button = _vSC("button", "v1560qbr-1-Button");
+      export default Button satisfies object;
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Button {
+        background: red;
+      }
+      "
+    `);
+  });
+
   test('should handle direct default export', async () => {
     const result = await transformWithFormat({
       source: dedent`
@@ -566,6 +594,26 @@ describe('Exported styled components', () => {
       import type { _vSC as StyledFactory } from "vindur";
       export type Factory = typeof StyledFactory;
       export default _vSC("div", "v1560qbr-1");
+      "
+    `);
+  });
+
+  test('should pass the wrapped component of exported custom component styles', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Pie } from 'recharts';
+
+        export const StyledPie = styled(Pie)\`
+          opacity: 0.5;
+        \`;
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import { Pie } from "recharts";
+      export const StyledPie = _vSC(Pie, "v1560qbr-1-StyledPie");
       "
     `);
   });

@@ -239,6 +239,212 @@ describe('withComponent', () => {
     );
   });
 
+  test('should throw error when withComponent is not the initializer of a top-level variable', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+          import { Menu } from '#/components'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export const App = () => <Menu container={Container.withComponent('span')} />
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 8:42]
+    `,
+    );
+  });
+
+  test('should throw error when withComponent is called inside a function', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export function App() {
+            const Link = Container.withComponent('a')
+            return <Link />
+          }
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 8:15]
+    `,
+    );
+  });
+
+  test('should throw error when withComponent shares its variable declaration', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = Container.withComponent('a'), title = 'hello'
+
+          export const App = () => <Link>{title}</Link>
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: withComponent() must use its own variable declaration
+      loc: 7:0]
+    `);
+  });
+
+  test('should throw error when withComponent calls are chained', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = Container.withComponent('a').withComponent('span')
+
+          export const App = () => <Link />
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:13]
+    `);
+  });
+
+  test('should throw error when withComponent is assigned to a destructuring pattern', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const { displayName } = Container.withComponent('a')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:24]
+    `);
+  });
+
+  test('should throw error when withComponent is called on a parenthesized or computed reference', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Link = (Container).withComponent('a')
+          const Section = Container['withComponent']('section')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:13]
+    `);
+
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          const Section = Container['withComponent']('section')
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:16]
+    `);
+  });
+
+  test('should throw error when withComponent is referenced without being called', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Container = styled.div\`
+            color: red;
+          \`
+
+          export const getWithComponent = () => Container.withComponent
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "Container.withComponent()" must be assigned directly to a top-level variable, e.g. \`const Link = Container.withComponent('a')\`
+      loc: 7:38]
+    `);
+  });
+
+  test('should work with a parenthesized withComponent initializer', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Container = styled.div\`
+          color: red;
+        \`
+
+        const Link = (Container.withComponent('a'))
+
+        export const App = () => <Link />
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const App = () => <a className="v1560qbr-1-Container" />;
+      "
+    `);
+  });
+
+  test('should not check withComponent methods of other local bindings', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        const registry = { withComponent: (value: string) => value }
+
+        export function App() {
+          return registry.withComponent('a')
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "const registry = {
+        withComponent: (value: string) => value,
+      };
+      export function App() {
+        return registry.withComponent("a");
+      }
+      "
+    `);
+  });
+
   test('should work with extended styled components', async () => {
     const result = await transformWithFormat({
       source: dedent`
@@ -463,6 +669,73 @@ describe('withComponent', () => {
       "
     `);
   });
+
+  test('should share cx modifier classes with the base component', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button\`
+          padding: 10px;
+
+          &.active {
+            background: red;
+          }
+        \`
+
+        const Link = Button.withComponent('a')
+
+        const App = ({ on }) => (
+          <div>
+            <Button cx={{ active: on }}>Button</Button>
+            <Link cx={{ active: on }}>Link</Link>
+          </div>
+        )
+      `,
+      overrideDefaultFs: emptyFs,
+      overrideDefaultImportAliases: importAliases,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      const App = ({ on }) => (
+        <div>
+          <button
+            className={
+              "v1560qbr-1-Button " +
+              cx({
+                "v1560qbr-2-active": on,
+              })
+            }
+          >
+            Button
+          </button>
+          <a
+            className={
+              "v1560qbr-1-Button " +
+              cx({
+                "v1560qbr-2-active": on,
+              })
+            }
+          >
+            Link
+          </a>
+        </div>
+      );
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Button {
+        padding: 10px;
+
+        &.v1560qbr-2-active {
+          background: red;
+        }
+      }
+      "
+    `);
+  });
 });
 
 test('should error on withComponent sharing a variable declaration', async () => {
@@ -481,7 +754,7 @@ test('should error on withComponent sharing a variable declaration', async () =>
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Styled components must use their own variable declaration
+    [TransformError: /test.tsx: withComponent() must use its own variable declaration
     loc: 7:0]
   `);
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { createDynamicCssColor } from '../../src/main';
 
 describe('createDynamicCssColor runtime', () => {
@@ -11,7 +11,7 @@ describe('createDynamicCssColor runtime', () => {
   test('should generate correct CSS variables and functions', () => {
     const color = createDynamicCssColor('test-123');
 
-    expect(color.var).toBe('var(--test-123)');
+    expect(color.value).toBe('var(--test-123)');
     expect(color.alpha(0.5)).toBe(
       'color-mix(in srgb, var(--test-123) 50%, transparent)',
     );
@@ -22,17 +22,29 @@ describe('createDynamicCssColor runtime', () => {
       'color-mix(in srgb, var(--test-123) 70%, #fff)',
     );
     expect(color.saturatedDarker(0.1)).toBe(
-      'color-mix(in srgb, var(--test-123) 90%, hsl(from var(--test-123) h 100% 20%))',
+      'hsl(var(--test-123-h), var(--test-123-sds), calc(var(--test-123-l) * 0.9))',
     );
+  });
+
+  test('should keep the deprecated `var` property as an alias of `value`', () => {
+    const color = createDynamicCssColor('test-123');
+
+    expect(color).toMatchObject({
+      var: 'var(--test-123)',
+      contrast: { var: 'var(--test-123-c)' },
+    });
   });
 
   test('should generate correct contrast functions', () => {
     const color = createDynamicCssColor('test-123');
 
-    expect(color.contrast.var).toBe('var(--test-123-c)');
+    expect(color.contrast.value).toBe('var(--test-123-c)');
     expect(color.contrast.optimal()).toBe('var(--test-123-c-optimal)');
     expect(color.contrast.optimal({ alpha: 0.6 })).toBe(
       'color-mix(in srgb, var(--test-123-c-optimal) 60%, transparent)',
+    );
+    expect(color.contrast.optimal({ alpha: 0 })).toBe(
+      'color-mix(in srgb, var(--test-123-c-optimal) 0%, transparent)',
     );
     expect(color.contrast.alpha(0.8)).toBe(
       'color-mix(in srgb, var(--test-123-c) 80%, transparent)',
@@ -51,103 +63,84 @@ describe('createDynamicCssColor runtime', () => {
     expect(color.self.isVeryLight).toBe('&.hash-456-s6');
     expect(color.self.isNotVeryLight).toBe('&.hash-456-s7');
 
-    expect(color.container.isDark).toBe('.hash-456-c0 &');
-    expect(color.container.isLight).toBe('.hash-456-c1 &');
-    expect(color.container.isDefined).toBe('.hash-456-c2 &');
-    expect(color.container.isNotDefined).toBe('.hash-456-c3 &');
-    expect(color.container.isVeryDark).toBe('.hash-456-c4 &');
-    expect(color.container.isNotVeryDark).toBe('.hash-456-c5 &');
-    expect(color.container.isVeryLight).toBe('.hash-456-c6 &');
-    expect(color.container.isNotVeryLight).toBe('.hash-456-c7 &');
+    expect(color.container.isDark).toBe('.hash-456-c0');
+    expect(color.container.isLight).toBe('.hash-456-c1');
+    expect(color.container.isDefined).toBe('.hash-456-c2');
+    expect(color.container.isNotDefined).toBe('.hash-456-c3');
+    expect(color.container.isVeryDark).toBe('.hash-456-c4');
+    expect(color.container.isNotVeryDark).toBe('.hash-456-c5');
+    expect(color.container.isVeryLight).toBe('.hash-456-c6');
+    expect(color.container.isNotVeryLight).toBe('.hash-456-c7');
   });
 
-  test('should generate dev mode selector classes', () => {
+  test('should generate readable selector classes in dev mode', () => {
     const color = createDynamicCssColor('hash-456', true);
 
-    expect(color.self.isDark).toBe('&.hash-456-self-is-dark');
-    expect(color.self.isLight).toBe('&.hash-456-self-is-light');
-    expect(color.self.isDefined).toBe('&.hash-456-self-is-defined');
-    expect(color.self.isNotDefined).toBe('&.hash-456-self-is-not-defined');
-    expect(color.self.isVeryDark).toBe('&.hash-456-self-is-very-dark');
-    expect(color.self.isNotVeryDark).toBe('&.hash-456-self-is-not-very-dark');
-    expect(color.self.isVeryLight).toBe('&.hash-456-self-is-very-light');
-    expect(color.self.isNotVeryLight).toBe('&.hash-456-self-is-not-very-light');
-
-    expect(color.container.isDark).toBe('.hash-456-container-is-dark &');
-    expect(color.container.isLight).toBe('.hash-456-container-is-light &');
-    expect(color.container.isDefined).toBe('.hash-456-container-is-defined &');
+    expect(color.self.isDark).toBe('&.hash-456-self-isDark');
+    expect(color.self.isNotVeryLight).toBe('&.hash-456-self-isNotVeryLight');
+    expect(color.container.isLight).toBe('.hash-456-container-isLight');
     expect(color.container.isNotDefined).toBe(
-      '.hash-456-container-is-not-defined &',
-    );
-    expect(color.container.isVeryDark).toBe(
-      '.hash-456-container-is-very-dark &',
-    );
-    expect(color.container.isNotVeryDark).toBe(
-      '.hash-456-container-is-not-very-dark &',
-    );
-    expect(color.container.isVeryLight).toBe(
-      '.hash-456-container-is-very-light &',
-    );
-    expect(color.container.isNotVeryLight).toBe(
-      '.hash-456-container-is-not-very-light &',
+      '.hash-456-container-isNotDefined',
     );
   });
 
   describe('setProps function', () => {
     test('should generate correct props for dark color', () => {
       const color = createDynamicCssColor('test-123', false);
-      const result = color.setProps('#2d3748'); // dark color
+      const result = color.setProps('#2d3748'); // very dark color
 
       expect(result.className).toBe(
-        'test-123-s0 test-123-s2 test-123-s5 test-123-s7',
+        'test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s4 test-123-c4 test-123-s7 test-123-c7',
       );
       expect(result.style).toEqual({
         '--test-123': '#2d3748',
-        '--test-123-c': '#ffffff',
-        '--test-123-c-optimal': '#ffffff',
+        '--test-123-c': '#fff',
+        '--test-123-c-optimal': '#fff',
+        '--test-123-h': '217.7778',
+        '--test-123-sds': '100%',
+        '--test-123-l': '22.9412%',
       });
     });
 
     test('should generate correct props for light color', () => {
       const color = createDynamicCssColor('test-123', false);
-      const result = color.setProps('#f7fafc'); // light color
+      const result = color.setProps('#f7fafc'); // very light color
 
       expect(result.className).toBe(
-        'test-123-s1 test-123-s2 test-123-s5 test-123-s6',
+        'test-123-s1 test-123-c1 test-123-s2 test-123-c2 test-123-s5 test-123-c5 test-123-s6 test-123-c6',
       );
       expect(result.style).toEqual({
         '--test-123': '#f7fafc',
-        '--test-123-c': '#000000',
-        '--test-123-c-optimal': '#000000',
+        '--test-123-c': '#000',
+        // light colors use a saturated darker variant as the optimal contrast
+        '--test-123-c-optimal': '#002a46',
+        '--test-123-h': '204',
+        '--test-123-sds': '100%',
+        '--test-123-l': '97.8431%',
       });
     });
 
-    test('should generate correct props for very dark color', () => {
+    test('should force saturation to 0% for near gray colors', () => {
       const color = createDynamicCssColor('test-123', false);
-      const result = color.setProps('#1a1a1a'); // very dark color
+      const result = color.setProps('#ffffff');
 
-      expect(result.className).toBe(
-        'test-123-s0 test-123-s2 test-123-s4 test-123-s7',
-      );
-      expect(result.style).toEqual({
-        '--test-123': '#1a1a1a',
-        '--test-123-c': '#ffffff',
-        '--test-123-c-optimal': '#ffffff',
-      });
-    });
-
-    test('should generate correct props for very light color', () => {
-      const color = createDynamicCssColor('test-123', false);
-      const result = color.setProps('#ffffff'); // very light color
-
-      expect(result.className).toBe(
-        'test-123-s1 test-123-s2 test-123-s5 test-123-s6',
-      );
       expect(result.style).toEqual({
         '--test-123': '#ffffff',
-        '--test-123-c': '#000000',
-        '--test-123-c-optimal': '#000000',
+        '--test-123-c': '#000',
+        '--test-123-c-optimal': '#242424',
+        '--test-123-h': '0',
+        '--test-123-sds': '0%',
+        '--test-123-l': '100%',
       });
+    });
+
+    test('should pick the contrast color with APCA', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      // mid tones have a light hsl lightness but read better with white text
+      expect(color.setProps('#6464f6').style['--test-123-c']).toBe('#fff');
+      expect(color.setProps('#808080').style['--test-123-c']).toBe('#fff');
+      expect(color.setProps('#e2e8f0').style['--test-123-c']).toBe('#000');
     });
 
     test('should merge with user-provided className and style', () => {
@@ -158,24 +151,140 @@ describe('createDynamicCssColor runtime', () => {
       });
 
       expect(result.className).toBe(
-        'custom-class test-123-s0 test-123-s2 test-123-s5 test-123-s7',
+        'custom-class test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s5 test-123-c5 test-123-s7 test-123-c7',
       );
       expect(result.style).toEqual({
         '--test-123': '#ff0000',
-        '--test-123-c': '#ffffff',
-        '--test-123-c-optimal': '#ffffff',
+        '--test-123-c': '#fff',
+        '--test-123-c-optimal': '#fff',
+        '--test-123-h': '0',
+        '--test-123-sds': '100%',
+        '--test-123-l': '50%',
         padding: '10px',
         margin: '5px',
       });
     });
 
-    test('should generate dev mode class names', () => {
+    test('should generate readable class names in dev mode', () => {
       const color = createDynamicCssColor('test-123', true);
       const result = color.setProps('#333333');
 
-      expect(result.className).toBe(
-        'test-123-self-is-dark test-123-self-is-defined test-123-self-is-not-very-dark test-123-self-is-not-very-light',
+      expect(result.className.split(' ')).toEqual([
+        'test-123-self-isDark',
+        'test-123-container-isDark',
+        'test-123-self-isDefined',
+        'test-123-container-isDefined',
+        'test-123-self-isVeryDark',
+        'test-123-container-isVeryDark',
+        'test-123-self-isNotVeryLight',
+        'test-123-container-isNotVeryLight',
+      ]);
+    });
+
+    test('should add not defined classes when no color is set', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      for (const value of [null, undefined, false, ''] as const) {
+        expect(color.setProps(value, { className: 'base' })).toEqual({
+          className: 'base test-123-s3 test-123-c3',
+          style: {},
+        });
+      }
+    });
+
+    test('should only set the var and defined classes for non hex colors', () => {
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      const color = createDynamicCssColor('test-123', false);
+      const setColorScheme = { fallback: 'dark' } as const;
+
+      expect(
+        color.setProps('rgb(0 0 0)', {
+          className: 'base',
+          style: { margin: 4 },
+          setColorScheme,
+        }),
+      ).toEqual({
+        className: 'base test-123-s2 test-123-c2',
+        style: { '--test-123': 'rgb(0 0 0)', colorScheme: 'dark', margin: 4 },
+      });
+      expect(consoleSpy).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    test('should log an error for non hex colors in dev mode', () => {
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {});
+      const color = createDynamicCssColor('test-123', true);
+
+      expect(color.setProps('red').className).toBe(
+        'test-123-self-isDefined test-123-container-isDefined',
       );
+      expect(consoleSpy.mock.calls).toMatchInlineSnapshot(`
+        [
+          [
+            "Dynamic color "red" is not a 3 or 6 digit hex color. Only hex colors get contrast colors, saturatedDarker and the light/dark selectors",
+          ],
+        ]
+      `);
+
+      consoleSpy.mockRestore();
+    });
+
+    test('should set the color scheme', () => {
+      const color = createDynamicCssColor('test-123', false);
+      const setColorScheme = { fallback: 'dark' } as const;
+
+      expect(
+        color.setProps('#f7fafc', { setColorScheme }).style.colorScheme,
+      ).toBe('light');
+      expect(
+        color.setProps('#2d3748', { setColorScheme }).style.colorScheme,
+      ).toBe('dark');
+      expect(color.setProps(null, { setColorScheme }).style).toEqual({
+        colorScheme: 'dark',
+      });
+    });
+
+    test('should accept custom very dark and very light thresholds', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      // #333333 has 20% lightness
+      expect(color.setProps('#333333').className).toContain('test-123-s4');
+      expect(
+        color.setProps('#333333', { veryDarkThreshold: 0.1 }).className,
+      ).toContain('test-123-s5');
+      // #f7fafc has ~98% lightness
+      expect(
+        color.setProps('#f7fafc', { veryLightThreshold: 0.99 }).className,
+      ).toContain('test-123-s7');
+    });
+  });
+
+  describe('_sp function', () => {
+    test('should work without props to merge', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      expect(color._sp('#2d3748').className).toBe(
+        'test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s4 test-123-c4 test-123-s7 test-123-c7',
+      );
+      expect(color._sp(null)).toEqual({
+        className: 'test-123-s3 test-123-c3',
+        style: {},
+      });
+    });
+
+    test('should merge chained colors', () => {
+      const first = createDynamicCssColor('first', false);
+      const second = createDynamicCssColor('second', false);
+
+      expect(first._sp(null, second._sp(null))).toEqual({
+        className: 'second-s3 second-c3 first-s3 first-c3',
+        style: {},
+      });
     });
   });
 

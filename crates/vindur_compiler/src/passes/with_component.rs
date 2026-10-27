@@ -7,6 +7,7 @@ use crate::{
     facts::StaticValue,
 };
 
+use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
 use super::transform_support::{VariableTransform, own_declaration};
 
@@ -16,6 +17,7 @@ pub(super) fn process_with_component(
     variable_name: &str,
     transform: &mut VariableTransform<'_>,
 ) -> Result<bool, CompilerDiagnostic> {
+    let initializer = initializer.without_parentheses();
     let Expression::CallExpression(call) = initializer else {
         return Ok(false);
     };
@@ -46,7 +48,7 @@ pub(super) fn process_with_component(
     own_declaration(
         declaration,
         transform,
-        "Styled components must use their own variable declaration",
+        "withComponent() must use its own variable declaration",
     )?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
@@ -63,7 +65,9 @@ pub(super) fn process_with_component(
                 .to_owned(),
         ));
     }
-    let runtime = transform.is_exported || base.runtime;
+    let runtime = transform.is_exported
+        || transform.value_referenced_names.contains(variable_name)
+        || base.runtime;
     let component = StyledComponent {
         attrs: base.attrs.clone(),
         class_name: base.class_name.clone(),
@@ -72,9 +76,19 @@ pub(super) fn process_with_component(
         runtime,
         style_flags: base.style_flags.clone(),
     };
+    // References select the component's own class, the class names of the components it extends
+    // are only applied to the element
+    let reference_class = base
+        .class_name
+        .split_whitespace()
+        .last()
+        .unwrap_or_default();
     transform.constants.insert(
         variable_name.to_owned(),
-        StaticValue::ClassName(base.class_name.clone()),
+        StaticValue::ClassName {
+            name: reference_class.to_owned(),
+            style_flags: flag_classes(&base.style_flags),
+        },
     );
     transform
         .styled_components

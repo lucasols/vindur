@@ -11,8 +11,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
-use super::styled::tag_root;
-
 const VINDUR_FN_DECLARATION_ERROR: &str = "vindurFn is not supported here, vindur functions must be declared with \"export const name = vindurFn((...) => ...)\"";
 
 /// vindurFn functions are evaluated at compile time and throw when called at runtime, so
@@ -79,32 +77,17 @@ impl<'a> Visit<'a> for RuntimeReferenceVisitor<'_, '_, '_, '_> {
         }
     }
 
-    // Vindur templates are compiled away or rejected, `styled` is the only tag also compiled
-    // when it isn't imported. Runtime vindur imports like `cx` aren't template tags
+    // Vindur templates are compiled away or rejected
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        let is_vindur_template = tag_root(&tagged.tag).is_some_and(|identifier| {
-            matches!(
-                self.imports.get_identifier(identifier),
-                Some("css" | "keyframes" | "createGlobalStyle")
-            ) || self.imports.matches_import_or_global(identifier, "styled")
-        });
-        if is_vindur_template {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
             self.visit_runtime_tag_arguments(&tagged.tag);
         } else {
             walk::walk_tagged_template_expression(self, tagged);
         }
     }
 
-    // css prop templates are compiled away like vindur templates, other css prop values are
-    // passed through to custom components at runtime
     fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
-        let is_css_prop_template = matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
-            && matches!(
-                &attribute.value,
-                Some(JSXAttributeValue::ExpressionContainer(container))
-                    if matches!(container.expression, JSXExpression::TemplateLiteral(_))
-            );
-        if !is_css_prop_template {
+        if !is_css_template_attribute(attribute) {
             walk::walk_jsx_attribute(self, attribute);
         }
     }
@@ -272,4 +255,43 @@ fn vindur_fn_declaration_spans(program: &Program<'_>) -> FxHashSet<Span> {
             },
         )
         .collect()
+}
+
+/// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
+pub(super) fn tag_root<'e, 'a>(
+    expression: &'e Expression<'a>,
+) -> Option<&'e IdentifierReference<'a>> {
+    match expression {
+        Expression::Identifier(identifier) => Some(identifier),
+        Expression::StaticMemberExpression(member) => tag_root(&member.object),
+        Expression::CallExpression(call) => tag_root(&call.callee),
+        _ => None,
+    }
+}
+
+/// css prop templates are compiled away like vindur templates, other css prop values are
+/// passed through to custom components at runtime
+pub(super) fn is_css_template_attribute(attribute: &JSXAttribute<'_>) -> bool {
+    matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "css")
+        && matches!(
+            &attribute.value,
+            Some(JSXAttributeValue::ExpressionContainer(container))
+                if matches!(container.expression, JSXExpression::TemplateLiteral(_))
+        )
+}
+
+/// A tag starting with `styled`, e.g. `styled.div`, `styled(A)` or `styled.div.attrs({})`
+pub(super) fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    tag_root(tag).is_some_and(|identifier| imports.matches_import_or_global(identifier, "styled"))
+}
+
+/// A tag compiled by vindur: an imported `css`, `keyframes` or `createGlobalStyle`, or `styled`
+/// imported or used without importing it. Runtime vindur imports like `cx` aren't template tags
+pub(super) fn is_vindur_template_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
+    tag_root(tag).is_some_and(|identifier| {
+        matches!(
+            imports.get_identifier(identifier),
+            Some("css" | "keyframes" | "createGlobalStyle")
+        ) || imports.matches_import_or_global(identifier, "styled")
+    })
 }

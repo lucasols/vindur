@@ -264,7 +264,7 @@ describe('cx() optimization', () => {
             <div
               className={
                 "v1560qbr-1-Btn" +
-                (value ? " v3j7qq4-value-" + value : "") +
+                (value ? \` v3j7qq4-value-\${value}\` : "") +
                 (active ? " voctcyj-active" : "")
               }
             >
@@ -289,7 +289,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component({ size }) {
-          return <div className={size ? "size-" + size : ""}>Content</div>;
+          return <div className={size ? \`size-\${size}\` : ""}>Content</div>;
         }
         "
       `);
@@ -308,7 +308,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component({ type }) {
-          return <div className={type ? type + "-variant" : ""}>Content</div>;
+          return <div className={type ? \`\${type}-variant\` : ""}>Content</div>;
         }
         "
       `);
@@ -327,9 +327,7 @@ describe('cx() optimization', () => {
 
       expect(result.code).toMatchInlineSnapshot(`
         "function Component({ theme }) {
-          return (
-            <div className={theme ? "theme-" + theme + "-active" : ""}>Content</div>
-          );
+          return <div className={theme ? \`theme-\${theme}-active\` : ""}>Content</div>;
         }
         "
       `);
@@ -360,7 +358,7 @@ describe('cx() optimization', () => {
             <div
               className={
                 "base-class" +
-                (variant ? " variant-" + variant : "") +
+                (variant ? \` variant-\${variant}\` : "") +
                 (active ? " active-state" : "")
               }
             >
@@ -739,5 +737,38 @@ describe('cx() optimization', () => {
         "
       `);
     });
+  });
+
+  test('should keep the cx import when cx props still use it', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { cx } from 'vindur'
+
+        export const App = ({ active }) => (
+          <>
+            <div className={cx('x', { y: true })} />
+            <div css={\`&.on { color: red; }\`} cx={{ on: active }} />
+          </>
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { cx } from "vindur";
+      export const App = ({ active }) => (
+        <>
+          <div className={"x" + " y"} />
+          <div
+            className={
+              "v1560qbr-1-css-prop-1 " +
+              cx({
+                "v1560qbr-2-on": active,
+              })
+            }
+          />
+        </>
+      );
+      "
+    `);
   });
 });

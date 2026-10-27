@@ -283,3 +283,113 @@ test('should preserve conditional expression precedence in dynamic flags', async
     "
   `);
 });
+
+test('should merge explicit className with spread props on style flag components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Flag = styled.div<{ active: boolean }>\`
+        color: red;
+        &.active { color: blue; }
+      \`;
+
+      function Component({ p, x }) {
+        return (
+          <>
+            <Flag className="a" {...p} active={x} />
+            <Flag {...p} className="a" active={x} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx, mergeClassNames } from "vindur";
+    function Component({ p, x }) {
+      return (
+        <>
+          <div
+            {...p}
+            className={cx(
+              mergeClassNames(["a", p], "v1560qbr-1-Flag"),
+              x && "voctcyj-active",
+            )}
+          />
+          <div
+            {...p}
+            className={"v1560qbr-1-Flag a" + (x ? " voctcyj-active" : "")}
+          />
+        </>
+      );
+    }
+    "
+  `);
+});
+
+test('should keep css nested in className of style flag components with spread props', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, styled } from 'vindur';
+
+      const Box = styled.div<{ active: boolean }>\`
+        color: red;
+        &.active { color: blue; }
+      \`;
+
+      function Component({ props, active }) {
+        return <Box {...props} active={active} className={css\`background: green;\`} />;
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ props, active }) {
+      return (
+        <div
+          {...props}
+          className={
+            "v1560qbr-1-Box " +
+            ("v1560qbr-2" || "") +
+            (active ? " voctcyj-active" : "")
+          }
+        />
+      );
+    }
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Box {
+      color: red;
+      &.voctcyj-active {
+        color: blue;
+      }
+    }
+
+    .v1560qbr-2 {
+      background: green;
+    }
+    "
+  `);
+});
+
+test('should throw for string union style flag values that are not class name parts', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div<{ size: 'a"b' | 'small' }>\`
+          color: red;
+        \`;
+
+        export const App = () => <Box size="small" />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "size" value "a"b" must only contain letters, digits, - and _, as it becomes part of a class name
+    loc: 3:31]
+  `);
+});

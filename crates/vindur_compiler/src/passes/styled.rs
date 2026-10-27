@@ -1,12 +1,16 @@
 use oxc_ast::ast::{
-    Argument, Expression, IdentifierReference, Program, Statement, TSTypeParameterInstantiation,
+    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
+    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
 };
+use oxc_ast_visit::{Visit, walk};
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
 use super::style_flags::extract_style_flags;
+use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
 #[derive(Clone, Debug)]
 pub(crate) enum StyleFlagKind {
@@ -66,23 +70,6 @@ pub(crate) fn styled_tag_element(
         return None;
     }
     Some(member.property.name.to_string())
-}
-
-/// Whether a tag expression starts with `styled`, e.g. `styled(A).attrs({})`
-pub(crate) fn is_styled_tag(tag: &Expression<'_>, imports: &VindurImports<'_>) -> bool {
-    tag_root(tag).is_some_and(|identifier| imports.matches_import_or_global(identifier, "styled"))
-}
-
-/// The identifier a tag starts with, e.g. `styled` in `styled(A).attrs({})`
-pub(crate) fn tag_root<'e, 'a>(
-    expression: &'e Expression<'a>,
-) -> Option<&'e IdentifierReference<'a>> {
-    match expression {
-        Expression::Identifier(identifier) => Some(identifier),
-        Expression::StaticMemberExpression(member) => tag_root(&member.object),
-        Expression::CallExpression(call) => tag_root(&call.callee),
-        _ => None,
-    }
 }
 
 pub(crate) fn styled_tag_component(
@@ -174,6 +161,15 @@ pub(crate) fn styled_tag_component_with_attrs(
                     .to_owned(),
             ));
         };
+        // The object is copied as written, so it can't hold code the other passes rewrite
+        if let Some((span, message)) = first_unsupported_attrs_value(object, context.imports) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                span,
+                message.to_owned(),
+            ));
+        }
         let span = object.span;
         return Ok(Some(StyledDefinition {
             base_component: component,
@@ -210,11 +206,34 @@ pub(crate) fn styled_tag_component_with_attrs(
             .ignored_in_lint());
         }
     }
-    Ok(component.map(|component| StyledDefinition {
+    let Some(component) = component else {
+        if is_styled_tag(tag, context.imports) {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                tag.span(),
+                unsupported_styled_tag_message(tag).to_owned(),
+            ));
+        }
+        return Ok(None);
+    };
+    Ok(Some(StyledDefinition {
         attrs: None,
         base_component: component,
         style_flags,
     }))
+}
+
+fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+        && let Expression::CallExpression(inner) = &member.object
+        && matches!(&inner.callee, Expression::StaticMemberExpression(inner_member) if inner_member.property.name.as_str() == "attrs")
+    {
+        return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
+    }
+    "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
@@ -249,24 +268,6 @@ pub(crate) fn resolve_styled_references(
                 continue;
             };
             *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
-            for flag in &component.style_flags {
-                match &flag.kind {
-                    StyleFlagKind::Boolean => {
-                        *rule = rule.replace(
-                            &format!(".{class_name}.{}", flag.prop_name),
-                            &format!(".{class_name}.{}", flag.hashed_class_name),
-                        );
-                    }
-                    StyleFlagKind::StringUnion(values) => {
-                        for value in values {
-                            *rule = rule.replace(
-                                &format!(".{class_name}.{}-{value}", flag.prop_name),
-                                &format!(".{class_name}.{}-{value}", flag.hashed_class_name),
-                            );
-                        }
-                    }
-                }
-            }
         }
     }
     css_rules.iter().find_map(|rule| {
@@ -285,99 +286,11 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
-pub(crate) fn missing_style_flag_selectors(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
-    let mut missing = Vec::new();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                if !contains_class_selector(&css, &flag.prop_name)
-                    && !contains_class_selector(&css, &flag.hashed_class_name)
-                {
-                    missing.push(format!("&.{}", flag.prop_name));
-                }
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    let original = format!("{}-{value}", flag.prop_name);
-                    let hashed = format!("{}-{value}", flag.hashed_class_name);
-                    if !contains_class_selector(&css, &original)
-                        && !contains_class_selector(&css, &hashed)
-                    {
-                        missing.push(format!("&.{original}"));
-                    }
-                }
-            }
-        }
-    }
-    missing
+pub(crate) fn is_styled_ref_placeholder(text: &str) -> bool {
+    text.starts_with(STYLED_REF_PREFIX)
 }
 
-pub(crate) fn undeclared_style_classes(css: &str, flags: &[StyleFlag]) -> Vec<String> {
-    let css = strip_css_comments(css);
-    let declared = flags
-        .iter()
-        .flat_map(|flag| match &flag.kind {
-            StyleFlagKind::Boolean => vec![flag.prop_name.clone()],
-            StyleFlagKind::StringUnion(values) => values
-                .iter()
-                .map(|value| format!("{}-{value}", flag.prop_name))
-                .collect(),
-        })
-        .collect::<rustc_hash::FxHashSet<_>>();
-    let mut classes: Vec<String> = Vec::new();
-    for name in ampersand_compound_classes(&css) {
-        if !declared.contains(name) && !classes.iter().any(|class| class == name) {
-            classes.push(name.to_owned());
-        }
-    }
-    classes
-}
-
-fn is_compound_boundary(byte: u8) -> bool {
-    byte.is_ascii_whitespace() || matches!(byte, b',' | b'{' | b'}' | b'>' | b'+' | b'~' | b';')
-}
-
-// Only classes in the same compound selector as `&` (`&.active`,
-// `&:not(.active)`) are modifiers, classes of ancestors like `.dark &` are not
-fn ampersand_compound_classes(css: &str) -> Vec<&str> {
-    let bytes = css.as_bytes();
-    let mut names = Vec::new();
-    let mut compound_end = 0usize;
-    for (ampersand, _) in css.match_indices('&') {
-        if ampersand < compound_end {
-            continue;
-        }
-        let start = bytes[..ampersand]
-            .iter()
-            .rposition(|byte| is_compound_boundary(*byte))
-            .map_or(0, |index| index + 1);
-        compound_end = bytes[ampersand..]
-            .iter()
-            .position(|byte| is_compound_boundary(*byte))
-            .map_or(bytes.len(), |index| ampersand + index);
-        let compound = &css[start..compound_end];
-        for (dot, _) in compound.match_indices('.') {
-            let name_start = dot + 1;
-            let name_end = compound[name_start..]
-                .find(|character: char| {
-                    !character.is_ascii_alphanumeric() && character != '_' && character != '-'
-                })
-                .map_or(compound.len(), |index| name_start + index);
-            let name = &compound[name_start..name_end];
-            if name
-                .chars()
-                .next()
-                .is_some_and(|first| first.is_ascii_alphabetic() || first == '_' || first == '-')
-            {
-                names.push(name);
-            }
-        }
-    }
-    names
-}
-
-fn strip_css_comments(css: &str) -> String {
+pub(super) fn strip_css_comments(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
     while let Some(start) = rest.find("/*") {
@@ -391,35 +304,52 @@ fn strip_css_comments(css: &str) -> String {
     output
 }
 
-fn contains_class_selector(css: &str, name: &str) -> bool {
-    let needle = format!(".{name}");
-    css.match_indices(&needle).any(|(index, _)| {
-        css[index + needle.len()..]
-            .chars()
-            .next()
-            .is_none_or(|character| !character.is_ascii_alphanumeric() && character != '_')
-    })
+const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
+const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
+const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+
+fn first_unsupported_attrs_value(
+    object: &ObjectExpression<'_>,
+    imports: &VindurImports<'_>,
+) -> Option<(Span, &'static str)> {
+    let mut visitor = UnsupportedAttrsValueFinder {
+        imports,
+        found: None,
+    };
+    visitor.visit_object_expression(object);
+    visitor.found
 }
 
-pub(super) fn replace_class_selector(css: &str, original: &str, replacement: &str) -> String {
-    let needle = format!(".{original}");
-    let mut output = String::with_capacity(css.len());
-    let mut rest = css;
-    while let Some(index) = rest.find(&needle) {
-        let end = index + needle.len();
-        let next_is_word = rest[end..]
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_');
-        if next_is_word {
-            output.push_str(&rest[..end]);
-        } else {
-            output.push_str(&rest[..index]);
-            output.push('.');
-            output.push_str(replacement);
-        }
-        rest = &rest[end..];
+struct UnsupportedAttrsValueFinder<'i> {
+    imports: &'i VindurImports<'i>,
+    found: Option<(Span, &'static str)>,
+}
+
+impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
+    fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        self.found.get_or_insert((element.span, ATTRS_JSX_ERROR));
     }
-    output.push_str(rest);
-    output
+
+    fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
+        self.found.get_or_insert((fragment.span, ATTRS_JSX_ERROR));
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        if is_vindur_template_tag(&tagged.tag, self.imports) {
+            self.found
+                .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
+        } else {
+            walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if let Expression::Identifier(callee) = &call.callee
+            && self.imports.get_identifier(callee) == Some("stableId")
+        {
+            self.found.get_or_insert((call.span, ATTRS_STABLE_ID_ERROR));
+        } else {
+            walk::walk_call_expression(self, call);
+        }
+    }
 }

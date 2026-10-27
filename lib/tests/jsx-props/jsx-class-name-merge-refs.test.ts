@@ -367,17 +367,16 @@ test('should allow cx modifiers declared outside the css references', async () =
   `);
 });
 
-test('should handle an empty cx prop', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      export const A = () => <div cx={{}} />;
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = () => <div className={cx({})} />;
-    "
+test('should reject an empty cx prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const A = () => <div cx={{}} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop object must not be empty, remove the cx prop instead
+    loc: 1:32]
   `);
 });
 
@@ -399,15 +398,8 @@ test('should keep explicit className on style flag components with spreads', asy
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
-    export const A = (props: { className?: string }) => (
-      <button
-        {...props}
-        className={cx(
-          mergeClassNames([props, "explicit"], "v1560qbr-1-Btn"),
-          "voctcyj-active",
-        )}
-      />
+    "export const A = (props: { className?: string }) => (
+      <button {...props} className={"v1560qbr-1-Btn explicit voctcyj-active"} />
     );
     "
   `);
@@ -428,7 +420,7 @@ test('should not pass undefined as the vindur class name when merging dynamic co
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1", true);
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = (props: { className?: string }) => (
       <div
         {...props}

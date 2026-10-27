@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- some tests need to be invalid */
- 
+
 import { typingTest } from '@ls-stack/utils/typingTestUtils';
 import {
   forwardRef,
@@ -201,6 +201,70 @@ test('styled components from custom components with style and className', () => 
       dynamicColor={dynamicColor.set('red')}
     />
   );
+});
+
+test('styled svg components keep native cx values', () => {
+  const Dot = styled.circle`
+    fill: red;
+  `;
+
+  const circleElements = (
+    <>
+      <Dot
+        cx="50"
+        cy="50"
+        r="4"
+      />
+      <Dot cx={50} />
+      <Dot cx={{ active: true }} />
+    </>
+  );
+
+  function Pie({
+    className,
+    cx,
+  }: {
+    className?: string;
+    cx?: string | number;
+  }) {
+    return <div className={className} />;
+  }
+
+  const StyledPie = styled(Pie)`
+    opacity: 0.5;
+  `;
+
+  const pieElements = (
+    <>
+      {/* @ts-expect-error cx is always vindur's on styled custom components */}
+      <StyledPie cx="50%" />
+      <StyledPie cx={{ active: true }} />
+    </>
+  );
+
+  function Marker({ className, cx }: { className?: string; cx: number }) {
+    return (
+      <div
+        className={className}
+        data-cx={cx}
+      />
+    );
+  }
+
+  // @ts-expect-error a required cx prop can't be passed to a styled custom component
+  const StyledMarker = styled(Marker)`
+    opacity: 0.5;
+  `;
+
+  // only circle, ellipse and radialGradient keep a native cx
+  const Rect = styled.rect`
+    fill: red;
+  `;
+
+  expectTypesAre<
+    ComponentProps<typeof Rect>['cx'],
+    Record<string, unknown> | undefined
+  >('equal');
 });
 
 test('styled components from custom components without className should not be supported', () => {
@@ -421,5 +485,56 @@ describe('style flags', () => {
     const ok = <Styled active={true} />;
     // @ts-expect-error missing required prop
     const invalid = <Styled />;
+  });
+});
+
+describe('dynamic color setProps', () => {
+  test('setProps result can be spread on native elements and styled components', () => {
+    const otherColor = createDynamicCssColor();
+
+    const Box = styled.div`
+      color: red;
+    `;
+
+    const native = <div {...dynamicColor.setProps('#fff', { className: 'a' })} />;
+    const styledBox = <Box {...dynamicColor.setProps('#fff')} />;
+    const nested = (
+      <div
+        {...dynamicColor.setProps(
+          '#fff',
+          otherColor.setProps('#000', { className: 'a' }),
+        )}
+      />
+    );
+    const withStyle = (
+      <div
+        {...dynamicColor.setProps(null, {
+          style: { padding: 4, '--custom': '1px' },
+        })}
+      />
+    );
+
+    const style = dynamicColor.setProps('#fff').style;
+    expectTypesAre<typeof style.colorScheme, CSSProperties['colorScheme']>(
+      'equal',
+    );
+  });
+
+  test('setProps accepts a forwarded React style prop', () => {
+    function Card({ style }: { style?: CSSProperties }) {
+      return <div {...dynamicColor.setProps('#fff', { style })} />;
+    }
+  });
+
+  test('dynamicColor prop accepts multiple colors', () => {
+    const otherColor = createDynamicCssColor();
+
+    const Box = styled.div`
+      color: red;
+    `;
+
+    const multiple = (
+      <Box dynamicColor={[dynamicColor.set('#fff'), otherColor.set('#000')]} />
+    );
   });
 });
