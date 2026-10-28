@@ -47,3 +47,4 @@ plugin.configs = {
 };
 
 export const vindurPlugin = plugin;
+export default plugin;

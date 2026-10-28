@@ -1,11 +1,11 @@
-# @vindur/eslint-plugin
+# @vindur-css/eslint-plugin
 
 ESLint plugin for Vindur CSS-in-JS that surfaces transform errors and warnings directly in your IDE.
 
 ## Installation
 
 ```bash
-npm install --save-dev @vindur/eslint-plugin
+npm install --save-dev @vindur-css/eslint-plugin
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ Add the plugin to your ESLint config:
 
 ```js
 // eslint.config.js
-import { vindurPlugin } from '@vindur/eslint-plugin';
+import { vindurPlugin } from '@vindur-css/eslint-plugin';
 
 export default [
   {
@@ -32,11 +32,24 @@ Or use the recommended configuration:
 
 ```js
 // eslint.config.js
-import { vindurPlugin } from '@vindur/eslint-plugin';
+import { vindurPlugin } from '@vindur-css/eslint-plugin';
 
 export default [
   vindurPlugin.configs.recommended,
 ];
+```
+
+### oxlint
+
+The package default export is the plugin, so it can be loaded as an oxlint JS plugin:
+
+```json
+{
+  "jsPlugins": [{ "name": "@vindur", "specifier": "@vindur-css/eslint-plugin" }],
+  "rules": {
+    "@vindur/check-transform": "error"
+  }
+}
 ```
 
 ## Rule: `@vindur/check-transform`
