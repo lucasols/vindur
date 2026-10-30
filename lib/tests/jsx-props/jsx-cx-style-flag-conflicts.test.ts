@@ -1,6 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
-import { transformWithFormat } from '../testUtils';
+import { createFsMock, transformWithFormat } from '../testUtils';
 
 describe('Errors for Style Flag and CX Prop Conflicts', () => {
   test('should throw error when boolean style flag conflicts with cx prop key', async () => {
@@ -251,4 +251,33 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
       }),
     ).resolves.toBeDefined();
   });
+});
+
+test('should throw for cx keys conflicting with style flags of an imported base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Item } from '#/item';
+
+        const Ext = styled(Item)<{ big: boolean }>\`
+          &.big { color: blue; }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => <Ext big cx={{ active: on }} />;
+      `,
+      overrideDefaultFs: createFsMock({
+        'item.tsx': dedent`
+          import { styled } from 'vindur';
+
+          export const Item = styled.div<{ active: boolean }>\`
+            &.active { color: red; }
+          \`;
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag prop 'active' conflicts with cx prop key 'active' on Ext. Use different names to avoid conflicts.
+    loc: 8:48]
+  `);
 });

@@ -445,3 +445,19 @@ test('should throw for createGlobalStyle inside templates of other tags', async 
     loc: 4:26]
   `);
 });
+
+test('should throw for stylesheet start rules out of order across global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`@namespace svg url(http://www.w3.org/2000/svg);\`
+        createGlobalStyle\`@import url(a.css);\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@import\` must come before \`@namespace\` of an earlier \`createGlobalStyle\`, browsers ignore it after it, move it into that \`createGlobalStyle\`
+    loc: 4:0]
+  `);
+});

@@ -494,3 +494,21 @@ test('should throw for a custom property missing its `;` before a nested rule', 
     loc: 3:17]
   `);
 });
+
+test('should throw for a custom property missing its `;` before the next declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const style = css\`
+          --x: 1
+          color: red;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` after \`1\`
+    loc: 4:7]
+  `);
+});

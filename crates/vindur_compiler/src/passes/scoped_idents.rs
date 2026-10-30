@@ -51,7 +51,7 @@ pub(super) fn collect_scoped_idents(
         offset,
         idents: Vec::new(),
         quoted_names: None,
-        names_fonts: false,
+        names_fonts: None,
         error: None,
     };
     collector.statements(statements)?;
@@ -68,8 +68,8 @@ struct ScopedIdentCollector<'a> {
     idents: Vec<ScopedIdent>,
     /// How strings in the current declaration name things
     quoted_names: Option<QuotedNames>,
-    /// Whether names in the current declaration are font families
-    names_fonts: bool,
+    /// The font property whose names are font families in the current declaration
+    names_fonts: Option<FontProperty>,
     /// The first unsupported scoped name
     error: Option<CssError>,
 }
@@ -255,8 +255,13 @@ impl ScopedIdentCollector<'_> {
     /// selectors, like `.---card`, come from the HTML or JS, which is not renamed
     fn selector(&mut self, span: oxc_css_parser::Span) {
         let text = &self.source[span.start..span.end];
-        for (start, end) in scoped_ident_ranges(text) {
-            if !is_view_transition_argument(text, start) {
+        for ScopedIdentRange {
+            start,
+            end,
+            in_view_transition,
+        } in scoped_ident_ranges(text)
+        {
+            if !in_view_transition {
                 self.error.get_or_insert_with(|| {
                     CssError::new(
                         format!(
@@ -284,7 +289,7 @@ impl ScopedIdentCollector<'_> {
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
             self.quoted_names = quoted_names_kind(name.name);
-            self.names_fonts = is_font_property(name.name);
+            self.names_fonts = font_property(name.name);
         }
         self.values(&declaration.value);
         self.quoted_names = quoted_names;
@@ -321,6 +326,12 @@ impl ScopedIdentCollector<'_> {
         message: impl Fn(&str) -> String,
     ) {
         let (_, content) = string_content(self.source, span);
+        // Escaped words, like `"\2d --spin"`, are the same names
+        let content = if content.contains('\\') {
+            decode_ident(content)
+        } else {
+            content.to_owned()
+        };
         if self.error.is_none()
             // Grid area cells are also separated by `.` null cells, like `"---head...side"`
             && let Some(name) = content
@@ -361,8 +372,8 @@ impl ScopedIdentCollector<'_> {
     }
 
     fn values(&mut self, values: &[ComponentValue<'_>]) {
-        if self.names_fonts {
-            self.reject_multiword_scoped_family(values);
+        if let Some(property) = self.names_fonts {
+            self.reject_multiword_scoped_family(values, property);
         }
         for (index, value) in values.iter().enumerate() {
             let role = match index
@@ -397,7 +408,7 @@ impl ScopedIdentCollector<'_> {
                     let names_fonts = self.names_fonts;
                     if is_function_named(&function.name, "style") {
                         self.quoted_names = Some(QuotedNames::Unknown);
-                        self.names_fonts = false;
+                        self.names_fonts = None;
                     }
                     self.values(rest);
                     self.quoted_names = quoted_names;
@@ -430,7 +441,13 @@ impl ScopedIdentCollector<'_> {
 
     /// An unquoted family name can be several words, like `---brand sans`, which would be renamed
     /// differently than the quoted `"---brand sans"`
-    fn reject_multiword_scoped_family(&mut self, values: &[ComponentValue<'_>]) {
+    /// In the `font` shorthand the family comes last, after the size, like `bold medium ---brand`,
+    /// so only words after a scoped name are part of its family there
+    fn reject_multiword_scoped_family(
+        &mut self,
+        values: &[ComponentValue<'_>],
+        property: FontProperty,
+    ) {
         let ident_span = |value: &ComponentValue<'_>| match value {
             ComponentValue::InterpolableIdent(InterpolableIdent::Literal(ident)) => {
                 Some((ident.span.start, ident.span.end))
@@ -444,8 +461,12 @@ impl ScopedIdentCollector<'_> {
             let (Some(first), Some(second)) = (ident_span(&pair[0]), ident_span(&pair[1])) else {
                 continue;
             };
-            if let Some((start, end)) = [first, second]
-                .into_iter()
+            let words = match property {
+                FontProperty::Shorthand => &[first][..],
+                FontProperty::Family => &[first, second][..],
+            };
+            if let Some(&(start, end)) = words
+                .iter()
                 .find(|(start, end)| is_scoped_name(&self.source[*start..*end]))
                 && self.error.is_none()
             {
@@ -485,7 +506,7 @@ impl ScopedIdentCollector<'_> {
             }
             // Font family names match case-insensitively, `---Brand` and `---brand` would get
             // different hashes. Non-ASCII letters have case variants too, so they aren't allowed
-            if self.names_fonts
+            if self.names_fonts.is_some()
                 && role == ScopedRole::Name
                 && raw
                     .chars()
@@ -553,8 +574,22 @@ fn quoted_names_kind(property: &str) -> Option<QuotedNames> {
     }
 }
 
-fn is_font_property(property: &str) -> bool {
-    property.eq_ignore_ascii_case("font") || property.eq_ignore_ascii_case("font-family")
+#[derive(Clone, Copy)]
+enum FontProperty {
+    /// `font`, whose family comes after other values
+    Shorthand,
+    /// `font-family`
+    Family,
+}
+
+fn font_property(property: &str) -> Option<FontProperty> {
+    if property.eq_ignore_ascii_case("font") {
+        Some(FontProperty::Shorthand)
+    } else if property.eq_ignore_ascii_case("font-family") {
+        Some(FontProperty::Family)
+    } else {
+        None
+    }
 }
 
 fn has_initial_value(rule: &AtRule<'_>) -> bool {
@@ -616,23 +651,24 @@ fn has_quoted_scoped_name(text: &str) -> bool {
     false
 }
 
-/// Whether `index` is in the parentheses of a view transition pseudo-element, like `---card` in
-/// `::view-transition-old(---card)` or `::view-transition-group(*.---cards)`
-fn is_view_transition_argument(selector: &str, index: usize) -> bool {
-    let before = &selector[..index];
-    before
-        .rfind("::view-transition-")
-        .and_then(|pseudo| before[pseudo..].find('(').map(|open| pseudo + open))
-        .is_some_and(|open| !before[open..].contains(')'))
+struct ScopedIdentRange {
+    start: usize,
+    end: usize,
+    /// In the parentheses of a view transition pseudo-element, like `---card` in
+    /// `::view-transition-old(---card)` or `::view-transition-group(*.---cards)`
+    in_view_transition: bool,
 }
 
-/// Byte ranges of the identifiers starting with `---`. Comments, strings, urls and unquoted
-/// attribute selector values, like `[data-state=---open]`, are ignored
-fn scoped_ident_ranges(text: &str) -> Vec<(usize, usize)> {
+/// The identifiers starting with `---`. Comments, strings, urls and unquoted attribute selector
+/// values, like `[data-state=---open]`, are ignored
+fn scoped_ident_ranges(text: &str) -> Vec<ScopedIdentRange> {
     let mut ranges = Vec::new();
     let mut index = 0;
     let mut in_attribute = false;
     let mut attribute_value = false;
+    let mut depth = 0usize;
+    // The depth of the open parentheses of a view transition pseudo-element
+    let mut view_transition_depth = None;
     while let Some(character) = text[index..].chars().next() {
         // Escapes are part of identifiers, `\61 ---a` is the single identifier `a---a`
         if character != '\\'
@@ -648,12 +684,32 @@ fn scoped_ident_ranges(text: &str) -> Vec<(usize, usize)> {
                 && ident.len() > SCOPED_PREFIX.len()
                 && ident.starts_with(SCOPED_PREFIX)
             {
-                ranges.push((index, end));
+                ranges.push(ScopedIdentRange {
+                    start: index,
+                    end,
+                    in_view_transition: view_transition_depth.is_some(),
+                });
+            }
+            if view_transition_depth.is_none()
+                && text[..index].ends_with("::")
+                && ident
+                    .get(..16)
+                    .is_some_and(|name| name.eq_ignore_ascii_case("view-transition-"))
+                && text[end..].starts_with('(')
+            {
+                view_transition_depth = Some(depth + 1);
             }
             index = end;
             continue;
         }
         match character {
+            '(' => depth += 1,
+            ')' => {
+                if view_transition_depth == Some(depth) {
+                    view_transition_depth = None;
+                }
+                depth = depth.saturating_sub(1);
+            }
             '[' => in_attribute = true,
             ']' => {
                 in_attribute = false;

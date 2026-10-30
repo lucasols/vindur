@@ -150,7 +150,7 @@ pub enum StaticValue {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleFlagClass {
-    /// The class as written in the CSS, e.g. `$size-small`
+    /// The class as written in the CSS, e.g. `size-small`
     pub original: String,
     pub hashed: String,
 }

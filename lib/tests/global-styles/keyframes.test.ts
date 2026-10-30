@@ -415,3 +415,28 @@ describe('keyframes corner cases', () => {
     `);
   });
 });
+
+test('should remove a leading `;` of keyframes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { keyframes } from 'vindur'
+
+      export const fadeIn = keyframes\`;
+        from { opacity: 0; }
+        to { opacity: 1; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@keyframes v1560qbr-1-fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    "
+  `);
+});

@@ -515,3 +515,91 @@ test('should throw for escaped quoted scoped names', async () => {
     loc: 4:13]
   `);
 });
+
+test('should throw for escaped quoted scoped names in custom properties', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @keyframes ---spin { from { opacity: 0; } }
+          .a { --animation: "\\2d --spin"; animation-name: var(--animation); }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Quoted scoped names are not supported in custom properties, write \`---spin\` without quotes or the string directly in the property that uses it
+    loc: 5:20]
+  `);
+});
+
+test('should rename scoped font families after keywords of the font shorthand', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @font-face { font-family: ---brand; src: url(brand.woff2); }
+        .a { font: bold medium ---brand; }
+        .b { font: 16px/normal ---brand, serif; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@font-face {
+      font-family: --v1560qbr-2-brand;
+      src: url(brand.woff2);
+    }
+    .a {
+      font: bold medium --v1560qbr-2-brand;
+    }
+    .b {
+      font:
+        16px / normal --v1560qbr-2-brand,
+        serif;
+    }
+    "
+  `);
+});
+
+test('should ignore view transition pseudo-elements in comments of selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        ::view-transition-old(/* ) */ ---card) { animation: none; }
+        .card { view-transition-name: ---card; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "::view-transition-old(/* ) */ --v1560qbr-2-card) {
+      animation: none;
+    }
+    .card {
+      view-transition-name: --v1560qbr-2-card;
+    }
+    "
+  `);
+});
+
+test('should throw for scoped names after a comment naming a view transition', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          a /* ::view-transition-old( */.---card { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names in selectors are only supported in \`::view-transition-*()\` pseudo-elements, \`---card\` names something in the HTML or JS, which is not renamed, use a plain name
+    loc: 4:33]
+  `);
+});

@@ -9,7 +9,7 @@ use crate::{
 
 use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
-use super::transform_support::VariableTransform;
+use super::transform_support::{VariableTransform, require_const};
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
@@ -45,6 +45,7 @@ pub(super) fn process_with_component(
             ),
         ));
     };
+    require_const(declaration, transform)?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),
@@ -66,6 +67,17 @@ pub(super) fn process_with_component(
             argument_span,
             "withComponent() must be called with either a string literal element name or a component identifier."
                 .to_owned(),
+        ));
+    }
+    if element_is_identifier
+        && let Some(message) =
+            shared_flag_error(&base, base_identifier.name.as_str(), &element, transform)
+    {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            argument_span,
+            message,
         ));
     }
     let runtime = transform.is_exported
@@ -126,6 +138,35 @@ pub(super) fn process_with_component(
         });
     }
     Ok(true)
+}
+
+/// The flags of `base` are never passed to the element, so a styled component element with a flag
+/// of the same prop would never get it
+fn shared_flag_error(
+    base: &StyledComponent,
+    base_name: &str,
+    element: &str,
+    transform: &VariableTransform<'_>,
+) -> Option<String> {
+    let element_classes = match transform.styled_components.get(element) {
+        Some(component) => flag_classes(&component.style_flags),
+        None => match transform.constants.get(element) {
+            Some(StaticValue::ClassName { style_flags, .. }) => style_flags.clone(),
+            _ => return None,
+        },
+    };
+    let flag = base.style_flags.iter().find(|flag| {
+        element_classes.iter().any(|class| {
+            class
+                .original
+                .strip_prefix(flag.prop_name.as_str())
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+        })
+    })?;
+    Some(format!(
+        "Style flag `{}` of `{base_name}` is also a style flag of `{element}`, which would no longer get the prop, rename one of them",
+        flag.prop_name
+    ))
 }
 
 pub(super) fn style_flags_runtime_call(

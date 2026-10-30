@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    block_validation::{has_only_stylesheet_start_rules, starts_with_stylesheet_start_rule},
+    block_validation::check_global_start_order,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
@@ -74,23 +74,36 @@ pub(super) fn push_global_style(
     source: &str,
     span: oxc_span::Span,
 ) -> Result<(), CompilerDiagnostic> {
-    // Comments and other start rules don't make browsers drop them
-    let has_styles = css_rules
-        .iter()
-        .any(|rule| !has_only_stylesheet_start_rules(rule));
-    if has_styles && starts_with_stylesheet_start_rule(&content) {
-        return Err(CompilerDiagnostic::error(
-            file_path,
-            source,
-            span,
-            "`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles or merge it into the first one".to_owned(),
-        ));
-    }
+    check_global_start_order(css_rules, &content)
+        .map_err(|message| CompilerDiagnostic::error(file_path, source, span, message))?;
     if !content.is_empty() {
         css_rules.push(content);
         *has_side_effects = true;
     }
     Ok(())
+}
+
+/// Vindur declarations are evaluated once at compile time, so a `let` or `var` reassigned later
+/// would keep the compiled value
+pub(super) fn require_const(
+    declaration: &VariableDeclaration<'_>,
+    transform: &VariableTransform<'_>,
+) -> Result<(), CompilerDiagnostic> {
+    if declaration.kind == VariableDeclarationKind::Const {
+        return Ok(());
+    }
+    let keyword = declaration.kind.as_str();
+    Err(CompilerDiagnostic::error(
+        transform.file_path,
+        transform.source,
+        oxc_span::Span::new(
+            declaration.span.start,
+            declaration.span.start + u32::try_from(keyword.len()).unwrap_or(0),
+        ),
+        format!(
+            "Vindur declarations must use `const`, not `{keyword}`, they are evaluated at compile time"
+        ),
+    ))
 }
 
 pub(super) fn process_variable_declaration(
@@ -117,6 +130,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createDynamicCssColor")
         {
+            require_const(declaration, transform)?;
             if !call.arguments.is_empty() {
                 return Err(CompilerDiagnostic::error(
                     transform.file_path,
@@ -153,6 +167,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createStaticThemeColors")
         {
+            require_const(declaration, transform)?;
             let colors = parse_theme_colors(&call.arguments).map_err(|error| {
                 CompilerDiagnostic::error(
                     transform.file_path,
@@ -197,6 +212,7 @@ pub(super) fn process_variable_declaration(
             },
         )?;
         if let Some(styled_definition) = styled_definition {
+            require_const(declaration, transform)?;
             let base_component = styled_definition.base_component;
             let own_attrs = styled_definition.attrs;
             let own_style_flags = styled_definition.style_flags;
@@ -557,6 +573,7 @@ pub(super) fn process_variable_declaration(
         if !matches!(tag_name, "css" | "keyframes") {
             continue;
         }
+        require_const(declaration, transform)?;
 
         let variable_name = identifier.name.as_str();
         let generated_name = generated_name(

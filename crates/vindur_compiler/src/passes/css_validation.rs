@@ -95,13 +95,10 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
         ));
     }
     // `color: red\n width: 1px;` is parsed as a single `color` declaration. Custom property values
-    // can contain `name:` anywhere, so only scoped variables are checked, and only for a `name:`
-    // starting a line outside brackets
+    // can contain `name:` anywhere, so they are only checked for a `name:` starting a line outside
+    // brackets
     let next_property = if name.name.starts_with("--") {
         nested_block_in_custom_value(&declaration.value, source)?;
-        if !name.raw.starts_with("---") {
-            return Ok(());
-        }
         next_property_on_new_line(&declaration.value, source)
     } else {
         declaration

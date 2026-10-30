@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::jsx_css::starts_with_scoped_prefix;
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -448,11 +449,14 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
 
     // Only scoped variable keys of the `style` prop are renamed
     fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
-        if property
-            .key
-            .static_name()
-            .is_some_and(|name| name.starts_with("---"))
-        {
+        let is_scoped_key = match property.key.static_name() {
+            Some(name) => name.starts_with("---"),
+            None => property
+                .key
+                .as_expression()
+                .is_some_and(starts_with_scoped_prefix),
+        };
+        if is_scoped_key {
             self.found
                 .get_or_insert((property.key.span(), ATTRS_SCOPED_VARIABLE_ERROR));
         } else {

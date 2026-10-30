@@ -504,3 +504,55 @@ test('should throw for bindings shadowing the base of a styled component', async
     loc: 6:22]
   `);
 });
+
+test('should throw for a caught error shadowing the base of a styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = (props: { className?: string }) => <div {...props} />
+        const StyledCard = styled(Card)\`color: red;\`
+
+        export function App() {
+          try {
+            return null
+          } catch (Card) {
+            return <StyledCard />
+          }
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" shadows the component "Card" a styled component is built from, rename this binding
+    loc: 9:11]
+  `);
+});
+
+test('should allow bindings with the name of a base where the styled component is not used', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Card = (props: { className?: string }) => <div {...props} />
+      const StyledCard = styled(Card)\`color: red;\`
+
+      export function format(Card: string): string;
+      export function format(value: string) {
+        return value
+      }
+
+      export const App = () => <StyledCard />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const Card = (props: { className?: string }) => <div {...props} />;
+    export function format(Card: string): string;
+    export function format(value: string) {
+      return value;
+    }
+    export const App = () => <Card className="v1560qbr-1-StyledCard" />;
+    "
+  `);
+});

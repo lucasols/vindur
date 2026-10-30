@@ -5,12 +5,13 @@ use super::css_tokens::{decode_ident, ident_end, skipped_token_end, unprefixed_a
 use super::css_validation::statement_span;
 
 /// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
-/// blocks of declarations
+/// blocks of declarations. `template_start` is where the template starts for its top level block
 pub(super) fn validate_block_kind(
     statements: &[Statement<'_>],
     kind: BlockKind,
     source: &str,
     (start, end): (usize, usize),
+    template_start: Option<usize>,
 ) -> Result<(), CssError> {
     for statement in statements {
         let message = match (kind, statement) {
@@ -50,7 +51,7 @@ pub(super) fn validate_block_kind(
     }
     // After the statements, a misplaced declaration is reported as such, not as its `;`
     if kind != BlockKind::Style {
-        reject_stray_semicolons(statements, source, start, end)?;
+        reject_stray_semicolons(statements, source, (start, end), template_start)?;
     }
     Ok(())
 }
@@ -95,7 +96,7 @@ fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssErr
     let inner = (block.span.start + 1, block.span.end.saturating_sub(1));
     let name = unprefixed_at_rule_name(rule.name.name).unwrap_or_default();
     if is_grouping_at_rule(&name) {
-        validate_block_kind(&block.statements, BlockKind::Global, source, inner)?;
+        validate_block_kind(&block.statements, BlockKind::Global, source, inner, None)?;
     } else if name == "scope" {
         // Declarations in `@scope` style the scope root, its at-rules are checked as usual
         for statement in &block.statements {
@@ -104,10 +105,10 @@ fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssErr
             }
         }
     } else if name == "keyframes" {
-        validate_block_kind(&block.statements, BlockKind::Keyframes, source, inner)?;
+        validate_block_kind(&block.statements, BlockKind::Keyframes, source, inner, None)?;
     } else if name == "font-feature-values" {
         // Its block holds rules, so a `;` between them drops the next one
-        reject_stray_semicolons(&block.statements, source, inner.0, inner.1)?;
+        reject_stray_semicolons(&block.statements, source, inner, None)?;
     } else if DECLARATION_AT_RULES.contains(&name.as_str())
         && let Some(nested) = block
             .statements
@@ -137,12 +138,12 @@ const DECLARATION_AT_RULES: [&str; 6] = [
 /// The parser skips a `;` between rules, but browsers read it as the start of the next rule's
 /// selector and drop that rule. Global styles are joined, so it can drop a rule of another file.
 /// Statements without a block, like `@import url(a.css);`, end with their `;`. A `;` at the start
-/// of the template is removed from the output
+/// of the template, at `template_start`, is removed from the output
 fn reject_stray_semicolons(
     statements: &[Statement<'_>],
     source: &str,
-    start: usize,
-    end: usize,
+    (start, end): (usize, usize),
+    template_start: Option<usize>,
 ) -> Result<(), CssError> {
     let mut gap_start = start;
     let mut allows_semicolon = false;
@@ -156,7 +157,8 @@ fn reject_stray_semicolons(
                 continue;
             }
             if source.as_bytes()[index] == b';' {
-                let is_template_start = start == 0 && source[..index].trim().is_empty();
+                let is_template_start = template_start
+                    .is_some_and(|template_start| source[template_start..index].trim().is_empty());
                 if !allows_semicolon && !is_template_start {
                     let message = if after_block {
                         "unexpected `;` after a rule, remove it"
@@ -210,20 +212,8 @@ fn reject_late_stylesheet_start_rules(statements: &[Statement<'_>]) -> Result<()
             _ => String::new(),
         };
         let latest_order = latest.map(|(order, _)| order);
-        let (order, label) = match name.as_str() {
-            "charset" => (StartOrder::Charset, Some("@charset")),
-            "import" => (StartOrder::Import, Some("@import")),
-            "namespace" => (StartOrder::Namespace, Some("@namespace")),
-            "layer" if matches!(statement, Statement::AtRule(rule) if rule.block.is_none()) => {
-                let order = if latest_order.is_none_or(|order| order <= StartOrder::Layer) {
-                    StartOrder::Layer
-                } else {
-                    StartOrder::Rule
-                };
-                (order, Some("@layer"))
-            }
-            _ => (StartOrder::Rule, None),
-        };
+        let is_statement = matches!(statement, Statement::AtRule(rule) if rule.block.is_none());
+        let (order, label) = start_order(&name, is_statement, latest_order);
         if let Some((latest_order, latest_label)) = latest
             && order < latest_order
         {
@@ -243,23 +233,75 @@ fn reject_late_stylesheet_start_rules(statements: &[Statement<'_>]) -> Result<()
     Ok(())
 }
 
+/// The order of an at-rule named `name`, or of another rule for an empty name, after a statement
+/// of the `latest` order
+fn start_order(
+    name: &str,
+    is_statement: bool,
+    latest: Option<StartOrder>,
+) -> (StartOrder, Option<&'static str>) {
+    match name {
+        "charset" => (StartOrder::Charset, Some("@charset")),
+        "import" => (StartOrder::Import, Some("@import")),
+        "namespace" => (StartOrder::Namespace, Some("@namespace")),
+        "layer" if is_statement => {
+            let order = if latest.is_none_or(|order| order <= StartOrder::Layer) {
+                StartOrder::Layer
+            } else {
+                StartOrder::Rule
+            };
+            (order, Some("@layer"))
+        }
+        _ => (StartOrder::Rule, None),
+    }
+}
+
+/// Checks the start rules of validated global styles against the global styles of the file before
+/// them, as browsers read the styles of a file as one stylesheet. Fails with the error message
+pub(super) fn check_global_start_order(previous: &[String], css: &str) -> Result<(), String> {
+    let mut latest: Option<(StartOrder, &'static str)> = None;
+    for rule in previous {
+        let (end, names) = leading_start_rules(rule);
+        if end != rule.len() {
+            if starts_with_stylesheet_start_rule(css) {
+                return Err("`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles or merge it into the first one".to_owned());
+            }
+            return Ok(());
+        }
+        for name in names {
+            let (order, label) = start_order(&name, true, latest.map(|(order, _)| order));
+            if latest.is_none_or(|(latest, _)| order > latest) {
+                latest = label.map(|label| (order, label));
+            }
+        }
+    }
+    for name in leading_start_rules(css).1 {
+        let (order, _) = start_order(&name, true, latest.map(|(order, _)| order));
+        if let Some((latest_order, latest_label)) = latest
+            && order < latest_order
+        {
+            return Err(format!(
+                "`@{name}` must come before `{latest_label}` of an earlier `createGlobalStyle`, browsers ignore it after it, move it into that `createGlobalStyle`"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Whether validated global styles start with `@charset`, `@import` or `@namespace`, maybe after
 /// `@layer` statements. Browsers drop them after another rule, also one of another template
 pub(super) fn starts_with_stylesheet_start_rule(css: &str) -> bool {
-    skip_stylesheet_start_rules(css).1
+    leading_start_rules(css)
+        .1
+        .iter()
+        .any(|name| name != "layer")
 }
 
-/// Whether global styles only hold `@charset`, `@import`, `@namespace` and `@layer` statements, so
-/// the global styles after them can still start with one
-pub(super) fn has_only_stylesheet_start_rules(css: &str) -> bool {
-    skip_stylesheet_start_rules(css).0 == css.len()
-}
-
-/// Skips the leading `@charset`, `@import`, `@namespace` and `@layer` statements, returns where the
-/// rest starts and whether one of the first three was found
-fn skip_stylesheet_start_rules(css: &str) -> (usize, bool) {
+/// The leading `@charset`, `@import`, `@namespace` and `@layer` statements, returns where the rest
+/// starts and their unprefixed names
+fn leading_start_rules(css: &str) -> (usize, Vec<String>) {
     let mut index = 0;
-    let mut found = false;
+    let mut names = Vec::new();
     while let Some(character) = css[index..].chars().next() {
         if character.is_whitespace() {
             index += character.len_utf8();
@@ -276,17 +318,18 @@ fn skip_stylesheet_start_rules(css: &str) -> (usize, bool) {
         }
         let name_end = ident_end(css, index + 1);
         let name = unprefixed_at_rule_name(&decode_ident(&css[index + 1..name_end]));
-        let is_start_rule = matches!(name.as_deref(), Some("charset" | "import" | "namespace"));
-        if !is_start_rule && name.as_deref() != Some("layer") {
+        let Some(name) = name
+            .filter(|name| matches!(name.as_str(), "charset" | "import" | "namespace" | "layer"))
+        else {
             break;
-        }
-        found |= is_start_rule;
+        };
         match statement_end(css, name_end) {
             Some(end) => index = end,
             None => break,
         }
+        names.push(name);
     }
-    (index, found)
+    (index, names)
 }
 
 /// The end of a block-less statement after `index`, `None` when the statement has a block

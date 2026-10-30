@@ -737,3 +737,29 @@ describe('withComponent', () => {
     `);
   });
 });
+
+test('should throw for withComponent of a component with a style flag of the base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Item } from '#/item'
+
+        const Base = styled.div<{ active: boolean }>\`&.active { color: blue; }\`
+        const LinkedItem = Base.withComponent(Item)
+
+        export const App = () => <LinkedItem active />
+      `,
+      overrideDefaultFs: createFsMock({
+        'item.tsx': dedent`
+          import { styled } from 'vindur'
+
+          export const Item = styled.div<{ active: boolean }>\`&.active { color: red; }\`
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`active\` of \`Base\` is also a style flag of \`Item\`, which would no longer get the prop, rename one of them
+    loc: 5:38]
+  `);
+});

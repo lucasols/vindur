@@ -181,3 +181,93 @@ test('should throw for computed scoped variable keys in the style prop', async (
     loc: 6:36]
   `);
 });
+
+test('should rename scoped variables of a style object with a type cast', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import type { CSSProperties } from 'react';
+
+      export const App = ({ w }: { w: number }) => (
+        <>
+          <div css={\`width: var(---w);\`} style={{ '---w': w } as CSSProperties} />
+          <div css={\`height: var(---w);\`} style={{ '---w': w } satisfies CSSProperties} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import type { CSSProperties } from "react";
+    export const App = ({ w }: { w: number }) => (
+      <>
+        <div
+          className="v1560qbr-1-css-prop-1"
+          style={
+            {
+              "--v1560qbr-2-w": w,
+            } as CSSProperties
+          }
+        />
+        <div
+          className="v1560qbr-3-css-prop-3"
+          style={
+            {
+              "--v1560qbr-2-w": w,
+            } satisfies CSSProperties
+          }
+        />
+      </>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-css-prop-1 {
+      width: var(--v1560qbr-2-w);
+    }
+
+    .v1560qbr-3-css-prop-3 {
+      height: var(--v1560qbr-2-w);
+    }
+    "
+  `);
+});
+
+test('should not treat scoped names in urls and strings of style prop values as variables', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const App = () => (
+        <div style={{ backgroundImage: 'url(/---asset.png)', content: '"---title"' }} />
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = () => (
+      <div
+        style={{
+          backgroundImage: "url(/---asset.png)",
+          content: '"---title"',
+        }}
+      />
+    );
+    "
+  `);
+});
+
+test('should throw for computed scoped variable keys in attrs', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        export const Card = styled.div.attrs({
+          style: { ['---' + 'color']: 'red' },
+        })\`color: var(---color);\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: styled.*.attrs() cannot set scoped variables, set them in the \`style\` prop where the component is rendered
+    loc: 4:12]
+  `);
+});

@@ -4,6 +4,7 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use super::css_tokens::ident_end;
 use super::jsx_attributes::{find_attribute, jsx_name};
 use super::jsx_cx_attribute::is_foreign_cx_attribute;
 
@@ -135,9 +136,8 @@ pub(crate) fn scoped_variable_names(css: &str) -> Vec<&str> {
     css.match_indices("---")
         .filter_map(|(start, _)| {
             let name_start = start + 3;
-            let name_end = css[name_start..]
-                .find(|character: char| !character.is_ascii_alphanumeric() && character != '-')
-                .map_or(css.len(), |offset| name_start + offset);
+            // The same name rule as the renamer, so every renamed name is counted
+            let name_end = ident_end(css, name_start);
             (name_end > name_start).then(|| &css[name_start..name_end])
         })
         .collect()

@@ -130,3 +130,37 @@ test('should map a style prop variable declared by a child css prop', async () =
     "
   `);
 });
+
+test('should reserve ids for css prop scoped variables with underscores', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      export const App = () => (
+        <div css={\`---a_b: 1px; ---a_c: 2px; width: calc(var(---a_b) + var(---a_c));\`} />
+      )
+
+      const color = createDynamicCssColor()
+
+      export const Swatch = () => <div {...color.set('#fff')} />
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    export const App = () => <div className="v1560qbr-1" />;
+    const color = createDynamicCssColor("v1560qbr-4", false);
+    export const Swatch = () => <div {...color.set("#fff")} />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      --v1560qbr-2: 1px;
+      --v1560qbr-3: 2px;
+      width: calc(var(--v1560qbr-2) + var(--v1560qbr-3));
+    }
+    "
+  `);
+});

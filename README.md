@@ -163,6 +163,8 @@ const buttonBase = css`
 <button className={buttonBase}>Click me</button>
 ```
 
+Vindur declarations, like `css`, `styled`, `keyframes` or `createDynamicCssColor()`, must use `const`, they are evaluated once at compile time.
+
 ### Styled Components
 
 Create styled JSX components with any HTML element:
@@ -278,6 +280,8 @@ const CustomComponent = Button.withComponent(MyComponent); // Will render <MyCom
 ```
 
 `withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
+
+When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it.
 
 ### Default Attributes
 
@@ -755,7 +759,7 @@ Compiles to scoped CSS variables:
 
 Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
-Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings can't use scoped names, area names are already local to their grid container. A scoped variable value can't continue on a line starting with `name:`, add the missing `;`.
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings can't use scoped names, area names are already local to their grid container. A custom property value can't continue on a line starting with `name:`, add the missing `;`.
 
 #### Dynamic Variables
 
@@ -771,7 +775,7 @@ const Component = () => {
 };
 ```
 
-Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, keys in a conditional, a nested object or `.attrs()`, computed keys like `` [`---${name}`] `` and reads in values like `'var(---color)'` are a compile error, and keys of a separate object constant are not renamed.
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, also with a type cast like `{{ ... } as CSSProperties}`, keys in a conditional, a nested object or `.attrs()`, computed keys like `` [`---${name}`] `` and reads in values like `'var(---color)'` are a compile error, and keys of a separate object constant are not renamed.
 
 ### Stable IDs
 
@@ -914,7 +918,7 @@ createGlobalStyle`
 `;
 ```
 
-`@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, since browsers drop them after other rules.
+`@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, also in order across the global styles of the file, since browsers drop them after other rules.
 
 `createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported or referenced. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
 

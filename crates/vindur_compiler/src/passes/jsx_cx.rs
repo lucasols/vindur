@@ -35,6 +35,7 @@ use super::{
     },
     runtime_helpers::RuntimeHelperNames,
     static_value::{TemplateContext, evaluate_template},
+    style_flag_selectors::flag_classes,
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
         ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
@@ -333,7 +334,7 @@ impl JsxCxVisitor<'_> {
         }
 
         if let Some(styled) = &styled {
-            let conflicts = styled
+            let mut conflicts = styled
                 .style_flags
                 .iter()
                 .filter(|flag| {
@@ -347,6 +348,24 @@ impl JsxCxVisitor<'_> {
                 })
                 .map(|flag| flag.prop_name.as_str())
                 .collect::<Vec<_>>();
+            // Flags of an imported base, which the base applies, are only known by their classes
+            if let Some(StaticValue::ClassName { style_flags, .. }) =
+                jsx_name(name).and_then(|name| self.output.constants.get(name))
+            {
+                let own_classes = flag_classes(&styled.style_flags);
+                let inherited = style_flags
+                    .iter()
+                    .filter(|flag| !own_classes.iter().any(|own| own.original == flag.original));
+                for flag in inherited {
+                    if mappings
+                        .iter()
+                        .any(|(class_name, _, _)| class_name == &flag.original)
+                        && !conflicts.contains(&flag.original.as_str())
+                    {
+                        conflicts.push(&flag.original);
+                    }
+                }
+            }
             if !conflicts.is_empty() {
                 let message = if conflicts.len() == 1 {
                     format!(

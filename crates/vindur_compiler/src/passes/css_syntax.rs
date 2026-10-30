@@ -136,7 +136,7 @@ pub(super) fn with_style_block<T>(
             check_balance(source)?;
             let statements = block_statements(&stylesheet.statements, kind, source.len())?;
             validate_statements(statements, source)?;
-            validate_block_kind(statements, kind, source, (0, source.len()))?;
+            validate_block_kind(statements, kind, source, (0, source.len()), Some(offset))?;
             if kind == BlockKind::Global {
                 validate_global_top_level(statements, source)?;
             }

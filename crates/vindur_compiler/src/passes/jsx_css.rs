@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     Expression, JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression,
-    ObjectProperty, ObjectPropertyKind, Program,
+    ObjectExpression, ObjectProperty, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -122,7 +122,7 @@ impl JsxCssVisitor<'_> {
             ));
             return;
         }
-        let JSXExpression::ObjectExpression(object) = &container.expression else {
+        let Some(object) = inline_style_object(&container.expression) else {
             return;
         };
         let mut transformed = false;
@@ -535,7 +535,7 @@ fn unrenamed_scoped_variable(property: &ObjectProperty<'_>) -> Option<(Span, &'s
 }
 
 /// Whether a computed key starts with `---`, e.g. `` `---${name}` `` or `'---' + name`
-fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
+pub(super) fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
     match expression.without_parentheses() {
         Expression::StringLiteral(string) => string.value.starts_with("---"),
         Expression::TemplateLiteral(template) => template
@@ -547,25 +547,63 @@ fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
     }
 }
 
-/// Whether the text has a `---name`, like `var(---size)`
+/// Whether the text has a `---name`, like `var(---size)`. Quoted strings and `url()` are text, like
+/// `url(/---hero.png)`
 fn contains_scoped_name(text: &str) -> bool {
-    text.match_indices("---").any(|(index, _)| {
-        let starts_name = text[index + 3..]
-            .chars()
-            .next()
-            .is_some_and(|character| character.is_alphabetic() || character == '_');
-        let continues_word = text[..index]
-            .chars()
-            .next_back()
-            .is_some_and(|character| character.is_alphanumeric() || matches!(character, '-' | '_'));
-        starts_name && !continues_word
-    })
+    let mut index = 0;
+    while let Some(character) = text[index..].chars().next() {
+        let rest = &text[index..];
+        let skipped = if matches!(character, '"' | '\'') {
+            rest[1..].find(character).map(|end| end + 2)
+        } else if rest
+            .get(..4)
+            .is_some_and(|name| name.eq_ignore_ascii_case("url("))
+            && !continues_word(text, index)
+        {
+            rest.find(')').map(|end| end + 1)
+        } else {
+            None
+        };
+        if let Some(length) = skipped {
+            index += length;
+            continue;
+        }
+        if rest.starts_with("---")
+            && rest[3..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_alphabetic() || next == '_')
+            && !continues_word(text, index)
+        {
+            return true;
+        }
+        index += character.len_utf8();
+    }
+    false
+}
+
+fn continues_word(text: &str, index: usize) -> bool {
+    text[..index]
+        .chars()
+        .next_back()
+        .is_some_and(|character| character.is_alphanumeric() || matches!(character, '-' | '_'))
+}
+
+/// The inline object of a `style` prop, also with a type cast like
+/// `{{ '---size': 1 } as CSSProperties}`
+fn inline_style_object<'e, 'a>(
+    expression: &'e JSXExpression<'a>,
+) -> Option<&'e ObjectExpression<'a>> {
+    match expression.as_expression()?.get_inner_expression() {
+        Expression::ObjectExpression(object) => Some(object),
+        _ => None,
+    }
 }
 
 fn nested_scoped_variable_key(expression: &JSXExpression<'_>) -> Option<Span> {
     let mut finder = NestedScopedKeyFinder { found: None };
-    match expression {
-        JSXExpression::ObjectExpression(object) => {
+    match inline_style_object(expression) {
+        Some(object) => {
             for property in &object.properties {
                 match property {
                     ObjectPropertyKind::ObjectProperty(property) => {
@@ -577,7 +615,7 @@ fn nested_scoped_variable_key(expression: &JSXExpression<'_>) -> Option<Span> {
                 }
             }
         }
-        expression => finder.visit_jsx_expression(expression),
+        None => finder.visit_jsx_expression(expression),
     }
     finder.found
 }
