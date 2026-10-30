@@ -409,19 +409,19 @@ test('should reject cx modifiers in rules matching both the element and other el
 
   await expect(transformWithFormat({ source: styled('&:hover, & .child') }))
     .rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
   await expect(transformWithFormat({ source: styled(':where(&, .x)') })).rejects
     .toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
   await expect(transformWithFormat({ source: styled('@scope (&, & .x)') }))
     .rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
     loc: 8:59]
   `);
 
@@ -434,7 +434,7 @@ test('should reject cx modifiers in rules matching both the element and other el
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules or use a $-prefixed class (e.g. $active).
     loc: 2:12]
   `);
 });

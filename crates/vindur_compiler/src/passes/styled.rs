@@ -10,7 +10,6 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
-use super::css_tokens::{is_ident_char, skipped_token_end};
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -26,19 +25,6 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
-}
-
-impl StyleFlag {
-    /// The classes the flag selects in CSS, e.g. `active` or `size-small` and `size-large`
-    pub(crate) fn class_names(&self) -> Vec<String> {
-        match &self.kind {
-            StyleFlagKind::Boolean => vec![self.prop_name.clone()],
-            StyleFlagKind::StringUnion(values) => values
-                .iter()
-                .map(|value| format!("{}-{value}", self.prop_name))
-                .collect(),
-        }
-    }
 }
 
 /// JS identifiers can contain `$`, which is not valid in a CSS class name
@@ -249,7 +235,23 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
     {
         return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
     }
+    if let Expression::CallExpression(call) = attrs_base(tag)
+        && let [Argument::CallExpression(_)] = call.arguments.as_slice()
+    {
+        return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
+    }
     "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
+}
+
+/// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
+fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+    {
+        return &member.object;
+    }
+    tag
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
@@ -268,6 +270,7 @@ fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
                         Expression::ArrowFunctionExpression(_)
                             | Expression::FunctionExpression(_)
                             | Expression::ClassExpression(_)
+                            | Expression::CallExpression(_)
                     )
                 })
         })
@@ -283,77 +286,13 @@ pub(crate) fn resolve_styled_references(
             let Some(class_name) = component.class_name.split_whitespace().last() else {
                 continue;
             };
-            let placeholder = styled_ref_placeholder(name);
-            if rule.contains(&placeholder) {
-                *rule = rule.replace(&placeholder, &format!(".{class_name}"));
-            }
-            if let Some(replaced) =
-                replace_reference_flag_classes(rule, class_name, &component.style_flags)
-            {
-                *rule = replaced;
-            }
+            *rule = rule.replace(&styled_ref_placeholder(name), &format!(".{class_name}"));
         }
     }
     css_rules.iter().find_map(|rule| {
         let (_, suffix) = rule.split_once(STYLED_REF_PREFIX)?;
         let (encoded, _) = suffix.split_once(STYLED_REF_SUFFIX)?;
         hex_decode(encoded)
-    })
-}
-
-/// Renames the style flag classes in the compound selectors of a referenced component, like
-/// `.Button.active.size-large`, `None` when there are none
-fn replace_reference_flag_classes(
-    css: &str,
-    class_name: &str,
-    flags: &[StyleFlag],
-) -> Option<String> {
-    if flags.is_empty() {
-        return None;
-    }
-    let mut output = String::with_capacity(css.len());
-    let mut copied = 0;
-    let mut scanned = 0;
-    for start in class_selector_starts(css, class_name) {
-        // A repeated reference, e.g. `${Button}${Button}.active`, was already scanned as part of
-        // the compound of the first one
-        if start < scanned {
-            continue;
-        }
-        let mut index = start + 1 + class_name.len();
-        while css[index..].starts_with('.') {
-            let name_start = index + 1;
-            let name_end = css[name_start..]
-                .find(|character: char| !is_ident_char(character))
-                .map_or(css.len(), |end| name_start + end);
-            if let Some(hashed) = hashed_flag_class(flags, &css[name_start..name_end]) {
-                output.push_str(&css[copied..name_start]);
-                output.push_str(&hashed);
-                copied = name_end;
-            }
-            index = name_end;
-        }
-        scanned = index;
-    }
-    if copied == 0 {
-        return None;
-    }
-    output.push_str(&css[copied..]);
-    Some(output)
-}
-
-fn hashed_flag_class(flags: &[StyleFlag], class: &str) -> Option<String> {
-    flags.iter().find_map(|flag| match &flag.kind {
-        StyleFlagKind::Boolean => (flag.prop_name == class).then(|| flag.hashed_class_name.clone()),
-        StyleFlagKind::StringUnion(values) => {
-            let value = class
-                .strip_prefix(flag.prop_name.as_str())?
-                .strip_prefix('-')?;
-            values
-                .iter()
-                .any(|candidate| candidate == value)
-                .then(|| format!("{}-{value}", flag.hashed_class_name))
-        }
     })
 }
 
@@ -426,57 +365,6 @@ pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
 }
 
-/// The flag classes no selector of the element uses, like `&.active`
-/// The flag selectors without styles, from the classes used on the element itself
-pub(crate) fn missing_style_flag_selectors(
-    element_classes: &[String],
-    flags: &[StyleFlag],
-) -> Vec<String> {
-    let is_styled = |original: &str, hashed: &str| {
-        element_classes
-            .iter()
-            .any(|class| class == original || class == hashed)
-    };
-    let mut missing = Vec::new();
-    for flag in flags {
-        match &flag.kind {
-            StyleFlagKind::Boolean => {
-                if !is_styled(&flag.prop_name, &flag.hashed_class_name) {
-                    missing.push(format!("&.{}", flag.prop_name));
-                }
-            }
-            StyleFlagKind::StringUnion(values) => {
-                for value in values {
-                    let original = format!("{}-{value}", flag.prop_name);
-                    if !is_styled(&original, &format!("{}-{value}", flag.hashed_class_name)) {
-                        missing.push(format!("&.{original}"));
-                    }
-                }
-            }
-        }
-    }
-    missing
-}
-
-/// Classes used on the element itself that no flag declares, classes of other elements like
-/// `& .child` or `&:has(.icon)` are not modifiers
-pub(crate) fn undeclared_style_classes(
-    element_classes: &[String],
-    flags: &[StyleFlag],
-) -> Vec<String> {
-    let declared = flags
-        .iter()
-        .flat_map(StyleFlag::class_names)
-        .collect::<rustc_hash::FxHashSet<_>>();
-    let mut classes: Vec<String> = Vec::new();
-    for name in element_classes {
-        if !declared.contains(name) && !classes.contains(name) {
-            classes.push(name.clone());
-        }
-    }
-    classes
-}
-
 pub(super) fn strip_css_comments(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut rest = css;
@@ -489,11 +377,6 @@ pub(super) fn strip_css_comments(css: &str) -> String {
     }
     output.push_str(rest);
     output
-}
-
-/// Whether a class name continues after `index`
-fn continues_class_name(css: &str, index: usize) -> bool {
-    css[index..].chars().next().is_some_and(is_ident_char)
 }
 
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
@@ -559,28 +442,4 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
             walk::walk_call_expression(self, call);
         }
     }
-}
-
-/// Where `.name` selects the class, strings, urls and comments are skipped, so
-/// `url("a.name.svg")` is left alone
-fn class_selector_starts(css: &str, name: &str) -> Vec<usize> {
-    let needle = format!(".{name}");
-    let mut starts = Vec::new();
-    if !css.contains(&needle) {
-        return starts;
-    }
-    let mut index = 0;
-    while index < css.len() {
-        if let Some(end) = skipped_token_end(css, index) {
-            index = end;
-            continue;
-        }
-        if css[index..].starts_with(&needle) && !continues_class_name(css, index + needle.len()) {
-            starts.push(index);
-            index += needle.len();
-            continue;
-        }
-        index += css[index..].chars().next().map_or(1, char::len_utf8);
-    }
-    starts
 }

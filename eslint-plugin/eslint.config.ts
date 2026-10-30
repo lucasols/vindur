@@ -12,5 +12,12 @@ export default createBaseConfig({
         '@typescript-eslint/unbound-method': OFF,
       },
     },
+    {
+      // oxlint loads JS plugins from the module default export
+      files: ['src/index.ts'],
+      rules: {
+        '@ls-stack/no-default-export': OFF,
+      },
+    },
   ],
 });

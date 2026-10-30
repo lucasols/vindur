@@ -36,6 +36,12 @@ struct LoadedImports {
     cyclic_dependencies: Vec<String>,
     /// Local names of values imported from modules whose facts depend on an import cycle
     cyclic_values: FxHashSet<String>,
+    /// Import sources of modules with side effects, kept as side effect imports when all
+    /// their imported values are resolved at compile time
+    side_effect_sources: FxHashSet<String>,
+    /// Some import loads a module with side effects, or one whose facts aren't known: bare
+    /// imports, packages, non-source files and modules in an import cycle
+    has_side_effects: bool,
 }
 
 /// Modules of the current transform, a module importing one of the `visiting` modules is in
@@ -199,21 +205,37 @@ impl Compiler {
             Ok(output) => output,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
+        pass_output.facts.has_side_effects |= imports.has_side_effects;
+        let mut style_dependencies = imports.style_dependencies;
+        // Importers drop a module without side effects, which stays correct only while its
+        // imports have none either, so changing them has to update the importers
+        if !pass_output.facts.has_side_effects {
+            for dependency in &imports.fact_dependencies {
+                if !style_dependencies.contains(dependency) {
+                    style_dependencies.push(dependency.clone());
+                }
+            }
+        }
         pass_output
             .facts
             .dependencies
-            .clone_from(&imports.style_dependencies);
+            .clone_from(&style_dependencies);
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
         pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
-        let edited_code =
-            match remove_resolved_imports(file_path, edited_code, source_type, &imports.values) {
-                Ok(code) => code,
-                Err(diagnostic) => return failed_output(source, diagnostic),
-            };
+        let edited_code = match remove_resolved_imports(
+            file_path,
+            edited_code,
+            source_type,
+            &imports.values,
+            &imports.side_effect_sources,
+        ) {
+            Ok(code) => code,
+            Err(diagnostic) => return failed_output(source, diagnostic),
+        };
         let code = if options.normalize_code {
             match normalize_code(file_path, &edited_code, source_type) {
                 Ok(code) => code,
@@ -234,7 +256,7 @@ impl Compiler {
         TransformOutput {
             code,
             css: pass_output.css,
-            style_dependencies: imports.style_dependencies,
+            style_dependencies,
             diagnostics: pass_output.warnings,
             css_source_offsets: pass_output.css_source_offsets,
         }
@@ -258,12 +280,22 @@ impl Compiler {
         let mut fact_dependencies = DependencyList::new(file_path);
         let mut cyclic_dependencies = DependencyList::new(file_path);
         let mut cyclic_values = FxHashSet::default();
+        let mut side_effect_sources = FxHashSet::default();
+        let mut has_side_effects = false;
         for statement in &program.body {
             let Statement::ImportDeclaration(import) = statement else {
                 continue;
             };
             if import.source.value.as_str() == "vindur" || is_type_only_import(import, scoping) {
                 continue;
+            }
+            // Bare imports load styles or run code, e.g. `import './reset.css'`
+            if import
+                .specifiers
+                .as_ref()
+                .is_none_or(|specifiers| specifiers.is_empty())
+            {
+                has_side_effects = true;
             }
             let resolved = resolve_import_path(
                 file_path,
@@ -314,6 +346,8 @@ impl Compiler {
                         format!("File not found: {attempted}"),
                     ));
                 }
+                // Packages and non-source files can't be inspected, e.g. a CSS module
+                has_side_effects = true;
                 continue;
             };
             let Some(facts) = self.load_module_facts(&resolved, options, loader, traversal)? else {
@@ -328,6 +362,7 @@ impl Compiler {
                     fact_dependencies.insert(&aborted);
                 }
                 cyclic_dependencies.insert(&resolved);
+                has_side_effects = true;
                 // Values imported back into the cycle are reported where they're used
                 for specifier in import.specifiers.iter().flatten() {
                     if !is_type_only_specifier(specifier, scoping)
@@ -347,6 +382,10 @@ impl Compiler {
                 continue;
             };
             fact_dependencies.insert(&resolved);
+            if facts.has_side_effects {
+                has_side_effects = true;
+                side_effect_sources.insert(import.source.value.to_string());
+            }
             // Whether this module's facts are complete depends on which module of the cycle
             // was transformed first, so values derived from them aren't static
             let has_cycle = facts.has_cycle();
@@ -489,6 +528,8 @@ impl Compiler {
             fact_dependencies: fact_dependencies.paths,
             cyclic_dependencies: cyclic_dependencies.paths,
             cyclic_values,
+            side_effect_sources,
+            has_side_effects,
         }))
     }
 

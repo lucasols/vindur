@@ -69,9 +69,9 @@ pub(super) fn evaluate_expression(
             }
             let value = evaluate_expression(&member.object, constants, scoping)?;
             match &value {
-                StaticValue::ClassName(value) => match member.property.name.as_str() {
-                    "selector" => Some(StaticValue::String(format!(".{value}"))),
-                    "value" => Some(StaticValue::String(value.clone())),
+                StaticValue::ClassName { name, .. } => match member.property.name.as_str() {
+                    "selector" => Some(StaticValue::String(format!(".{name}"))),
+                    "value" => Some(StaticValue::String(name.clone())),
                     _ => None,
                 },
                 StaticValue::Object(properties)
@@ -369,7 +369,7 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> String {
             .collect::<Vec<_>>()
             .join(","),
         StaticValue::Boolean(_) => unreachable!(),
-        StaticValue::ClassName(value) => format!(".{value}"),
+        StaticValue::ClassName { name, .. } => format!(".{name}"),
         StaticValue::CssClass { css, .. } => css.clone(),
         StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. } => {
             "[dynamic color]".to_owned()

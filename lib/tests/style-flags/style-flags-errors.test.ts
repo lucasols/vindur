@@ -353,8 +353,8 @@ test('should throw for style flag classes in rules matching other elements too',
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Class "active" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. $active).
-    loc: 3:12]
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    loc: 5:6]
   `);
 });
 

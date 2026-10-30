@@ -516,7 +516,7 @@ test('should only rename style flag classes of the element itself', async () => 
   expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
     "
     - TransformWarning#:
-        message: 'Warning: Missing modifier styles for "&.expanded" in List'
+        message: "The style flag class \\"expanded\\" is used in a selector of another element in List, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.expanded\\""
         loc: 'current_file:3:6'
     "
   `);

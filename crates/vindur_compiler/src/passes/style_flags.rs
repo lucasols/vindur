@@ -3,11 +3,7 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::{
-    css_syntax::CssError,
-    cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
-    styled::{StyleFlag, StyleFlagKind},
-};
+use super::styled::{StyleFlag, StyleFlagKind};
 
 /// Props that would stop working as style flags, which are removed and turned into classes
 const RESERVED_PROP_NAMES: [&str; 16] = [
@@ -347,31 +343,4 @@ fn string_union_values(types: &[TSType<'_>]) -> Option<Vec<String>> {
         values.push(literal.value.to_string());
     }
     (!values.is_empty()).then_some(values)
-}
-
-/// Renames the flag classes of the element selectors, like `&.active`, classes of other elements,
-/// like `& .active`, are kept as is
-pub(crate) fn rewrite_style_flag_selectors(
-    css: &str,
-    flags: &[StyleFlag],
-) -> Result<String, CssError> {
-    let mappings = flags
-        .iter()
-        .flat_map(|flag| match &flag.kind {
-            StyleFlagKind::Boolean => {
-                vec![(flag.prop_name.clone(), flag.hashed_class_name.clone(), true)]
-            }
-            StyleFlagKind::StringUnion(values) => values
-                .iter()
-                .map(|value| {
-                    (
-                        format!("{}-{value}", flag.prop_name),
-                        format!("{}-{value}", flag.hashed_class_name),
-                        true,
-                    )
-                })
-                .collect(),
-        })
-        .collect::<Vec<_>>();
-    rewrite_modifiers(css, ModifierCss::Block, &mappings)
 }

@@ -35,8 +35,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -128,8 +127,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { theme } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -177,8 +175,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const Component = () => {
+      "const Component = () => {
         return <div className="v1560qbr-1-Alert">Warning message</div>;
       };
       "
@@ -236,8 +233,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -370,9 +366,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { brandColors } from "#/brand-colors";
-      import { statusColors } from "#/status-colors";
-      const Component = () => {
+      "const Component = () => {
         return (
           <div>
             <button className="v1560qbr-1-SuccessButton">Success</button>
@@ -437,8 +431,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const buttonStyles = "v1560qbr-1-buttonStyles";
+      "const buttonStyles = "v1560qbr-1-buttonStyles";
       const Component = () => {
         return <button className={buttonStyles}>Click me</button>;
       };
@@ -506,8 +499,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { theme } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return (
           <div className="v1560qbr-1-Card">
             <div className="header">Header</div>
@@ -578,8 +570,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/colors";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1-Button">Click me</button>;
       };
       "
@@ -648,8 +639,7 @@ describe('createStaticThemeColors', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { colors } from "#/theme";
-      const Component = () => {
+      "const Component = () => {
         return <button className="v1560qbr-1">Click me</button>;
       };
       "

@@ -30,6 +30,11 @@ pub struct ModuleFacts {
     /// Sources of `export * from 'source'`
     #[serde(default)]
     pub star_re_exports: Vec<String>,
+    /// Loading the module can do more than declaring its exports: `createGlobalStyle` styles,
+    /// top-level code outside the side effect free set, value re-exports, or imports other
+    /// than vindur, types and modules without side effects
+    #[serde(default)]
+    pub has_side_effects: bool,
 }
 
 impl ModuleFacts {
@@ -54,7 +59,11 @@ pub struct ReExport {
 pub enum StaticValue {
     Array(Vec<StaticValue>),
     Boolean(bool),
-    ClassName(String),
+    ClassName {
+        name: String,
+        /// The flag classes of a styled component, hashed where a reference to it selects them
+        style_flags: Vec<StyleFlagClass>,
+    },
     CssClass {
         name: String,
         css: String,
@@ -135,6 +144,15 @@ pub enum StaticValue {
         dev: bool,
     },
     Undefined,
+}
+
+/// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleFlagClass {
+    /// The class as written in the CSS, e.g. `$size-small`
+    pub original: String,
+    pub hashed: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

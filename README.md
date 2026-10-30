@@ -249,6 +249,16 @@ const SecondaryButton = styled(BaseButton)`
 `;
 ```
 
+`styled()` also extends custom components, local or imported. To extend the result of a call, like a HOC or `memo`, assign it to a const first, `styled(wrap(Button))` is a compile error:
+
+```tsx
+const ButtonWithTooltip = wrapWithTooltip(Button);
+
+const StyledButton = styled(ButtonWithTooltip)`
+  color: red;
+`;
+```
+
 ### Element Type Changes
 
 Change the HTML element while keeping styles using `withComponent`:
@@ -1257,7 +1267,9 @@ Flags are read from the props written on the element and are never passed to it,
 }
 ```
 
-Only classes of the element itself are flag classes, like `&.active` or `&:not(.active)`. Classes of other elements, like `& .active` or `.active &`, are kept as is. A flag class can't be used in a rule that matches both the element and other elements, like `&.active` nested in `&:hover, & .child`.
+Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
+
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error.
 
 ## Theme Colors
 
@@ -1323,6 +1335,8 @@ In dev mode, the output will show the color name for easier debugging:
   }
 }
 ```
+
+An imported colors object that is only used in styles is removed from the compiled code, so the colors module is not loaded at runtime. This only happens when the colors module contains just imports of `vindur`, types or other such modules, and declarations of literals, functions, static constants, objects or arrays of those, and vindur styles. Anything else, like `createGlobalStyle` styles, function calls, classes, re-exports or imports of packages and CSS files, keeps the module as a side effect import (`import './colors'`).
 
 ### Color API
 

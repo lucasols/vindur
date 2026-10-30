@@ -58,6 +58,18 @@ impl EvaluatedTemplate {
             })
     }
 
+    /// The error diagnostic of a CSS error, located in the source
+    pub(crate) fn error_diagnostic(
+        &self,
+        error: CssError,
+        template: &TemplateLiteral<'_>,
+        file_path: &str,
+        source: &str,
+    ) -> CompilerDiagnostic {
+        let (span, _) = self.source_span(&error, source, template);
+        CompilerDiagnostic::error(file_path, source, span, error.message)
+    }
+
     /// Source position of a CSS error, `None` when it can't be mapped to the source
     fn error_position(
         &self,

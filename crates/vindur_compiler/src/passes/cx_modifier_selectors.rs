@@ -1,9 +1,11 @@
+use std::ops::Range;
+
 use oxc_css_parser::{
     Allocator,
     ast::{
         AtRule, AtRulePrelude, ComplexSelector, ComplexSelectorChild, CompoundSelector,
         InterpolableIdent, PseudoClassSelector, PseudoClassSelectorArgKind, ScopePrelude,
-        SelectorList, SimpleSelector, Statement,
+        SelectorList, SimpleSelector, Statement, TypeSelector,
     },
 };
 
@@ -42,12 +44,12 @@ enum Subject {
 }
 
 /// A class selector that may apply to the element itself, `start..end` is the class name
-struct ElementClass {
-    start: usize,
-    end: usize,
-    name: String,
+pub(super) struct ElementClass {
+    pub start: usize,
+    pub end: usize,
+    pub name: String,
     /// Also applies to other elements, so it can't be hashed, e.g. `&.name` in `&:hover, & .child`
-    mixed: bool,
+    pub mixed: bool,
 }
 
 /// The classes used in selectors of the element itself, e.g. `name` in `&.name`, `&:not(.name)`
@@ -70,9 +72,25 @@ pub(super) fn rewrite_modifiers(
     if !rewrites_any(mappings) {
         return Ok(css.to_owned());
     }
+    rewrite_classes(css, &element_classes(css, kind)?, mappings, |name| {
+        format!(
+            "cx prop class \"{name}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${name})."
+        )
+    })
+}
+
+/// Renames the `classes` of `css` with the `(original, hashed, should_rewrite)` mappings. Fails
+/// with the `mixed_error` message of the class name for renamed classes of rules that match both
+/// the element and other elements
+pub(super) fn rewrite_classes(
+    css: &str,
+    classes: &[ElementClass],
+    mappings: &[(String, String, bool)],
+    mixed_error: impl Fn(&str) -> String,
+) -> Result<String, CssError> {
     let mut result = String::with_capacity(css.len());
     let mut last = 0;
-    for class in element_classes(css, kind)? {
+    for class in classes {
         let Some((_, hashed, _)) = mappings
             .iter()
             .find(|(original, _, should_rewrite)| *should_rewrite && *original == class.name)
@@ -81,10 +99,7 @@ pub(super) fn rewrite_modifiers(
         };
         if class.mixed {
             return Err(CssError::new(
-                format!(
-                    "Class \"{0}\" of a cx prop or style flag can't be hashed in a rule that matches both the element and other elements, like \"&.{0}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules, or for a cx prop use a $-prefixed class (e.g. ${0}).",
-                    class.name
-                ),
+                mixed_error(&class.name),
                 class.start,
                 class.end,
             ));
@@ -104,11 +119,39 @@ pub(super) fn rewrites_any(mappings: &[(String, String, bool)]) -> bool {
         .any(|(_, _, should_rewrite)| *should_rewrite)
 }
 
-fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
+/// The class selectors that may apply to the element itself, sorted by position
+pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, CssError> {
+    Ok(collect_classes(css, kind, None)?.classes)
+}
+
+/// The class selectors of a style block
+#[derive(Default)]
+pub(super) struct StyleBlockClasses {
+    /// The classes that may apply to the element itself, sorted by position
+    pub element: Vec<ElementClass>,
+    /// The class names of the selectors of other elements, e.g. `name` in `& .name`
+    pub other: Vec<Range<usize>>,
+}
+
+pub(super) fn style_block_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
+    let collector = collect_classes(css, ModifierCss::Block, Some(Vec::new()))?;
+    Ok(StyleBlockClasses {
+        element: collector.classes,
+        other: collector.other_classes.unwrap_or_default(),
+    })
+}
+
+fn collect_classes(
+    css: &str,
+    kind: ModifierCss,
+    other_classes: Option<Vec<Range<usize>>>,
+) -> Result<ElementClassCollector<'static>, CssError> {
     let allocator = Allocator::default();
     let stylesheet = parse_style_block(&allocator, css)?;
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
+        other_classes,
+        reference: None,
         scope_root: Subject::Other,
         nesting: Subject::Element,
     };
@@ -127,21 +170,54 @@ fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<ElementClass>, Cs
         ModifierCss::ClassRule => collector.statements(&stylesheet.statements, Context::Outer),
     }
     collector.classes.sort_by_key(|class| class.start);
-    Ok(collector.classes)
+    Ok(collector)
+}
+
+/// The classes that may apply to a styled component selected through a reference to it in the
+/// statements, e.g. `active` in `.item.active &`, `:is(.item).active &` or
+/// `& .item { &.active { ... } }`, sorted by position. The component is referenced by its
+/// `classes` and its forward reference `placeholders`
+pub(super) fn referenced_classes(
+    statements: &[Statement<'_>],
+    classes: &[String],
+    placeholders: &[String],
+) -> Vec<ElementClass> {
+    let mut collector = ElementClassCollector {
+        classes: Vec::new(),
+        other_classes: None,
+        reference: Some(ComponentReference {
+            classes,
+            placeholders,
+        }),
+        scope_root: Subject::Other,
+        nesting: Subject::Other,
+    };
+    collector.statements(statements, OTHER);
+    collector.classes.sort_by_key(|class| class.start);
+    collector.classes
 }
 
 const ELEMENT: Context = Context::Nested(Subject::Element);
 const OTHER: Context = Context::Nested(Subject::Other);
 
-struct ElementClassCollector {
+struct ElementClassCollector<'r> {
     classes: Vec<ElementClass>,
+    /// Also collects the classes of other elements when set
+    other_classes: Option<Vec<Range<usize>>>,
+    /// The referenced styled component, which is the element instead of `&` when set
+    reference: Option<ComponentReference<'r>>,
     /// What the root of the enclosing `@scope` is, `:scope` is the element when it is
     scope_root: Subject,
     /// What `&` is in the selectors being walked
     nesting: Subject,
 }
 
-impl ElementClassCollector {
+impl ElementClassCollector<'_> {
+    /// If the selectors of other elements are walked too, as they can contain the element
+    fn walks_other_elements(&self) -> bool {
+        self.other_classes.is_some() || self.reference.is_some()
+    }
+
     fn statements(&mut self, statements: &[Statement<'_>], context: Context) {
         for statement in statements {
             match statement {
@@ -197,7 +273,7 @@ impl ElementClassCollector {
         };
         // `&` and `:scope` in the end selectors are the scope root, other compounds are its
         // descendants
-        if scope_root != Subject::Other
+        if (scope_root != Subject::Other || self.walks_other_elements())
             && let Some(Some(list)) = end.map(|end| &end.selector)
         {
             let outer_scope_root = std::mem::replace(&mut self.scope_root, scope_root);
@@ -216,7 +292,10 @@ impl ElementClassCollector {
     /// e.g. `&:hover, & .child`. In rules nested in other elements only `:scope` can still be the
     /// element, e.g. `:scope.active &` in `@scope (&) { & .child { ... } }` or `:scope:has(&)`
     fn selector_list(&mut self, list: &SelectorList<'_>, nesting: Subject) -> Context {
-        if nesting == Subject::Other && self.scope_root == Subject::Other {
+        if nesting == Subject::Other
+            && self.scope_root == Subject::Other
+            && !self.walks_other_elements()
+        {
             return OTHER;
         }
         let outer_nesting = std::mem::replace(&mut self.nesting, nesting);
@@ -250,14 +329,19 @@ impl ElementClassCollector {
     fn compound(&mut self, compound: &CompoundSelector<'_>, subject: Subject) {
         for simple in &compound.children {
             match simple {
-                SimpleSelector::Class(class) if subject != Subject::Other => {
-                    if let InterpolableIdent::Literal(ident) = &class.name {
+                SimpleSelector::Class(class) => {
+                    let InterpolableIdent::Literal(ident) = &class.name else {
+                        continue;
+                    };
+                    if subject != Subject::Other {
                         self.classes.push(ElementClass {
                             start: ident.span.start,
                             end: ident.span.end,
                             name: ident.name.to_owned(),
                             mixed: subject == Subject::Mixed,
                         });
+                    } else if let Some(other_classes) = &mut self.other_classes {
+                        other_classes.push(ident.span.start..ident.span.end);
                     }
                 }
                 SimpleSelector::PseudoClass(pseudo) => {
@@ -288,6 +372,7 @@ impl ElementClassCollector {
             ElementRefs {
                 nesting: self.nesting,
                 scope: self.scope_root,
+                reference: self.reference,
             },
         )
     }
@@ -307,11 +392,34 @@ fn either(subjects: impl IntoIterator<Item = Subject>) -> Subject {
         .unwrap_or(Subject::Other)
 }
 
-/// What `&` and `:scope` are
+/// What `&` and `:scope` are, and the referenced styled component that is the element
 #[derive(Clone, Copy)]
-struct ElementRefs {
+struct ElementRefs<'r> {
     nesting: Subject,
     scope: Subject,
+    reference: Option<ComponentReference<'r>>,
+}
+
+/// A styled component selected through its classes, or its forward reference placeholders before
+/// they are resolved
+#[derive(Clone, Copy)]
+struct ComponentReference<'r> {
+    classes: &'r [String],
+    placeholders: &'r [String],
+}
+
+impl ComponentReference<'_> {
+    fn matches(self, simple: &SimpleSelector<'_>) -> bool {
+        let (names, name) = match simple {
+            SimpleSelector::Class(class) => (self.classes, &class.name),
+            SimpleSelector::Type(TypeSelector::TagName(tag)) => (self.placeholders, &tag.name.name),
+            _ => return false,
+        };
+        let InterpolableIdent::Literal(ident) = name else {
+            return false;
+        };
+        names.iter().any(|reference| reference == ident.name)
+    }
 }
 
 pub(super) enum SelectorArgument<'s, 'a> {
@@ -350,7 +458,7 @@ pub(super) fn pseudo_class_selectors<'s, 'a>(
 
 /// `:not()`, `:is()`, `:where()` and `:nth-child(of)` match the element against their
 /// selectors, so the subject of each one is the element. `:has()` matches other elements
-pub(super) fn matches_element(pseudo: &PseudoClassSelector<'_>) -> bool {
+fn matches_element(pseudo: &PseudoClassSelector<'_>) -> bool {
     pseudo_class_name_is(pseudo, &["not"]) || selects_element(pseudo)
 }
 
@@ -382,11 +490,17 @@ fn pseudo_class_name_is(pseudo: &PseudoClassSelector<'_>, names: &[&str]) -> boo
 
 /// What a compound is from its `&` and `:scope`, or from its pseudo-classes that only match what
 /// their arguments match, e.g. the element for `:is(&.a)` and mixed for `:where(&, .x)`
-fn compound_subject(compound: &CompoundSelector<'_>, refs: ElementRefs) -> Subject {
+fn compound_subject(compound: &CompoundSelector<'_>, refs: ElementRefs<'_>) -> Subject {
     compound
         .children
         .iter()
         .map(|simple| match simple {
+            _ if refs
+                .reference
+                .is_some_and(|reference| reference.matches(simple)) =>
+            {
+                Subject::Element
+            }
             SimpleSelector::Nesting(_) => refs.nesting,
             SimpleSelector::PseudoClass(pseudo) if pseudo_class_name_is(pseudo, &["scope"]) => {
                 refs.scope
