@@ -160,7 +160,7 @@ fn build_template_css(
             return Err(diagnostic);
         }
         if let Some(diagnostic) =
-            invalid_object_access_error(expression, constants, scoping, file_path, source, context)
+            invalid_object_access_error(expression, constants, scoping, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -236,7 +236,9 @@ fn build_template_css(
         // Colors and palettes are objects, only their `.value` and methods are CSS values
         if matches!(
             value,
-            StaticValue::Object(_)
+            StaticValue::Boolean(_)
+                | StaticValue::Undefined
+                | StaticValue::Object(_)
                 | StaticValue::ImportedObject { .. }
                 | StaticValue::LayerFunction
                 | StaticValue::DynamicColor { .. }
@@ -345,59 +347,45 @@ fn invalid_object_access_error(
     scoping: &Scoping,
     file_path: &str,
     source: &str,
-    context: &TemplateContext<'_>,
 ) -> Option<CompilerDiagnostic> {
     let Expression::StaticMemberExpression(member) = expression else {
         return None;
     };
     if let Expression::Identifier(root) = &member.object {
-        return match resolved_constant(root, constants, scoping)? {
-            StaticValue::Object(_) => {
-                Some(interpolation_error(expression, file_path, source, context))
-            }
-            StaticValue::ImportedObject {
-                properties,
-                source_path,
-            } if !properties.contains_key(member.property.name.as_str()) => Some(
-                CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    expression.span(),
-                    format!(
-                        "Property \"{}\" not found on imported object \"{}\" from {source_path}",
-                        member.property.name, root.name
-                    ),
-                )
-                .ignored_in_lint(),
-            ),
+        match resolved_constant(root, constants, scoping)? {
             StaticValue::MissingImport {
                 imported_name,
                 source_path,
-            } => Some(CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                format!("Object \"{imported_name}\" not found in {source_path}"),
-            )),
+            } => {
+                return Some(CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    expression.span(),
+                    format!("Object \"{imported_name}\" not found in {source_path}"),
+                ));
+            }
             StaticValue::InvalidObject {
                 source_path,
                 cyclic_imports,
-            } => Some(CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                not_static_import_message(&root.name, source_path, cyclic_imports),
-            )),
-            _ => None,
-        };
+            } => {
+                return Some(CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    expression.span(),
+                    not_static_import_message(&root.name, source_path, cyclic_imports),
+                ));
+            }
+            _ => {}
+        }
     }
     let root = member_root_identifier(&member.object)?;
-    let Some(StaticValue::ImportedObject {
-        properties,
-        source_path,
-    }) = resolved_constant(root, constants, scoping)
-    else {
-        return None;
+    let (properties, source_path) = match resolved_constant(root, constants, scoping)? {
+        StaticValue::Object(properties) => (properties, None),
+        StaticValue::ImportedObject {
+            properties,
+            source_path,
+        } => (properties, Some(source_path.as_str())),
+        _ => return None,
     };
     let path = member_path(expression);
     let (missing_depth, object_source_path) =
@@ -406,18 +394,14 @@ fn invalid_object_access_error(
         .chain(path[..missing_depth].iter().copied())
         .collect::<Vec<_>>()
         .join(".");
-    Some(
-        CompilerDiagnostic::error(
-            file_path,
-            source,
-            expression.span(),
-            format!(
-                "Property \"{}\" not found on imported object \"{object_path}\" from {object_source_path}",
-                path[missing_depth]
-            ),
-        )
-        .ignored_in_lint(),
-    )
+    let property = path[missing_depth];
+    let message = match object_source_path {
+        Some(object_source_path) => format!(
+            "Property \"{property}\" not found on imported object \"{object_path}\" from {object_source_path}"
+        ),
+        None => format!("Property \"{property}\" not found on object \"{object_path}\""),
+    };
+    Some(CompilerDiagnostic::error(file_path, source, expression.span(), message).ignored_in_lint())
 }
 
 /// The property names of a member chain, e.g. `["container", "isDark"]` for `scheme.container.isDark`
@@ -433,13 +417,13 @@ fn member_path<'a>(expression: &'a Expression<'_>) -> Vec<&'a str> {
 }
 
 /// The index in `path` of the first property missing from nested objects and the module that
-/// declares the object missing it, `None` when every object along the path has the property or
-/// the path reaches a non object value
+/// declares the object missing it (`None` for a local object), `None` when every object along
+/// the path has the property or the path reaches a non object value
 fn missing_property_depth<'v>(
     properties: &'v FxHashMap<String, StaticValue>,
-    source_path: &'v str,
+    source_path: Option<&'v str>,
     path: &[&str],
-) -> Option<(usize, &'v str)> {
+) -> Option<(usize, Option<&'v str>)> {
     let mut current = properties;
     let mut current_source_path = source_path;
     for (depth, name) in path.iter().enumerate() {
@@ -451,7 +435,7 @@ fn missing_property_depth<'v>(
                 source_path: nested_source_path,
             }) => {
                 current = nested;
-                current_source_path = nested_source_path;
+                current_source_path = Some(nested_source_path.as_str());
             }
             Some(_) => return None,
         }

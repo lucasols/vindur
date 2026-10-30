@@ -226,7 +226,7 @@ const Ring = styled.svg`
 `;
 ```
 
-Properties of imported constant objects can be interpolated at any depth:
+Properties of constant objects, local or imported, can be interpolated at any depth. The interpolated value must be a string or number; objects, booleans and `undefined` are rejected:
 
 ```tsx
 // colorScheme.ts
