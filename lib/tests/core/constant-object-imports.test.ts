@@ -460,6 +460,38 @@ test('should throw error for missing nested property', async () => {
   `);
 });
 
+test('should throw error for missing property on a nested imported object', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { theme } from '#/theme'
+
+        const style = css\`
+          color: \${theme.colors.tertiary};
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          export const colors = {
+            primary: '#007bff'
+          }
+        `,
+        'theme.ts': dedent`
+          import { colors } from '#/colors'
+
+          export const theme = { colors }
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Property "colors.tertiary" not found on imported object "theme" from /theme.ts
+    loc: 5:11
+    ignoreInLint: true]
+  `);
+});
+
 test('should throw error for nested object used as a value', async () => {
   await expect(
     transformWithFormat({

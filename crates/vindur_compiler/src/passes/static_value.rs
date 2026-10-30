@@ -438,7 +438,12 @@ fn missing_property_depth(
     for (depth, name) in path.iter().enumerate() {
         match current.get(*name) {
             None => return Some(depth),
-            Some(StaticValue::Object(nested)) => current = nested,
+            Some(
+                StaticValue::Object(nested)
+                | StaticValue::ImportedObject {
+                    properties: nested, ..
+                },
+            ) => current = nested,
             Some(_) => return None,
         }
     }
