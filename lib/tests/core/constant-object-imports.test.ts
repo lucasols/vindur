@@ -318,7 +318,120 @@ test('should import object and use properties in css prop', async () => {
   `);
 });
 
-test('should throw error for nested property access', async () => {
+test('should support nested property access', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { theme } from '#/theme'
+
+      const style = css\`
+        color: \${theme.colors.primary};
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'theme.ts': dedent`
+        export const theme = {
+          colors: {
+            primary: '#007bff',
+            secondary: '#6c757d'
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should support deeply nested property access', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { config } from '#/config'
+
+      const style = css\`
+        margin: \${config.theme.spacing.large};
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'config.ts': dedent`
+        export const config = {
+          theme: {
+            spacing: {
+              large: '24px'
+            }
+          }
+        }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      margin: 24px;
+    }
+    "
+  `);
+});
+
+test('should support nested property access as selectors in styled components', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { colorScheme } from '#/colorScheme'
+
+      const Button = styled.button\`
+        \${colorScheme.container.isDark} {
+          color: white;
+        }
+      \`
+
+      const App = () => <Button />
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'colorScheme.ts': dedent`
+        export const colorScheme = {
+          self: { isDark: '&.dm' },
+          container: { isDark: '.dm &' }
+        }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const App = () => <button className="v1560qbr-1-Button" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Button {
+      .dm & {
+        color: white;
+      }
+    }
+    "
+  `);
+});
+
+test('should throw error for missing nested property', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -326,7 +439,7 @@ test('should throw error for nested property access', async () => {
         import { theme } from '#/theme'
 
         const style = css\`
-          color: \${theme.colors.primary};
+          color: \${theme.colors.tertiary};
         \`
       `,
 
@@ -334,22 +447,58 @@ test('should throw error for nested property access', async () => {
         'theme.ts': dedent`
           export const theme = {
             colors: {
-              primary: '#007bff',
-              secondary: '#6c757d'
+              primary: '#007bff'
             }
           }
         `,
       }),
     }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(
-    `
-    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${theme.colors.primary}
-    loc: 5:11]
-  `,
-  );
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${theme.colors.tertiary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 5:11
+    ignoreInLint: true]
+  `);
 });
 
-test('should throw error for deeply nested property access', async () => {
+test('should support access to an imported object nested in an exported object', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { theme } from '#/theme'
+
+      const style = css\`
+        color: \${theme.colors.primary};
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'colors.ts': dedent`
+        export const colors = {
+          primary: '#007bff'
+        }
+      `,
+      'theme.ts': dedent`
+        import { colors } from '#/colors'
+
+        export const theme = { colors }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: #007bff;
+    }
+    "
+  `);
+});
+
+test('should throw error for nested object used as a value', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
@@ -357,7 +506,7 @@ test('should throw error for deeply nested property access', async () => {
         import { config } from '#/config'
 
         const style = css\`
-          margin: \${config.theme.spacing.large};
+          margin: \${config.theme.spacing};
         \`
       `,
 
@@ -373,42 +522,10 @@ test('should throw error for deeply nested property access', async () => {
         `,
       }),
     }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(
-    `
-    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... style = css\` ... \${config.theme.spacing.large}
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${config.theme.spacing}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
     loc: 5:12]
-  `,
-  );
-});
-
-test('should throw error for nested property access in styled components', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur'
-        import { theme } from '#/theme'
-
-        const Button = styled.button\`
-          background: \${theme.colors.primary};
-        \`
-      `,
-
-      overrideDefaultFs: createFsMock({
-        'theme.ts': dedent`
-          export const theme = {
-            colors: {
-              primary: '#007bff'
-            }
-          }
-        `,
-      }),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(
-    `
-    [TransformError: /test.tsx: Nested property access is not supported, only one level property access is allowed at \`... Button = styled\` ... \${theme.colors.primary}
-    loc: 5:16]
-  `,
-  );
+  `);
 });
 
 test('support basic interpolation and arithmetic calculations in object properties', async () => {
@@ -502,7 +619,7 @@ test('should throw error for missing property on imported object', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${mq.nonExistentBreakpoint}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
     loc: 6:4
     ignoreInLint: true]
   `,
@@ -537,7 +654,7 @@ test('should throw error for object not found in imported file', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Object "notExported" not found in /breakpoints.ts
+    [TransformError: /test.tsx: "notExported" not found in /breakpoints.ts
     loc: 6:4]
   `,
   );
@@ -634,4 +751,41 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     loc: 5:13]
   `,
   );
+});
+
+test('should import objects declared with as const', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { colorScheme } from '#/colorScheme'
+
+      const style = css\`
+        \${colorScheme.container.isDark} {
+          color: white;
+        }
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'colorScheme.ts': dedent`
+        export const colorScheme = {
+          container: { isDark: '.dm &' }
+        } as const
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      .dm & {
+        color: white;
+      }
+    }
+    "
+  `);
 });

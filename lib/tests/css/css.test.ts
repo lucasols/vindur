@@ -210,11 +210,9 @@ describe('interpolation', () => {
     const source = dedent`
       import { css } from 'vindur'
 
-      const obj = { color: 'red' }
       const arr = [1, 2, 3]
 
       const style = css\`
-        color: \${obj.color};
         font-size: \${arr[0]}px;
         background: \${Math.max(10, 20)}px;
       \`
@@ -231,8 +229,8 @@ describe('interpolation', () => {
       });
     }).toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${obj.color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: 7:11]
+      [TransformError: /src/complex.ts: Invalid interpolation used at \`... style = css\` ... \${arr[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      loc: 6:15]
     `,
     );
   });
@@ -300,33 +298,6 @@ describe('interpolation', () => {
 });
 
 describe('error handling', () => {
-  test('should throw error for object property access', () => {
-    const source = dedent`
-      import { css } from 'vindur'
-
-      const theme = { primary: 'blue' }
-      const style = css\`
-        color: \${theme.primary};
-      \`
-    `;
-
-    expect(() => {
-      transform({
-        source,
-        fileAbsPath: '/src/object.ts',
-        fs: emptyFs,
-        transformFunctionCache: {},
-        transformDynamicColorCache: {},
-        importAliases,
-      });
-    }).toThrowErrorMatchingInlineSnapshot(
-      `
-      [TransformError: /src/object.ts: Invalid interpolation used at \`... style = css\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: 5:11]
-    `,
-    );
-  });
-
   test('should throw error for array access', () => {
     const source = dedent`
       import { css } from 'vindur'
