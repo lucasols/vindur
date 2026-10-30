@@ -332,7 +332,7 @@ test('should throw for string union style flag values with side effects', async 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\`, \`yield\`, \`import()\` or tagged templates, as it's read twice, assign it to a variable first
     loc: 8:47]
   `);
 });
@@ -387,7 +387,7 @@ test('should throw for delete in string union style flag values', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\` or tagged templates, as it's read twice, assign it to a variable first
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\`, \`yield\`, \`import()\` or tagged templates, as it's read twice, assign it to a variable first
     loc: 6:63]
   `);
 });

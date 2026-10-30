@@ -137,7 +137,8 @@ pub(crate) fn styled_tag_component_with_attrs(
     type_arguments: Option<&TSTypeParameterInstantiation<'_>>,
     context: &StyledTagContext<'_>,
 ) -> Result<Option<StyledDefinition>, CompilerDiagnostic> {
-    let style_flags = match type_arguments {
+    // Only the type arguments of styled tags are style flags, other tags like `html<...>` are kept
+    let style_flags = || match type_arguments {
         Some(type_arguments) => extract_style_flags(
             &type_arguments.params,
             context.file_hash,
@@ -145,8 +146,8 @@ pub(crate) fn styled_tag_component_with_attrs(
             context.program,
             context.file_path,
             context.source,
-        )?,
-        None => Vec::new(),
+        ),
+        None => Ok(Vec::new()),
     };
     if let Expression::CallExpression(call) = tag
         && let Expression::StaticMemberExpression(member) = &call.callee
@@ -176,7 +177,7 @@ pub(crate) fn styled_tag_component_with_attrs(
         return Ok(Some(StyledDefinition {
             base_component: component,
             attrs: Some(context.source[span.start as usize..span.end as usize].to_owned()),
-            style_flags,
+            style_flags: style_flags()?,
         }));
     }
     let component = styled_tag_component(tag, context.imports, context.components);
@@ -222,7 +223,7 @@ pub(crate) fn styled_tag_component_with_attrs(
     Ok(Some(StyledDefinition {
         attrs: None,
         base_component: component,
-        style_flags,
+        style_flags: style_flags()?,
     }))
 }
 
@@ -244,6 +245,32 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
 }
 
 /// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
+/// The identifier a styled component extends, e.g. `Base` in `styled(Base).attrs({ ... })`
+pub(crate) fn styled_base_name<'a>(tag: &'a Expression<'_>) -> Option<&'a str> {
+    let Expression::CallExpression(call) = attrs_base(tag) else {
+        return None;
+    };
+    let [Argument::Identifier(base)] = call.arguments.as_slice() else {
+        return None;
+    };
+    Some(base.name.as_str())
+}
+
+/// The binding of the component a styled component extends, e.g. `Icons` in `styled(Icons.Star)`
+pub(crate) fn styled_base_root_name<'a>(tag: &'a Expression<'_>) -> Option<&'a str> {
+    let Expression::CallExpression(call) = attrs_base(tag) else {
+        return None;
+    };
+    match call.arguments.as_slice() {
+        [Argument::Identifier(base)] => Some(base.name.as_str()),
+        [Argument::StaticMemberExpression(member)] => match &member.object {
+            Expression::Identifier(object) => Some(object.name.as_str()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
     if let Expression::CallExpression(call) = tag
         && let Expression::StaticMemberExpression(member) = &call.callee

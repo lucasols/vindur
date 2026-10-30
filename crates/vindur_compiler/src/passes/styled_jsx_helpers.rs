@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    AssignmentExpression, AwaitExpression, CallExpression, Expression, JSXAttribute,
-    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, NewExpression,
-    TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression,
+    AssignmentExpression, AwaitExpression, CallExpression, Expression, ImportExpression,
+    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, NewExpression,
+    TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression, YieldExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -84,14 +84,22 @@ pub(super) fn collect_flag_class(
                         static_classes.push(format!("{}-{}", flag.hashed_class_name, value.value))
                     }
                     expression => {
-                        let span = expression.span();
-                        let expression_source = &source[span.start as usize..span.end as usize];
-                        dynamic_classes.push(DynamicFlagClass {
-                            concat: format!(
-                                " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
-                                flag.hashed_class_name
-                            ),
-                        });
+                        let concat = match expression
+                            .as_expression()
+                            .and_then(|value| literal_branch_classes(value, flag, source))
+                        {
+                            Some(classes) => format!(" + {classes}"),
+                            None => {
+                                let span = expression.span();
+                                let expression_source =
+                                    &source[span.start as usize..span.end as usize];
+                                format!(
+                                    " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
+                                    flag.hashed_class_name
+                                )
+                            }
+                        };
+                        dynamic_classes.push(DynamicFlagClass { concat });
                     }
                 }
             }
@@ -100,8 +108,38 @@ pub(super) fn collect_flag_class(
     }
 }
 
+/// The class of a string union flag value that picks between string literals, like
+/// `isLarge ? 'large' : 'small'`, as a conditional between the classes, so the value is read once
+fn literal_branch_classes(
+    expression: &Expression<'_>,
+    flag: &StyleFlag,
+    source: &str,
+) -> Option<String> {
+    match expression {
+        Expression::StringLiteral(value) if value.value.is_empty() => Some("\"\"".to_owned()),
+        Expression::StringLiteral(value) => Some(js_string_literal(&format!(
+            " {}-{}",
+            flag.hashed_class_name, value.value
+        ))),
+        Expression::ParenthesizedExpression(parenthesized) => {
+            literal_branch_classes(&parenthesized.expression, flag, source)
+        }
+        Expression::ConditionalExpression(conditional) => {
+            let consequent = literal_branch_classes(&conditional.consequent, flag, source)?;
+            let alternate = literal_branch_classes(&conditional.alternate, flag, source)?;
+            let span = conditional.test.span();
+            Some(format!(
+                "(({}) ? {consequent} : {alternate})",
+                &source[span.start as usize..span.end as usize]
+            ))
+        }
+        _ => None,
+    }
+}
+
 /// String union flag values are read twice in the emitted class, so they must have no side
-/// effects. Returns the flag name and the span of the first expression that may have one
+/// effects, unless they pick between string literals. Returns the flag name and the span of the
+/// first expression that may have one
 pub(super) fn side_effect_in_string_flag_value<'f>(
     element: &JSXElement<'_>,
     component: &'f StyledComponent,
@@ -121,10 +159,27 @@ pub(super) fn side_effect_in_string_flag_value<'f>(
             return None;
         };
         let expression = container.expression.as_expression()?;
+        if is_literal_branch_value(expression) {
+            return None;
+        }
         let mut finder = SideEffectFinder { found: None };
         finder.visit_expression(expression);
         finder.found.map(|span| (flag.prop_name.as_str(), span))
     })
+}
+
+fn is_literal_branch_value(expression: &Expression<'_>) -> bool {
+    match expression {
+        Expression::StringLiteral(_) => true,
+        Expression::ParenthesizedExpression(parenthesized) => {
+            is_literal_branch_value(&parenthesized.expression)
+        }
+        Expression::ConditionalExpression(conditional) => {
+            is_literal_branch_value(&conditional.consequent)
+                && is_literal_branch_value(&conditional.alternate)
+        }
+        _ => false,
+    }
 }
 
 struct SideEffectFinder {
@@ -154,6 +209,14 @@ impl<'a> Visit<'a> for SideEffectFinder {
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         self.found.get_or_insert(tagged.span);
+    }
+
+    fn visit_yield_expression(&mut self, yield_expression: &YieldExpression<'a>) {
+        self.found.get_or_insert(yield_expression.span);
+    }
+
+    fn visit_import_expression(&mut self, import: &ImportExpression<'a>) {
+        self.found.get_or_insert(import.span);
     }
 
     fn visit_unary_expression(&mut self, unary: &UnaryExpression<'a>) {

@@ -177,3 +177,27 @@ test('should keep type only vindur imports when merging vindur imports', async (
     "
   `);
 });
+
+test('should compile css templates inside assigned templates of other tags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { html } from 'lit'
+
+      export const tpl = html\`<b class=\${css\`color: red;\`}></b>\`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { html } from "lit";
+    export const tpl = html\`<b class=\${"v1560qbr-1"}></b>\`;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: red;
+    }
+    "
+  `);
+});

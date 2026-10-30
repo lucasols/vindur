@@ -82,7 +82,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
                 self.source,
                 span,
                 format!(
-                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `delete`, `await` or tagged templates, as it's read twice, assign it to a variable first"
+                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `delete`, `await`, `yield`, `import()` or tagged templates, as it's read twice, assign it to a variable first"
                 ),
             ));
             return;
@@ -155,8 +155,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
         } else {
             match class_name_merge(element) {
                 ClassNameMerge::Runtime => {
-                    let merged =
-                        self.runtime_class_name(element, &js_string_literal(&component.class_name));
+                    let merged = self.runtime_class_name(element, &component.class_name);
                     self.insert_class_name(element, &merged);
                 }
                 ClassNameMerge::InPlace(attribute) => {
@@ -189,8 +188,7 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
 
 impl StyledJsxVisitor<'_, '_, '_> {
     // Removes the className attributes merged at runtime and returns the `mergeClassNames` call
-    /// `vindur_class` is the JS expression of the vindur classes, merged last
-    fn runtime_class_name(&mut self, element: &JSXElement<'_>, vindur_class: &str) -> String {
+    fn runtime_class_name(&mut self, element: &JSXElement<'_>, class_name: &str) -> String {
         *self.needs_merge_helper = true;
         let sources = ClassNameSources {
             source: self.source,
@@ -205,9 +203,10 @@ impl StyledJsxVisitor<'_, '_, '_> {
             });
         }
         format!(
-            "{}([{}], {vindur_class})",
+            "{}([{}], {})",
             self.helper_names.merge_class_names,
             inputs.join(", "),
+            js_string_literal(class_name)
         )
     }
 
@@ -290,9 +289,9 @@ impl StyledJsxVisitor<'_, '_, '_> {
             .collect::<String>();
         let class_attribute = match class_name_merge(element) {
             ClassNameMerge::Runtime => {
-                let vindur_class = format!("{}{suffix}", js_string_literal(&static_class_name));
-                let merged = self.runtime_class_name(element, &vindur_class);
-                self.insert_class_name(element, &merged);
+                // The spread classes are read before the flag values, like JSX reads the props
+                let merged = self.runtime_class_name(element, &static_class_name);
+                self.insert_class_name(element, &format!("{merged}{suffix}"));
                 return;
             }
             ClassNameMerge::InPlace(attribute) => Some(attribute),

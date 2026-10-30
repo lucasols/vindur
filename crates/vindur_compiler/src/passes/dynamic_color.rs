@@ -375,13 +375,13 @@ fn color_merge_object(
                 },
                 sources.edits,
             );
+            // The spread classes are read before the flag values, like JSX reads the props
             Some(format!(
-                "{}([{}], {})",
+                "{}([{}], {}){}",
                 helpers.names.merge_class_names,
                 class_inputs.join(", "),
-                vindur_class
-                    .expression()
-                    .unwrap_or_else(|| "\"\"".to_owned())
+                js_string_literal(&vindur_class.literal),
+                vindur_class.dynamic_suffix
             ))
         }
         ClassNameSource::Attributes { vindur_class, .. } => {

@@ -583,3 +583,22 @@ test('should detect and transform style flags inside pseudo-class functions', as
     "
   `);
 });
+
+test('should not read type arguments of other tags as style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { html } from 'lit'
+
+      export const tpl = html<{ disabled: boolean }>\`<b></b>\`
+      export const style = css\`color: red;\`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { html } from "lit";
+    export const tpl = html<{ disabled: boolean }>\`<b></b>\`;
+    export const style = "v1560qbr-1-style";
+    "
+  `);
+});

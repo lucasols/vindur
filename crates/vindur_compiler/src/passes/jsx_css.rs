@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectProperty,
-    ObjectPropertyKind, Program,
+    Expression, JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression,
+    ObjectProperty, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -130,6 +130,15 @@ impl JsxCssVisitor<'_> {
             let ObjectPropertyKind::ObjectProperty(property) = property else {
                 continue;
             };
+            if let Some((span, message)) = unrenamed_scoped_variable(property) {
+                self.diagnostic = Some(CompilerDiagnostic::error(
+                    self.output.file_path,
+                    self.output.source,
+                    span,
+                    message.to_owned(),
+                ));
+                return;
+            }
             let Some(name) = property.key.static_name() else {
                 continue;
             };
@@ -494,6 +503,65 @@ pub(super) fn is_foreign_css_attribute(
 
 /// A `---` key that isn't a direct key of an inline `style={{ ... }}` object, like one in a
 /// conditional or a nested object, which isn't renamed
+/// Scoped variables are only renamed in static keys of the style prop, like `'---size': 1`, not
+/// in computed keys like `` [`---${name}`] `` or in values like `'var(---size)'`
+fn unrenamed_scoped_variable(property: &ObjectProperty<'_>) -> Option<(Span, &'static str)> {
+    if property.key.static_name().is_none()
+        && property
+            .key
+            .as_expression()
+            .is_some_and(starts_with_scoped_prefix)
+    {
+        return Some((
+            property.key.span(),
+            "Scoped variable keys of the `style` prop must be written out, like `'---size'`, computed keys are not renamed",
+        ));
+    }
+    let value = property.value.without_parentheses();
+    let has_scoped_name = match value {
+        Expression::StringLiteral(string) => contains_scoped_name(&string.value),
+        Expression::TemplateLiteral(template) => template
+            .quasis
+            .iter()
+            .any(|quasi| contains_scoped_name(&quasi.value.raw)),
+        _ => false,
+    };
+    has_scoped_name.then(|| {
+        (
+            value.span(),
+            "Scoped variables can't be read in `style` prop values, they are not renamed there, read them in the styles of the element",
+        )
+    })
+}
+
+/// Whether a computed key starts with `---`, e.g. `` `---${name}` `` or `'---' + name`
+fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
+    match expression.without_parentheses() {
+        Expression::StringLiteral(string) => string.value.starts_with("---"),
+        Expression::TemplateLiteral(template) => template
+            .quasis
+            .first()
+            .is_some_and(|quasi| quasi.value.raw.starts_with("---")),
+        Expression::BinaryExpression(binary) => starts_with_scoped_prefix(&binary.left),
+        _ => false,
+    }
+}
+
+/// Whether the text has a `---name`, like `var(---size)`
+fn contains_scoped_name(text: &str) -> bool {
+    text.match_indices("---").any(|(index, _)| {
+        let starts_name = text[index + 3..]
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_alphabetic() || character == '_');
+        let continues_word = text[..index]
+            .chars()
+            .next_back()
+            .is_some_and(|character| character.is_alphanumeric() || matches!(character, '-' | '_'));
+        starts_name && !continues_word
+    })
+}
+
 fn nested_scoped_variable_key(expression: &JSXExpression<'_>) -> Option<Span> {
     let mut finder = NestedScopedKeyFinder { found: None };
     match expression {

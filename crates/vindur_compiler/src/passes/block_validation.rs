@@ -1,4 +1,4 @@
-use oxc_css_parser::ast::{AtRule, AtRulePrelude, Statement};
+use oxc_css_parser::ast::{AtRule, AtRulePrelude, ComplexSelectorChild, QualifiedRule, Statement};
 
 use super::css_syntax::{BlockKind, CssError};
 use super::css_tokens::{decode_ident, ident_end, skipped_token_end, unprefixed_at_rule_name};
@@ -14,7 +14,11 @@ pub(super) fn validate_block_kind(
 ) -> Result<(), CssError> {
     for statement in statements {
         let message = match (kind, statement) {
-            (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
+            (BlockKind::Style, _) => continue,
+            (BlockKind::Global, Statement::QualifiedRule(rule)) => {
+                reject_relative_selectors(rule)?;
+                continue;
+            }
             (BlockKind::Global, Statement::AtRule(rule)) => {
                 validate_global_at_rule(rule, source)?;
                 continue;
@@ -49,6 +53,27 @@ pub(super) fn validate_block_kind(
         reject_stray_semicolons(statements, source, start, end)?;
     }
     Ok(())
+}
+
+/// Selectors starting with a combinator, like `> .a`, are relative to the parent rule, browsers drop
+/// them in a stylesheet
+fn reject_relative_selectors(rule: &QualifiedRule<'_>) -> Result<(), CssError> {
+    let combinator =
+        rule.selector
+            .selectors
+            .iter()
+            .find_map(|selector| match selector.children.first() {
+                Some(ComplexSelectorChild::Combinator(combinator)) => Some(combinator),
+                _ => None,
+            });
+    match combinator {
+        Some(combinator) => Err(CssError::syntax(
+            "selectors in createGlobalStyle can't start with a combinator, they are not nested in a rule, write the full selector".to_owned(),
+            combinator.span.start,
+            combinator.span.end,
+        )),
+        None => Ok(()),
+    }
 }
 
 /// The block of an at-rule in global styles, grouping rules hold a stylesheet
@@ -221,7 +246,20 @@ fn reject_late_stylesheet_start_rules(statements: &[Statement<'_>]) -> Result<()
 /// Whether validated global styles start with `@charset`, `@import` or `@namespace`, maybe after
 /// `@layer` statements. Browsers drop them after another rule, also one of another template
 pub(super) fn starts_with_stylesheet_start_rule(css: &str) -> bool {
+    skip_stylesheet_start_rules(css).1
+}
+
+/// Whether global styles only hold `@charset`, `@import`, `@namespace` and `@layer` statements, so
+/// the global styles after them can still start with one
+pub(super) fn has_only_stylesheet_start_rules(css: &str) -> bool {
+    skip_stylesheet_start_rules(css).0 == css.len()
+}
+
+/// Skips the leading `@charset`, `@import`, `@namespace` and `@layer` statements, returns where the
+/// rest starts and whether one of the first three was found
+fn skip_stylesheet_start_rules(css: &str) -> (usize, bool) {
     let mut index = 0;
+    let mut found = false;
     while let Some(character) = css[index..].chars().next() {
         if character.is_whitespace() {
             index += character.len_utf8();
@@ -234,19 +272,21 @@ pub(super) fn starts_with_stylesheet_start_rule(css: &str) -> bool {
             continue;
         }
         if character != '@' {
-            return false;
+            break;
         }
         let name_end = ident_end(css, index + 1);
-        match unprefixed_at_rule_name(&decode_ident(&css[index + 1..name_end])).as_deref() {
-            Some("charset" | "import" | "namespace") => return true,
-            Some("layer") => match statement_end(css, name_end) {
-                Some(end) => index = end,
-                None => return false,
-            },
-            _ => return false,
+        let name = unprefixed_at_rule_name(&decode_ident(&css[index + 1..name_end]));
+        let is_start_rule = matches!(name.as_deref(), Some("charset" | "import" | "namespace"));
+        if !is_start_rule && name.as_deref() != Some("layer") {
+            break;
+        }
+        found |= is_start_rule;
+        match statement_end(css, name_end) {
+            Some(end) => index = end,
+            None => break,
         }
     }
-    false
+    (index, found)
 }
 
 /// The end of a block-less statement after `index`, `None` when the statement has a block

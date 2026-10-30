@@ -3,6 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
+use oxc_span::GetSpan;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    block_validation::starts_with_stylesheet_start_rule,
+    block_validation::{has_only_stylesheet_start_rules, starts_with_stylesheet_start_rule},
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
@@ -22,11 +23,11 @@ use super::{
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
-        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        all_flag_classes, missing_style_flag_classes, other_element_flag_classes,
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, strip_css_comments,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_base_name,
         styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
@@ -73,10 +74,10 @@ pub(super) fn push_global_style(
     source: &str,
     span: oxc_span::Span,
 ) -> Result<(), CompilerDiagnostic> {
-    // Comments don't make browsers drop them
+    // Comments and other start rules don't make browsers drop them
     let has_styles = css_rules
         .iter()
-        .any(|rule| !strip_css_comments(rule).trim().is_empty());
+        .any(|rule| !has_only_stylesheet_start_rules(rule));
     if has_styles && starts_with_stylesheet_start_rule(&content) {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -227,6 +228,24 @@ pub(super) fn process_variable_declaration(
                 .cloned()
                 .collect::<Vec<_>>();
             style_flags.extend(own_style_flags.iter().cloned());
+            let flag_class_list = all_flag_classes(
+                styled_base_name(&tagged.tag),
+                &base_component.style_flags,
+                &own_style_flags,
+                &style_flags,
+                transform.constants,
+            )
+            .map_err(|message| {
+                CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    tagged
+                        .type_arguments
+                        .as_ref()
+                        .map_or(tagged.tag.span(), |arguments| arguments.span),
+                    message,
+                )
+            })?;
             let template_context = TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: "styled",
@@ -240,7 +259,7 @@ pub(super) fn process_variable_declaration(
                 &template_context,
             )?;
             let content = clean_css(&content);
-            let classes = if transform.dev || !style_flags.is_empty() {
+            let classes = if transform.dev || !flag_class_list.is_empty() {
                 style_classes(&content).map_err(|error| {
                     css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
                 })?
@@ -250,7 +269,7 @@ pub(super) fn process_variable_declaration(
             let element_classes = classes.element;
             if transform.dev {
                 let other_element_flags =
-                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                    other_element_flag_classes(&content, &classes.other, &flag_class_list);
                 // Inherited flags are styled by the base component
                 let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
                     .into_iter()
@@ -295,7 +314,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&element_classes, &style_flags)
+                        undeclared_style_classes(&element_classes, &flag_class_list)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -316,7 +335,7 @@ pub(super) fn process_variable_declaration(
                 }
             }
             let content =
-                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                match rewrite_style_flag_selectors(&content, &element_classes, &flag_class_list) {
                     Ok(content) => content,
                     Err(error) => {
                         let located = locate_template_error(
@@ -328,7 +347,7 @@ pub(super) fn process_variable_declaration(
                             &template_context,
                             |css| {
                                 let classes = style_classes(css).ok()?.element;
-                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                                rewrite_style_flag_selectors(css, &classes, &flag_class_list).err()
                             },
                         )?;
                         return Err(located.unwrap_or_else(|| {
@@ -374,7 +393,7 @@ pub(super) fn process_variable_declaration(
                 variable_name.to_owned(),
                 StaticValue::ClassName {
                     name: generated_name.clone(),
-                    style_flags: flag_classes(&style_flags),
+                    style_flags: flag_class_list,
                 },
             );
             let has_own_attrs = own_attrs.is_some();

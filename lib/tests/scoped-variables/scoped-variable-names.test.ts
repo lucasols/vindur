@@ -437,3 +437,81 @@ test('should not treat style() values in a font property as font names', async (
     "
   `);
 });
+
+test('should throw for scoped names in selectors outside view transitions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const style = css\`
+          & > .---item { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names in selectors are only supported in \`::view-transition-*()\` pseudo-elements, \`---item\` names something in the HTML or JS, which is not renamed, use a plain name
+    loc: 4:7]
+  `);
+});
+
+test('should rename scoped names in view transition selectors', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      export const card = css\`
+        view-transition-name: ---card;
+      \`
+
+      createGlobalStyle\`
+        ::view-transition-old(---card) { animation: none; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-card {
+      view-transition-name: --v1560qbr-2-card;
+    }
+
+    ::view-transition-old(--v1560qbr-2-card) {
+      animation: none;
+    }
+    "
+  `);
+});
+
+test('should throw for scoped font family names of several words', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const style = css\`
+          font-family: ---brand sans, serif;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped font family name \`---brand\` must be a single word, family names of several words are not renamed as one name
+    loc: 4:15]
+  `);
+});
+
+test('should throw for escaped quoted scoped names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const style = css\`
+          animation: "\\2d --spin" 1s;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped name \`\\2d --spin\` can't contain escapes, write it without them
+    loc: 4:13]
+  `);
+});

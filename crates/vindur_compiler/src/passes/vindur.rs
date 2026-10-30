@@ -48,7 +48,7 @@ use super::{
         process_variable_declaration, push_global_style,
     },
     value_references::collect_value_referenced_names,
-    vindur_fn_references::runtime_vindur_fn_reference_error,
+    vindur_fn_references::{is_styled_tag, runtime_vindur_fn_reference_error},
 };
 
 pub(crate) struct PassOutput {
@@ -372,7 +372,9 @@ pub(crate) fn transform_program(
         },
     )?;
 
-    let mut handled_spans = assigned_tag_spans(program);
+    let mut handled_spans = assigned_tag_spans(program, |tag| {
+        is_styled_tag(tag, &imports) || imports.get_expression(tag).is_some()
+    });
     handled_spans.extend(edits.iter().map(|edit| edit.span));
     transform_direct_tags(
         program,

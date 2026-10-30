@@ -32,6 +32,51 @@ pub(crate) fn flag_classes(flags: &[StyleFlag]) -> Vec<StyleFlagClass> {
         .collect()
 }
 
+/// The flag classes of a styled component, with the flags of a base it renders, which the base
+/// applies itself, e.g. `active` of an imported `Base` in `styled(Base)`. Fails for a flag with
+/// the prop of one of those, the base would never get the prop
+pub(crate) fn all_flag_classes(
+    base_name: Option<&str>,
+    base_flags: &[StyleFlag],
+    own_flags: &[StyleFlag],
+    flags: &[StyleFlag],
+    constants: &FxHashMap<String, StaticValue>,
+) -> Result<Vec<StyleFlagClass>, String> {
+    let mut classes = flag_classes(flags);
+    let Some((
+        base_name,
+        StaticValue::ClassName {
+            style_flags: base_classes,
+            ..
+        },
+    )) = base_name.and_then(|name| Some((name, constants.get(name)?)))
+    else {
+        return Ok(classes);
+    };
+    let compiled_base_classes = flag_classes(base_flags);
+    for class in base_classes {
+        if compiled_base_classes
+            .iter()
+            .any(|compiled| compiled.original == class.original)
+        {
+            continue;
+        }
+        if let Some(own) = own_flags.iter().find(|own| {
+            class
+                .original
+                .strip_prefix(own.prop_name.as_str())
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+        }) {
+            return Err(format!(
+                "Style flag `{}` is also a style flag of `{}`, which would no longer get the prop, use another name",
+                own.prop_name, base_name
+            ));
+        }
+        classes.push(class.clone());
+    }
+    Ok(classes)
+}
+
 /// The class selectors of a styled component CSS, with the classes of the element itself named as
 /// written in the CSS, so escaped classes like `&.\61 ctive` are not flag classes
 pub(crate) fn style_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
@@ -49,16 +94,16 @@ pub(crate) fn style_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
 pub(crate) fn other_element_flag_classes(
     css: &str,
     other_classes: &[Range<usize>],
-    flags: &[StyleFlag],
+    flags: &[StyleFlagClass],
 ) -> Vec<String> {
-    flag_classes(flags)
-        .into_iter()
+    flags
+        .iter()
         .filter(|flag| {
             other_classes
                 .iter()
                 .any(|range| css.get(range.clone()) == Some(flag.original.as_str()))
         })
-        .map(|flag| flag.original)
+        .map(|flag| flag.original.clone())
         .collect()
 }
 
@@ -68,11 +113,11 @@ pub(crate) fn other_element_flag_classes(
 pub(crate) fn rewrite_style_flag_selectors(
     css: &str,
     classes: &[ElementClass],
-    flags: &[StyleFlag],
+    flags: &[StyleFlagClass],
 ) -> Result<String, CssError> {
-    let mappings = flag_classes(flags)
-        .into_iter()
-        .map(|flag| (flag.original, flag.hashed, true))
+    let mappings = flags
+        .iter()
+        .map(|flag| (flag.original.clone(), flag.hashed.clone(), true))
         .collect::<Vec<_>>();
     rewrite_classes(css, classes, &mappings, |name| {
         format!(
@@ -201,12 +246,11 @@ pub(crate) fn missing_style_flag_classes(
 /// The classes of the element that are not style flags
 pub(crate) fn undeclared_style_classes(
     classes: &[ElementClass],
-    flags: &[StyleFlag],
+    flags: &[StyleFlagClass],
 ) -> Vec<String> {
-    let flag_classes = flag_classes(flags);
     let mut undeclared: Vec<String> = Vec::new();
     for class in classes {
-        if !flag_classes.iter().any(|flag| flag.original == class.name)
+        if !flags.iter().any(|flag| flag.original == class.name)
             && !undeclared.contains(&class.name)
         {
             undeclared.push(class.name.clone());

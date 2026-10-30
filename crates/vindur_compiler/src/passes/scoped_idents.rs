@@ -251,10 +251,24 @@ impl ScopedIdentCollector<'_> {
         Ok(())
     }
 
-    /// Selectors can name scoped variables, like `::view-transition-old(---card)`
+    /// Selectors can name scoped variables, like `::view-transition-old(---card)`. Other names in
+    /// selectors, like `.---card`, come from the HTML or JS, which is not renamed
     fn selector(&mut self, span: oxc_css_parser::Span) {
         let text = &self.source[span.start..span.end];
         for (start, end) in scoped_ident_ranges(text) {
+            if !is_view_transition_argument(text, start) {
+                self.error.get_or_insert_with(|| {
+                    CssError::new(
+                        format!(
+                            "Scoped names in selectors are only supported in `::view-transition-*()` pseudo-elements, `{}` names something in the HTML or JS, which is not renamed, use a plain name",
+                            &text[start..end]
+                        ),
+                        span.start + start,
+                        span.start + end,
+                    )
+                });
+                return;
+            }
             self.push(
                 span.start + start,
                 span.start + end,
@@ -317,7 +331,8 @@ impl ScopedIdentCollector<'_> {
         }
     }
 
-    /// A string that is a whole scoped name, like `"---spin"`, is that name
+    /// A string that is a whole scoped name, like `"---spin"`, is that name, also escaped, like
+    /// `"\2d --spin"`, which would not match the renamed name
     fn quoted_name(&mut self, span: oxc_css_parser::Span) {
         let (content_start, content) = string_content(self.source, span);
         if is_scoped_name(content) {
@@ -327,6 +342,15 @@ impl ScopedIdentCollector<'_> {
                 content,
                 ScopedRole::Name,
             );
+        } else if content.contains('\\')
+            && is_scoped_name(&decode_ident(content))
+            && self.error.is_none()
+        {
+            self.error = Some(CssError::new(
+                format!("Scoped name `{content}` can't contain escapes, write it without them"),
+                span.start,
+                span.end,
+            ));
         }
     }
 
@@ -337,6 +361,9 @@ impl ScopedIdentCollector<'_> {
     }
 
     fn values(&mut self, values: &[ComponentValue<'_>]) {
+        if self.names_fonts {
+            self.reject_multiword_scoped_family(values);
+        }
         for (index, value) in values.iter().enumerate() {
             let role = match index
                 .checked_sub(2)
@@ -398,6 +425,39 @@ impl ScopedIdentCollector<'_> {
                 _ => {}
             },
             _ => {}
+        }
+    }
+
+    /// An unquoted family name can be several words, like `---brand sans`, which would be renamed
+    /// differently than the quoted `"---brand sans"`
+    fn reject_multiword_scoped_family(&mut self, values: &[ComponentValue<'_>]) {
+        let ident_span = |value: &ComponentValue<'_>| match value {
+            ComponentValue::InterpolableIdent(InterpolableIdent::Literal(ident)) => {
+                Some((ident.span.start, ident.span.end))
+            }
+            ComponentValue::TokenWithSpan(token) if matches!(token.token, TokenData::Ident(_)) => {
+                Some((token.span.start, token.span.end))
+            }
+            _ => None,
+        };
+        for pair in values.windows(2) {
+            let (Some(first), Some(second)) = (ident_span(&pair[0]), ident_span(&pair[1])) else {
+                continue;
+            };
+            if let Some((start, end)) = [first, second]
+                .into_iter()
+                .find(|(start, end)| is_scoped_name(&self.source[*start..*end]))
+                && self.error.is_none()
+            {
+                self.error = Some(CssError::new(
+                    format!(
+                        "Scoped font family name `{}` must be a single word, family names of several words are not renamed as one name",
+                        &self.source[start..end]
+                    ),
+                    start,
+                    end,
+                ));
+            }
         }
     }
 
@@ -554,6 +614,16 @@ fn has_quoted_scoped_name(text: &str) -> bool {
         index += character.len_utf8();
     }
     false
+}
+
+/// Whether `index` is in the parentheses of a view transition pseudo-element, like `---card` in
+/// `::view-transition-old(---card)` or `::view-transition-group(*.---cards)`
+fn is_view_transition_argument(selector: &str, index: usize) -> bool {
+    let before = &selector[..index];
+    before
+        .rfind("::view-transition-")
+        .and_then(|pseudo| before[pseudo..].find('(').map(|open| pseudo + open))
+        .is_some_and(|open| !before[open..].contains(')'))
 }
 
 /// Byte ranges of the identifiers starting with `---`. Comments, strings, urls and unquoted

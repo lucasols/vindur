@@ -755,7 +755,7 @@ Compiles to scoped CSS variables:
 
 Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
-Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be lowercase, as font families match case-insensitively. Grid area strings can't use scoped names, area names are already local to their grid container. A scoped variable value can't continue on a line starting with `name:`, add the missing `;`.
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings can't use scoped names, area names are already local to their grid container. A scoped variable value can't continue on a line starting with `name:`, add the missing `;`.
 
 #### Dynamic Variables
 
@@ -771,7 +771,7 @@ const Component = () => {
 };
 ```
 
-Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, keys in a conditional, a nested object or `.attrs()` are a compile error, and keys of a separate object constant are not renamed.
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, keys in a conditional, a nested object or `.attrs()`, computed keys like `` [`---${name}`] `` and reads in values like `'var(---color)'` are a compile error, and keys of a separate object constant are not renamed.
 
 ### Stable IDs
 
@@ -1251,7 +1251,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
-Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it. A default exported styled component can't have flags, assign it to a `const` first.
+Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. A value picking between strings, like `isLarge ? 'large' : 'small'`, is read once, so its condition can have them. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it, for an imported `Base` that is a compile error. A default exported styled component can't have flags, assign it to a `const` first.
 
 #### CSS Selector Patterns
 

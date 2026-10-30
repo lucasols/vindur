@@ -408,3 +408,99 @@ describe('styled component extension', () => {
     `);
   });
 });
+
+const itemWithFlagFs = createFsMock({
+  'item.tsx': dedent`
+    import { styled } from 'vindur';
+
+    export const Item = styled.div<{ active: boolean }>\`
+      &.active {
+        color: red;
+      }
+    \`;
+  `,
+});
+
+test('extending an imported styled component keeps the flags it applies', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Item } from './item'
+
+      const BigItem = styled(Item)<{ big: boolean }>\`
+        &.big {
+          padding: 8px;
+        }
+        &.active {
+          color: blue;
+        }
+      \`
+
+      export const App = () => <BigItem active big />
+    `,
+    overrideDefaultFs: itemWithFlagFs,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Item } from "./item";
+    export const App = () => (
+      <Item active className={"v1560qbr-1-BigItem v1x4k6wd-big"} />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-BigItem {
+      &.v1x4k6wd-big {
+        padding: 8px;
+      }
+      &.vum7ukr-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('should throw for a flag with the prop of a flag of an imported base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Item } from './item'
+
+        const OtherItem = styled(Item)<{ active: boolean }>\`
+          &.active {
+            color: blue;
+          }
+        \`
+
+        export const App = () => <OtherItem active />
+      `,
+      overrideDefaultFs: itemWithFlagFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`active\` is also a style flag of \`Item\`, which would no longer get the prop, use another name
+    loc: 4:30]
+  `);
+});
+
+test('should throw for bindings shadowing the base of a styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = (props: { className?: string }) => <div {...props} />
+        const StyledCard = styled(Card)\`color: red;\`
+
+        export function App({ Card }) {
+          return <StyledCard />
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" shadows the component "Card" a styled component is built from, rename this binding
+    loc: 6:22]
+  `);
+});

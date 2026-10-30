@@ -98,6 +98,7 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
     // can contain `name:` anywhere, so only scoped variables are checked, and only for a `name:`
     // starting a line outside brackets
     let next_property = if name.name.starts_with("--") {
+        nested_block_in_custom_value(&declaration.value, source)?;
         if !name.raw.starts_with("---") {
             return Ok(());
         }
@@ -148,6 +149,49 @@ fn is_property_start(pair: &[ComponentValue<'_>]) -> bool {
         }
         _ => false,
     }
+}
+
+/// A custom property value can only be a `{ ... }` block as a whole, e.g. `--x: { a: b }`. A
+/// block after other values is a nested rule swallowed by a declaration missing its `;`, like
+/// `--x: red` followed by `&:hover { ... }`
+fn nested_block_in_custom_value(
+    values: &[ComponentValue<'_>],
+    source: &str,
+) -> Result<(), CssError> {
+    let mut depth = 0usize;
+    let mut line_start = None;
+    for (index, value) in values.iter().enumerate() {
+        let ComponentValue::TokenWithSpan(token) = value else {
+            continue;
+        };
+        if depth == 0
+            && index > 0
+            && source[values[index - 1].span().end..value.span().start].contains('\n')
+        {
+            line_start = Some(index);
+        }
+        match token.token {
+            TokenData::LBrace(_) if depth == 0 && index > 0 => {
+                // The `;` goes before the line holding the nested rule's selector
+                let span = match line_start {
+                    Some(start) => values[start - 1].span(),
+                    None => &token.span,
+                };
+                return Err(CssError::syntax(
+                    "missing `;` before a nested rule, a `{ ... }` block in a custom property must be its whole value"
+                        .to_owned(),
+                    span.start,
+                    span.end,
+                ));
+            }
+            TokenData::LParen(_) | TokenData::LBracket(_) | TokenData::LBrace(_) => depth += 1,
+            TokenData::RParen(_) | TokenData::RBracket(_) | TokenData::RBrace(_) => {
+                depth = depth.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// A `name:` at the top level of a custom property value that starts a new line

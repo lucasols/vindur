@@ -241,23 +241,18 @@ test('should preserve conditional expression precedence in dynamic flags', async
             className={
               "v1560qbr-1-Button" +
               ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
-              ((useToday ? "today" : "time")
-                ? " v11as9cs-variant-" + (useToday ? "today" : "time")
-                : "")
+              (useToday ? " v11as9cs-variant-today" : " v11as9cs-variant-time")
             }
           >
             Today
           </button>
           <button
             {...props}
-            className={mergeClassNames(
-              [props],
-              "v1560qbr-1-Button" +
-                ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
-                ((useToday ? "today" : "time")
-                  ? " v11as9cs-variant-" + (useToday ? "today" : "time")
-                  : ""),
-            )}
+            className={
+              mergeClassNames([props], "v1560qbr-1-Button") +
+              ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
+              (useToday ? " v11as9cs-variant-today" : " v11as9cs-variant-time")
+            }
           >
             Spread
           </button>
@@ -313,10 +308,10 @@ test('should merge explicit className with spread props on style flag components
         <>
           <div
             {...p}
-            className={mergeClassNames(
-              ["a", p],
-              "v1560qbr-1-Flag" + (x ? " voctcyj-active" : ""),
-            )}
+            className={
+              mergeClassNames(["a", p], "v1560qbr-1-Flag") +
+              (x ? " voctcyj-active" : "")
+            }
           />
           <div
             {...p}
@@ -518,6 +513,37 @@ test('should only rename style flag classes of the element itself', async () => 
     - TransformWarning#:
         message: "The style flag class \\"expanded\\" is used in a selector of another element in List, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.expanded\\""
         loc: 'current_file:3:6'
+    "
+  `);
+});
+
+test('should read string union flag values picking between strings once', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Button = styled.button<{ variant: 'primary' | 'secondary' }>\`
+        &.variant-primary { color: white; }
+        &.variant-secondary { color: gray; }
+      \`
+
+      export const App = ({ id }) => (
+        <Button variant={isSelected(id) ? 'primary' : 'secondary'} />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const App = ({ id }) => (
+      <button
+        className={
+          "v1560qbr-1-Button" +
+          (isSelected(id)
+            ? " v11as9cs-variant-primary"
+            : " v11as9cs-variant-secondary")
+        }
+      />
+    );
     "
   `);
 });

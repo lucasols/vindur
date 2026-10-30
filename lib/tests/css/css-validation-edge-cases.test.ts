@@ -463,3 +463,34 @@ test('should throw for a string ended by a carriage return', async () => {
     loc: 3:23]
   `);
 });
+
+test('should throw for a custom property missing its `;` before a nested rule', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const a = css\`
+          ---accent: red
+          &:hover { color: var(---accent); }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... a = css\`: missing \`;\` before a nested rule, a \`{ ... }\` block in a custom property must be its whole value
+    loc: 3:13]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const a = css\`
+          --x: a &:hover { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... a = css\`: missing \`;\` before a nested rule, a \`{ ... }\` block in a custom property must be its whole value
+    loc: 3:17]
+  `);
+});
