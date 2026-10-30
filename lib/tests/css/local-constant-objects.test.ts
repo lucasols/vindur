@@ -60,9 +60,8 @@ test('should throw error for missing property on a local object', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Property "secondary" not found on object "theme.colors"
-    loc: 5:11
-    ignoreInLint: true]
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${theme.colors.secondary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 5:11]
   `);
 });
 
@@ -118,5 +117,42 @@ test('should throw error for undefined interpolations', async () => {
     [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${color}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
     loc: 5:11
     ignoreInLint: true]
+  `);
+});
+
+test('should resolve local objects declared with as const or satisfies', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+
+      const theme = { colors: { primary: 'blue' } } as const
+      const spacing = { large: 24 } satisfies Record<string, number>
+
+      const style = css\`
+        color: \${theme.colors.primary};
+        margin: \${spacing.large}px;
+      \`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const theme = {
+      colors: {
+        primary: "blue",
+      },
+    } as const;
+    const spacing = {
+      large: 24,
+    } satisfies Record<string, number>;
+    const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: blue;
+      margin: 24px;
+    }
+    "
   `);
 });

@@ -8,9 +8,7 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 use super::css_syntax::CssError;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
-use super::import_errors::{
-    member_root_identifier, not_static_import_message, unresolved_import_error,
-};
+use super::import_errors::{not_static_import_message, unresolved_import_error};
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
@@ -351,96 +349,45 @@ fn invalid_object_access_error(
     let Expression::StaticMemberExpression(member) = expression else {
         return None;
     };
-    if let Expression::Identifier(root) = &member.object {
-        match resolved_constant(root, constants, scoping)? {
-            StaticValue::MissingImport {
-                imported_name,
-                source_path,
-            } => {
-                return Some(CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    expression.span(),
-                    format!("Object \"{imported_name}\" not found in {source_path}"),
-                ));
-            }
-            StaticValue::InvalidObject {
-                source_path,
-                cyclic_imports,
-            } => {
-                return Some(CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    expression.span(),
-                    not_static_import_message(&root.name, source_path, cyclic_imports),
-                ));
-            }
-            _ => {}
-        }
-    }
-    let root = member_root_identifier(&member.object)?;
-    let (properties, source_path) = match resolved_constant(root, constants, scoping)? {
-        StaticValue::Object(properties) => (properties, None),
+    let Expression::Identifier(root) = &member.object else {
+        return None;
+    };
+    match resolved_constant(root, constants, scoping)? {
         StaticValue::ImportedObject {
             properties,
             source_path,
-        } => (properties, Some(source_path.as_str())),
-        _ => return None,
-    };
-    let path = member_path(expression);
-    let (missing_depth, object_source_path) =
-        missing_property_depth(properties, source_path, &path)?;
-    let object_path = std::iter::once(root.name.as_str())
-        .chain(path[..missing_depth].iter().copied())
-        .collect::<Vec<_>>()
-        .join(".");
-    let property = path[missing_depth];
-    let message = match object_source_path {
-        Some(object_source_path) => format!(
-            "Property \"{property}\" not found on imported object \"{object_path}\" from {object_source_path}"
+        } if !properties.contains_key(member.property.name.as_str()) => Some(
+            CompilerDiagnostic::error(
+                file_path,
+                source,
+                expression.span(),
+                format!(
+                    "Property \"{}\" not found on imported object \"{}\" from {source_path}",
+                    member.property.name, root.name
+                ),
+            )
+            .ignored_in_lint(),
         ),
-        None => format!("Property \"{property}\" not found on object \"{object_path}\""),
-    };
-    Some(CompilerDiagnostic::error(file_path, source, expression.span(), message).ignored_in_lint())
-}
-
-/// The property names of a member chain, e.g. `["container", "isDark"]` for `scheme.container.isDark`
-fn member_path<'a>(expression: &'a Expression<'_>) -> Vec<&'a str> {
-    let mut path = Vec::new();
-    let mut current = expression;
-    while let Expression::StaticMemberExpression(member) = current {
-        path.push(member.property.name.as_str());
-        current = &member.object;
+        StaticValue::MissingImport {
+            imported_name,
+            source_path,
+        } => Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            expression.span(),
+            format!("Object \"{imported_name}\" not found in {source_path}"),
+        )),
+        StaticValue::InvalidObject {
+            source_path,
+            cyclic_imports,
+        } => Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            expression.span(),
+            not_static_import_message(&root.name, source_path, cyclic_imports),
+        )),
+        _ => None,
     }
-    path.reverse();
-    path
-}
-
-/// The index in `path` of the first property missing from nested objects and the module that
-/// declares the object missing it (`None` for a local object), `None` when every object along
-/// the path has the property or the path reaches a non object value
-fn missing_property_depth<'v>(
-    properties: &'v FxHashMap<String, StaticValue>,
-    source_path: Option<&'v str>,
-    path: &[&str],
-) -> Option<(usize, Option<&'v str>)> {
-    let mut current = properties;
-    let mut current_source_path = source_path;
-    for (depth, name) in path.iter().enumerate() {
-        match current.get(*name) {
-            None => return Some((depth, current_source_path)),
-            Some(StaticValue::Object(nested)) => current = nested,
-            Some(StaticValue::ImportedObject {
-                properties: nested,
-                source_path: nested_source_path,
-            }) => {
-                current = nested;
-                current_source_path = Some(nested_source_path.as_str());
-            }
-            Some(_) => return None,
-        }
-    }
-    None
 }
 
 fn imported_function_preserves_boundary(

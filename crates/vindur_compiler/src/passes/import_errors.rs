@@ -152,13 +152,3 @@ pub(super) fn import_cycle_hint(source_path: &str, cyclic_imports: &[String]) ->
         cyclic_imports.join(", ")
     )
 }
-
-pub(super) fn member_root_identifier<'a, 'b>(
-    expression: &'a Expression<'b>,
-) -> Option<&'a IdentifierReference<'b>> {
-    match expression {
-        Expression::Identifier(identifier) => Some(identifier),
-        Expression::StaticMemberExpression(member) => member_root_identifier(&member.object),
-        _ => None,
-    }
-}

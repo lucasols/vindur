@@ -156,6 +156,13 @@ pub(super) fn evaluate_expression(
         Expression::ParenthesizedExpression(parenthesized) => {
             evaluate_expression(&parenthesized.expression, constants, scoping)
         }
+        // Type annotations have no effect on the evaluated value, e.g. `{ ... } as const`
+        Expression::TSAsExpression(expression) => {
+            evaluate_expression(&expression.expression, constants, scoping)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            evaluate_expression(&expression.expression, constants, scoping)
+        }
         _ => None,
     }
 }

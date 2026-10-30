@@ -454,41 +454,46 @@ test('should throw error for missing nested property', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Property "tertiary" not found on imported object "theme.colors" from /theme.ts
-    loc: 5:11
-    ignoreInLint: true]
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${theme.colors.tertiary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 5:11]
   `);
 });
 
-test('should throw error for missing property on a nested imported object', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { css } from 'vindur'
-        import { theme } from '#/theme'
+test('should support access to an imported object nested in an exported object', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { theme } from '#/theme'
 
-        const style = css\`
-          color: \${theme.colors.tertiary};
-        \`
+      const style = css\`
+        color: \${theme.colors.primary};
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'colors.ts': dedent`
+        export const colors = {
+          primary: '#007bff'
+        }
       `,
+      'theme.ts': dedent`
+        import { colors } from '#/colors'
 
-      overrideDefaultFs: createFsMock({
-        'colors.ts': dedent`
-          export const colors = {
-            primary: '#007bff'
-          }
-        `,
-        'theme.ts': dedent`
-          import { colors } from '#/colors'
-
-          export const theme = { colors }
-        `,
-      }),
+        export const theme = { colors }
+      `,
     }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Property "tertiary" not found on imported object "theme.colors" from /colors.ts
-    loc: 5:11
-    ignoreInLint: true]
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: #007bff;
+    }
+    "
   `);
 });
 
@@ -745,4 +750,41 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     loc: 5:13]
   `,
   );
+});
+
+test('should import objects declared with as const', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { colorScheme } from '#/colorScheme'
+
+      const style = css\`
+        \${colorScheme.container.isDark} {
+          color: white;
+        }
+      \`
+    `,
+
+    overrideDefaultFs: createFsMock({
+      'colorScheme.ts': dedent`
+        export const colorScheme = {
+          container: { isDark: '.dm &' }
+        } as const
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      .dm & {
+        color: white;
+      }
+    }
+    "
+  `);
 });
