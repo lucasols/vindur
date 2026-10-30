@@ -454,7 +454,7 @@ test('should throw error for missing nested property', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Property "colors.tertiary" not found on imported object "theme" from /theme.ts
+    [TransformError: /test.tsx: Property "tertiary" not found on imported object "theme.colors" from /theme.ts
     loc: 5:11
     ignoreInLint: true]
   `);
@@ -486,7 +486,7 @@ test('should throw error for missing property on a nested imported object', asyn
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Property "colors.tertiary" not found on imported object "theme" from /theme.ts
+    [TransformError: /test.tsx: Property "tertiary" not found on imported object "theme.colors" from /colors.ts
     loc: 5:11
     ignoreInLint: true]
   `);

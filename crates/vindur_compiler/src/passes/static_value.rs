@@ -400,16 +400,20 @@ fn invalid_object_access_error(
         return None;
     };
     let path = member_path(expression);
-    let missing_depth = missing_property_depth(properties, &path)?;
+    let (missing_depth, object_source_path) =
+        missing_property_depth(properties, source_path, &path)?;
+    let object_path = std::iter::once(root.name.as_str())
+        .chain(path[..missing_depth].iter().copied())
+        .collect::<Vec<_>>()
+        .join(".");
     Some(
         CompilerDiagnostic::error(
             file_path,
             source,
             expression.span(),
             format!(
-                "Property \"{}\" not found on imported object \"{}\" from {source_path}",
-                path[..=missing_depth].join("."),
-                root.name
+                "Property \"{}\" not found on imported object \"{object_path}\" from {object_source_path}",
+                path[missing_depth]
             ),
         )
         .ignored_in_lint(),
@@ -428,22 +432,27 @@ fn member_path<'a>(expression: &'a Expression<'_>) -> Vec<&'a str> {
     path
 }
 
-/// The index in `path` of the first property missing from nested objects, `None` when every
-/// object along the path has the property or the path reaches a non object value
-fn missing_property_depth(
-    properties: &FxHashMap<String, StaticValue>,
+/// The index in `path` of the first property missing from nested objects and the module that
+/// declares the object missing it, `None` when every object along the path has the property or
+/// the path reaches a non object value
+fn missing_property_depth<'v>(
+    properties: &'v FxHashMap<String, StaticValue>,
+    source_path: &'v str,
     path: &[&str],
-) -> Option<usize> {
+) -> Option<(usize, &'v str)> {
     let mut current = properties;
+    let mut current_source_path = source_path;
     for (depth, name) in path.iter().enumerate() {
         match current.get(*name) {
-            None => return Some(depth),
-            Some(
-                StaticValue::Object(nested)
-                | StaticValue::ImportedObject {
-                    properties: nested, ..
-                },
-            ) => current = nested,
+            None => return Some((depth, current_source_path)),
+            Some(StaticValue::Object(nested)) => current = nested,
+            Some(StaticValue::ImportedObject {
+                properties: nested,
+                source_path: nested_source_path,
+            }) => {
+                current = nested;
+                current_source_path = nested_source_path;
+            }
             Some(_) => return None,
         }
     }
