@@ -1,6 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeName, JSXElement, JSXFragment,
+    ObjectExpression, ObjectProperty, Program, Statement, TSTypeParameterInstantiation,
+    TaggedTemplateExpression, TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -9,6 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
@@ -294,6 +296,66 @@ pub(crate) fn resolve_styled_references(
     })
 }
 
+/// The `${() => name}` interpolation of a forward reference, used to locate errors about it.
+/// References in vindur templates and css props come first, other templates can have the same
+/// function
+pub(crate) fn forward_reference_span(
+    program: &Program<'_>,
+    imports: &VindurImports<'_>,
+    name: &str,
+) -> Option<Span> {
+    struct Finder<'n, 'i> {
+        name: &'n str,
+        imports: &'i VindurImports<'i>,
+        in_vindur_template: bool,
+        vindur_span: Option<Span>,
+        span: Option<Span>,
+    }
+    impl<'a> Visit<'a> for Finder<'_, '_> {
+        fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = is_vindur_template_tag(&tagged.tag, self.imports);
+            walk::walk_tagged_template_expression(self, tagged);
+            self.in_vindur_template = in_vindur_template;
+        }
+
+        fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = matches!(
+                &attribute.name,
+                JSXAttributeName::Identifier(name) if name.name == "css"
+            );
+            walk::walk_jsx_attribute(self, attribute);
+            self.in_vindur_template = in_vindur_template;
+        }
+
+        fn visit_template_literal(&mut self, template: &TemplateLiteral<'a>) {
+            let span = template
+                .expressions
+                .iter()
+                .find(|expression| forward_styled_reference(expression) == Some(self.name))
+                .map(GetSpan::span);
+            if self.in_vindur_template {
+                self.vindur_span = self.vindur_span.or(span);
+            }
+            self.span = self.span.or(span);
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = false;
+            walk::walk_template_literal(self, template);
+            self.in_vindur_template = in_vindur_template;
+        }
+    }
+    let mut finder = Finder {
+        name,
+        imports,
+        in_vindur_template: false,
+        vindur_span: None,
+        span: None,
+    };
+    finder.visit_program(program);
+    finder.vindur_span.or(finder.span)
+}
+
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
 const STYLED_REF_SUFFIX: &str = "__";
 
@@ -301,10 +363,6 @@ const STYLED_REF_SUFFIX: &str = "__";
 /// known, the name is hex encoded because JS identifiers can contain `$`, which CSS rejects
 pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
-}
-
-pub(crate) fn is_styled_ref_placeholder(text: &str) -> bool {
-    text.starts_with(STYLED_REF_PREFIX)
 }
 
 pub(super) fn strip_css_comments(css: &str) -> String {
@@ -324,6 +382,7 @@ pub(super) fn strip_css_comments(css: &str) -> String {
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
 const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+const ATTRS_SCOPED_VARIABLE_ERROR: &str = "styled.*.attrs() cannot set scoped variables, set them in the `style` prop where the component is rendered";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -357,6 +416,20 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
                 .get_or_insert((tagged.span, ATTRS_TEMPLATE_ERROR));
         } else {
             walk::walk_tagged_template_expression(self, tagged);
+        }
+    }
+
+    // Only scoped variable keys of the `style` prop are renamed
+    fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
+        if property
+            .key
+            .static_name()
+            .is_some_and(|name| name.starts_with("---"))
+        {
+            self.found
+                .get_or_insert((property.key.span(), ATTRS_SCOPED_VARIABLE_ERROR));
+        } else {
+            walk::walk_object_property(self, property);
         }
     }
 

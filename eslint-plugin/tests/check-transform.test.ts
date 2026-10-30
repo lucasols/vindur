@@ -556,7 +556,7 @@ describe('warning system - onWarning callback functionality', () => {
 
         const ComplexButton = styled.button<{
           active: boolean;
-          disabled: boolean;
+          muted: boolean;
           size: 'small' | 'large';
         }>\`
           padding: 8px 16px;
@@ -574,7 +574,7 @@ describe('warning system - onWarning callback functionality', () => {
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
         - messageId: 'transformWarning'
-          msg: 'Warning: Missing modifier styles for "&.disabled" in ComplexButton'
+          msg: 'Warning: Missing modifier styles for "&.muted" in ComplexButton'
           loc: '3:7'
         - messageId: 'transformWarning'
           msg: 'Warning: Missing modifier styles for "&.size-large" in ComplexButton'

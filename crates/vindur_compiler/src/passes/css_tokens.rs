@@ -1,0 +1,265 @@
+// Comments, strings, escapes and unquoted urls can't contain unsupported syntax
+pub(super) fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
+    let rest = &css[index..];
+    if let Some(comment) = rest.strip_prefix("/*") {
+        return Some(
+            comment
+                .find("*/")
+                .map_or(css.len(), |end| index + 2 + end + 2),
+        );
+    }
+    // Before escapes, an escaped name like `\75 rl(` is still a url
+    if let Some(paren) = url_function_paren(css, index) {
+        return Some(url_end(css, paren));
+    }
+    match rest.as_bytes().first() {
+        Some(b'"' | b'\'') => Some(string_end(css, index)),
+        Some(b'\\') => Some(escape_end(css, index)),
+        _ => None,
+    }
+}
+
+/// The end of the escape starting with the `\` at `start`, a hex escape like `\6f ` includes the
+/// whitespace that terminates it
+pub(super) fn escape_end(css: &str, start: usize) -> usize {
+    let rest = &css[start + 1..];
+    let hex_len = rest
+        .bytes()
+        .take(6)
+        .take_while(u8::is_ascii_hexdigit)
+        .count();
+    if hex_len == 0 {
+        return start + 1 + rest.chars().next().map_or(0, char::len_utf8);
+    }
+    let after = &rest[hex_len..];
+    let whitespace_len = if after.starts_with("\r\n") {
+        2
+    } else {
+        usize::from(after.starts_with(is_css_whitespace))
+    };
+    start + 1 + hex_len + whitespace_len
+}
+
+pub(super) fn is_css_whitespace(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\n' | '\r' | '\x0C')
+}
+
+/// The end of the identifier starting at `start`, escapes are part of it
+pub(super) fn ident_end(css: &str, start: usize) -> usize {
+    let mut index = start;
+    while let Some(character) = css[index..].chars().next() {
+        if character == '\\' {
+            index = escape_end(css, index);
+        } else if is_ident_char(character) {
+            index += character.len_utf8();
+        } else {
+            break;
+        }
+    }
+    index
+}
+
+fn string_end(css: &str, start: usize) -> usize {
+    scan_string(css, start).0
+}
+
+/// The end of the string starting at `start` and whether its closing quote was found
+pub(super) fn scan_string(css: &str, start: usize) -> (usize, bool) {
+    let bytes = css.as_bytes();
+    let quote = bytes[start];
+    let mut index = start + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            // An escaped newline continues the string, `\r\n` is a single newline
+            b'\\' if css[index + 1..].starts_with("\r\n") => index += 3,
+            b'\\' => index += 2,
+            // CSS strings end at any newline, also a CR or a form feed
+            b'\n' | b'\r' | b'\x0C' => return (index, false),
+            byte if byte == quote => return (index + 1, true),
+            _ => index += 1,
+        }
+    }
+    (bytes.len(), false)
+}
+
+/// Scans CSS that only grows, like a template built one part at a time. It resumes after the
+/// last top level `;`, `{` or `}` it reached, which appended text can't change, so a check after
+/// every interpolation stays linear
+#[derive(Default)]
+pub(super) struct OpenTokenScanner {
+    resume: usize,
+}
+
+impl OpenTokenScanner {
+    /// Whether the end of the CSS is inside a string or a comment that is still open
+    pub(super) fn ends_in_string_or_comment(&mut self, css: &str) -> bool {
+        let mut index = self.resume;
+        while index < css.len() {
+            let rest = &css[index..];
+            if rest.starts_with("/*") && !rest[2..].contains("*/") {
+                return true;
+            }
+            if rest.starts_with(['"', '\'']) {
+                let (end, closed) = scan_string(css, index);
+                if end >= css.len() && !closed {
+                    return true;
+                }
+                index = end;
+                continue;
+            }
+            if let Some(end) = skipped_token_end(css, index) {
+                index = end;
+                continue;
+            }
+            if rest.starts_with([';', '{', '}']) {
+                self.resume = index + 1;
+            }
+            index += rest.chars().next().map_or(1, char::len_utf8);
+        }
+        false
+    }
+}
+
+/// The index of the `(` of a `url(` function starting at `index`, its name can be escaped like
+/// `u\72l(`
+fn url_function_paren(css: &str, index: usize) -> Option<usize> {
+    if !css[index..].starts_with(['u', 'U', '\\'])
+        || css[..index].chars().next_back().is_some_and(is_ident_char)
+    {
+        return None;
+    }
+    // `url` is 3 code points, each one maybe escaped, so the name is never scanned further
+    let mut name_end = index;
+    for _ in 0..3 {
+        match css[name_end..].chars().next() {
+            Some('\\') => name_end = escape_end(css, name_end),
+            Some(character) if is_ident_char(character) => name_end += character.len_utf8(),
+            _ => return None,
+        }
+    }
+    (css.as_bytes().get(name_end) == Some(&b'(')
+        && decode_ident(&css[index..name_end]).eq_ignore_ascii_case("url"))
+    .then_some(name_end)
+}
+
+// Quoted urls are skipped as strings, so only the `url` name is skipped and
+// its parentheses are tracked as usual, unquoted ones are skipped entirely
+fn url_end(css: &str, paren: usize) -> usize {
+    let arguments_start = paren + 1;
+    let arguments = &css[arguments_start..];
+    if arguments.trim_start().starts_with(['"', '\'']) {
+        return paren;
+    }
+    let mut index = arguments_start;
+    while index < css.len() {
+        match css.as_bytes()[index] {
+            b'\\' => index = escape_end(css, index),
+            b')' => return index + 1,
+            _ => index += 1,
+        }
+    }
+    css.len()
+}
+
+/// The identifier with its escapes decoded, `\66 oo` and `f\o o` are `foo` and `fo o`
+pub(super) fn decode_ident(raw: &str) -> String {
+    let mut decoded = String::with_capacity(raw.len());
+    let mut index = 0;
+    while let Some(character) = raw[index..].chars().next() {
+        if character != '\\' {
+            decoded.push(character);
+            index += character.len_utf8();
+            continue;
+        }
+        let end = escape_end(raw, index);
+        let escaped = &raw[index + 1..end];
+        let hex = escaped.trim_end_matches(is_css_whitespace);
+        if !hex.is_empty() && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            let character = u32::from_str_radix(hex, 16)
+                .ok()
+                .and_then(char::from_u32)
+                .filter(|character| *character != '\0');
+            decoded.push(character.unwrap_or(char::REPLACEMENT_CHARACTER));
+        } else {
+            decoded.push_str(escaped);
+        }
+        index = end;
+    }
+    decoded
+}
+
+/// The lowercase at-rule name without a vendor prefix, `-webkit-Keyframes` is `keyframes`. `None`
+/// for a prefix without a name, like `-webkit`
+pub(super) fn unprefixed_at_rule_name(decoded_name: &str) -> Option<String> {
+    let name = decoded_name.to_ascii_lowercase();
+    match name.strip_prefix('-') {
+        Some(prefixed) => Some(prefixed.split_once('-')?.1.to_owned()),
+        None => Some(name),
+    }
+}
+
+/// The end of the block opened by the `{` at `brace`, after its `}`, `None` when it isn't closed
+pub(super) fn block_end(css: &str, brace: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut position = brace;
+    while position < css.len() {
+        if let Some(end) = skipped_token_end(css, position) {
+            position = end;
+            continue;
+        }
+        match css.as_bytes()[position] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(position + 1);
+                }
+            }
+            _ => {}
+        }
+        position += css[position..].chars().next().map_or(1, char::len_utf8);
+    }
+    None
+}
+
+/// Whether `index` is inside the block opened by the `{` at `brace`
+pub(super) fn is_inside_block(css: &str, brace: usize, index: usize) -> bool {
+    css.as_bytes().get(brace) == Some(&b'{')
+        && index > brace
+        && block_end(css, brace).is_none_or(|end| index < end)
+}
+
+pub(super) fn is_ident_char(character: char) -> bool {
+    character.is_ascii_alphanumeric()
+        || character == '-'
+        || character == '_'
+        || character == '\\'
+        || !character.is_ascii()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenTokenScanner;
+
+    #[test]
+    fn resumes_scanning_grown_css_with_the_same_result() {
+        let mut scanner = OpenTokenScanner::default();
+        let mut css = String::new();
+        for (part, open) in [
+            ("a: 1; content: '", true),
+            ("x; y", true),
+            ("'; b: 2; /", false),
+            ("* c", true),
+            (" */ d: u", false),
+            ("rl(a;b", false),
+        ] {
+            css.push_str(part);
+            assert_eq!(scanner.ends_in_string_or_comment(&css), open, "{css}");
+            assert_eq!(
+                OpenTokenScanner::default().ends_in_string_or_comment(&css),
+                open,
+                "{css}"
+            );
+        }
+    }
+}

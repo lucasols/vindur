@@ -90,3 +90,56 @@ test('should rename style prop variables merged by dynamicColor', async () => {
     "
   `);
 });
+
+test('should throw for style prop scoped variables no style of the file uses', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`
+          color: var(---color);
+        \`
+
+        export const App = () => <Card style={{ '---other': 'red' }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable \`---other\` is not used by any style of this file, scoped variables only exist in the file whose styles use them
+    loc: 7:40]
+  `);
+});
+
+test('should throw for scoped variable keys outside an inline style object', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Card = styled.div\`
+          width: var(---w);
+        \`
+        export const App = ({ a }) => <Card style={a ? { '---w': '2px' } : undefined} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables must be keys of an inline \`style={{ ... }}\` object to be renamed
+    loc: 5:49]
+  `);
+});
+
+test('should throw for scoped variable keys in attrs', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Card = styled.div.attrs({ style: { '---w': '2px' } })\`
+          width: var(---w);
+        \`
+        export const App = () => <Card />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: styled.*.attrs() cannot set scoped variables, set them in the \`style\` prop where the component is rendered
+    loc: 2:41]
+  `);
+});

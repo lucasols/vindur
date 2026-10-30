@@ -1,5 +1,7 @@
 use oxc_span::Span;
-use rustc_hash::FxHashMap;
+
+use crate::CompilerDiagnostic;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::css_syntax::{BlockKind, CssError};
 use super::scoped_idents::{ScopedRole, scoped_idents};
@@ -13,9 +15,40 @@ pub(crate) struct ScopedVariables {
     pub generated: FxHashMap<String, String>,
     pub declared: FxHashMap<String, Span>,
     pub read: FxHashMap<String, Span>,
+    /// Variables registered by an `@property` rule with an `initial-value`, reading them is valid
+    /// without a declaration
+    pub registered: FxHashSet<String>,
     /// The lowest index a new variable can get. The css prop pass moves the file index back to
     /// precomputed class indices, so it alone can't keep variable indices unique
     pub next_index: u32,
+}
+
+impl ScopedVariables {
+    /// Warns about variables that are declared but never read, or read but never declared
+    pub(crate) fn warnings(&self, file_path: &str, source: &str) -> Vec<CompilerDiagnostic> {
+        let mut warnings = Vec::new();
+        for name in self.generated.keys() {
+            match (self.declared.get(name), self.read.get(name)) {
+                (Some(&span), None) => warnings.push(CompilerDiagnostic::warning(
+                    file_path,
+                    source,
+                    span,
+                    format!("Scoped variable '---{name}' is declared but never read"),
+                )),
+                (None, Some(&span)) if !self.registered.contains(name) => {
+                    warnings.push(CompilerDiagnostic::warning(
+                        file_path,
+                        source,
+                        span,
+                        format!("Scoped variable '---{name}' is used but never declared"),
+                    ))
+                }
+                _ => {}
+            }
+        }
+        warnings.sort_by(|left, right| left.message.cmp(&right.message));
+        warnings
+    }
 }
 
 /// Rewrites the scoped variables of a style block, `span` is the source location of the style
@@ -39,6 +72,9 @@ pub(crate) fn process_scoped_variables(
             }
             ScopedRole::Read => {
                 variables.read.entry(name.to_owned()).or_insert(span);
+            }
+            ScopedRole::Registration => {
+                variables.registered.insert(name.to_owned());
             }
             ScopedRole::Name => {}
         }
@@ -252,6 +288,151 @@ position-try-fallbacks: ---below;
 font-palette: ---brand;"
             ),
             "@position-try --v1-1-below { top: anchor(bottom); }\nposition-try-fallbacks: --v1-1-below;\n@font-palette-values --v1-2-brand { font-family: x; }\nfont-palette: --v1-2-brand;"
+        );
+    }
+
+    #[test]
+    fn rewrites_keyframes_and_counter_style_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes ---spin { to { opacity: 0; } } .a { animation: ---spin 1s; } @counter-style ---stars { system: cyclic; symbols: \"*\"; } ol { list-style: ---stars; }",
+                BlockKind::Global
+            ),
+            "@keyframes --v1-1-spin { to { opacity: 0; } } .a { animation: --v1-1-spin 1s; } @counter-style --v1-2-stars { system: cyclic; symbols: \"*\"; } ol { list-style: --v1-2-stars; }"
+        );
+    }
+
+    #[test]
+    fn rewrites_quoted_keyframes_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes \"---spin\" { to { opacity: 0; } } .a { animation: ---spin 1s; content: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@keyframes \"--v1-1-spin\" { to { opacity: 0; } } .a { animation: --v1-1-spin 1s; content: \"---spin\"; }"
+        );
+    }
+
+    #[test]
+    fn counts_style_queries_in_if_as_reads() {
+        assert_eq!(
+            declared_and_read("---a: 1; color: if(style(---a: 1): red; else: blue);"),
+            (vec!["a".to_owned()], vec!["a".to_owned()])
+        );
+    }
+
+    #[test]
+    fn rejects_escaped_scoped_names() {
+        let mut id_index = 1;
+        let error = process_scoped_variables(
+            "view-transition-name: ---f\\6f o;",
+            BlockKind::Style,
+            Span::default(),
+            "v1",
+            true,
+            &mut id_index,
+            &mut ScopedVariables::default(),
+        )
+        .expect_err("escaped scoped names are rejected");
+        assert_eq!(
+            error.message,
+            "Scoped name `---f\\6f o` can't contain escapes, write it without them"
+        );
+    }
+
+    #[test]
+    fn rewrites_quoted_font_and_nested_animation_names() {
+        assert_eq!(
+            process_kind(
+                "@font-face { font-family: \"---brand\"; } .a { font-family: ---brand, \"x ---brand\"; animation: var(--a, \"---spin\" 1s); -webkit-animation-name: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@font-face { font-family: \"--v1-1-brand\"; } .a { font-family: --v1-1-brand, \"x ---brand\"; animation: var(--a, \"--v1-2-spin\" 1s); -webkit-animation-name: \"--v1-2-spin\"; }"
+        );
+    }
+
+    fn error_message(css: &str) -> String {
+        match process_scoped_variables(
+            css,
+            BlockKind::Style,
+            Span::default(),
+            "v1",
+            true,
+            &mut 1,
+            &mut ScopedVariables::default(),
+        ) {
+            Ok(output) => panic!("expected an error, got {output}"),
+            Err(error) => error.message,
+        }
+    }
+
+    #[test]
+    fn rejects_scoped_names_in_grid_area_strings() {
+        assert_eq!(
+            [
+                error_message("grid-template-areas: \"---head ---head\" \". side\";"),
+                error_message("grid-template: \"a ---side\" 1fr / 1fr 1fr;"),
+            ],
+            [
+                "Scoped names are not supported in grid area strings, write `head` as a plain name, area names are already local to their grid container",
+                "Scoped names are not supported in grid area strings, write `side` as a plain name, area names are already local to their grid container",
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_uppercase_scoped_font_family_names() {
+        assert_eq!(
+            [
+                error_message("font-family: \"---Brand\";"),
+                error_message("font: 16px ---Brand, serif;"),
+            ],
+            [
+                "Scoped font family name `---Brand` must be lowercase, as font family names match case-insensitively, use `---brand`",
+                "Scoped font family name `---Brand` must be lowercase, as font family names match case-insensitively, use `---brand`",
+            ]
+        );
+        assert_eq!(
+            process("font-family: var(---Font); ---Font: x;"),
+            "font-family: var(--v1-1-Font); --v1-1-Font: x;"
+        );
+    }
+
+    #[test]
+    fn rewrites_quoted_animation_names() {
+        assert_eq!(
+            process_kind(
+                "@keyframes \"---spin\" { to { opacity: 0; } } .a { animation-name: \"---spin\"; animation: \"---spin\" 1s; content: \"---spin\"; }",
+                BlockKind::Global
+            ),
+            "@keyframes \"--v1-1-spin\" { to { opacity: 0; } } .a { animation-name: \"--v1-1-spin\"; animation: \"--v1-1-spin\" 1s; content: \"---spin\"; }"
+        );
+    }
+
+    #[test]
+    fn ignores_text_in_selectors_that_is_not_a_scoped_name() {
+        let css = "view-transition-name: \\61 ---foo; &::view-transition-old(\\61 ---foo) { opacity: 0; } &[data-state=---open] { a: b; } &.hover\\:---x { a: b; }";
+        assert_eq!(process(css), css);
+    }
+
+    #[test]
+    fn counts_property_registrations_with_an_initial_value() {
+        let mut variables = ScopedVariables::default();
+        if let Err(error) = process_scoped_variables(
+            "@property ---angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; } @property ---any { syntax: '*'; inherits: false; } a { rotate: var(---angle); }",
+            BlockKind::Global,
+            Span::default(),
+            "v1",
+            true,
+            &mut 1,
+            &mut variables,
+        ) {
+            panic!("{}", error.message);
+        }
+        assert!(variables.declared.is_empty());
+        assert_eq!(
+            variables.registered.into_iter().collect::<Vec<_>>(),
+            ["angle"]
         );
     }
 }

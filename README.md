@@ -698,7 +698,7 @@ const slideAnimation = keyframes`
 `;
 ```
 
-`@keyframes` rules inside `css`, `styled` or `css` prop templates are a compile error, use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated.
+Stylesheet at-rules, like `@keyframes`, `@font-face`, `@import`, `@property`, `@counter-style`, `@page` or `@view-transition`, inside `css`, `styled` or `css` prop templates are a compile error, for animations use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated. `!important` in keyframes is a compile error, browsers ignore it there.
 
 ### Scoped CSS Variables
 
@@ -753,7 +753,9 @@ Compiles to scoped CSS variables:
 }
 ```
 
-Scoped variables must be written directly in the template. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be lowercase, as font families match case-insensitively. Grid area strings can't use scoped names, area names are already local to their grid container. A scoped variable value can't continue on a line starting with `name:`, add the missing `;`.
 
 #### Dynamic Variables
 
@@ -768,6 +770,8 @@ const Component = () => {
   return <Card style={{ '---color': '#007bff' }}>Hello</Card>;
 };
 ```
+
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, keys in a conditional, a nested object or `.attrs()` are a compile error, and keys of a separate object constant are not renamed.
 
 ### Stable IDs
 
@@ -909,6 +913,10 @@ createGlobalStyle`
   }
 `;
 ```
+
+`@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, since browsers drop them after other rules.
+
+`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported or referenced. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
@@ -1160,7 +1168,7 @@ import { styled } from 'vindur';
 const Button = styled.button<{
   primary: boolean;
   size: 'small' | 'medium' | 'large';
-  disabled: boolean;
+  muted: boolean;
 }>`
   padding: 12px 24px;
   background: #007bff;
@@ -1189,19 +1197,18 @@ const Button = styled.button<{
     font-size: 18px;
   }
 
-  &.disabled {
+  &.muted {
     background: #6c757d;
-    cursor: not-allowed;
     opacity: 0.6;
   }
 `;
 
 // Usage with boolean and string union props
-const App = ({ isPrimary, buttonSize, isDisabled }) => (
+const App = ({ isPrimary, buttonSize, isMuted }) => (
   <Button
     primary={isPrimary}
     size={buttonSize}
-    disabled={isDisabled}
+    muted={isMuted}
   >
     Click me
   </Button>
@@ -1216,18 +1223,18 @@ const Button = vComponentWithModifiers(
   [
     ['primary', 'classHash-1'],
     ['size', 'classHash-2'],
-    ['disabled', 'classHash-3'],
+    ['muted', 'classHash-3'],
   ],
   'vhash123-1',
   'button',
 );
 
 // Component can be used as a normal JSX component
-const App = ({ isPrimary, buttonSize, isDisabled }) => (
+const App = ({ isPrimary, buttonSize, isMuted }) => (
   <Button
     primary={isPrimary}
     size={buttonSize}
-    disabled={isDisabled}
+    muted={isMuted}
   >
     Click me
   </Button>
@@ -1244,6 +1251,8 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
+Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it. A default exported styled component can't have flags, assign it to a `const` first.
+
 #### CSS Selector Patterns
 
 ```css
@@ -1258,11 +1267,9 @@ The CSS classes are automatically applied based on prop values:
 }
 ```
 
-Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. So `$`-prefixed flags, which are not valid CSS classes, can only be used in selectors of the element itself. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
+Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
 
-A styled component extending one with flags, like `styled(Item)<{ big: boolean }>`, keeps the flags of `Item` and adds its own.
-
-Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. `$`-prefixed flags can't be selected through a reference, like `${Item}.$active`, use a flag without `$`.
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error.
 
 ## Theme Colors
 

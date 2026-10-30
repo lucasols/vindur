@@ -70,6 +70,16 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             walk::walk_tagged_template_expression(self, tagged);
             return;
         };
+        // Top level global styles are handled before, their styles can't be added anywhere else
+        if tag_name == "createGlobalStyle" {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                tagged.span,
+                "createGlobalStyle can only be used at the top level of the module, as a statement or in its own `const` declaration".to_owned(),
+            ));
+            return;
+        }
         if !matches!(tag_name, "css" | "keyframes") {
             walk::walk_tagged_template_expression(self, tagged);
             return;
@@ -84,7 +94,6 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             &TemplateContext {
                 variable_name: None,
                 tag_type: tag_name,
-                style_flags: &[],
             },
         ) {
             Ok(content) => clean_css(&content),

@@ -21,7 +21,10 @@ use super::{
     runtime_helpers::RuntimeHelperNames,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
-    styled_jsx_helpers::{decode_jsx_entities, js_string_literal, style_flag_classes},
+    styled_jsx_helpers::{
+        decode_jsx_entities, js_string_literal, style_flag_classes, unsupported_spread_message,
+        validate_styled_spreads,
+    },
 };
 
 pub(super) struct DynamicColorTransform<'a> {
@@ -93,6 +96,14 @@ impl DynamicColorVisitor<'_> {
             self.error(
                 container.expression.span(),
                 "dynamicColor array must contain at least one color.set(...)".to_owned(),
+            );
+            return;
+        }
+        // Spreads are copied into the className and style merges
+        if let Err(spread) = validate_styled_spreads(element, self.output.source) {
+            self.error(
+                spread.span,
+                unsupported_spread_message(&spread, "an element with dynamicColor"),
             );
             return;
         }
@@ -176,14 +187,14 @@ impl DynamicColorVisitor<'_> {
             let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
         });
-        let Some(call) = call else {
-            return;
-        };
         // `_sp` only sets className and style, already merged from every spread, so it goes last
         self.output.edits.push(Edit {
             span: attribute.span,
             replacement: String::new(),
         });
+        let Some(call) = call else {
+            return;
+        };
         let offset = opening_attribute_insertion_offset(element, self.output.source);
         self.output.edits.push(Edit {
             span: oxc_span::Span::new(offset, offset),

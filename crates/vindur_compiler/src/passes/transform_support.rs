@@ -13,6 +13,7 @@ use crate::{
 };
 
 use super::{
+    block_validation::starts_with_stylesheet_start_rule,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
@@ -25,7 +26,8 @@ use super::{
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
+        StyledComponent, StyledTagContext, css_class_name_part, strip_css_comments,
+        styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -57,6 +59,37 @@ pub(super) struct VariableTransform<'a> {
     pub has_side_effects: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
+}
+
+pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`";
+
+/// The styles of a file are joined in source order, and browsers drop `@charset`, `@import` and
+/// `@namespace` after another rule
+pub(super) fn push_global_style(
+    css_rules: &mut Vec<String>,
+    has_side_effects: &mut bool,
+    content: String,
+    file_path: &str,
+    source: &str,
+    span: oxc_span::Span,
+) -> Result<(), CompilerDiagnostic> {
+    // Comments don't make browsers drop them
+    let has_styles = css_rules
+        .iter()
+        .any(|rule| !strip_css_comments(rule).trim().is_empty());
+    if has_styles && starts_with_stylesheet_start_rule(&content) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            "`@charset`, `@import` and `@namespace` must come before every other style of the file, move this `createGlobalStyle` above the other styles or merge it into the first one".to_owned(),
+        ));
+    }
+    if !content.is_empty() {
+        css_rules.push(content);
+        *has_side_effects = true;
+    }
+    Ok(())
 }
 
 pub(super) fn process_variable_declaration(
@@ -197,7 +230,6 @@ pub(super) fn process_variable_declaration(
             let template_context = TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: "styled",
-                style_flags: &style_flags,
             };
             let content = evaluate_template(
                 &tagged.quasi,
@@ -209,7 +241,7 @@ pub(super) fn process_variable_declaration(
             )?;
             let content = clean_css(&content);
             let classes = if transform.dev || !style_flags.is_empty() {
-                style_classes(&content, &style_flags).map_err(|error| {
+                style_classes(&content).map_err(|error| {
                     css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
                 })?
             } else {
@@ -283,7 +315,6 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
-            // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content =
                 match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
                     Ok(content) => content,
@@ -296,7 +327,7 @@ pub(super) fn process_variable_declaration(
                             transform.source,
                             &template_context,
                             |css| {
-                                let classes = style_classes(css, &style_flags).ok()?.element;
+                                let classes = style_classes(css).ok()?.element;
                                 rewrite_style_flag_selectors(css, &classes, &style_flags).err()
                             },
                         )?;
@@ -433,6 +464,39 @@ pub(super) fn process_variable_declaration(
             continue;
         };
         if tag_name == "createGlobalStyle" {
+            if transform.is_exported {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
+                ));
+            }
+            // The whole declaration is removed with it
+            if declaration.declarations.len() != 1 {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    declaration.span,
+                    "createGlobalStyle must use its own variable declaration".to_owned(),
+                ));
+            }
+            if identifier.symbol_id.get().is_some_and(|symbol_id| {
+                !transform
+                    .scoping
+                    .get_resolved_reference_ids(symbol_id)
+                    .is_empty()
+            }) {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    format!(
+                        "`{}` can't be referenced, createGlobalStyle returns nothing and its declaration is removed",
+                        identifier.name
+                    ),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -442,7 +506,6 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
-                    style_flags: &[],
                 },
             )?;
             let content = clean_css(&content);
@@ -458,10 +521,14 @@ pub(super) fn process_variable_declaration(
             .map_err(|error| {
                 css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
             })?;
-            if !content.is_empty() {
-                transform.css_rules.push(content);
-                *transform.has_side_effects = true;
-            }
+            push_global_style(
+                transform.css_rules,
+                transform.has_side_effects,
+                content,
+                transform.file_path,
+                transform.source,
+                tagged.span,
+            )?;
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
                 replacement: String::new(),
@@ -490,7 +557,6 @@ pub(super) fn process_variable_declaration(
             &TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
-                style_flags: &[],
             },
         )?;
         let content = clean_css(&content);

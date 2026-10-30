@@ -672,7 +672,6 @@ impl JsxCxVisitor<'_> {
             &TemplateContext {
                 variable_name: None,
                 tag_type: "css",
-                style_flags: &[],
             },
         ) else {
             return Vec::new();

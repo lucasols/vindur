@@ -40,10 +40,13 @@ use super::{
     static_evaluation::is_unresolved_import,
     static_value::{TemplateContext, collect_constants, evaluate_template},
     style_flag_selectors::hash_referenced_style_flags,
-    styled::{resolve_styled_references, styled_tag_element},
+    styled::{forward_reference_span, resolve_styled_references, styled_tag_element},
     styled_attrs::collect_extended_names,
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
-    transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
+    transform_support::{
+        GLOBAL_STYLE_EXPORT_ERROR, VariableTransform, imported_tag_name,
+        process_variable_declaration, push_global_style,
+    },
     value_references::collect_value_referenced_names,
     vindur_fn_references::runtime_vindur_fn_reference_error,
 };
@@ -256,7 +259,6 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "createGlobalStyle",
-                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -269,10 +271,14 @@ pub(crate) fn transform_program(
                         &mut scoped_variables,
                     )
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
-                    if !content.is_empty() {
-                        css_rules.push(content);
-                        has_side_effects = true;
-                    }
+                    push_global_style(
+                        &mut css_rules,
+                        &mut has_side_effects,
+                        content,
+                        file_path,
+                        source,
+                        tagged.span,
+                    )?;
                     edits.push(Edit {
                         span: expand_removal_to_line(source, statement.span),
                         replacement: String::new(),
@@ -282,8 +288,28 @@ pub(crate) fn transform_program(
             Statement::ExportDefaultDeclaration(export) => {
                 if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
                     &export.declaration
+                    && imported_tag_name(&tagged.tag, &imports) == Some("createGlobalStyle")
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        tagged.span,
+                        GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
+                    ));
+                }
+                if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
+                    &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)
                 {
+                    // Style flags need a component name to rewrite its JSX
+                    if let Some(type_arguments) = &tagged.type_arguments {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            type_arguments.span,
+                            "Style flags are not supported on a default exported styled component, assign it to a `const` and export that".to_owned(),
+                        ));
+                    }
                     let generated_name = format!("{file_hash}-{id_index}");
                     id_index += 1;
                     let content = evaluate_template(
@@ -295,7 +321,6 @@ pub(crate) fn transform_program(
                         &TemplateContext {
                             variable_name: None,
                             tag_type: "styled",
-                            style_flags: &[],
                         },
                     )?;
                     let content = process_scoped_variables(
@@ -440,7 +465,6 @@ pub(crate) fn transform_program(
             edits: &mut edits,
             file_path,
             source,
-            needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
         },
@@ -507,7 +531,7 @@ pub(crate) fn transform_program(
         return Err(CompilerDiagnostic::error(
             file_path,
             source,
-            oxc_span::Span::new(0, 0),
+            forward_reference_span(program, &imports, &reference).unwrap_or(program.span),
             format!(
                 "Forward reference to undefined styled component: {reference}. Make sure the component is defined in the same file."
             ),
@@ -537,11 +561,7 @@ pub(crate) fn transform_program(
         )?);
     }
     let css = css_rules.join("\n\n");
-    warnings.extend(scoped_variable_warnings(
-        &scoped_variables,
-        file_path,
-        source,
-    ));
+    warnings.extend(scoped_variables.warnings(file_path, source));
 
     Ok(PassOutput {
         edits,
@@ -566,33 +586,6 @@ fn is_style_value(value: &StaticValue) -> bool {
             | StaticValue::ThemeColors { .. }
             | StaticValue::UnexportedThemeColors { .. }
     )
-}
-
-fn scoped_variable_warnings(
-    variables: &ScopedVariables,
-    file_path: &str,
-    source: &str,
-) -> Vec<CompilerDiagnostic> {
-    let mut warnings = Vec::new();
-    for name in variables.generated.keys() {
-        match (variables.declared.get(name), variables.read.get(name)) {
-            (Some(&span), None) => warnings.push(CompilerDiagnostic::warning(
-                file_path,
-                source,
-                span,
-                format!("Scoped variable '---{name}' is declared but never read"),
-            )),
-            (None, Some(&span)) => warnings.push(CompilerDiagnostic::warning(
-                file_path,
-                source,
-                span,
-                format!("Scoped variable '---{name}' is used but never declared"),
-            )),
-            _ => {}
-        }
-    }
-    warnings.sort_by(|left, right| left.message.cmp(&right.message));
-    warnings
 }
 
 #[cfg(test)]

@@ -3,7 +3,27 @@ use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
+use super::styled::{StyleFlag, StyleFlagKind};
+
+/// Props that would stop working as style flags, which are removed and turned into classes
+const RESERVED_PROP_NAMES: [&str; 16] = [
+    "className",
+    "style",
+    "css",
+    "cx",
+    "dynamicColor",
+    "key",
+    "ref",
+    "children",
+    "disabled",
+    "hidden",
+    "checked",
+    "required",
+    "readOnly",
+    "selected",
+    "multiple",
+    "open",
+];
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -108,6 +128,40 @@ fn style_flag_from_property(
             "Style flag properties must use identifier names".to_owned(),
         ));
     };
+    if key.name.starts_with('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't start with `$`, style flags are never passed to the DOM, so use `{}`",
+                key.name,
+                key.name.trim_start_matches('$')
+            ),
+        ));
+    }
+    if key.name.contains('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't contain `$`, as it becomes part of a class name",
+                key.name
+            ),
+        ));
+    }
+    if RESERVED_PROP_NAMES.contains(&key.name.as_str()) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name",
+                key.name
+            ),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -198,7 +252,7 @@ fn style_flag_from_property(
     };
     let hash = murmur2(&format!("{file_hash}-{prop_name}"));
     let hashed_class_name = if dev {
-        format!("v{hash}-{}", css_class_name_part(&prop_name))
+        format!("v{hash}-{prop_name}")
     } else {
         format!("v{hash}")
     };

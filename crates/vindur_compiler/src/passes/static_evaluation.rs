@@ -256,7 +256,9 @@ fn evaluate_template_value(
             // Compiler values, e.g. keyframes or dynamic colors, stringify differently at
             // runtime and an imported module's styles are only loaded while it's imported,
             // so they can only be interpolated directly in vindur styles
-            if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
+            if !has_css_text(&value)
+                || (!matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none())
+            {
                 return None;
             }
             output.push_str(&static_value_to_string(&value));
@@ -329,6 +331,28 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
         (StaticValue::String(left), StaticValue::String(right)) => left == right,
         (StaticValue::Undefined, StaticValue::Undefined) => true,
         _ => false,
+    }
+}
+
+/// Objects, colors and functions have no CSS text, they would be written as `[object Object]`,
+/// and booleans and `undefined` would be written as `true` or `undefined`
+pub(super) fn has_css_text(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Array(values) => values.iter().all(has_css_text),
+        StaticValue::ImportedValue { value, .. } => has_css_text(value),
+        StaticValue::Boolean(_)
+        | StaticValue::Undefined
+        | StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::Object(_)
+        | StaticValue::ImportedObject { .. }
+        | StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. }
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. } => false,
+        _ => true,
     }
 }
 
