@@ -226,6 +226,24 @@ const Ring = styled.svg`
 `;
 ```
 
+Properties of constant objects, local or imported, can be interpolated at any depth. The interpolated property must be a string or number:
+
+```tsx
+// colorScheme.ts
+export const colorScheme = {
+  container: { isDark: '.dm &', isLight: '.lm &' },
+};
+
+// Card.tsx
+import { colorScheme } from './colorScheme';
+
+const Card = styled.div`
+  ${colorScheme.container.isDark} {
+    color: white;
+  }
+`;
+```
+
 ### Style Extension
 
 Extend existing styled components using `styled()`:

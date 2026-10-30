@@ -236,7 +236,9 @@ fn build_template_css(
         // Colors and palettes are objects, only their `.value` and methods are CSS values
         if matches!(
             value,
-            StaticValue::LayerFunction
+            StaticValue::Object(_)
+                | StaticValue::ImportedObject { .. }
+                | StaticValue::LayerFunction
                 | StaticValue::DynamicColor { .. }
                 | StaticValue::DynamicColorPath { .. }
                 | StaticValue::ThemeColor { .. }
@@ -390,26 +392,57 @@ fn invalid_object_access_error(
         };
     }
     let root = member_root_identifier(&member.object)?;
-    if !matches!(
-        resolved_constant(root, constants, scoping),
-        Some(StaticValue::ImportedObject { .. })
-    ) {
+    let Some(StaticValue::ImportedObject {
+        properties,
+        source_path,
+    }) = resolved_constant(root, constants, scoping)
+    else {
         return None;
+    };
+    let path = member_path(expression);
+    let missing_depth = missing_property_depth(properties, &path)?;
+    Some(
+        CompilerDiagnostic::error(
+            file_path,
+            source,
+            expression.span(),
+            format!(
+                "Property \"{}\" not found on imported object \"{}\" from {source_path}",
+                path[..=missing_depth].join("."),
+                root.name
+            ),
+        )
+        .ignored_in_lint(),
+    )
+}
+
+/// The property names of a member chain, e.g. `["container", "isDark"]` for `scheme.container.isDark`
+fn member_path<'a>(expression: &'a Expression<'_>) -> Vec<&'a str> {
+    let mut path = Vec::new();
+    let mut current = expression;
+    while let Expression::StaticMemberExpression(member) = current {
+        path.push(member.property.name.as_str());
+        current = &member.object;
     }
-    let expression_source =
-        &source[expression.span().start as usize..expression.span().end as usize];
-    let variable_context = context.variable_name.map_or_else(
-        || context.tag_type.to_owned(),
-        |name| format!("... {name} = {}", context.tag_type),
-    );
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        expression.span(),
-        format!(
-            "Nested property access is not supported, only one level property access is allowed at `{variable_context}` ... ${{{expression_source}}}"
-        ),
-    ))
+    path.reverse();
+    path
+}
+
+/// The index in `path` of the first property missing from nested objects, `None` when every
+/// object along the path has the property or the path reaches a non object value
+fn missing_property_depth(
+    properties: &FxHashMap<String, StaticValue>,
+    path: &[&str],
+) -> Option<usize> {
+    let mut current = properties;
+    for (depth, name) in path.iter().enumerate() {
+        match current.get(*name) {
+            None => return Some(depth),
+            Some(StaticValue::Object(nested)) => current = nested,
+            Some(_) => return None,
+        }
+    }
+    None
 }
 
 fn imported_function_preserves_boundary(
