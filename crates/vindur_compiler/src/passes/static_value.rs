@@ -8,7 +8,7 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 use super::css_syntax::CssError;
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
-use super::import_errors::{not_static_import_message, unresolved_import_error};
+use super::import_errors::unresolved_import_error;
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
 };
@@ -157,11 +157,6 @@ fn build_template_css(
         {
             return Err(diagnostic);
         }
-        if let Some(diagnostic) =
-            invalid_object_access_error(expression, constants, scoping, file_path, source)
-        {
-            return Err(diagnostic);
-        }
         if matches!(expression, Expression::ArrowFunctionExpression(_))
             && forward_styled_reference(expression).is_none()
         {
@@ -229,7 +224,15 @@ fn build_template_css(
             {
                 return Err(diagnostic);
             }
-            return Err(interpolation_error(expression, file_path, source, context));
+            let diagnostic = interpolation_error(expression, file_path, source, context);
+            // The imported file may have unsaved edits that lint can't see
+            return Err(
+                if is_imported_object_member(expression, constants, scoping) {
+                    diagnostic.ignored_in_lint()
+                } else {
+                    diagnostic
+                },
+            );
         };
         // Colors and palettes are objects, only their `.value` and methods are CSS values
         if matches!(
@@ -339,55 +342,22 @@ fn binary_expression_error(
     function_binary_expression_error(function, &arguments)
 }
 
-fn invalid_object_access_error(
+/// A member chain rooted at an imported object, e.g. `theme.colors.primary`. When it can't be
+/// evaluated a property is missing, which TypeScript already reports in the editor
+fn is_imported_object_member(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-) -> Option<CompilerDiagnostic> {
-    let Expression::StaticMemberExpression(member) = expression else {
-        return None;
-    };
-    let Expression::Identifier(root) = &member.object else {
-        return None;
-    };
-    match resolved_constant(root, constants, scoping)? {
-        StaticValue::ImportedObject {
-            properties,
-            source_path,
-        } if !properties.contains_key(member.property.name.as_str()) => Some(
-            CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                format!(
-                    "Property \"{}\" not found on imported object \"{}\" from {source_path}",
-                    member.property.name, root.name
-                ),
-            )
-            .ignored_in_lint(),
-        ),
-        StaticValue::MissingImport {
-            imported_name,
-            source_path,
-        } => Some(CompilerDiagnostic::error(
-            file_path,
-            source,
-            expression.span(),
-            format!("Object \"{imported_name}\" not found in {source_path}"),
-        )),
-        StaticValue::InvalidObject {
-            source_path,
-            cyclic_imports,
-        } => Some(CompilerDiagnostic::error(
-            file_path,
-            source,
-            expression.span(),
-            not_static_import_message(&root.name, source_path, cyclic_imports),
-        )),
-        _ => None,
+) -> bool {
+    let mut current = expression;
+    while let Expression::StaticMemberExpression(member) = current {
+        current = &member.object;
     }
+    matches!(expression, Expression::StaticMemberExpression(_))
+        && matches!(current, Expression::Identifier(root) if matches!(
+            resolved_constant(root, constants, scoping),
+            Some(StaticValue::ImportedObject { .. })
+        ))
 }
 
 fn imported_function_preserves_boundary(

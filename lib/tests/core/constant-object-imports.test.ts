@@ -455,7 +455,8 @@ test('should throw error for missing nested property', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${theme.colors.tertiary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-    loc: 5:11]
+    loc: 5:11
+    ignoreInLint: true]
   `);
 });
 
@@ -618,7 +619,7 @@ test('should throw error for missing property on imported object', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Property "nonExistentBreakpoint" not found on imported object "mq" from /breakpoints.ts
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${mq.nonExistentBreakpoint}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
     loc: 6:4
     ignoreInLint: true]
   `,
@@ -653,7 +654,7 @@ test('should throw error for object not found in imported file', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: Object "notExported" not found in /breakpoints.ts
+    [TransformError: /test.tsx: "notExported" not found in /breakpoints.ts
     loc: 6:4]
   `,
   );
