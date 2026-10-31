@@ -263,6 +263,51 @@ describe('createDynamicCssColor runtime', () => {
       });
     });
 
+    test('should add the class of the color scheme', () => {
+      const color = createDynamicCssColor('test-123', false);
+      const setColorScheme = {
+        fallback: 'dark',
+        classNames: { light: 'lm', dark: 'dm' },
+      } as const;
+
+      const light = color.setProps('#f7fafc', { setColorScheme });
+      expect(light.className).toBe(
+        'test-123-s1 test-123-c1 test-123-s2 test-123-c2 test-123-s5 test-123-c5 test-123-s6 test-123-c6 lm',
+      );
+      expect(light.style.colorScheme).toBe('light');
+      expect(
+        color.setProps('#2d3748', { setColorScheme, className: 'base' })
+          .className,
+      ).toBe(
+        'base test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s4 test-123-c4 test-123-s7 test-123-c7 dm',
+      );
+      expect(color.setProps(null, { setColorScheme })).toEqual({
+        className: 'test-123-s3 test-123-c3 dm',
+        style: { colorScheme: 'dark' },
+      });
+      expect(
+        color._sp(undefined, undefined, {
+          setColorScheme: { ...setColorScheme, fallback: 'light' },
+        }).className,
+      ).toBe('test-123-s3 test-123-c3 lm');
+    });
+
+    test('should add the fallback scheme class for non hex colors', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      expect(
+        color.setProps('red', {
+          setColorScheme: {
+            fallback: 'light',
+            classNames: { light: 'lm', dark: 'dm' },
+          },
+        }),
+      ).toEqual({
+        className: 'test-123-s2 test-123-c2 lm',
+        style: { '--test-123': 'red', colorScheme: 'light' },
+      });
+    });
+
     test('should accept custom very dark and very light thresholds', () => {
       const color = createDynamicCssColor('test-123', false);
 

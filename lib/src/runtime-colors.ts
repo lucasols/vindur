@@ -56,11 +56,21 @@ type DynamicColorStyleInput = CSSProperties | DynamicColorStyle;
 
 export type DynamicColorProps = { className: string; style: DynamicColorStyle };
 
+type ColorScheme = 'light' | 'dark';
+
+export type ColorSchemeOptions = {
+  fallback: ColorScheme;
+  classNames?: { light: string; dark: string };
+};
+
 export type DynamicColorSetPropsOptions = {
   style?: DynamicColorStyleInput;
   className?: string;
-  /** Sets `color-scheme` to match the color, `fallback` is used when no color is set */
-  setColorScheme?: { fallback: 'light' | 'dark' };
+  /**
+   * Sets `color-scheme` to match the color, `fallback` is used when no color is set.
+   * `classNames` also adds the class of the matching scheme
+   */
+  setColorScheme?: ColorSchemeOptions;
   /** HSL lightness (0-1) below which the color is very dark, defaults to 0.25 */
   veryDarkThreshold?: number;
   /** HSL lightness (0-1) above which the color is very light, defaults to 0.85 */
@@ -137,6 +147,13 @@ function getColorConditions(
   ];
 }
 
+function getColorSchemeClassName(
+  { fallback, classNames }: ColorSchemeOptions,
+  colorScheme: ColorScheme = fallback,
+): string | undefined {
+  return classNames?.[colorScheme];
+}
+
 function joinClassNames(...classNames: (string | undefined)[]): string {
   return classNames.filter(Boolean).join(' ');
 }
@@ -196,16 +213,17 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
     hexColor: DynamicColorValue,
     options: DynamicColorSetPropsOptions = {},
   ): DynamicColorProps {
+    const { setColorScheme } = options;
+
     if (!hexColor) {
       return {
         className: joinClassNames(
           options.className,
           getConditionClassNames(['isNotDefined']),
+          setColorScheme && getColorSchemeClassName(setColorScheme),
         ),
         style: {
-          ...(options.setColorScheme && {
-            colorScheme: options.setColorScheme.fallback,
-          }),
+          ...(setColorScheme && { colorScheme: setColorScheme.fallback }),
           ...options.style,
         },
       };
@@ -225,12 +243,11 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
         className: joinClassNames(
           options.className,
           getConditionClassNames(['isDefined']),
+          setColorScheme && getColorSchemeClassName(setColorScheme),
         ),
         style: {
           [`--${hashId}`]: hexColor,
-          ...(options.setColorScheme && {
-            colorScheme: options.setColorScheme.fallback,
-          }),
+          ...(setColorScheme && { colorScheme: setColorScheme.fallback }),
           ...options.style,
         },
       };
@@ -238,11 +255,13 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
 
     const { h, s, l } = rgbToHsl(rgb);
     const conditions = getColorConditions(rgb, options);
+    const colorScheme = conditions.includes('isLight') ? 'light' : 'dark';
 
     return {
       className: joinClassNames(
         options.className,
         getConditionClassNames(conditions),
+        setColorScheme && getColorSchemeClassName(setColorScheme, colorScheme),
       ),
       style: {
         [`--${hashId}`]: hexColor,
@@ -251,9 +270,7 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
         [`--${hashId}-h`]: formatFactor(h),
         [`--${hashId}-sds`]: `${saturatedDarkerSaturation(s) * 100}%`,
         [`--${hashId}-l`]: `${formatFactor(l * 100)}%`,
-        ...(options.setColorScheme && {
-          colorScheme: conditions.includes('isLight') ? 'light' : 'dark',
-        }),
+        ...(setColorScheme && { colorScheme }),
         ...options.style,
       },
     };
