@@ -2,16 +2,17 @@ import type { Rule } from 'eslint';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
+  invalidateTransformCache,
+  mayContainVindurCode,
   transform,
   TransformError,
   TransformWarning,
   type TransformFS,
+  type TransformFunctionCache,
 } from 'vindur/transform';
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const FILENAME_REGEX = /^\/[^:]+:\s*/;
-// Matches the vite plugin, a `dynamicColor` prop only counts with an expression value
-const DYNAMIC_COLOR_PROP_REGEX = /\bdynamicColor\s*=\s*\{/u;
 
 function stripFilenameFromMessage(message: string): string {
   // Remove filename prefix like "/path/to/file.tsx: " from the beginning of error messages
@@ -25,27 +26,67 @@ function shouldProcessFile(filename: string, source: string): boolean {
 
   if (filename.includes('node_modules')) return false;
 
-  // Only process files that contain vindur imports or usage
-  return (
-    source.includes('vindur')
-    || source.includes('css`')
-    || source.includes('styled.')
-    || source.includes('cx=')
-    || source.includes('css=')
-    || DYNAMIC_COLOR_PROP_REGEX.test(source)
-  );
+  return mayContainVindurCode(source);
 }
+
+// Shared by the files of a lint run, so modules imported by many files, like theme colors or
+// vindurFn mixins, are compiled once. Keyed by the import aliases, which change how imports
+// resolve
+type SharedCache = {
+  functions: TransformFunctionCache;
+  createdAt: number;
+  lastCall: number;
+};
+
+const sharedCaches = new Map<string, SharedCache>();
+
+// A CLI run (CI, AI agents) lints files back to back, so the cache is reused with no tracking
+// cost on each file. Long-lived processes, like editor ESLint servers, compile again after a
+// pause between lint calls, and at least every few seconds while calls keep coming, to pick up
+// changed, created or deleted files
+const RESET_AFTER_PAUSE_MS = 1000;
+const RESET_AFTER_AGE_MS = 30_000;
+
+function getSharedCache(importAliases: Record<string, string>): SharedCache {
+  const key = JSON.stringify(importAliases);
+  const now = Date.now();
+  const existing = sharedCaches.get(key);
+  if (
+    existing
+    && now - existing.lastCall < RESET_AFTER_PAUSE_MS
+    && now - existing.createdAt < RESET_AFTER_AGE_MS
+  ) {
+    existing.lastCall = now;
+    return existing;
+  }
+
+  if (existing) resetCompiledModules(existing);
+  const cache: SharedCache = { functions: {}, createdAt: now, lastCall: now };
+  sharedCaches.set(key, cache);
+  return cache;
+}
+
+/** Also clears the native module resolution cache, which all compilers share */
+function resetCompiledModules(cache: SharedCache) {
+  invalidateTransformCache(cache.functions, '');
+}
+
+/** For tests, which lint different contents under the same paths */
+export function clearTransformCaches(): void {
+  for (const cache of sharedCaches.values()) resetCompiledModules(cache);
+  sharedCaches.clear();
+}
+
+const fs: TransformFS = {
+  readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
+  exists: (fileAbsPath: string) => existsSync(fileAbsPath),
+};
 
 function runVindurTransform(
   filename: string,
   source: string,
   importAliases: Record<string, string> = {},
 ) {
-  const fs: TransformFS = {
-    readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
-    exists: (fileAbsPath: string) => existsSync(fileAbsPath),
-  };
-
   const errors: Array<{
     message: string;
     line: number;
@@ -65,6 +106,8 @@ function runVindurTransform(
     });
   }
 
+  const cache = getSharedCache(importAliases);
+
   try {
     transform({
       fileAbsPath: filename,
@@ -75,7 +118,7 @@ function runVindurTransform(
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
       transformDynamicColorCache: {},
-      transformFunctionCache: {},
+      transformFunctionCache: cache.functions,
     });
   } catch (error) {
     if (error instanceof TransformError) {

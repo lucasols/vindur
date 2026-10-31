@@ -2,7 +2,10 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { existsSync, readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { checkTransformRule } from '../src/rules/check-transform';
+import {
+  checkTransformRule,
+  clearTransformCaches,
+} from '../src/rules/check-transform';
 import {
   createVindurTester,
   getErrorsWithMsgFromResult,
@@ -24,6 +27,7 @@ const mockExistsSync = vi.mocked(existsSync);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearTransformCaches();
   // Default mock behavior - files don't exist
   mockExistsSync.mockReturnValue(false);
   mockReadFileSync.mockImplementation((path) => {

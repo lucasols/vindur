@@ -51,6 +51,6 @@
   },
   "peerDependencies": {
     "eslint": "^9.0.0",
-    "vindur": "*"
+    "vindur": ">=0.14.3"
   }
 }

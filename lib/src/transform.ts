@@ -45,6 +45,24 @@ export type TransformOptions = {
   onWarning?: (warning: TransformWarning) => void;
 };
 
+// Patterns of code the compiler handles, files matching none of them have no vindur code,
+// so tools can skip them without parsing. Kept loose: a match only means the file may have it
+export const VINDUR_CODE_PATTERNS: readonly RegExp[] = [
+  // The module literal alone, so comments between it and `from` or `import` don't matter
+  /['"]vindur['"]/u,
+  // `dynamicColor` only counts with an expression value, the compiler validates it, so a
+  // string value of an unrelated custom prop is left alone
+  /\b(?:css|cx)\s*=|\bdynamicColor\s*=\s*\{/u,
+  // Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name`,
+  // `` `---${name}` `` or `'var(---color)'` (CSS functions are case insensitive and allow
+  // spaces, like `VAR( ---color)`), which are renamed or rejected
+  /['"`]---|var\(\s*---/iu,
+];
+
+export function mayContainVindurCode(code: string): boolean {
+  return VINDUR_CODE_PATTERNS.some((pattern) => pattern.test(code));
+}
+
 export function transform(options: TransformOptions): VindurTransformResult {
   return transformWithRust(options);
 }
