@@ -49,7 +49,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   // Track which files depend on which external files (for hot-reload)
   const depToSources = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
   const sourceToDeps = new Map<string, Set<string>>(); // sourceFile -> Set<externalFile>
-  let devServer: ViteDevServer | undefined;
   let emitSourcemaps = false;
   let isServe = false;
 
@@ -65,9 +64,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       isServe = config.command === 'serve';
       // Dev always serves sourcemaps, builds follow `build.sourcemap`
       emitSourcemaps = sourcemap ?? (isServe || !!config.build.sourcemap);
-    },
-    configureServer(server) {
-      devServer = server;
     },
 
     resolveId(id) {
@@ -131,7 +127,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           result = transform({
             fileAbsPath: id,
             source: code,
-            dev: devServer?.config.command === 'serve',
+            dev: isServe,
             debug:
               debugLogs ?
                 {
