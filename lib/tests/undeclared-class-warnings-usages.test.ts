@@ -206,3 +206,23 @@ test('should not warn when the component sets attrs', async () => {
     "
   `);
 });
+
+test('should warn when an svg component only receives the native cx coordinate', async () => {
+  expect(
+    await getWarnings(dedent`
+      import { styled } from 'vindur'
+
+      const Dot = styled.circle\`
+        &.active { fill: red; }
+      \`
+
+      export const App = () => <svg><Dot cx="50" cy="50" r="4" /></svg>
+    `),
+  ).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: "The class 'active' is used in CSS but not declared in the component"
+        loc: 'current_file:3:6'
+    "
+  `);
+});

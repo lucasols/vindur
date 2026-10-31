@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    BindingIdentifier, JSXAttributeItem, JSXAttributeName, JSXClosingElement, JSXElementName,
-    JSXOpeningElement, Program,
+    BindingIdentifier, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXClosingElement,
+    JSXElementName, JSXExpression, JSXOpeningElement, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::{Scoping, SymbolId};
@@ -75,11 +75,20 @@ impl<'a> Visit<'a> for ClassPropsVisitor<'_> {
     fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
         let has_class_props = element.attributes.iter().any(|attribute| match attribute {
             JSXAttributeItem::SpreadAttribute(_) => true,
-            JSXAttributeItem::Attribute(attribute) => matches!(
-                &attribute.name,
-                JSXAttributeName::Identifier(name)
-                    if matches!(name.name.as_str(), "className" | "cx" | "css")
-            ),
+            JSXAttributeItem::Attribute(attribute) => match &attribute.name {
+                JSXAttributeName::Identifier(name) => match name.name.as_str() {
+                    "className" | "css" => true,
+                    // Only an object `cx` adds classes, others are kept as the native SVG `cx`
+                    // coordinate or a component prop
+                    "cx" => matches!(
+                        &attribute.value,
+                        Some(JSXAttributeValue::ExpressionContainer(container))
+                            if matches!(container.expression, JSXExpression::ObjectExpression(_))
+                    ),
+                    _ => false,
+                },
+                JSXAttributeName::NamespacedName(_) => false,
+            },
         });
         if let Some(usage) = self.usage(&element.name) {
             usage.references += 1;

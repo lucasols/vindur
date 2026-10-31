@@ -51,6 +51,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const sourceToDeps = new Map<string, Set<string>>(); // sourceFile -> Set<externalFile>
   let devServer: ViteDevServer | undefined;
   let emitSourcemaps = false;
+  let isServe = false;
 
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
@@ -61,9 +62,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     name: 'vindur',
     enforce: 'pre',
     configResolved(config) {
+      isServe = config.command === 'serve';
       // Dev always serves sourcemaps, builds follow `build.sourcemap`
-      emitSourcemaps =
-        sourcemap ?? (config.command === 'serve' || !!config.build.sourcemap);
+      emitSourcemaps = sourcemap ?? (isServe || !!config.build.sourcemap);
     },
     configureServer(server) {
       devServer = server;
@@ -79,8 +80,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       const originalId = id.slice(1); // strip the leading \0
       const mod = virtualCssModules.get(originalId);
       if (!mod) return '';
-      // Append inline sourcemap for dev diagnostics if available
-      if (mod.map && typeof mod.map === 'object') {
+      // Append inline sourcemap for dev diagnostics if available. Builds hand the map to
+      // Vite only, an inline map would ship the source in unminified CSS
+      if (isServe && mod.map && typeof mod.map === 'object') {
         const hasInlineMap = INLINE_SOURCEMAP_RE.test(mod.code);
         if (!hasInlineMap) {
           const base64 = Buffer.from(JSON.stringify(mod.map)).toString(

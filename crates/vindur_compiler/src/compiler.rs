@@ -570,7 +570,9 @@ impl Compiler {
             CompilerDiagnostic::error(file_path, "", Span::new(0, 0), message)
         })?;
         let mut dependency_options = options.clone();
+        // Only the facts of a dependency are kept, not its code
         dependency_options.normalize_code = false;
+        dependency_options.sourcemap = false;
         let output =
             self.transform_internal(file_path, &source, &dependency_options, loader, traversal);
         traversal.visiting.remove(file_path);
