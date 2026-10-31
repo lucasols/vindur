@@ -85,7 +85,7 @@ impl DynamicColorVisitor<'_> {
             }
             self.error(
                 container.expression.span(),
-                "dynamicColor prop must be `color.set(value)`, or an array of them, where `color` is a dynamic color and `set` takes exactly one argument".to_owned(),
+                "dynamicColor prop must be `color.set(value)` or `color.set(value, options)`, or an array of them, where `color` is a dynamic color".to_owned(),
             );
             return;
         };
@@ -173,7 +173,14 @@ impl DynamicColorVisitor<'_> {
             },
         );
         let call = colors.iter().rev().fold(merge, |inner, color| {
-            let suffix = inner.map_or(String::new(), |value| format!(", {value}"));
+            let suffix = match (inner, &color.options) {
+                (None, None) => String::new(),
+                (Some(inner), None) => format!(", {inner}"),
+                (inner, Some(options)) => format!(
+                    ", {}, {options}",
+                    inner.unwrap_or_else(|| "undefined".to_owned())
+                ),
+            };
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
         });
         let Some(call) = call else {
@@ -219,8 +226,11 @@ impl DynamicColorVisitor<'_> {
         };
         let argument = call.arguments.first()?;
         let argument_source = expression_source(argument, self.output.source);
+        let options = call.arguments.get(1).map_or(String::new(), |options| {
+            format!(", {}", expression_source(options, self.output.source))
+        });
         Some(format!(
-            "Conditional dynamicColor is not supported. Use condition inside the set function instead: {}.set({condition} ? {argument_source} : {alternate})",
+            "Conditional dynamicColor is not supported. Use condition inside the set function instead: {}.set({condition} ? {argument_source} : {alternate}{options})",
             color.name
         ))
     }
@@ -257,23 +267,25 @@ impl DynamicColorVisitor<'_> {
         ) {
             return None;
         }
-        let [Argument::StringLiteral(value)] = call.arguments.as_slice() else {
-            // A spread would also fill the `_sp` merge argument
-            let [argument] = call.arguments.as_slice() else {
-                return None;
-            };
-            if matches!(argument, Argument::SpreadElement(_)) {
-                return None;
-            }
-            let span = argument.span();
-            return Some(vec![ColorExpression {
-                name: color.name.to_string(),
-                value: self.output.source[span.start as usize..span.end as usize].to_owned(),
-            }]);
+        // A spread would also fill the `_sp` merge argument
+        let (value, options) = match call.arguments.as_slice() {
+            [value] => (value, None),
+            [value, options] => (value, Some(options)),
+            _ => return None,
+        };
+        if matches!(value, Argument::SpreadElement(_))
+            || matches!(options, Some(Argument::SpreadElement(_)))
+        {
+            return None;
+        }
+        let value = match value {
+            Argument::StringLiteral(value) => js_string_literal(&value.value),
+            _ => expression_source(value, self.output.source),
         };
         Some(vec![ColorExpression {
             name: color.name.to_string(),
-            value: js_string_literal(&value.value),
+            value,
+            options: options.map(|options| expression_source(options, self.output.source)),
         }])
     }
 
@@ -290,6 +302,8 @@ impl DynamicColorVisitor<'_> {
 struct ColorExpression {
     name: String,
     value: String,
+    /// The `set` options, forwarded as the third `_sp` argument
+    options: Option<String>,
 }
 
 enum ClassNameSource<'a> {

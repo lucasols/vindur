@@ -67,16 +67,26 @@ export type DynamicColorSetPropsOptions = {
   veryLightThreshold?: number;
 };
 
+/** Options of `color.set`, the `dynamicColor` prop merges className and style itself */
+export type DynamicColorSetOptions = Pick<
+  DynamicColorSetPropsOptions,
+  'setColorScheme' | 'veryDarkThreshold' | 'veryLightThreshold'
+>;
+
 export type DynamicCssColor = ColorOps & {
   setProps: (
     hexColor: DynamicColorValue,
     options?: DynamicColorSetPropsOptions,
   ) => DynamicColorProps;
-  set: (color: DynamicColorValue) => DynamicColorSet;
-  // The compiler omits `mergeWith` when there is nothing to merge
+  set: (
+    color: DynamicColorValue,
+    options?: DynamicColorSetOptions,
+  ) => DynamicColorSet;
+  // The compiler omits `mergeWith` and `options` when there is nothing to pass
   _sp: (
     color: DynamicColorValue,
     mergeWith?: { className?: string; style?: DynamicColorStyleInput },
+    options?: DynamicColorSetOptions,
   ) => DynamicColorProps;
   self: ColorConditions;
   container: ColorConditions;
@@ -259,10 +269,13 @@ export function createDynamicCssColor(hashId?: string, devMode = false) {
       console.error('color.set() should not be called at runtime');
       return { __color: colorValue, __dynamicColorId: hashId };
     },
-    _sp: (colorValue, mergeWith = {}) =>
+    _sp: (colorValue, mergeWith = {}, options = {}) =>
       setProps(colorValue, {
         className: mergeWith.className,
         style: mergeWith.style,
+        setColorScheme: options.setColorScheme,
+        veryDarkThreshold: options.veryDarkThreshold,
+        veryLightThreshold: options.veryLightThreshold,
       }),
   };
 

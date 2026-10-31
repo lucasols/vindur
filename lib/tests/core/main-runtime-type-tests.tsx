@@ -70,6 +70,16 @@ test('styled components', () => {
     />
   );
 
+  const imgWithColorOptions = (
+    <StyledComponent
+      dynamicColor={dynamicColor.set('red', {
+        veryDarkThreshold: 0.12,
+        veryLightThreshold: 0.9,
+        setColorScheme: { fallback: 'light' },
+      })}
+    />
+  );
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const inputElement = (
@@ -496,7 +506,9 @@ describe('dynamic color setProps', () => {
       color: red;
     `;
 
-    const native = <div {...dynamicColor.setProps('#fff', { className: 'a' })} />;
+    const native = (
+      <div {...dynamicColor.setProps('#fff', { className: 'a' })} />
+    );
     const styledBox = <Box {...dynamicColor.setProps('#fff')} />;
     const nested = (
       <div

@@ -277,6 +277,25 @@ describe('createDynamicCssColor runtime', () => {
       });
     });
 
+    test('should apply the set options', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      // #333333 has 20% lightness
+      expect(
+        color._sp('#333333', { className: 'base' }, { veryDarkThreshold: 0.1 })
+          .className,
+      ).toBe(
+        'base test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s5 test-123-c5 test-123-s7 test-123-c7',
+      );
+      expect(
+        color._sp('#f7fafc', undefined, { veryLightThreshold: 0.99 }).className,
+      ).toContain('test-123-s7');
+      expect(
+        color._sp(null, undefined, { setColorScheme: { fallback: 'dark' } })
+          .style,
+      ).toEqual({ colorScheme: 'dark' });
+    });
+
     test('should merge chained colors', () => {
       const first = createDynamicCssColor('first', false);
       const second = createDynamicCssColor('second', false);

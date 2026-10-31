@@ -72,6 +72,35 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
   });
 
+  test('should forward set options without props to merge', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Component = ({ value }) => {
+          return <div dynamicColor={color.set(value, { veryDarkThreshold: 0.12 })} />;
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      const Component = ({ value }) => {
+        return (
+          <div
+            {...color._sp(value, undefined, {
+              veryDarkThreshold: 0.12,
+            })}
+          />
+        );
+      };
+      "
+    `);
+  });
+
   test('should handle conditional set inside the set function', async () => {
     const source = dedent`
       import { createDynamicCssColor, styled } from 'vindur'
@@ -332,7 +361,7 @@ describe('Dynamic Colors - Edge Cases', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: dynamicColor prop must be \`color.set(value)\`, or an array of them, where \`color\` is a dynamic color and \`set\` takes exactly one argument
+      [TransformError: /test.tsx: dynamicColor prop must be \`color.set(value)\` or \`color.set(value, options)\`, or an array of them, where \`color\` is a dynamic color
       loc: 5:52]
     `);
   });

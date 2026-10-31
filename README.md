@@ -1415,6 +1415,15 @@ const MyComponent = ({ color }: { color: string | null }) => {
   );
 };
 
+// set accepts the setColorScheme and threshold options of setProps
+const Banner = ({ color }: { color: string | null }) => {
+  return (
+    <div dynamicColor={dynamicColor.set(color, { veryDarkThreshold: 0.12 })}>
+      <Card>This card adapts to the dynamic color</Card>
+    </div>
+  );
+};
+
 // for custom components, you can use the color.setProps to set the color
 const MyComponent = () => {
   return (
@@ -1448,6 +1457,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
   - `options.className?`: Additional class names to merge
   - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
   - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
+- **`set(hexColor, options?)`**: Sets the color through the `dynamicColor` prop, which merges the element's `className` and `style`. `options` accepts `setColorScheme`, `veryDarkThreshold` and `veryLightThreshold`, the same as in `setProps`
 
 Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3), and `isDark`/`isLight` follow it: a color is light when black text has more contrast. `contrast.optimal()` uses `saturatedDarker(0.86)` of the color on light colors instead of black. `saturatedDarker(amount)` moves the lightness toward 0% while forcing the saturation to 0% for near gray colors and 100% otherwise.
 
