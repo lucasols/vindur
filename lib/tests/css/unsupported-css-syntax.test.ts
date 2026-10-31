@@ -619,7 +619,43 @@ describe('& suffix concatenation', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: \`&-active\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      [TransformError: /test.tsx: \`&-active\` is not supported, CSS nesting can't concatenate a suffix to the generated class name, use a separate class instead, e.g. \`&-active {}\` -> \`&.active {}\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for suffixes from interpolated values', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const SUFFIX = '--today'
+
+          const style = css\`
+            .day { &\${SUFFIX} { color: red; } }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&--today\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 6:9]
+    `);
+  });
+
+  test('should throw for & followed by an element name', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Card = styled.div\`
+            &input { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&input\` is ambiguous, Sass concatenates it to the parent selector but CSS nesting reads it as an element selector, write \`input&\` to match \`input\` elements or the full selector for a suffix
       loc: 4:2]
     `);
   });
@@ -633,6 +669,7 @@ describe('& suffix concatenation', () => {
           --x: a&b;
           content: "&--x";
           &.active, &:hover, &[data-x], && { color: red; }
+          & > .title, & .body, div& { color: blue; }
         \`
       `,
     });
@@ -646,6 +683,11 @@ describe('& suffix concatenation', () => {
         &[data-x],
         && {
           color: red;
+        }
+        & > .title,
+        & .body,
+        div& {
+          color: blue;
         }
       }
       "
