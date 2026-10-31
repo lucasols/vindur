@@ -84,3 +84,56 @@ describe('styled components - error handling', () => {
     `);
   });
 });
+
+test('should throw for vindur declarations not using const', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        let base = css\`color: red;\`
+
+        export const Box = styled.div\`\${base};\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+    loc: 3:0]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        export var Box = styled.div\`color: red;\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`var\`, they are evaluated at compile time
+    loc: 3:7]
+  `);
+});
+
+test('should throw for withComponent with a lowercase component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const card = (props: { className?: string }) => <div {...props} />;
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        const StyledCard = Box.withComponent(card);
+
+        export const App = () => <StyledCard />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Cannot use "card" in withComponent(): component names must start with an uppercase letter (CamelCase).
+    loc: 9:37]
+  `);
+});

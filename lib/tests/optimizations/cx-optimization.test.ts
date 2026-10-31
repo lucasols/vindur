@@ -739,7 +739,7 @@ describe('cx() optimization', () => {
     });
   });
 
-  test('should keep the cx import when cx props still use it', async () => {
+  test('should remove the cx import when every cx call is optimized', async () => {
     const result = await transformWithFormat({
       source: dedent`
         import { cx } from 'vindur'
@@ -754,17 +754,11 @@ describe('cx() optimization', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      export const App = ({ active }) => (
+      "export const App = ({ active }) => (
         <>
           <div className={"x" + " y"} />
           <div
-            className={
-              "v1560qbr-1-css-prop-1 " +
-              cx({
-                "v1560qbr-2-on": active,
-              })
-            }
+            className={"v1560qbr-1-css-prop-1" + (active ? " v1560qbr-2-on" : "")}
           />
         </>
       );

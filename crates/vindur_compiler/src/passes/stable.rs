@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     BindingPattern, CallExpression, Expression, IdentifierReference, Program, TSTypeQuery,
-    VariableDeclaration, VariableDeclarationKind,
+    VariableDeclaration,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::Span;
@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
-use super::transform_support::generated_name;
+use super::transform_support::{generated_name, require_const};
 
 const STABLE_UTILITIES: &[&str] = &["stableId", "createClassName", "createCssVar"];
 
@@ -36,6 +36,7 @@ pub(crate) fn transform_stable_declaration(
         let Some(utility) = imported_utility(call, context.imports) else {
             continue;
         };
+        require_const(declaration, context.file_path, context.source)?;
         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
             return Err(CompilerDiagnostic::error(
                 context.file_path,
@@ -46,15 +47,6 @@ pub(crate) fn transform_stable_declaration(
                 ),
             ));
         };
-        // Styles use the compile-time value, so a reassignment would only change the runtime one
-        if declaration.kind != VariableDeclarationKind::Const {
-            return Err(CompilerDiagnostic::error(
-                context.file_path,
-                context.source,
-                declaration.span,
-                format!("{utility}() must be assigned to a `const` variable"),
-            ));
-        }
         let variable_name = identifier.name.as_str();
         let replacement = match utility {
             "createCssVar" => css_var_declaration(call, variable_name, context)?,

@@ -41,18 +41,9 @@ test('should not guard string and template literal className values', async () =
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on, size }: { on: boolean; size: string }) => (
+    "export const A = ({ on, size }: { on: boolean; size: string }) => (
       <>
-        <div
-          className={
-            "base" +
-            " " +
-            cx({
-              on: on,
-            })
-          }
-        />
+        <div className={"base" + (on ? " on" : "")} />
         <div className={\`size-\${size}\` + " v1560qbr-1-css-prop-1"} />
       </>
     );

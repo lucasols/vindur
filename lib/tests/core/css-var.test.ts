@@ -185,8 +185,8 @@ describe('createCssVar', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: Unresolved function call at \`... icon = css\` ... \${colored(colors.primary)}, function must be statically analyzable and correctly imported with the configured aliases
-      loc: 8:4]
+      [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
+      loc: 8:12]
     `);
   });
 
@@ -272,7 +272,7 @@ describe('stable ID utility references', () => {
         `,
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: createCssVar() must be assigned to a \`const\` variable
+      [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
       loc: 3:7]
     `);
   });

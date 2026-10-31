@@ -21,7 +21,10 @@ use super::{
     runtime_helpers::RuntimeHelperNames,
     static_evaluation::resolved_constant,
     styled::StyledComponent,
-    styled_jsx_helpers::{decode_jsx_entities, js_string_literal, style_flag_classes},
+    styled_jsx_helpers::{
+        decode_jsx_entities, js_string_literal, style_flag_classes, unsupported_spread_message,
+        validate_styled_spreads,
+    },
 };
 
 pub(super) struct DynamicColorTransform<'a> {
@@ -93,6 +96,14 @@ impl DynamicColorVisitor<'_> {
             self.error(
                 container.expression.span(),
                 "dynamicColor array must contain at least one color.set(...)".to_owned(),
+            );
+            return;
+        }
+        // Spreads are copied into the className and style merges
+        if let Err(spread) = validate_styled_spreads(element, self.output.source) {
+            self.error(
+                spread.span,
+                unsupported_spread_message(&spread, "an element with dynamicColor"),
             );
             return;
         }
@@ -183,14 +194,14 @@ impl DynamicColorVisitor<'_> {
             };
             Some(format!("{}._sp({}{suffix})", color.name, color.value))
         });
-        let Some(call) = call else {
-            return;
-        };
         // `_sp` only sets className and style, already merged from every spread, so it goes last
         self.output.edits.push(Edit {
             span: attribute.span,
             replacement: String::new(),
         });
+        let Some(call) = call else {
+            return;
+        };
         let offset = opening_attribute_insertion_offset(element, self.output.source);
         self.output.edits.push(Edit {
             span: oxc_span::Span::new(offset, offset),
@@ -257,7 +268,10 @@ impl DynamicColorVisitor<'_> {
         })
     }
 
-    fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
+    fn color_expressions(
+        &mut self,
+        expression: &JSXExpression<'_>,
+    ) -> Option<Vec<ColorExpression>> {
         match expression {
             JSXExpression::CallExpression(call) => self.call_color(call),
             JSXExpression::ArrayExpression(array) => array
@@ -273,7 +287,10 @@ impl DynamicColorVisitor<'_> {
         }
     }
 
-    fn call_color(&self, call: &oxc_ast::ast::CallExpression<'_>) -> Option<Vec<ColorExpression>> {
+    fn call_color(
+        &mut self,
+        call: &oxc_ast::ast::CallExpression<'_>,
+    ) -> Option<Vec<ColorExpression>> {
         let Expression::StaticMemberExpression(callee) = &call.callee else {
             return None;
         };
@@ -300,14 +317,18 @@ impl DynamicColorVisitor<'_> {
         {
             return None;
         }
+        // The arguments are moved, with the edits other passes made inside them, like an inline
+        // `stableId()`
         let value = match value {
             Argument::StringLiteral(value) => js_string_literal(&value.value),
-            _ => expression_source(value, self.output.source),
+            _ => take_edited_source(self.output.source, value.span(), self.output.edits),
         };
         Some(vec![ColorExpression {
             name: color.name.to_string(),
             value,
-            options: options.map(|options| expression_source(options, self.output.source)),
+            options: options.map(|options| {
+                take_edited_source(self.output.source, options.span(), self.output.edits)
+            }),
         }])
     }
 
@@ -406,13 +427,13 @@ fn color_merge_object(
                 },
                 sources.edits,
             );
+            // The spread classes are read before the flag values, like JSX reads the props
             Some(format!(
-                "{}([{}], {})",
+                "{}([{}], {}){}",
                 helpers.names.merge_class_names,
                 class_inputs.join(", "),
-                vindur_class
-                    .expression()
-                    .unwrap_or_else(|| "\"\"".to_owned())
+                js_string_literal(&vindur_class.literal),
+                vindur_class.dynamic_suffix
             ))
         }
         ClassNameSource::Attributes { vindur_class, .. } => {

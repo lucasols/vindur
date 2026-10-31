@@ -247,6 +247,175 @@ describe('Dynamic Colors - Spread Props', () => {
       "
     `);
   });
+
+  test('should merge className and style placed before spread props', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, css } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const box = css\`
+          width: var(---width);
+          background: \${color.var};
+        \`
+
+        const Component = ({ width, ...props }: { width: number }) => {
+          return (
+            <div
+              dynamicColor={color.set('#fff')}
+              className={box}
+              style={{ '---width': \`\${width}px\` }}
+              {...props}
+            />
+          );
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      const box = "v1560qbr-2-box";
+      const Component = ({ width, ...props }: { width: number }) => {
+        return (
+          <div
+            {...props}
+            {...color._sp("#fff", {
+              className: mergeClassNames([box, props], ""),
+              style: mergeStyles([props], {
+                "--v1560qbr-3-width": \`\${width}px\`,
+              }),
+            })}
+          />
+        );
+      };
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2-box {
+        width: var(--v1560qbr-3-width);
+        background: var(--v1560qbr-1-color);
+      }
+      "
+    `);
+  });
+
+  test('should keep edits inside props after dynamicColor', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, stableId, styled } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Button = styled.button\`
+          color: red;
+        \`
+
+        const App = (props) => (
+          <Button {...props} dynamicColor={color.set('#fff')} id={stableId()} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      const App = (props) => (
+        <button
+          {...props}
+          id={"v1560qbr-3"}
+          {...color._sp("#fff", {
+            className: mergeClassNames([props], "v1560qbr-2-Button"),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
+
+  test('should accept a null className before spreads', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const App = (props) => (
+          <div className={null} {...props} dynamicColor={color.set('#fff')} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      const App = (props) => (
+        <div
+          {...props}
+          {...color._sp("#fff", {
+            className: mergeClassNames([null || "", props], ""),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
+
+  test('should keep props after spreads when they contain JSX or calls', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, styled, stableId } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        const Icon = styled.span\`
+          color: red;
+        \`
+
+        const Component = (props) => (
+          <div dynamicColor={color.set('#fff')} {...props} icon={<Icon />} id={stableId()} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      const Component = (props) => (
+        <div
+          {...props}
+          icon={<span className="v1560qbr-2-Icon" />}
+          id={"v1560qbr-3"}
+          {...color._sp("#fff", {
+            className: mergeClassNames([props], ""),
+            style: mergeStyles([props]),
+          })}
+        />
+      );
+      "
+    `);
+  });
+
+  test('should throw for spreads of expressions with dynamicColor', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ f }) => <div {...f()} dynamicColor={color.set('#fff')} />
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Unsupported spread expression "f()" used in an element with dynamicColor. Only references to variables are allowed in spread expressions. Extract them to a variable and use that variable in the spread expression.
+      loc: 5:35]
+    `);
+  });
 });
 
 test('should merge className before spread props with dynamic colors', async () => {

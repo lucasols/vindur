@@ -654,7 +654,7 @@ test('should throw error for object not found in imported file', async () => {
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: "notExported" not found in /breakpoints.ts
+    [TransformError: /test.tsx: "notExported" not found in /breakpoints.ts, export it by name, like \`export const notExported = ...\` or \`export { notExported }\`
     loc: 6:4]
   `,
   );
@@ -747,7 +747,7 @@ test('should throw error for arithmetic with undefined imported constants', asyn
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: "baseSize" not found in /constants.ts
+    [TransformError: /test.tsx: "baseSize" not found in /constants.ts, export it by name, like \`export const baseSize = ...\` or \`export { baseSize }\`
     loc: 5:13]
   `,
   );

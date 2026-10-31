@@ -180,6 +180,34 @@ describe('createClassName', () => {
     );
   });
 
+  test('should throw error for let declarations', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { stableId } from 'vindur';
+
+          export let id = stableId();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+      loc: 3:7]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createClassName } from 'vindur';
+
+          export let className = createClassName();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+      loc: 3:7]
+    `);
+  });
+
   test('should throw error with inline usage inside functions', async () => {
     await expect(
       transformWithFormat({
@@ -787,4 +815,25 @@ describe('stable ID utilities in CSS prop', () => {
       "
     `);
   });
+});
+
+test('should throw for stableId() in a style flag value', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, stableId } from 'vindur';
+
+        const Box = styled.div<{ active: boolean }>\`
+          &.active { color: red; }
+        \`;
+
+        export const App = ({ selectedId }: { selectedId: string }) => (
+          <Box active={selectedId === stableId()} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`active\` value can't call \`stableId()\` or \`createClassName()\`, as the value is moved into the className, assign the result to a module level constant first
+    loc: 8:30]
+  `);
 });
