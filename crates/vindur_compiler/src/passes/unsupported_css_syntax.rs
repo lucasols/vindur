@@ -178,6 +178,21 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                 message: global_selector_message(rest, tag_type).to_owned(),
             });
         }
+        if byte == b'&'
+            && let Some(suffix_len) = selector_suffix_len(rest)
+            && !is_custom_property_value(css, prelude_start)
+            && !is_at_rule_prelude(css, prelude_start)
+            && starts_rule_block(css, index)
+        {
+            return Some(UnsupportedSyntax {
+                offset: index,
+                len: suffix_len,
+                message: format!(
+                    "`{}` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. `.day {{ &--today {{}} }}` -> `.day--today {{}}`",
+                    &rest[..suffix_len]
+                ),
+            });
+        }
         // At-rules only start a statement, otherwise `@keyframes` is part of a
         // declaration value like `--x: @keyframes;`
         if byte == b'@'
@@ -224,6 +239,16 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         index += rest.chars().next().map_or(1, char::len_utf8);
     }
     None
+}
+
+// Sass and stylis concatenate `&--x`, `&__x` and `&-x` to the parent selector,
+// but in native CSS nesting `&` can only be followed by another selector
+fn selector_suffix_len(from_ampersand: &str) -> Option<usize> {
+    let suffix = &from_ampersand[1..];
+    let len = suffix
+        .find(|character: char| !is_ident_char(character))
+        .unwrap_or(suffix.len());
+    (len > 0).then_some(len + 1)
 }
 
 // Comments, strings, escapes and unquoted urls can't contain unsupported syntax

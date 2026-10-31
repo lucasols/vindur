@@ -399,6 +399,8 @@ const Navigation = styled.nav`
 }
 ```
 
+Sass style suffix concatenation (`&--today`, `&__body`, `&-active`) is not valid CSS nesting and is a compile error, write the full selector in its own rule instead, e.g. `.day { &--today {} }` -> `.day--today {}`.
+
 ### Styled Component References
 
 Reference other styled components within CSS selectors using the `&` operator:

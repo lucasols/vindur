@@ -566,3 +566,89 @@ describe('@keyframes inside templates', () => {
     `);
   });
 });
+
+describe('& suffix concatenation', () => {
+  test('should throw for &-- suffixes in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur'
+
+          createGlobalStyle\`
+            .react-datepicker__day {
+              &--today { font-weight: bold; }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&--today\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 5:4]
+    `);
+  });
+
+  test('should throw for &__ suffixes in styled components', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Card = styled.div\`
+            .card {
+              &:hover { color: red; }
+              & > .title, &__body { padding: 4px; }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&__body\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 6:16]
+    `);
+  });
+
+  test('should throw for &- suffixes on the root selector', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            &-active { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&-active\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should allow & followed by other selectors and & in values', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          --x: a&b;
+          content: "&--x";
+          &.active, &:hover, &[data-x], && { color: red; }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        --x: a&b;
+        content: "&--x";
+        &.active,
+        &:hover,
+        &[data-x],
+        && {
+          color: red;
+        }
+      }
+      "
+    `);
+  });
+});
