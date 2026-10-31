@@ -123,6 +123,29 @@ describe('createCssVar', () => {
     `);
   });
 
+  test('should pass css var properties to vindurFn functions', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createCssVar, css, vindurFn } from 'vindur'
+
+        export const iconColor = createCssVar()
+
+        export const colored = vindurFn((color: string) => \`color: \${color};\`)
+
+        export const icon = css\`
+          \${colored(iconColor.var)};
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-2-icon {
+        color: var(--v1560qbr-1-iconColor);
+      }
+      "
+    `);
+  });
+
   test('should throw when called with arguments', async () => {
     await expect(
       transformWithFormat({
@@ -192,6 +215,21 @@ describe('stable ID utility references', () => {
         value: "v1560qbr-className-1",
       };
       "
+    `);
+  });
+
+  test('should throw when not assigned to a const', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createCssVar } from 'vindur';
+
+          export let iconColor = createCssVar();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createCssVar() must be assigned to a \`const\` variable
+      loc: 3:7]
     `);
   });
 });

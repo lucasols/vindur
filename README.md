@@ -808,7 +808,7 @@ export const elementClassName = {
 export const genericPurposeId = 'vhash-2';
 ```
 
-`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error.
+`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error. Assigned to a variable, they need a `const` declaration.
 
 You can then use it in styled components, css functions and css props:
 
@@ -859,7 +859,7 @@ const Component = () => {
 
 ### Shared CSS Variables
 
-Use `createCssVar` for custom properties shared across components and files. It must be a module level variable declaration, and the compiler replaces it with a `name` and a `var()` reference, readable in dev and short hashed in production:
+Use `createCssVar` for custom properties shared across components and files. It must be a module level `const` declaration, and the compiler replaces it with a `name` and a `var()` reference, readable in dev and short hashed in production:
 
 ```tsx
 // vars.ts

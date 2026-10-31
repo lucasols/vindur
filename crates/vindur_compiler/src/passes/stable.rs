@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     BindingPattern, CallExpression, Expression, IdentifierReference, Program, TSTypeQuery,
-    VariableDeclaration,
+    VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::Span;
@@ -46,6 +46,15 @@ pub(crate) fn transform_stable_declaration(
                 ),
             ));
         };
+        // Styles use the compile-time value, so a reassignment would only change the runtime one
+        if declaration.kind != VariableDeclarationKind::Const {
+            return Err(CompilerDiagnostic::error(
+                context.file_path,
+                context.source,
+                declaration.span,
+                format!("{utility}() must be assigned to a `const` variable"),
+            ));
+        }
         let variable_name = identifier.name.as_str();
         let replacement = match utility {
             "createCssVar" => css_var_declaration(call, variable_name, context)?,

@@ -370,6 +370,10 @@ pub(super) fn evaluate_argument(
             binary.operator,
             evaluate_expression(&binary.right, constants, scoping)?,
         ),
+        // Properties of constant objects, like `iconColor.var` or `theme.spacing.md`
+        Argument::StaticMemberExpression(_) => {
+            evaluate_expression(argument.to_expression(), constants, scoping)
+        }
         _ => None,
     }
 }

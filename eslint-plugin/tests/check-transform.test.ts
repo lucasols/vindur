@@ -97,6 +97,32 @@ describe('invalid cases - should report transform errors', () => {
   });
 });
 
+describe('dynamicColor prop files', () => {
+  test('should report errors in files that only use the dynamicColor prop', async () => {
+    const { result } = await invalid(
+      dedent`
+        export const Swatch = ({ active }) => (
+          <div dynamicColor={active && accentColor.set('#fff')} />
+        );
+      `,
+    );
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformError'
+        msg: "Conditional dynamicColor is not supported. Use condition inside the set function instead: accentColor.set(active ? '#fff' : null)"
+        loc: '2:22'
+      "
+    `);
+  });
+
+  test('should skip an unrelated dynamicColor prop in files without vindur', async () => {
+    await valid(dedent`
+      export const Swatch = () => <Label dynamicColor="red" />;
+    `);
+  });
+});
+
 describe('basic error handling', () => {
   test('should properly handle module not found errors - ignored in lint (redundant with TypeScript)', async () => {
     await valid(dedent`
