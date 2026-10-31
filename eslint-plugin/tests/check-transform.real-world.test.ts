@@ -11,6 +11,7 @@ import { createVindurTester, getErrorsWithMsgFromResult } from './utils/createTe
 vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
   existsSync: vi.fn(),
+  statSync: vi.fn(),
 }));
 
 const { invalid } = createVindurTester({

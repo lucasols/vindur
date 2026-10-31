@@ -13,6 +13,7 @@ import {
 vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
   existsSync: vi.fn(),
+  statSync: vi.fn(),
 }));
 
 const { valid, invalid } = createVindurTester({
