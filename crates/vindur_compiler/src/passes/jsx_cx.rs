@@ -39,7 +39,7 @@ use super::{
     style_flag_selectors::flag_classes,
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
-        ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name,
+        ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name, find_jsx,
         inlined_component_classes, is_class_rule, unsupported_spread_message,
         validate_styled_spreads,
     },
@@ -309,6 +309,14 @@ impl JsxCxVisitor<'_> {
                 }
                 Expression::BooleanLiteral(_) => {}
                 expression => {
+                    // The edits of JSX in the value, like a styled component, would overlap the copied value
+                    if let Some(span) = find_jsx(expression) {
+                        self.set_error(
+                            span,
+                            format!("cx prop class \"{class_name}\" value can't contain JSX, cx values are conditions"),
+                        );
+                        return;
+                    }
                     // The value is copied into the condition, with the edits of other passes
                     // inside it, like a `stableId()` call
                     let value = take_edited_source(

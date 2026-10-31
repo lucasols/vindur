@@ -9,6 +9,7 @@ use crate::{
 };
 
 use super::static_evaluation::{is_unresolved_import, resolved_constant};
+use super::styled::StyledComponent;
 
 /// Errors for imported values that can't be evaluated, because they are missing, only
 /// re-exported, or not static, e.g. `${INSET}`, `${px(INSET)}` or `${INSET + 1}`
@@ -55,7 +56,9 @@ pub(super) fn unknown_import_message(
         StaticValue::MissingImport {
             imported_name,
             source_path,
-        } => format!("\"{imported_name}\" not found in {source_path}"),
+        } => format!(
+            "\"{imported_name}\" not found in {source_path}, export it by name, like `export const {imported_name} = ...` or `export {{ {imported_name} }}`"
+        ),
         StaticValue::UnsupportedReExport {
             imported_name,
             source_path,
@@ -63,6 +66,23 @@ pub(super) fn unknown_import_message(
         } => re_export_message(imported_name, source_path, re_export.as_ref()),
         _ => return None,
     })
+}
+
+/// The error for a styled component rendering an import whose module facts aren't known, so its
+/// style flags are unknown too, e.g. `Base` in `styled(Base)` or `Card.withComponent(Base)`
+pub(super) fn unknown_element_message(
+    component: &StyledComponent,
+    constants: &FxHashMap<String, StaticValue>,
+    file_path: &str,
+) -> Option<String> {
+    if !component.element_is_identifier {
+        return None;
+    }
+    unknown_import_message(
+        &component.element,
+        constants.get(&component.element)?,
+        file_path,
+    )
 }
 
 pub(super) fn not_static_import_message(

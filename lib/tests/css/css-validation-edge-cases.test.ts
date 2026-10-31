@@ -531,6 +531,24 @@ test('should throw for JavaScript escapes that drop the backslash of a CSS escap
   `);
 });
 
+test('should locate JavaScript escapes in CRLF files', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const icon = css\`
+          color: red;
+          &::before { content: "日\e900"; }
+        \`
+      `.replaceAll('\n', '\r\n'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`\\e\` is a JavaScript escape in the template, write \`\\\\e\` for a CSS escape
+    loc: 5:25]
+  `);
+});
+
 test('should keep CSS escapes written with a double backslash', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -639,8 +657,49 @@ test('should throw for interpolated values that would end a string or comment', 
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Values interpolated in a CSS comment can't contain \`*/\`
+    [TransformError: /test.tsx: Values interpolated in a CSS comment can't contain \`*/\`, or end the comment together with the template text, like \`*\` followed by \`/\`
     loc: 3:30]
+  `);
+});
+
+test('should throw for interpolated values that join with the template into a comment token', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const NOTE = 'note *'
+        export const style = css\`/* \${NOTE}/ color: blue; /* end */ width: 1px;\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Values interpolated in a CSS comment can't contain \`*/\`, or end the comment together with the template text, like \`*\` followed by \`/\`
+    loc: 3:30]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const SLASH = '1px /'
+        export const style = css\`width: \${SLASH}* a */ 2px;\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't end with \`\\\`, or start a CSS comment together with the template text, like \`/\` followed by \`*\`
+    loc: 3:34]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const ESCAPE = 'a BSBS'
+        export const style = css\`font-family: \${ESCAPE}"b";\`
+      `.replace('BSBS', '\\\\'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't end with \`\\\`, or start a CSS comment together with the template text, like \`/\` followed by \`*\`
+    loc: 3:40]
   `);
 });
 

@@ -10,6 +10,7 @@ use super::css_tokens::is_ident_char;
 use super::cx_modifier_selectors::{
     ElementClass, StyleBlockClasses, referenced_classes, rewrite_classes, style_block_classes,
 };
+use super::import_errors::unknown_element_message;
 use super::styled::{StyleFlag, StyleFlagKind, StyledComponent};
 use super::styled_jsx_helpers::is_class_rule;
 
@@ -141,6 +142,7 @@ pub(crate) fn hash_referenced_style_flags(
     css_rules: &mut [String],
     constants: &FxHashMap<String, StaticValue>,
     components: &FxHashMap<String, StyledComponent>,
+    file_path: &str,
 ) -> Result<(), ReferencedFlagError> {
     // Imported styled components carry the flags hashed by their own module
     let references = constants
@@ -168,12 +170,30 @@ pub(crate) fn hash_referenced_style_flags(
                 .push((name.as_str(), style_flags));
         }
     }
+    // The flags of a component rendering an import with unknown facts are unknown too, e.g. a
+    // `styled(Base)` with `Base` imported through a re-export
+    let unknown_flags = components
+        .iter()
+        .filter_map(|(name, component)| {
+            let message = unknown_element_message(component, constants, file_path)?;
+            let class_name = component.class_name.split_whitespace().last()?.to_owned();
+            Some((name.as_str(), class_name, message))
+        })
+        .collect::<Vec<_>>();
     for rule in css_rules.iter_mut() {
         let referenced = references
             .iter()
             .filter(|(_, class_name, _)| references_class(rule, class_name))
             .collect::<Vec<_>>();
-        let Some((first, _, _)) = referenced.first() else {
+        let unknown_referenced = unknown_flags
+            .iter()
+            .filter(|(_, class_name, _)| references_class(rule, class_name))
+            .collect::<Vec<_>>();
+        let Some(first) = referenced
+            .first()
+            .map(|(name, _, _)| *name)
+            .or_else(|| unknown_referenced.first().map(|(name, _, _)| *name))
+        else {
             continue;
         };
         // The rule owner is the nearest location, the CSS offsets don't map to the source
@@ -186,13 +206,38 @@ pub(crate) fn hash_referenced_style_flags(
                     .last()
                     .is_some_and(|class_name| is_class_rule(rule, class_name))
             })
-            .map_or(*first, |(name, _)| name.as_str());
+            .map_or(first, |(name, _)| name.as_str());
         let located = |error| ReferencedFlagError {
             component: owner.to_owned(),
             error,
         };
         let allocator = Allocator::default();
         let stylesheet = parse_style_block(&allocator, rule).map_err(located)?;
+        for (name, class_name, message) in unknown_referenced {
+            let known_flags = match constants.get(*name) {
+                Some(StaticValue::ClassName { style_flags, .. }) => style_flags.as_slice(),
+                _ => &[],
+            };
+            if let Some(class) = referenced_classes(
+                &stylesheet.statements,
+                std::slice::from_ref(class_name),
+                &[],
+            )
+            .into_iter()
+            .find(|class| {
+                class.name != *class_name
+                    && !known_flags.iter().any(|flag| flag.original == class.name)
+            }) {
+                return Err(located(CssError::new(
+                    format!(
+                        "Class \"{}\" can't be selected through a reference to \"{name}\", the style flags of the component it renders are unknown: {message}",
+                        class.name
+                    ),
+                    class.start,
+                    class.end,
+                )));
+            }
+        }
         let mut renames = Vec::new();
         for (name, class_name, flags) in referenced {
             for class in referenced_classes(

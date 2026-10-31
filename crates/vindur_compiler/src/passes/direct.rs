@@ -50,7 +50,8 @@ struct DirectTagVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for DirectTagVisitor<'_> {
-    // Top level declarations get their ids, another call would throw at runtime
+    // Top level declarations get their ids, another call would throw at runtime. Their calls are
+    // replaced by an edit of the call itself, a call inside another edit, like in `.attrs()`, isn't
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
         if self.diagnostic.is_some() {
             return;
@@ -60,13 +61,13 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
                 .output
                 .imports
                 .matches_import_or_global(callee, "createDynamicCssColor")
-            && !self.is_handled(call.span)
+            && !self.output.handled_spans.contains(&call.span)
         {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.output.file_path,
                 self.output.source,
                 call.span,
-                "createDynamicCssColor() can only be called in a top level `const` declaration, e.g. `const accent = createDynamicCssColor()`".to_owned(),
+                "createDynamicCssColor() must be the direct initializer of a top level `const` declaration, e.g. `const accent = createDynamicCssColor()`".to_owned(),
             ));
             return;
         }
@@ -74,7 +75,12 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
     }
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        if self.diagnostic.is_some() || self.is_handled(tagged.span) {
+        if self.diagnostic.is_some() {
+            return;
+        }
+        // The runtime arguments of a handled tag, like `.attrs({ ... })`, are still checked
+        if self.is_handled(tagged.span) {
+            self.visit_expression(&tagged.tag);
             return;
         }
 

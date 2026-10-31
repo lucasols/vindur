@@ -309,24 +309,28 @@ fn build_template_css(
             value => {
                 let value = static_value_to_string(value);
                 let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
-                if let Some(diagnostic) =
-                    open_token_end_error(&value, open_token, expression, file_path, source)
-                        .or_else(|| {
-                            interpolated_scoped_variable_error(
-                                &value, expression, file_path, source,
-                            )
-                        })
-                        .or_else(|| {
-                            joined_scoped_name_error(
-                                &evaluated.css,
-                                &value,
-                                css_after,
-                                expression,
-                                file_path,
-                                source,
-                            )
-                        })
-                {
+                if let Some(diagnostic) = open_token_end_error(
+                    &evaluated.css,
+                    &value,
+                    css_after,
+                    open_token,
+                    expression,
+                    file_path,
+                    source,
+                )
+                .or_else(|| {
+                    interpolated_scoped_variable_error(&value, expression, file_path, source)
+                })
+                .or_else(|| {
+                    joined_scoped_name_error(
+                        &evaluated.css,
+                        &value,
+                        css_after,
+                        expression,
+                        file_path,
+                        source,
+                    )
+                }) {
                     return Err(diagnostic);
                 }
                 value
@@ -562,7 +566,10 @@ fn cooked_escape_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let raw = quasi.value.raw.as_str();
+    // The source text, `raw` has its CRLF line breaks normalized, which would move the offsets
+    let raw = source
+        .get(quasi.span.start as usize..quasi.span.end as usize)
+        .unwrap_or(quasi.value.raw.as_str());
     let mut characters = raw.char_indices();
     while let Some((index, character)) = characters.next() {
         if character != '\\' {

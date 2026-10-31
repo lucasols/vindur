@@ -408,6 +408,39 @@ test('should throw for JSX in style flag values', async () => {
   `);
 });
 
+test('should throw for JSX in cx values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Icon = styled.span\`color: red;\`
+        const Box = styled.div\`&.active { color: red; }\`
+        export const App = ({ on }) => <Box cx={{ active: on && <Icon /> }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" value can't contain JSX, cx values are conditions
+    loc: 4:56]
+  `);
+});
+
+test('should throw for a style flag named `__proto__`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Item = styled.div<{ __proto__: boolean }>\`
+          &.__proto__ { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`__proto__\` is not supported, use another name
+    loc: 3:26]
+  `);
+});
+
 test('should not warn about classes of descendants in :has()', async () => {
   const warnings: TransformWarning[] = [];
   await transformWithFormat({

@@ -89,6 +89,19 @@ test('should reject scoped variables from interpolated values', async () => {
     [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---gap", write scoped variables directly in the template
     loc: 6:13]
   `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const FONTS = '"---a", "---b"'
+
+        export const App = () => <div css={\`font-family: \${FONTS};\`} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---a", write scoped variables directly in the template
+    loc: 3:51]
+  `);
 });
 
 test('should map a style prop variable declared by a child css prop', async () => {

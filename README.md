@@ -163,7 +163,7 @@ const buttonBase = css`
 <button className={buttonBase}>Click me</button>
 ```
 
-Vindur declarations, like `css`, `styled`, `keyframes`, `createDynamicCssColor()`, `stableId()` or `createClassName()`, must use `const`, they are evaluated once at compile time. `createDynamicCssColor()` must be called in a top level `const` declaration.
+Vindur declarations, like `css`, `styled`, `keyframes`, `createDynamicCssColor()`, `stableId()` or `createClassName()`, must use `const`, they are evaluated once at compile time. `createDynamicCssColor()` must be the direct initializer of a top level `const` declaration, not wrapped in parentheses or a cast, and can't be called anywhere else, like inside `.attrs()`.
 
 Styles are JavaScript template literals, so a CSS escape needs a double backslash, like `content: "\\e900"`. JavaScript escapes other than `\\`, `` \` `` and `\$` are a compile error.
 
@@ -967,9 +967,9 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and expressions of them, or arrays and objects of them, colors, functions and runtime values can't be passed.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions and runtime values can't be passed.
 
-Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension can't have style flags, call `withComponent` or select classes of its element, like `&.active`, import `Card` from the module that declares it instead.
+Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension, and the components extending or rendering it, can't have style flags, call `withComponent` or select classes of its element, like `&.active` or `${Ext}.active`, import `Card` from the module that declares it instead.
 
 Values can't be imported back into an import cycle, e.g. `Sidebar.tsx` interpolating `HEADER_HEIGHT` from `Layout.tsx`, which imports `Sidebar.tsx`: move them to a module outside the cycle. Other values imported from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, and `export { SIZE }` are not static.
 

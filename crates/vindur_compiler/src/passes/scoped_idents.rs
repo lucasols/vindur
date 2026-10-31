@@ -678,6 +678,11 @@ fn is_scoped_name(text: &str) -> bool {
 
 /// Whether the text has a string that is a whole scoped name, like `"---brand"`
 fn has_quoted_scoped_name(text: &str) -> bool {
+    first_quoted_scoped_name(text).is_some()
+}
+
+/// The content of the first string that is a whole scoped name, like `---brand` in `"---brand"`
+pub(super) fn first_quoted_scoped_name(text: &str) -> Option<&str> {
     let mut index = 0;
     while let Some(character) = text[index..].chars().next() {
         if let Some(end) = skipped_token_end(text, index) {
@@ -687,14 +692,14 @@ fn has_quoted_scoped_name(text: &str) -> bool {
                 && (is_scoped_name(content)
                     || (content.contains('\\') && is_scoped_name(&decode_string(content))))
             {
-                return true;
+                return Some(content);
             }
             index = end;
             continue;
         }
         index += character.len_utf8();
     }
-    false
+    None
 }
 
 struct ScopedIdentRange {

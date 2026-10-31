@@ -91,9 +91,13 @@ impl CompilerDiagnostic {
 }
 
 fn position_at(source: &str, offset: u32) -> SourcePosition {
-    let bounded_offset = usize::try_from(offset)
+    let mut bounded_offset = usize::try_from(offset)
         .unwrap_or(source.len())
         .min(source.len());
+    // A wrong offset must not panic, it is moved to the start of its character
+    while !source.is_char_boundary(bounded_offset) {
+        bounded_offset -= 1;
+    }
     let prefix = &source[..bounded_offset];
     let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
     let line =

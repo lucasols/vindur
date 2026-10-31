@@ -594,5 +594,41 @@ describe('Sass selectors', () => {
       [TransformError: /test.tsx: \`%placeholder\` selectors are not supported, use a class or a \`css\` style
       loc: 2:25]
     `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          export const style = css\`&:nth-child(2n of %base) { color: red; }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`%placeholder\` selectors are not supported, use a class or a \`css\` style
+      loc: 2:43]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          export const style = css\`&::slotted(%base) { color: red; }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`%placeholder\` selectors are not supported, use a class or a \`css\` style
+      loc: 2:36]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur'
+          createGlobalStyle\`@scope (.card) to (%base) { img { color: red; } }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`%placeholder\` selectors are not supported, use a class or a \`css\` style
+      loc: 2:37]
+    `);
   });
 });

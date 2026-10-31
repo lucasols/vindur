@@ -12,18 +12,19 @@ use super::css_syntax::is_layer_name;
 use super::css_tokens::{OpenToken, is_ident_char};
 use super::function_evaluation::evaluate_argument;
 use super::id_order::ends_with_scoped_prefix;
-use super::scoped_idents::first_scoped_ident;
+use super::scoped_idents::{first_quoted_scoped_name, first_scoped_ident};
 use super::static_evaluation::resolved_constant;
 
 /// Scoped variables must be written in the template text, values interpolated from constants or
-/// vindurFn calls can't add them
+/// vindurFn calls can't add them. That includes quoted names, like `"---brand"` in a font family,
+/// which are renamed too
 pub(super) fn interpolated_scoped_variable_error(
     value: &str,
     expression: &Expression<'_>,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let name = first_scoped_ident(value)?;
+    let name = first_scoped_ident(value).or_else(|| first_quoted_scoped_name(value))?;
     Some(CompilerDiagnostic::error(
         file_path,
         source,
@@ -35,27 +36,51 @@ pub(super) fn interpolated_scoped_variable_error(
 }
 
 /// A value interpolated in a string or comment can't end it, like `a" b: c` in `content: "${x}"`,
-/// the rest would be compiled as CSS
+/// the rest would be compiled as CSS. A value also can't start or end a comment or an escape
+/// together with the template text, like `*` in `/* ${x}/ ... */`
 pub(super) fn open_token_end_error(
+    css_before: &str,
     value: &str,
+    css_after: &str,
     open_token: OpenToken,
     expression: &Expression<'_>,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
+    // An odd `\` at the end escapes the next character, like a closing quote
+    let ends_with_escape = value
+        .chars()
+        .rev()
+        .take_while(|character| *character == '\\')
+        .count()
+        % 2
+        == 1;
     let message = match open_token {
-        OpenToken::None => return None,
-        OpenToken::String(quote) => (value.contains([quote, '\n', '\r', '\x0c'])
-            // An odd `\` at the end escapes the closing quote
-            || value.chars().rev().take_while(|character| *character == '\\').count() % 2 == 1)
-        .then(|| {
-            format!(
-                "Values interpolated in a CSS string can't contain `{quote}` or a line break, or end with `\\`, as they would end the string"
-            )
-        }),
-        OpenToken::Comment => value
-            .contains("*/")
-            .then(|| "Values interpolated in a CSS comment can't contain `*/`".to_owned()),
+        OpenToken::None => {
+            let opens_comment = (value.ends_with('/') && css_after.starts_with('*'))
+                || (css_before.ends_with('/') && value.starts_with('*'));
+            (opens_comment || ends_with_escape).then(|| {
+                "Interpolated values can't end with `\\`, or start a CSS comment together with the template text, like `/` followed by `*`".to_owned()
+            })
+        }
+        OpenToken::String(quote) => (value.contains([quote, '\n', '\r', '\x0c']) || ends_with_escape)
+            .then(|| {
+                format!(
+                    "Values interpolated in a CSS string can't contain `{quote}` or a line break, or end with `\\`, as they would end the string"
+                )
+            }),
+        OpenToken::Comment => {
+            // The comment text written before the value, without its `/*`
+            let comment_before = css_before
+                .rfind("/*")
+                .map_or(css_before, |start| &css_before[start + 2..]);
+            let ends_comment = value.contains("*/")
+                || (value.ends_with('*') && css_after.starts_with('/'))
+                || (comment_before.ends_with('*') && value.starts_with('/'));
+            ends_comment.then(|| {
+                "Values interpolated in a CSS comment can't contain `*/`, or end the comment together with the template text, like `*` followed by `/`".to_owned()
+            })
+        }
     }?;
     Some(CompilerDiagnostic::error(
         file_path,

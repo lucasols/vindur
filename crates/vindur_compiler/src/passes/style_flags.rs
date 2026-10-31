@@ -170,6 +170,15 @@ fn style_flag_from_property(
             ),
         ));
     }
+    // The runtime stores the flag props in an object, where `__proto__` sets its prototype
+    if key.name == "__proto__" {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            "Style flag `__proto__` is not supported, use another name".to_owned(),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,

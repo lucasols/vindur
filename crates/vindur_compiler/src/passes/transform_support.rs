@@ -20,7 +20,7 @@ use super::{
     cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
-    import_errors::unknown_import_message,
+    import_errors::unknown_element_message,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
@@ -247,17 +247,18 @@ pub(super) fn process_variable_declaration(
                 .collect::<Vec<_>>();
             style_flags.extend(own_style_flags.iter().cloned());
             let base_identifier = styled_base(&tagged.tag);
-            // The flags of a base imported through a re-export or an import cycle are unknown
-            let unknown_base = base_identifier.and_then(|base| {
-                let value = transform.constants.get(base.name.as_str())?;
-                let message = unknown_import_message(&base.name, value, transform.file_path)?;
-                Some(CompilerDiagnostic::error(
-                    transform.file_path,
-                    transform.source,
-                    base.span,
-                    message,
-                ))
-            });
+            // The flags of a base imported through a re-export or an import cycle are unknown, also
+            // when it is rendered by a local base, e.g. `styled(Local)` with `Local = styled(Base)`
+            let unknown_base =
+                unknown_element_message(&base_component, transform.constants, transform.file_path)
+                    .map(|message| {
+                        CompilerDiagnostic::error(
+                            transform.file_path,
+                            transform.source,
+                            base_identifier.map_or(tagged.tag.span(), |base| base.span),
+                            message,
+                        )
+                    });
             if let Some(error) = &unknown_base
                 && !own_style_flags.is_empty()
             {

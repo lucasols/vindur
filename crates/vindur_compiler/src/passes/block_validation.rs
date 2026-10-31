@@ -153,20 +153,33 @@ fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssErr
         if name == "font-feature-values" {
             reject_stray_semicolons(&block.statements, source, inner, None)?;
         }
-    } else if DECLARATION_AT_RULES.contains(&name.as_str())
-        && let Some(nested) = block
-            .statements
-            .iter()
-            .find(|statement| !matches!(statement, Statement::Declaration(_)))
-    {
-        let span = statement_span(nested);
-        return Err(CssError::syntax(
-            format!("`@{}` can only contain declarations", rule.name.raw),
-            span.start,
-            span.end,
-        ));
+        // Their at-rules, like `@swash` or `@top-left`, only hold declarations
+        for statement in &block.statements {
+            if let Statement::AtRule(child) = statement {
+                reject_non_declarations(child)?;
+            }
+        }
+    } else if DECLARATION_AT_RULES.contains(&name.as_str()) {
+        reject_non_declarations(rule)?;
     }
     Ok(())
+}
+
+fn reject_non_declarations(rule: &AtRule<'_>) -> Result<(), CssError> {
+    let Some(nested) = rule
+        .block
+        .iter()
+        .flat_map(|block| &block.statements)
+        .find(|statement| !matches!(statement, Statement::Declaration(_)))
+    else {
+        return Ok(());
+    };
+    let span = statement_span(nested);
+    Err(CssError::syntax(
+        format!("`@{}` can only contain declarations", rule.name.raw),
+        span.start,
+        span.end,
+    ))
 }
 
 /// At-rules whose blocks only hold declarations, browsers drop rules nested in them

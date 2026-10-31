@@ -390,4 +390,63 @@ describe('import resolution', () => {
       "
     `);
   });
+
+  test('should remove default imports only used at compile time', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import SIZE from '#/size';
+        import base from '#/styles';
+
+        export const style = css\`
+          \${base};
+          width: \${SIZE}px;
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'size.ts': dedent`
+          const SIZE = 10;
+
+          export default SIZE;
+        `,
+        'styles.ts': dedent`
+          import { css } from 'vindur';
+
+          const base = css\`color: red;\`;
+
+          export default base;
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "export const style = "v1560qbr-1-style";
+      "
+    `);
+  });
+
+  test('should keep the side effects of a default imported style class', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import base from '#/styles';
+
+        export const App = () => <div css={base} />;
+      `,
+      overrideDefaultFs: createFsMock({
+        'styles.ts': dedent`
+          import { css } from 'vindur';
+
+          const base = css\`color: red;\`;
+
+          export default base;
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import "#/styles";
+      export const App = () => <div className="v1s4vg6s-1-base" />;
+      "
+    `);
+  });
 });

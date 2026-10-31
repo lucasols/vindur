@@ -95,19 +95,22 @@ fn collect_resolved_import_edits(
         let mut default_specifier = None;
         let mut runtime_specifiers = Vec::new();
         for specifier in specifiers {
-            let compile_time_value = match specifier {
-                ImportDeclarationSpecifier::ImportSpecifier(named) => imported_values
-                    .get(named.local.name.as_str())
+            let local = match specifier {
+                ImportDeclarationSpecifier::ImportSpecifier(named) => Some(&named.local),
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(default) => Some(&default.local),
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => None,
+            };
+            let compile_time_value = local.and_then(|local| {
+                imported_values
+                    .get(local.name.as_str())
                     .filter(|value| !is_runtime_value(value))
                     .filter(|_| {
-                        named
-                            .local
+                        local
                             .symbol_id
                             .get()
                             .is_some_and(|symbol_id| scoping.symbol_is_unused(symbol_id))
-                    }),
-                _ => None,
-            };
+                    })
+            });
             let Some(value) = compile_time_value else {
                 let span = specifier.span();
                 let specifier_source = source[span.start as usize..span.end as usize].to_owned();

@@ -166,6 +166,46 @@ test('should throw for style rules in `@page` and `@font-feature-values`', async
   `);
 });
 
+test('should throw for rules in the at-rules of `@page` and `@font-feature-values`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @page {
+            @top-left {
+              .title { color: red; }
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@top-left\` can only contain declarations
+    loc: 6:6]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @font-feature-values Font One {
+            @swash {
+              .title { color: red; }
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@swash\` can only contain declarations
+    loc: 6:6]
+  `);
+});
+
 test('should throw for an unterminated at-rule at the end of createGlobalStyle', async () => {
   await expect(
     transformWithFormat({

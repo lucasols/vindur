@@ -215,7 +215,22 @@ test('should throw for createDynamicCssColor outside a top level `const` declara
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: createDynamicCssColor() can only be called in a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
+    [TransformError: /test.tsx: createDynamicCssColor() must be the direct initializer of a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
     loc: 4:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+
+        const Box = styled.div.attrs({ style: { color: createDynamicCssColor().var } })\`
+          color: red;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createDynamicCssColor() must be the direct initializer of a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
+    loc: 3:47]
   `);
 });

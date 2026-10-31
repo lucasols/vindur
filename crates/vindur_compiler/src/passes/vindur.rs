@@ -125,6 +125,8 @@ pub(crate) fn transform_program(
     let mut needs_merge_helper = false;
     let mut needs_merge_styles_helper = false;
     let mut needs_styled_helper = false;
+    // `export default styled.x` has no binding, importers still need to know it is styled
+    let mut default_styled_export = None;
     let mut needs_style_flags_helper = false;
     let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
@@ -341,6 +343,10 @@ pub(crate) fn transform_program(
                         span: tagged.span,
                         replacement: format!("_vSC(\"{element}\", \"{generated_name}\")"),
                     });
+                    default_styled_export = Some(StaticValue::ClassName {
+                        name: generated_name,
+                        style_flags: Vec::new(),
+                    });
                 }
             }
             _ => {}
@@ -510,6 +516,7 @@ pub(crate) fn transform_program(
                 .cloned()
                 .map(|value| (name.clone(), value))
         })
+        .chain(default_styled_export.map(|value| ("default".to_owned(), value)))
         .collect();
     let (re_exports, star_re_exports) = collect_re_exports(program);
     let facts = ModuleFacts {
@@ -540,9 +547,12 @@ pub(crate) fn transform_program(
             ),
         ));
     }
-    if let Err(error) =
-        hash_referenced_style_flags(&mut css_rules, &facts.constants, &styled_components)
-    {
+    if let Err(error) = hash_referenced_style_flags(
+        &mut css_rules,
+        &facts.constants,
+        &styled_components,
+        file_path,
+    ) {
         let span = scoping
             .get_root_binding(error.component.as_str().into())
             .map_or(oxc_span::Span::new(0, 0), |symbol| {

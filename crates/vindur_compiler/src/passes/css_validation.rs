@@ -1,7 +1,8 @@
 use oxc_css_parser::{
     ast::{
-        ComplexSelector, ComplexSelectorChild, ComponentValue, CompoundSelector, Declaration,
-        InterpolableIdent, PseudoClassSelectorArgKind, SimpleSelector, Statement, TokenSeq,
+        AtRulePrelude, ComplexSelector, ComplexSelectorChild, ComponentValue, CompoundSelector,
+        Declaration, InterpolableIdent, PseudoClassSelectorArgKind, PseudoElementSelectorArgKind,
+        ScopePrelude, SelectorList, SimpleSelector, Statement, TokenSeq,
     },
     token::TokenData,
 };
@@ -39,6 +40,9 @@ pub(super) fn validate_statements(
                 validate_statements(&block.block.statements, source)?;
             }
             Statement::AtRule(rule) => {
+                if let Some(prelude) = &rule.prelude {
+                    validate_at_rule_selectors(prelude)?;
+                }
                 if let Some(block) = &rule.block {
                     validate_statements(&block.statements, source)?;
                 }
@@ -60,6 +64,30 @@ pub(super) fn validate_statements(
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+/// The selectors of `@scope (.a) to (.b)` and `@nest .a`
+fn validate_at_rule_selectors(prelude: &AtRulePrelude<'_>) -> Result<(), CssError> {
+    let selector_lists = match prelude {
+        AtRulePrelude::Scope(scope) => match &**scope {
+            ScopePrelude::StartOnly(start) => [start.selector.as_ref(), None],
+            ScopePrelude::EndOnly(end) => [end.selector.as_ref(), None],
+            ScopePrelude::Both(both) => [both.start.selector.as_ref(), both.end.selector.as_ref()],
+        },
+        AtRulePrelude::Nest(list) => [Some(list), None],
+        _ => [None, None],
+    };
+    for list in selector_lists.into_iter().flatten() {
+        validate_selector_list(list)?;
+    }
+    Ok(())
+}
+
+fn validate_selector_list(list: &SelectorList<'_>) -> Result<(), CssError> {
+    for selector in &list.selectors {
+        validate_complex_selector(selector)?;
     }
     Ok(())
 }
@@ -95,8 +123,16 @@ fn validate_compound_selector(compound: &CompoundSelector<'_>) -> Result<(), Css
             }
             SimpleSelector::PseudoClass(pseudo) => match pseudo.arg.as_ref().map(|arg| &arg.kind) {
                 Some(PseudoClassSelectorArgKind::SelectorList(list)) => {
-                    for selector in &list.selectors {
-                        validate_complex_selector(selector)?;
+                    validate_selector_list(list)?;
+                }
+                // The `of S` selectors of `:nth-child(2n of S)`
+                Some(PseudoClassSelectorArgKind::Nth(nth)) => {
+                    if let Some(list) = nth
+                        .matcher
+                        .as_ref()
+                        .and_then(|matcher| matcher.selector.as_ref())
+                    {
+                        validate_selector_list(list)?;
                     }
                 }
                 Some(PseudoClassSelectorArgKind::RelativeSelectorList(list)) => {
@@ -105,6 +141,18 @@ fn validate_compound_selector(compound: &CompoundSelector<'_>) -> Result<(), Css
                     }
                 }
                 Some(PseudoClassSelectorArgKind::CompoundSelectorList(list)) => {
+                    for compound in &list.selectors {
+                        validate_compound_selector(compound)?;
+                    }
+                }
+                _ => {}
+            },
+            SimpleSelector::PseudoElement(pseudo) => match pseudo.arg.as_ref().map(|arg| &arg.kind)
+            {
+                Some(PseudoElementSelectorArgKind::CompoundSelector(compound)) => {
+                    validate_compound_selector(compound)?;
+                }
+                Some(PseudoElementSelectorArgKind::CompoundSelectorList(list)) => {
                     for compound in &list.selectors {
                         validate_compound_selector(compound)?;
                     }

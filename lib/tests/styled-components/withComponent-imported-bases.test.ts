@@ -138,6 +138,32 @@ test('should throw for withComponent of a component extending a default imported
   `);
 });
 
+test('should throw for withComponent of a component extending an inline default exported styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import Plain from '#/plain'
+
+        const Ext = styled(Plain)\`color: white;\`
+        const Link = Ext.withComponent('a')
+
+        export const App = () => <Link href="x" />
+      `,
+      overrideDefaultFs: createFsMock({
+        'plain.tsx': dedent`
+          import { styled } from 'vindur'
+
+          export default styled.span\`color: pink;\`
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Cannot call withComponent on "Ext": it extends the imported styled component "Plain", whose styles would be lost on the new element. Call withComponent on "Plain" in its own file and extend that instead.
+    loc: 5:13]
+  `);
+});
+
 test('should allow withComponent of a component rendering an imported styled component', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -237,6 +263,66 @@ test('should throw for style flags and withComponent on a re-exported styled bas
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
     loc: 8:13]
+  `);
+});
+
+test('should throw for style flags of components rendering a re-exported styled base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Card } from '#/components';
+
+        const Ext = styled(Card)\`color: blue;\`;
+        const Big = styled(Ext)<{ active: boolean }>\`&.active { color: green; }\`;
+
+        export const App = () => <Big active />;
+      `,
+      overrideDefaultFs: reExportedCardFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 5:19]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Card } from '#/components';
+
+        const Base = styled.div\`color: blue;\`;
+        const LinkedCard = Base.withComponent(Card);
+        const Ext = styled(LinkedCard)\`&.active { color: green; }\`;
+
+        export const App = () => <Ext />;
+      `,
+      overrideDefaultFs: reExportedCardFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 6:19]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Card } from '#/components';
+
+        const Ext = styled(Card)\`color: blue;\`;
+
+        const List = styled.div\`
+          \${Ext}.active & { color: green; }
+        \`;
+
+        export const App = () => <Ext><List /></Ext>;
+      `,
+      overrideDefaultFs: reExportedCardFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Class "active" can't be selected through a reference to "Ext", the style flags of the component it renders are unknown: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 6:6]
   `);
 });
 

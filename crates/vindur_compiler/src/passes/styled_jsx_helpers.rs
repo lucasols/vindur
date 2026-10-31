@@ -189,10 +189,15 @@ pub(super) fn jsx_in_flag_value<'f>(
         let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
             return None;
         };
-        let mut finder = JsxFinder { found: None };
-        finder.visit_expression(container.expression.as_expression()?);
-        finder.found.map(|span| (flag.prop_name.as_str(), span))
+        find_jsx(container.expression.as_expression()?).map(|span| (flag.prop_name.as_str(), span))
     })
+}
+
+/// The span of the first JSX in the expression, like `<Icon />` in `open && <Icon />`
+pub(super) fn find_jsx(expression: &Expression<'_>) -> Option<Span> {
+    let mut finder = JsxFinder { found: None };
+    finder.visit_expression(expression);
+    finder.found
 }
 
 struct JsxFinder {
