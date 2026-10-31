@@ -395,8 +395,11 @@ function resolveVirtualId(id: string): string {
   return `${RESOLVED_VIRTUAL_PREFIX}${id.slice(VIRTUAL_PREFIX.length)}`;
 }
 
+// Imports run in source order, so appending loads the css of imported modules,
+// like the base of a `styled(Base)` extension, first. It also keeps the source
+// map lines aligned
 function injectCssImport(code: string, virtualId: string): string {
-  return `import "${virtualId}";\n${code}`;
+  return `${code}\nimport "${virtualId}";\n`;
 }
 
 function collectSourceAndVirtualModules(

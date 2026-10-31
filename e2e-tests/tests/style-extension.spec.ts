@@ -10,8 +10,20 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   env = await startEnv('style-extension-tests', {
+    'ImportedBase.tsx': dedent`
+      import { styled } from "vindur";
+
+      export const ImportedBase = styled.div\`
+        color: rgb(255, 0, 0);
+      \`;
+    `,
     'App.tsx': dedent`
       import { styled, css } from "vindur";
+      import { ImportedBase } from "#src/ImportedBase";
+
+      const ImportedExtension = styled(ImportedBase)\`
+        color: rgb(0, 0, 255);
+      \`;
 
       const BaseButton = styled.button\`
         padding: 8px 16px;
@@ -92,6 +104,10 @@ test.beforeAll(async ({ browser }) => {
             <Card data-testid="card-component">
               Card Component
             </Card>
+
+            <ImportedExtension data-testid="imported-extension">
+              Imported Extension
+            </ImportedExtension>
           </div>
         );
       }
@@ -185,4 +201,11 @@ test('should support hover states in extended components', async () => {
   await expect(dangerButton).toHaveCSS('background-color', 'rgb(220, 53, 69)'); // initial
   await dangerButton.hover();
   await expect(dangerButton).toHaveCSS('background-color', 'rgb(200, 35, 51)'); // #c82333 on hover
+});
+
+test('should load the css of an imported base before its extension', async () => {
+  await expect(page.getByTestId('imported-extension')).toHaveCSS(
+    'color',
+    'rgb(0, 0, 255)',
+  );
 });
