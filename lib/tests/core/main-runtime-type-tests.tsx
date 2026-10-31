@@ -76,10 +76,7 @@ test('styled components', () => {
       dynamicColor={dynamicColor.set('red', {
         veryDarkThreshold: 0.12,
         veryLightThreshold: 0.9,
-        setColorScheme: {
-          fallback: 'light',
-          classNames: { light: 'lm', dark: 'dm' },
-        },
+        setColorScheme: { fallback: 'light' },
       })}
     />
   );

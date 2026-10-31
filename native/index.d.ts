@@ -5,6 +5,11 @@ export declare class Compiler {
   clear(): void
 }
 
+export interface ColorSchemeClassNames {
+  light: string
+  dark: string
+}
+
 export interface Diagnostic {
   message: string
   filePath: string
@@ -30,6 +35,7 @@ export interface TransformOptions {
   sourcemap?: boolean
   normalizeCode?: boolean
   importAliases?: Record<string, string>
+  colorSchemeClassNames?: ColorSchemeClassNames
 }
 
 export interface TransformOutput {

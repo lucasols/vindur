@@ -264,11 +264,11 @@ describe('createDynamicCssColor runtime', () => {
     });
 
     test('should add the class of the color scheme', () => {
-      const color = createDynamicCssColor('test-123', false);
-      const setColorScheme = {
-        fallback: 'dark',
-        classNames: { light: 'lm', dark: 'dm' },
-      } as const;
+      const color = createDynamicCssColor('test-123', false, {
+        light: 'lm',
+        dark: 'dm',
+      });
+      const setColorScheme = { fallback: 'dark' } as const;
 
       const light = color.setProps('#f7fafc', { setColorScheme });
       expect(light.className).toBe(
@@ -287,21 +287,23 @@ describe('createDynamicCssColor runtime', () => {
       });
       expect(
         color._sp(undefined, undefined, {
-          setColorScheme: { ...setColorScheme, fallback: 'light' },
+          setColorScheme: { fallback: 'light' },
         }).className,
       ).toBe('test-123-s3 test-123-c3 lm');
+      // Without setColorScheme no scheme class is added
+      expect(color.setProps('#2d3748').className.split(' ')).not.toContain(
+        'dm',
+      );
     });
 
     test('should add the fallback scheme class for non hex colors', () => {
-      const color = createDynamicCssColor('test-123', false);
+      const color = createDynamicCssColor('test-123', false, {
+        light: 'lm',
+        dark: 'dm',
+      });
 
       expect(
-        color.setProps('red', {
-          setColorScheme: {
-            fallback: 'light',
-            classNames: { light: 'lm', dark: 'dm' },
-          },
-        }),
+        color.setProps('red', { setColorScheme: { fallback: 'light' } }),
       ).toEqual({
         className: 'test-123-s2 test-123-c2 lm',
         style: { '--test-123': 'red', colorScheme: 'light' },

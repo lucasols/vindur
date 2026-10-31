@@ -56,6 +56,7 @@ export async function transformWithFormat({
   overrideDefaultImportAliases: importAliases = { '#/': '/' },
   production,
   sourcePath = '/test.tsx',
+  colorSchemeClassNames,
   onWarning,
 }: {
   source: string;
@@ -64,6 +65,7 @@ export async function transformWithFormat({
   production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
   sourcePath?: string;
+  colorSchemeClassNames?: { light: string; dark: string };
   onWarning?: (warning: TransformWarning) => void;
 }) {
   const result = transform({
@@ -74,6 +76,7 @@ export async function transformWithFormat({
     importAliases,
     source,
     dev: !production,
+    colorSchemeClassNames,
     onWarning,
   });
 

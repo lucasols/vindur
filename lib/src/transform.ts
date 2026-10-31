@@ -1,5 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import type { CompiledFunction } from './types';
+import type { ColorSchemeClassNames } from './runtime-colors';
 import { TransformWarning } from './custom-errors';
 import {
   invalidateRustTransformCache,
@@ -41,6 +42,8 @@ export type TransformOptions = {
   transformFunctionCache: TransformFunctionCache;
   transformDynamicColorCache: TransformDynamicColorCache;
   importAliases: Record<string, string>;
+  /** Classes `setColorScheme` adds for the scheme of a dynamic color, e.g. `{ light: 'lm', dark: 'dm' }` */
+  colorSchemeClassNames?: ColorSchemeClassNames;
   sourcemap?: boolean;
   onWarning?: (warning: TransformWarning) => void;
 };

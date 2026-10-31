@@ -234,3 +234,37 @@ test('should throw for createDynamicCssColor outside a top level `const` declara
     loc: 3:47]
   `);
 });
+
+test('should pass the colorSchemeClassNames option to the runtime', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const dynamicColor = createDynamicCssColor()
+
+      const Component = ({ color }) => (
+        <div dynamicColor={dynamicColor.set(color, { setColorScheme: { fallback: 'dark' } })} />
+      )
+    `,
+    production: true,
+    colorSchemeClassNames: { light: 'lm', dark: 'd"m' },
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const dynamicColor = createDynamicCssColor("v1560qbr-1", false, {
+      light: "lm",
+      dark: 'd"m',
+    });
+    const Component = ({ color }) => (
+      <div
+        {...dynamicColor._sp(color, undefined, {
+          setColorScheme: {
+            fallback: "dark",
+          },
+        })}
+      />
+    );
+    "
+  `);
+});

@@ -1533,7 +1533,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
   - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `value` and `contrast.value` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `value` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
-  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set. `classNames: { light, dark }` also adds the class of the scheme, e.g. to make the app's light/dark mode selectors follow the color
+  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set. With the `colorSchemeClassNames` plugin option it also adds the class of the scheme, see [Color scheme classes](#color-scheme-classes)
   - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
 - **`set(hexColor, options?)`**: Sets the color through the `dynamicColor` prop, which merges the element's `className` and `style`. `options` accepts `setColorScheme`, `veryDarkThreshold` and `veryLightThreshold`, the same as in `setProps`
 
@@ -1555,6 +1555,24 @@ Available conditional selectors:
 - **`isVeryLight`**: When the color is very light (high contrast needed)
 - **`isNotVeryLight`**: When the color is not very light
 
+### Color scheme classes
+
+If the app's light/dark mode selectors use classes, set them with the `colorSchemeClassNames` plugin option so `setColorScheme` also adds the class of the scheme, and those selectors follow the color instead of the app mode:
+
+```ts
+vindurPlugin({
+  importAliases: { '#src/': '/abs/path/to/src/' },
+  colorSchemeClassNames: { light: 'lm', dark: 'dm' },
+});
+```
+
+```tsx
+// adds `dm` for dark colors, `lm` for light ones, and `dm` when no color is set
+<div
+  dynamicColor={bgColor.set(color, { setColorScheme: { fallback: 'dark' } })}
+/>
+```
+
 ### Usage Examples
 
 ```tsx
@@ -1562,7 +1580,7 @@ Available conditional selectors:
 const { className, style } = dynamicColor.setProps('#007bff', {
   style: { padding: '20px' },
   className: 'custom-card',
-  setColorScheme: { fallback: 'dark', classNames: { light: 'lm', dark: 'dm' } },
+  setColorScheme: { fallback: 'dark' },
 });
 
 // Conditional styling based on color properties

@@ -17,6 +17,8 @@ import { type ModuleNode, type Plugin, type ViteDevServer } from 'vite';
 export type VindurPluginOptions = {
   debugLogs?: boolean;
   importAliases: Record<string, string>;
+  /** Classes `setColorScheme` adds for the scheme of a dynamic color, e.g. `{ light: 'lm', dark: 'dm' }` */
+  colorSchemeClassNames?: { light: string; dark: string };
   sourcemap?: boolean;
 };
 
@@ -28,7 +30,12 @@ const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
-  const { debugLogs = false, importAliases = {}, sourcemap } = options;
+  const {
+    debugLogs = false,
+    importAliases = {},
+    colorSchemeClassNames,
+    sourcemap,
+  } = options;
 
   type CssVirtualModule = { code: string; map: SourceMapInput | null };
   const virtualCssModules = new Map<string, CssVirtualModule>();
@@ -129,6 +136,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
+            colorSchemeClassNames,
             sourcemap: emitSourcemaps,
           });
         } catch (error) {
@@ -211,6 +219,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           transformFunctionCache: functionCache,
           transformDynamicColorCache: dynamicColorCache,
           importAliases,
+          colorSchemeClassNames,
           sourcemap: emitSourcemaps,
         });
 
@@ -248,6 +257,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
+            colorSchemeClassNames,
             sourcemap: emitSourcemaps,
           });
 
@@ -299,6 +309,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
+            colorSchemeClassNames,
             sourcemap: emitSourcemaps,
           });
 

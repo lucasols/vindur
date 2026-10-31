@@ -35,6 +35,7 @@ const App = () => <Button>Save</Button>;
             sourcemap: false,
             normalize_code: false,
             import_aliases: FxHashMap::default(),
+            color_scheme_class_names: None,
         },
         &FxHashMap::default(),
         &FxHashSet::default(),

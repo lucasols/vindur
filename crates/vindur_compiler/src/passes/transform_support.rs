@@ -7,7 +7,7 @@ use oxc_span::GetSpan;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
-    CompilerDiagnostic,
+    ColorSchemeClassNames, CompilerDiagnostic,
     edit::{Edit, expand_removal_to_line},
     facts::StaticValue,
     semantic::VindurImports,
@@ -37,6 +37,7 @@ use super::{
         styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
+    styled_jsx_helpers::js_string_literal,
     theme_color::parse_theme_colors,
     with_component::{process_with_component, runtime_element_source, style_flags_runtime_call},
 };
@@ -48,6 +49,7 @@ pub(super) struct VariableTransform<'a> {
     pub constants: &'a mut FxHashMap<String, StaticValue>,
     pub file_hash: &'a str,
     pub dev: bool,
+    pub color_scheme_class_names: Option<&'a ColorSchemeClassNames>,
     pub id_index: &'a mut u32,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
@@ -68,6 +70,24 @@ pub(super) struct VariableTransform<'a> {
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     /// Collected on the first styled component that needs them
     pub class_prop_usages: &'a mut Option<ClassPropUsages>,
+}
+
+/// Matches the `createDynamicCssColor(hashId, devMode, colorSchemeClassNames)` runtime
+/// signature, the class names are only passed when configured
+fn dynamic_color_call(
+    callee: &str,
+    id: &str,
+    dev: bool,
+    color_scheme_class_names: Option<&ColorSchemeClassNames>,
+) -> String {
+    match color_scheme_class_names {
+        Some(ColorSchemeClassNames { light, dark }) => format!(
+            "{callee}(\"{id}\", {dev}, {{ light: {}, dark: {} }})",
+            js_string_literal(light),
+            js_string_literal(dark)
+        ),
+        None => format!("{callee}(\"{id}\", {dev})"),
+    }
 }
 
 pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`";
@@ -166,7 +186,12 @@ pub(super) fn process_variable_declaration(
             );
             transform.edits.push(Edit {
                 span: call.span,
-                replacement: format!("{}(\"{id}\", {})", callee.name, transform.dev),
+                replacement: dynamic_color_call(
+                    &callee.name,
+                    &id,
+                    transform.dev,
+                    transform.color_scheme_class_names,
+                ),
             });
             continue;
         }
