@@ -122,7 +122,7 @@ impl CodeMap {
     /// The `mappings` field of a v3 sourcemap of `output`, compiled from `source`, with a
     /// segment at the start of each chunk, line and token, columns in UTF-16 code units
     pub(crate) fn mappings(&self, source: &str, output: &str) -> String {
-        let source_lines = LineIndex::new(source);
+        let mut source_lines = LineIndex::new(source);
         let mut encoder = MappingsEncoder::default();
         let mut chunks = self.chunks.iter().peekable();
         let mut line = 0u32;
@@ -164,6 +164,16 @@ fn is_token_boundary(previous: char, character: char) -> bool {
 
 struct LineIndex {
     starts: Vec<usize>,
+    /// The last position, segments mostly move forward on the same line, so their columns
+    /// are counted from it instead of from the line start
+    last: Option<SourcePosition>,
+}
+
+#[derive(Clone, Copy)]
+struct SourcePosition {
+    offset: usize,
+    line: usize,
+    column: usize,
 }
 
 impl LineIndex {
@@ -176,22 +186,43 @@ impl LineIndex {
                 .filter(|(_, byte)| *byte == b'\n')
                 .map(|(index, _)| index + 1),
         );
-        Self { starts }
+        Self { starts, last: None }
     }
 
-    fn position(&self, source: &str, offset: usize) -> (u32, u32) {
-        let line = self.starts.partition_point(|start| *start <= offset) - 1;
-        let line_start = self.starts[line];
-        let prefix = source.get(line_start..offset).unwrap_or_default();
-        let column = if prefix.is_ascii() {
-            prefix.len()
-        } else {
-            prefix.encode_utf16().count()
+    fn position(&mut self, source: &str, offset: usize) -> (u32, u32) {
+        let (line, from, from_column) = match self.last {
+            Some(last)
+                if last.offset <= offset
+                    && self
+                        .starts
+                        .get(last.line + 1)
+                        .is_none_or(|next_line| offset < *next_line) =>
+            {
+                (last.line, last.offset, last.column)
+            }
+            _ => {
+                let line = self.starts.partition_point(|start| *start <= offset) - 1;
+                (line, self.starts[line], 0)
+            }
         };
+        let column = from_column + utf16_len(source.get(from..offset).unwrap_or_default());
+        self.last = Some(SourcePosition {
+            offset,
+            line,
+            column,
+        });
         (
             u32::try_from(line).unwrap_or(u32::MAX),
             u32::try_from(column).unwrap_or(u32::MAX),
         )
+    }
+}
+
+fn utf16_len(text: &str) -> usize {
+    if text.is_ascii() {
+        text.len()
+    } else {
+        text.encode_utf16().count()
     }
 }
 
@@ -267,7 +298,7 @@ mod tests {
     use oxc_span::Span;
     use pretty_assertions::assert_eq;
 
-    use super::{CodeMap, encode_vlq};
+    use super::{CodeMap, LineIndex, encode_vlq};
     use crate::edit::{Edit, apply_edits};
 
     fn edit(start: u32, end: u32, replacement: &str) -> Edit {
@@ -320,6 +351,17 @@ mod tests {
             offsets(&map, &second),
             [4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
         );
+    }
+
+    #[test]
+    fn counts_columns_from_the_previous_position() {
+        let source = "const a = 'é🎨'; const b = 1;\nconst c = 'ü'; const d = 2;";
+        let mut lines = LineIndex::new(source);
+        let positions = ["const b", "const c", "const d", "const a", "const d"].map(|snippet| {
+            let offset = source.find(snippet).expect("snippet in source");
+            lines.position(source, offset)
+        });
+        assert_eq!(positions, [(0, 17), (1, 0), (1, 15), (0, 0), (1, 15)]);
     }
 
     #[test]

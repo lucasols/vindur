@@ -33,7 +33,7 @@ Vindur works with your existing build tools:
 
 Vindur ships with an ESLint plugin that runs the transform during linting and surfaces issues directly in your editor.
 
-- Purpose: catches transform errors early and reports non-fatal compiler warnings (e.g., missing modifier styles, classes a non-exported styled component selects with `&.class` but can never receive, potential optimizations).
+- Purpose: catches transform errors early and reports non-fatal compiler warnings (e.g., missing modifier styles, classes a non-exported styled component selects with `&.class` but never receives through `className`, `cx`, `css`, spread props or `attrs`, potential optimizations).
 - Output: errors appear as ESLint errors; suggestions/potential issues appear as ESLint warnings.
 
 Quick setup (flat config):

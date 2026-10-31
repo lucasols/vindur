@@ -144,3 +144,65 @@ test('should not warn about classes of an ancestor', async () => {
     "
   `);
 });
+
+test('should still warn when the component is only referenced as a type', async () => {
+  expect(
+    await getWarnings(dedent`
+      import { styled } from 'vindur'
+
+      const Container = styled.div\`
+        &.active { color: red; }
+      \`
+
+      export type ContainerType = typeof Container
+
+      export const App = () => <Container />
+    `),
+  ).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: "The class 'active' is used in CSS but not declared in the component"
+        loc: 'current_file:3:6'
+    "
+  `);
+});
+
+test('should not warn when the component receives a css prop', async () => {
+  expect(
+    await getWarnings(dedent`
+      import { css, styled } from 'vindur'
+
+      const highlight = css\`
+        color: red;
+      \`
+
+      const Container = styled.div\`
+        &.active { color: red; }
+      \`
+
+      export const App = () => <Container css={highlight} />
+    `),
+  ).toMatchInlineSnapshot(`
+    "
+    []
+    "
+  `);
+});
+
+test('should not warn when the component sets attrs', async () => {
+  expect(
+    await getWarnings(dedent`
+      import { styled } from 'vindur'
+
+      const Container = styled.div.attrs({ className: 'active' })\`
+        &.active { color: red; }
+      \`
+
+      export const App = () => <Container />
+    `),
+  ).toMatchInlineSnapshot(`
+    "
+    []
+    "
+  `);
+});

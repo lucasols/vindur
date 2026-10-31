@@ -6,7 +6,7 @@ use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::{Scoping, SymbolId};
 
 /// Whether the component is only rendered as JSX elements of this file without a `className`,
-/// `cx` or spread prop, or not used at all, so nothing can add a class to it at runtime
+/// `cx`, `css` or spread prop, or not used at all, so none of these can add a class to it
 pub(super) fn renders_without_class_props(
     program: &Program<'_>,
     scoping: &Scoping,
@@ -23,8 +23,13 @@ pub(super) fn renders_without_class_props(
     };
     visitor.visit_program(program);
     !visitor.has_class_props
-        // Any other reference, like `styled(Box)` or a value passed around, can add classes
-        && visitor.jsx_references == scoping.get_resolved_reference_ids(symbol_id).len()
+        // Any other value reference, like `styled(Box)` or a value passed around, can add
+        // classes, type references like `typeof Box` can't
+        && visitor.jsx_references
+            == scoping
+                .get_resolved_references(symbol_id)
+                .filter(|reference| reference.is_value())
+                .count()
 }
 
 struct ClassPropsVisitor<'s> {
@@ -55,7 +60,7 @@ impl<'a> Visit<'a> for ClassPropsVisitor<'_> {
                 JSXAttributeItem::Attribute(attribute) => matches!(
                     &attribute.name,
                     JSXAttributeName::Identifier(name)
-                        if name.name == "className" || name.name == "cx"
+                        if matches!(name.name.as_str(), "className" | "cx" | "css")
                 ),
             });
         }

@@ -355,8 +355,13 @@ pub(super) fn process_variable_declaration(
                         )
                     }));
                 // Only classes nothing can add are reported, a component rendered with a
-                // `className`, `cx` or spread prop, or used in any other way, may receive them
-                let undeclared = if base_component.class_name.is_empty() {
+                // `className`, `cx`, `css` or spread prop, or used in any other way, may receive
+                // them
+                // `attrs` can set a `className` too
+                let undeclared = if base_component.class_name.is_empty()
+                    && own_attrs.is_none()
+                    && base_component.attrs.is_none()
+                {
                     undeclared_style_classes(&element_classes, &flag_class_list)
                 } else {
                     Vec::new()
