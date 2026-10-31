@@ -116,6 +116,24 @@ describe('dynamicColor prop files', () => {
     `);
   });
 
+  test('should report a dynamicColor prop without a set call in files without vindur', async () => {
+    const { result } = await invalid(
+      dedent`
+        const accent = accentColor.set('#fff');
+
+        export const Swatch = () => <div dynamicColor={accent} />;
+      `,
+    );
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformError'
+        msg: 'dynamicColor prop must be \`color.set(value)\` or \`color.set(value, options)\`, or an array of them, where \`color\` is a dynamic color'
+        loc: '3:48'
+      "
+    `);
+  });
+
   test('should skip an unrelated dynamicColor prop in files without vindur', async () => {
     await valid(dedent`
       export const Swatch = () => <Label dynamicColor="red" />;

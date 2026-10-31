@@ -199,20 +199,42 @@ impl DynamicColorVisitor<'_> {
     }
 
     fn conditional_error_message(&self, expression: &JSXExpression<'_>) -> Option<String> {
-        let (condition, call, alternate) = match expression {
+        let (condition, consequent, alternate) = match expression {
             JSXExpression::ConditionalExpression(conditional) => (
-                expression_source(&conditional.test, self.output.source),
+                &conditional.test,
                 &conditional.consequent,
-                expression_source(&conditional.alternate, self.output.source),
+                Some(&conditional.alternate),
             ),
-            JSXExpression::LogicalExpression(logical) => (
-                expression_source(&logical.left, self.output.source),
-                &logical.right,
-                "null".to_owned(),
-            ),
+            JSXExpression::LogicalExpression(logical) => (&logical.left, &logical.right, None),
             _ => return None,
         };
-        let Expression::CallExpression(call) = call else {
+        let set = self.set_call_parts(consequent)?;
+        let alternate = match alternate {
+            None => "null".to_owned(),
+            // A `set` of the same color with the same options keeps only its value, other
+            // `set` calls can't be merged into one suggestion
+            Some(alternate) => match self.set_call_parts(alternate) {
+                Some(other) if other.color == set.color && other.options == set.options => {
+                    other.value
+                }
+                Some(_) => return None,
+                None => expression_source(alternate, self.output.source),
+            },
+        };
+        let options = set
+            .options
+            .map_or(String::new(), |options| format!(", {options}"));
+        Some(format!(
+            "Conditional dynamicColor is not supported. Use condition inside the set function instead: {}.set({} ? {} : {alternate}{options})",
+            set.color,
+            expression_source(condition, self.output.source),
+            set.value
+        ))
+    }
+
+    /// The sources of a `color.set(value, options?)` call
+    fn set_call_parts<'b>(&self, expression: &'b Expression<'_>) -> Option<SetCallParts<'b>> {
+        let Expression::CallExpression(call) = expression else {
             return None;
         };
         let Expression::StaticMemberExpression(callee) = &call.callee else {
@@ -225,14 +247,14 @@ impl DynamicColorVisitor<'_> {
             return None;
         };
         let argument = call.arguments.first()?;
-        let argument_source = expression_source(argument, self.output.source);
-        let options = call.arguments.get(1).map_or(String::new(), |options| {
-            format!(", {}", expression_source(options, self.output.source))
-        });
-        Some(format!(
-            "Conditional dynamicColor is not supported. Use condition inside the set function instead: {}.set({condition} ? {argument_source} : {alternate}{options})",
-            color.name
-        ))
+        Some(SetCallParts {
+            color: color.name.as_str(),
+            value: expression_source(argument, self.output.source),
+            options: call
+                .arguments
+                .get(1)
+                .map(|options| expression_source(options, self.output.source)),
+        })
     }
 
     fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
@@ -297,6 +319,12 @@ impl DynamicColorVisitor<'_> {
             message,
         ));
     }
+}
+
+struct SetCallParts<'a> {
+    color: &'a str,
+    value: String,
+    options: Option<String>,
 }
 
 struct ColorExpression {

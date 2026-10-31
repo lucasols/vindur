@@ -332,6 +332,54 @@ describe('Dynamic Colors - Edge Cases', () => {
     `);
   });
 
+  test('should merge the values of conditional set calls with the same options', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ active }) => (
+            <div
+              dynamicColor={
+                active ?
+                  color.set('#f00', { veryDarkThreshold: 0.1 })
+                : color.set('#00f', { veryDarkThreshold: 0.1 })
+              }
+            />
+          )
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Conditional dynamicColor is not supported. Use condition inside the set function instead: color.set(active ? '#f00' : '#00f', { veryDarkThreshold: 0.1 })
+      loc: 8:6]
+    `);
+  });
+
+  test('should not suggest code for conditional set calls with different options', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createDynamicCssColor } from 'vindur'
+
+          const color = createDynamicCssColor()
+
+          export const App = ({ active }) => (
+            <div
+              dynamicColor={
+                active ? color.set('#f00', { veryDarkThreshold: 0.1 }) : color.set('#00f')
+              }
+            />
+          )
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: dynamicColor prop must be \`color.set(value)\` or \`color.set(value, options)\`, or an array of them, where \`color\` is a dynamic color
+      loc: 8:6]
+    `);
+  });
+
   test('should throw error for an empty dynamicColor array', async () => {
     await expect(
       transformWithFormat({

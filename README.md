@@ -893,6 +893,8 @@ const Component = ({ color }: { color: string }) => (
 );
 ```
 
+Reference `iconColor.name` and `iconColor.var` directly in styles: constants derived from them, like `const iconVar = iconColor.var`, can't be interpolated.
+
 ### Global Styles
 
 Create global CSS styles that apply to the entire document using `createGlobalStyle`:
