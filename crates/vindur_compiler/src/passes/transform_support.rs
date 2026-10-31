@@ -356,8 +356,10 @@ pub(super) fn process_variable_declaration(
                 // Only classes nothing can add are reported, a component rendered with a
                 // `className`, `cx`, `css` or spread prop, or used in any other way, may receive
                 // them
-                // `attrs` can set a `className` too
+                // `attrs` can set a `className` too, and a wrapped component, like `Button` in
+                // `styled(Button)`, can add any class itself
                 let undeclared = if base_component.class_name.is_empty()
+                    && !base_component.element_is_identifier
                     && own_attrs.is_none()
                     && base_component.attrs.is_none()
                 {
