@@ -492,8 +492,43 @@ test('should validate at-rules nested in @scope of global styles', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: declarations in createGlobalStyle need a rule, e.g. \`body { ... }\`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: declarations in \`@media\` inside \`@scope\` need a rule, e.g. \`:scope { ... }\`
     loc: 7:6]
+  `);
+});
+
+test('should validate rules of grouping rules in @scope of global styles as nested rules', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        @scope (.card) {
+          @media print {
+            > img { display: none; }
+            a { color: red; };
+            b { color: blue; }
+          }
+        }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@scope (.card) {
+      @media print {
+        > img {
+          display: none;
+        }
+        a {
+          color: red;
+        }
+        b {
+          color: blue;
+        }
+      }
+    }
+    "
   `);
 });
 
@@ -543,7 +578,7 @@ test('should accept a `;` after an escaped `;` in a layer name', async () => {
     source: dedent`
       import { createGlobalStyle } from 'vindur'
       createGlobalStyle\`
-        @layer foo\\\; ;
+        @layer foo\\; ;
         body { margin: 0; }
       \`
     `,

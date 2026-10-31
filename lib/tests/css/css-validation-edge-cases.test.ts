@@ -451,12 +451,13 @@ test('should interpolate css constants in strings as their selector', async () =
 test('should throw for a string ended by a carriage return', async () => {
   await expect(
     transformWithFormat({
+      // A carriage return written in the source, `\r` would be a JavaScript escape
       source: dedent`
         import { css } from 'vindur'
         export const a = css\`
-          &::before { content: "a\r b"; }
+          &::before { content: "aCR b"; }
         \`
-      `,
+      `.replace('CR', '\r'),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid CSS at \`... a = css\`: unclosed string, add \`"\`
@@ -510,5 +511,65 @@ test('should throw for a custom property missing its `;` before the next declara
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: missing \`;\` after \`1\`
     loc: 4:7]
+  `);
+});
+
+test('should throw for JavaScript escapes that drop the backslash of a CSS escape', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const icon = css\`
+          &::before { content: "\e900"; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`\\e\` is a JavaScript escape in the template, write \`\\\\e\` for a CSS escape
+    loc: 4:24]
+  `);
+});
+
+test('should keep CSS escapes written with a double backslash', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+
+      const icon = css\`
+        &::before { content: "\\e900"; }
+        &::after { content: "\\2014"; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-icon {
+      &::before {
+        content: "\\e900";
+      }
+      &::after {
+        content: "\\2014";
+      }
+    }
+    "
+  `);
+});
+
+test('should throw for escapes JavaScript does not support in the template', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const icon = css\`
+          &::before { content: "\\e900"; }
+          &::after { content: "\2014"; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`\\2\` is a JavaScript escape in the template, write \`\\\\2\` for a CSS escape
+    loc: 5:23]
   `);
 });

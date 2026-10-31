@@ -290,3 +290,50 @@ test('should throw for computed scoped variable keys in attrs', async () => {
     loc: 4:12]
   `);
 });
+
+test('should throw for scoped variables read in conditional style prop values', async () => {
+  const source = (value: string) => dedent`
+    export const App = ({ active, name }) => (
+      <div css={\`---accent: red; color: var(---accent);\`} style={{ color: ${value} }} />
+    )
+  `;
+
+  await expect(
+    transformWithFormat({ source: source("active ? 'var(---accent)' : 'red'") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables can't be read in \`style\` prop values, they are not renamed there, read them in the styles of the element
+    loc: 2:79]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source("active && 'var(---accent)'") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables can't be read in \`style\` prop values, they are not renamed there, read them in the styles of the element
+    loc: 2:80]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('`var(---${name})`') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables can't be read in \`style\` prop values, they are not renamed there, read them in the styles of the element
+    loc: 2:70]
+  `);
+});
+
+test('should throw for computed scoped variable keys in nested style objects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const App = ({ name }) => (
+          <div
+            css={\`---size: 5px; width: var(---size);\`}
+            style={{ ...{ [\`---\${name}\`]: '10px' } }}
+          />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables must be keys of an inline \`style={{ ... }}\` object to be renamed
+    loc: 4:19]
+  `);
+});

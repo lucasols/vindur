@@ -201,3 +201,21 @@ test('should insert dynamicColor spreads before `/ >`', async () => {
     "
   `);
 });
+
+test('should throw for createDynamicCssColor outside a top level `const` declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        function useColor() {
+          const color = createDynamicCssColor()
+          return color
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createDynamicCssColor() can only be called in a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
+    loc: 4:16]
+  `);
+});

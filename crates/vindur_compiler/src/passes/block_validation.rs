@@ -77,6 +77,39 @@ fn reject_relative_selectors(rule: &QualifiedRule<'_>) -> Result<(), CssError> {
     }
 }
 
+/// Rules in `@scope` are nested in the scope root, like in a style rule, so they can be relative,
+/// like `> img`, and a `;` between them is ignored. Declarations in `@scope` style the scope root,
+/// in a grouping rule inside it they are not supported
+fn validate_scope_contents(statements: &[Statement<'_>], source: &str) -> Result<(), CssError> {
+    for statement in statements {
+        let Statement::AtRule(rule) = statement else {
+            continue;
+        };
+        let name = unprefixed_at_rule_name(rule.name.name).unwrap_or_default();
+        let Some(block) = rule.block.as_ref().filter(|_| is_grouping_at_rule(&name)) else {
+            validate_global_at_rule(rule, source)?;
+            continue;
+        };
+        if let Some(declaration) = block
+            .statements
+            .iter()
+            .find(|statement| matches!(statement, Statement::Declaration(_)))
+        {
+            let span = statement_span(declaration);
+            return Err(CssError::syntax(
+                format!(
+                    "declarations in `@{}` inside `@scope` need a rule, e.g. `:scope {{ ... }}`",
+                    rule.name.raw
+                ),
+                span.start,
+                span.end,
+            ));
+        }
+        validate_scope_contents(&block.statements, source)?;
+    }
+    Ok(())
+}
+
 /// The block of an at-rule in global styles, grouping rules hold a stylesheet
 fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssError> {
     // The parser keeps an `@import` tail it doesn't understand, like a next `@import` after a
@@ -98,12 +131,7 @@ fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssErr
     if is_grouping_at_rule(&name) {
         validate_block_kind(&block.statements, BlockKind::Global, source, inner, None)?;
     } else if name == "scope" {
-        // Declarations in `@scope` style the scope root, its at-rules are checked as usual
-        for statement in &block.statements {
-            if let Statement::AtRule(nested) = statement {
-                validate_global_at_rule(nested, source)?;
-            }
-        }
+        validate_scope_contents(&block.statements, source)?;
     } else if name == "keyframes" {
         validate_block_kind(&block.statements, BlockKind::Keyframes, source, inner, None)?;
     } else if name == "font-feature-values" || name == "page" {

@@ -477,3 +477,18 @@ test('should throw for start rules after the leading rules that follow an earlie
     loc: 4:0]
   `);
 });
+
+test('should throw for createGlobalStyle in a `let` declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        let GlobalStyles = createGlobalStyle\`body { margin: 0; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+    loc: 3:0]
+  `);
+});

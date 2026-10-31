@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::css_syntax::is_layer_name;
-use super::id_order::scoped_variable_names;
+use super::id_order::{ends_with_scoped_prefix, scoped_variable_names};
 use super::static_evaluation::resolved_constant;
 
 /// Scoped variables must be written in the template text, values interpolated from constants or
@@ -29,6 +29,24 @@ pub(super) fn interpolated_scoped_variable_error(
             "Interpolated values can't contain scoped variables like \"---{name}\", write scoped variables directly in the template"
         ),
     ))
+}
+
+/// A scoped name continuing into an interpolation, like `---${name}` or `var(---gap-${size})`,
+/// would only be a scoped name after evaluation, so it is never renamed consistently
+pub(super) fn split_scoped_name_error(
+    css_before: &str,
+    expression: &Expression<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    ends_with_scoped_prefix(css_before).then(|| {
+        CompilerDiagnostic::error(
+            file_path,
+            source,
+            expression.span(),
+            "Scoped variable names can't contain interpolations, write the whole name in the template, e.g. `---gap`".to_owned(),
+        )
+    })
 }
 
 pub(super) fn invalid_layer_error(

@@ -219,3 +219,37 @@ test('should not reuse the id of a later dynamic color for a styled scoped varia
     "
   `);
 });
+
+test('should throw for scoped variable names built with interpolations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const name = 'gap'
+
+        export const App = () => (
+          <div css={\`---\${name}-x: 1px; margin: var(---other);\`} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 4:18]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const size = 'sm'
+
+        const Box = styled.div\`
+          padding: var(---space-\${size});
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 6:26]
+  `);
+});

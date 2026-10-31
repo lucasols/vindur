@@ -472,6 +472,7 @@ pub(super) fn process_variable_declaration(
                         class_name: complete_class_name,
                         element: base_component.element,
                         element_is_identifier: base_component.element_is_identifier,
+                        element_is_base: base_component.element_is_base,
                         runtime: true,
                         style_flags,
                     },
@@ -485,6 +486,7 @@ pub(super) fn process_variable_declaration(
                     class_name: complete_class_name,
                     element: base_component.element,
                     element_is_identifier: base_component.element_is_identifier,
+                    element_is_base: base_component.element_is_base,
                     runtime: false,
                     style_flags,
                 },
@@ -508,6 +510,7 @@ pub(super) fn process_variable_declaration(
                     GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
                 ));
             }
+            require_const(declaration, transform.file_path, transform.source)?;
             // The whole declaration is removed with it
             if declaration.declarations.len() != 1 {
                 return Err(CompilerDiagnostic::error(

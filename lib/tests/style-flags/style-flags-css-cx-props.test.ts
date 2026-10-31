@@ -224,3 +224,26 @@ test('should throw for style flag classes selected in the css prop', async () =>
     loc: 7:53]
   `);
 });
+
+test('should throw for style flag classes selected by a css reference in the css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &.active { color: red; }
+        \`
+
+        const extra = css\`
+          &.active { color: blue; }
+        \`
+
+        export const App = ({ on }) => <Box active={on} css={extra} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag class \`active\` of \`Box\` can't be selected in its css prop, the element gets the hashed flag class, style it in the styles of \`Box\`
+    loc: 11:53]
+  `);
+});

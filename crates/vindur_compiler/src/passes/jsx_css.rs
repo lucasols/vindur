@@ -14,6 +14,7 @@ use super::{
     css_syntax::{BlockKind, css_error_diagnostic},
     css_tokens::{ident_end, is_ident_char, skipped_token_end},
     cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
+    id_order::ends_with_scoped_prefix,
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
@@ -201,12 +202,21 @@ impl JsxCssVisitor<'_> {
         let cx_transform = self.output.cx_elements.get(&element.span.start);
         let (class_name, css_rules) = match &container.expression {
             JSXExpression::Identifier(identifier) => {
-                let Some(StaticValue::CssClass { name, .. }) =
+                let Some(StaticValue::CssClass { name, css }) =
                     resolved_constant(identifier, self.output.constants, self.output.scoping)
                 else {
                     self.invalid_value(identifier.span);
                     return;
                 };
+                if let Some(message) = self.selected_flag_class(element, css) {
+                    self.diagnostic = Some(CompilerDiagnostic::error(
+                        self.output.file_path,
+                        self.output.source,
+                        identifier.span,
+                        message,
+                    ));
+                    return;
+                }
                 let styled = styled_component(element, self.output.styled_components);
                 if styled.is_none()
                     && cx_transform.is_none()
@@ -553,21 +563,45 @@ fn unrenamed_scoped_variable(property: &ObjectProperty<'_>) -> Option<(Span, &'s
             "Scoped variable keys of the `style` prop must be written out, like `'---size'`, computed keys are not renamed",
         ));
     }
-    let value = property.value.without_parentheses();
-    let has_scoped_name = match value {
-        Expression::StringLiteral(string) => contains_scoped_name(&string.value),
-        Expression::TemplateLiteral(template) => template
-            .quasis
-            .iter()
-            .any(|quasi| contains_scoped_name(&quasi.value.raw)),
-        _ => false,
-    };
-    has_scoped_name.then(|| {
+    scoped_name_value(&property.value).map(|span| {
         (
-            value.span(),
+            span,
             "Scoped variables can't be read in `style` prop values, they are not renamed there, read them in the styles of the element",
         )
     })
+}
+
+/// The string the value can evaluate to that reads a scoped name, like `'var(---size)'` in
+/// `active ? 'var(---size)' : undefined` or `` `var(---${name})` ``
+fn scoped_name_value(value: &Expression<'_>) -> Option<Span> {
+    match value.get_inner_expression() {
+        Expression::StringLiteral(string) => {
+            contains_scoped_name(&string.value).then_some(string.span)
+        }
+        Expression::TemplateLiteral(template) => {
+            let last = template.quasis.len().saturating_sub(1);
+            template
+                .quasis
+                .iter()
+                .enumerate()
+                .any(|(index, quasi)| {
+                    let text = quasi.value.cooked.as_ref().unwrap_or(&quasi.value.raw);
+                    contains_scoped_name(text) || (index < last && ends_with_scoped_prefix(text))
+                })
+                .then_some(template.span)
+        }
+        Expression::ConditionalExpression(conditional) => {
+            scoped_name_value(&conditional.consequent)
+                .or_else(|| scoped_name_value(&conditional.alternate))
+        }
+        Expression::LogicalExpression(logical) => {
+            scoped_name_value(&logical.left).or_else(|| scoped_name_value(&logical.right))
+        }
+        Expression::BinaryExpression(binary) => {
+            scoped_name_value(&binary.left).or_else(|| scoped_name_value(&binary.right))
+        }
+        _ => None,
+    }
 }
 
 /// Whether a computed key starts with `---`, e.g. `` `---${name}` `` or `'---' + name`
@@ -640,11 +674,15 @@ struct NestedScopedKeyFinder {
 
 impl<'a> Visit<'a> for NestedScopedKeyFinder {
     fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
-        if property
-            .key
-            .static_name()
-            .is_some_and(|name| name.starts_with("---"))
-        {
+        if property.key.static_name().map_or_else(
+            || {
+                property
+                    .key
+                    .as_expression()
+                    .is_some_and(starts_with_scoped_prefix)
+            },
+            |name| name.starts_with("---"),
+        ) {
             self.found.get_or_insert(property.key.span());
         } else {
             walk::walk_object_property(self, property);

@@ -14,6 +14,7 @@ use super::import_errors::{
 };
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+    split_scoped_name_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
@@ -126,6 +127,9 @@ fn build_template_css(
     let mut open_tokens = OpenTokenScanner::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
+        if let Some(diagnostic) = cooked_escape_error(quasi, file_path, source) {
+            return Err(diagnostic);
+        }
         let quasi_start = evaluated.css.len();
         evaluated.css.push_str(quasi_text(quasi));
         evaluated.map_quasi(quasi_start, quasi);
@@ -229,6 +233,12 @@ fn build_template_css(
             None => evaluate_expression(expression, constants, scoping),
         };
         let in_string_or_comment = open_tokens.ends_in_string_or_comment(&evaluated.css);
+        if !in_string_or_comment
+            && let Some(diagnostic) =
+                split_scoped_name_error(&evaluated.css, expression, file_path, source)
+        {
+            return Err(diagnostic);
+        }
         if has_semicolon
             && !in_string_or_comment
             && (forward_reference.is_some() || matches!(value, Some(StaticValue::ClassName { .. })))
@@ -519,6 +529,42 @@ fn interpolation_error(
     } else {
         diagnostic
     }
+}
+
+/// JavaScript escapes are applied to the template text, so a CSS escape like `\e900` would lose its
+/// backslash. Only `\\`, `` \` `` and `\$` are allowed. Escapes JavaScript doesn't support, like
+/// `\2014`, are rejected too, otherwise the whole template would be used as written
+fn cooked_escape_error(
+    quasi: &TemplateElement<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let raw = quasi.value.raw.as_str();
+    let mut characters = raw.char_indices();
+    while let Some((index, character)) = characters.next() {
+        if character != '\\' {
+            continue;
+        }
+        let (_, escaped) = characters.next()?;
+        if matches!(escaped, '\\' | '`' | '$') {
+            continue;
+        }
+        let start = quasi.span.start + u32::try_from(index).ok()?;
+        let message = if escaped.is_whitespace() {
+            "A `\\` before a line break or space is a JavaScript escape in the template, remove it or write `\\\\` for a CSS escape".to_owned()
+        } else {
+            format!(
+                "`\\{escaped}` is a JavaScript escape in the template, write `\\\\{escaped}` for a CSS escape"
+            )
+        };
+        return Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            oxc_span::Span::new(start, start + 1 + u32::try_from(escaped.len_utf8()).ok()?),
+            message,
+        ));
+    }
+    None
 }
 
 fn quasi_text<'q>(quasi: &'q TemplateElement<'_>) -> &'q str {

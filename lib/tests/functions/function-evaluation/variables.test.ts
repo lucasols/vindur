@@ -256,3 +256,30 @@ test('should throw for dynamic colors passed to functions', async () => {
     loc: 7:4]
   `);
 });
+
+test('should throw for dynamic colors in object arguments of functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+        import { paint } from '#/mixins'
+
+        const accent = createDynamicCssColor()
+
+        export const Box = styled.div\`
+          \${paint({ color: accent })};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const paint = vindurFn(({ color }: { color: string }) => \`color: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... Box = styled\` ... \${paint({ color: accent })}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: 7:4]
+  `);
+});

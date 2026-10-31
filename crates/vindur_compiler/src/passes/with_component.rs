@@ -46,7 +46,7 @@ pub(super) fn process_with_component(
         ));
     };
     // The styles of an imported styled base are applied by it, replacing it drops them
-    if base.element_is_identifier
+    if base.element_is_base
         && !transform.styled_components.contains_key(&base.element)
         && matches!(
             transform.constants.get(&base.element),
@@ -106,6 +106,7 @@ pub(super) fn process_with_component(
         class_name: base.class_name.clone(),
         element: element.clone(),
         element_is_identifier,
+        element_is_base: false,
         runtime,
         style_flags: base.style_flags.clone(),
     };
@@ -116,11 +117,21 @@ pub(super) fn process_with_component(
         .split_whitespace()
         .last()
         .unwrap_or_default();
+    // A styled component element applies its own flag classes, which references select too
+    let mut style_flags = flag_classes(&base.style_flags);
+    if element_is_identifier
+        && let Some(StaticValue::ClassName {
+            style_flags: element_flags,
+            ..
+        }) = transform.constants.get(&element)
+    {
+        style_flags.extend(element_flags.iter().cloned());
+    }
     transform.constants.insert(
         variable_name.to_owned(),
         StaticValue::ClassName {
             name: reference_class.to_owned(),
-            style_flags: flag_classes(&base.style_flags),
+            style_flags,
         },
     );
     transform

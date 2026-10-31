@@ -427,30 +427,34 @@ impl Compiler {
                 if is_type_only_specifier(specifier, scoping) {
                     continue;
                 }
+                // `import X from` is `import { default as X } from`, a default export without a
+                // static value is a runtime value
+                if let ImportDeclarationSpecifier::ImportDefaultSpecifier(default) = specifier {
+                    if let Some(value) = facts.exports.get("default") {
+                        needs_dependency = true;
+                        if has_cycle {
+                            cyclic_values.insert(default.local.name.to_string());
+                        }
+                        values.insert(
+                            default.local.name.to_string(),
+                            imported_value(value, &resolved),
+                        );
+                    }
+                    continue;
+                }
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
                     continue;
                 };
                 if let Some(value) = facts.exports.get(specifier.imported.name().as_str()) {
                     // Keyframes names include the source file's style index
                     needs_dependency = true;
-                    let value = match value {
-                        StaticValue::Object(properties) => StaticValue::ImportedObject {
-                            properties: properties.clone(),
-                            source_path: resolved.clone(),
-                        },
-                        StaticValue::String(_)
-                        | StaticValue::Number(_)
-                        | StaticValue::Boolean(_)
-                        | StaticValue::Array(_) => StaticValue::ImportedValue {
-                            source_path: resolved.clone(),
-                            value: Box::new(value.clone()),
-                        },
-                        value => value.clone(),
-                    };
                     if has_cycle {
                         cyclic_values.insert(specifier.local.name.to_string());
                     }
-                    values.insert(specifier.local.name.to_string(), value);
+                    values.insert(
+                        specifier.local.name.to_string(),
+                        imported_value(value, &resolved),
+                    );
                 } else if let Some(StaticValue::ThemeColors { colors, dev }) =
                     facts.constants.get(specifier.imported.name().as_str())
                 {
@@ -618,5 +622,23 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
         style_dependencies: Vec::new(),
         diagnostics: vec![diagnostic],
         css_source_offsets: Vec::new(),
+    }
+}
+
+/// The value of an import, literals and objects remember the module they come from
+fn imported_value(value: &StaticValue, source_path: &str) -> StaticValue {
+    match value {
+        StaticValue::Object(properties) => StaticValue::ImportedObject {
+            properties: properties.clone(),
+            source_path: source_path.to_owned(),
+        },
+        StaticValue::String(_)
+        | StaticValue::Number(_)
+        | StaticValue::Boolean(_)
+        | StaticValue::Array(_) => StaticValue::ImportedValue {
+            source_path: source_path.to_owned(),
+            value: Box::new(value.clone()),
+        },
+        value => value.clone(),
     }
 }

@@ -4,7 +4,7 @@ use oxc_ast::ast::{
 use oxc_ast_visit::{Visit, walk};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use super::css_tokens::ident_end;
+use super::css_tokens::{ident_end, is_ident_char};
 use super::jsx_attributes::{find_attribute, jsx_name};
 use super::jsx_cx_attribute::is_foreign_cx_attribute;
 
@@ -127,7 +127,17 @@ pub(crate) fn css_attribute_scoped_variable_count(attribute: &JSXAttribute<'_>) 
     let names = template
         .quasis
         .iter()
-        .flat_map(|quasi| scoped_variable_names(quasi.value.raw.as_str()))
+        .flat_map(|quasi| {
+            // The cooked text is the CSS, e.g. `-\-\-gap` is `---gap`
+            scoped_variable_names(
+                quasi
+                    .value
+                    .cooked
+                    .as_ref()
+                    .unwrap_or(&quasi.value.raw)
+                    .as_str(),
+            )
+        })
         .collect::<FxHashSet<_>>();
     u32::try_from(names.len()).unwrap_or(u32::MAX)
 }
@@ -141,6 +151,15 @@ pub(crate) fn scoped_variable_names(css: &str) -> Vec<&str> {
             (name_end > name_start).then(|| &css[name_start..name_end])
         })
         .collect()
+}
+
+/// Whether the text ends with a name starting with `---`, which an interpolation after it completes
+pub(crate) fn ends_with_scoped_prefix(text: &str) -> bool {
+    text.char_indices()
+        .rev()
+        .take_while(|(_, character)| is_ident_char(*character))
+        .last()
+        .is_some_and(|(start, _)| text[start..].starts_with("---"))
 }
 
 fn cx_class_names(attribute: &JSXAttribute<'_>, context: &str) -> Vec<String> {

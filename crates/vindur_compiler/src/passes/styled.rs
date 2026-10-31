@@ -39,6 +39,9 @@ pub(crate) struct StyledComponent {
     pub class_name: String,
     pub element: String,
     pub element_is_identifier: bool,
+    /// The element is the component it extends, like `Card` in `styled(Card)`, which applies its
+    /// own styles, not a replacement from `withComponent`
+    pub element_is_base: bool,
     pub runtime: bool,
     pub style_flags: Vec<StyleFlag>,
 }
@@ -86,6 +89,7 @@ pub(crate) fn styled_tag_component(
             class_name: String::new(),
             element,
             element_is_identifier: false,
+            element_is_base: false,
             runtime: false,
             style_flags: Vec::new(),
         });
@@ -112,6 +116,7 @@ pub(crate) fn styled_tag_component(
                     class_name: String::new(),
                     element: base.name.to_string(),
                     element_is_identifier: true,
+                    element_is_base: true,
                     runtime: false,
                     style_flags: Vec::new(),
                 }),
@@ -125,6 +130,7 @@ pub(crate) fn styled_tag_component(
                 class_name: String::new(),
                 element: format!("{}.{}", object.name, member.property.name),
                 element_is_identifier: true,
+                element_is_base: true,
                 runtime: false,
                 style_flags: Vec::new(),
             })

@@ -1,4 +1,4 @@
-use oxc_ast::ast::{Expression, Program, TaggedTemplateExpression};
+use oxc_ast::ast::{CallExpression, Expression, Program, TaggedTemplateExpression};
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::Span;
@@ -50,6 +50,29 @@ struct DirectTagVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for DirectTagVisitor<'_> {
+    // Top level declarations get their ids, another call would throw at runtime
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if self.diagnostic.is_some() {
+            return;
+        }
+        if let Expression::Identifier(callee) = &call.callee
+            && self
+                .output
+                .imports
+                .matches_import_or_global(callee, "createDynamicCssColor")
+            && !self.is_handled(call.span)
+        {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                call.span,
+                "createDynamicCssColor() can only be called in a top level `const` declaration, e.g. `const accent = createDynamicCssColor()`".to_owned(),
+            ));
+            return;
+        }
+        walk::walk_call_expression(self, call);
+    }
+
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         if self.diagnostic.is_some() || self.is_handled(tagged.span) {
             return;

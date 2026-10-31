@@ -348,6 +348,9 @@ fn compare_numbers(
 fn is_function_argument_value(value: &StaticValue) -> bool {
     match value {
         StaticValue::ImportedValue { value, .. } => is_function_argument_value(value),
+        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
+            properties.values().all(is_function_argument_value)
+        }
         StaticValue::DynamicColor { .. }
         | StaticValue::DynamicColorPath { .. }
         | StaticValue::Function(_)
@@ -377,12 +380,14 @@ pub(super) fn evaluate_argument(
                 StaticValue::ImportedObject { properties, .. } => {
                     Some(StaticValue::Object(properties.clone()))
                 }
-                _ => evaluate_identifier(identifier, constants, scoping)
-                    .filter(is_function_argument_value),
+                _ => evaluate_identifier(identifier, constants, scoping),
             }
+            .filter(is_function_argument_value)
         }
         Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),
-        Argument::ObjectExpression(object) => evaluate_object(object, constants, scoping),
+        Argument::ObjectExpression(object) => {
+            evaluate_object(object, constants, scoping).filter(is_function_argument_value)
+        }
         Argument::BinaryExpression(binary) => evaluate_binary(
             evaluate_expression(&binary.left, constants, scoping)?,
             binary.operator,
