@@ -26,6 +26,20 @@ describe('createDynamicCssColor runtime', () => {
     );
   });
 
+  test('should apply the alpha of color functions like the compiled output', () => {
+    const color = createDynamicCssColor('test-123');
+
+    expect(color.darker(0.1, 0.5)).toBe(
+      'color-mix(in srgb, color-mix(in srgb, var(--test-123) 90%, #000) 50%, transparent)',
+    );
+    expect(color.lighter(0.3, 0.08)).toBe(
+      'color-mix(in srgb, color-mix(in srgb, var(--test-123) 70%, #fff) 8%, transparent)',
+    );
+    expect(color.saturatedDarker(0.86, 0.36)).toBe(
+      'color-mix(in srgb, hsl(var(--test-123-h), var(--test-123-sds), calc(var(--test-123-l) * 0.14)) 36%, transparent)',
+    );
+  });
+
   test('should keep the deprecated `var` property as an alias of `value`', () => {
     const color = createDynamicCssColor('test-123');
 
@@ -275,6 +289,25 @@ describe('createDynamicCssColor runtime', () => {
         className: 'test-123-s3 test-123-c3',
         style: {},
       });
+    });
+
+    test('should apply the set options', () => {
+      const color = createDynamicCssColor('test-123', false);
+
+      // #333333 has 20% lightness
+      expect(
+        color._sp('#333333', { className: 'base' }, { veryDarkThreshold: 0.1 })
+          .className,
+      ).toBe(
+        'base test-123-s0 test-123-c0 test-123-s2 test-123-c2 test-123-s5 test-123-c5 test-123-s7 test-123-c7',
+      );
+      expect(
+        color._sp('#f7fafc', undefined, { veryLightThreshold: 0.99 }).className,
+      ).toContain('test-123-s7');
+      expect(
+        color._sp(null, undefined, { setColorScheme: { fallback: 'dark' } })
+          .style,
+      ).toEqual({ colorScheme: 'dark' });
     });
 
     test('should merge chained colors', () => {

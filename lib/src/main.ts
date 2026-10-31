@@ -328,13 +328,21 @@ export function stableId(): string {
   throw new Error('stableId cannot be called at runtime');
 }
 
-export function createClassName(id?: string): {
+export type CssVar = {
+  /** The custom property name, e.g. `--v1a2b3c-1` */
+  readonly name: `--${string}`;
+  /** The `var()` reference, e.g. `var(--v1a2b3c-1)` */
+  readonly var: string;
+};
+
+export function createCssVar(): CssVar {
+  throw new Error('createCssVar cannot be called at runtime');
+}
+
+export function createClassName(): {
   selector: string;
   value: string;
 } {
-  if (id) {
-    return { selector: `.${id}`, value: id };
-  }
   throw new Error('createClassName cannot be called at runtime');
 }
 

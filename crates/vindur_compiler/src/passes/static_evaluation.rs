@@ -18,7 +18,9 @@ use crate::{facts::StaticValue, semantic::VindurImports};
 
 use super::css::layer_marker;
 use super::css_syntax::is_layer_name;
-use super::dynamic_color_value::{dynamic_color_member, dynamic_color_method};
+use super::dynamic_color_value::{
+    ColorMethodArguments, dynamic_color_member, dynamic_color_method,
+};
 use super::function_evaluation::{evaluate_argument, evaluate_function};
 use super::function_value::compile_vindur_function;
 use super::theme_color::{theme_member, theme_method};
@@ -106,17 +108,18 @@ pub(super) fn evaluate_expression(
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
                 let method = callee.property.name.as_str();
-                let amount = match call.arguments.as_slice() {
-                    [argument] => color_method_amount(method, argument, constants, scoping)?,
-                    [] => None,
-                    _ => return None,
-                };
+                let arguments =
+                    color_method_arguments(method, &call.arguments, constants, scoping)?;
                 // Out of range amounts make invalid CSS, see `invalid_color_method_error`
-                if amount.is_some_and(|amount| !(0.0..=1.0).contains(&amount)) {
+                if [arguments.amount, arguments.alpha]
+                    .into_iter()
+                    .flatten()
+                    .any(|value| !(0.0..=1.0).contains(&value))
+                {
                     return None;
                 }
-                dynamic_color_method(&receiver, method, amount)
-                    .or_else(|| theme_method(&receiver, method, amount))
+                dynamic_color_method(&receiver, method, arguments)
+                    .or_else(|| theme_method(&receiver, method, arguments))
             } else {
                 None
             }
@@ -514,27 +517,51 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
     }
 }
 
-/// The amount of a color method, e.g. `darker(0.2)` or `optimal({ alpha: 0.5 })`.
-/// `None` when the argument can't be evaluated, so the caller fails instead of using 0.
+/// The arguments of a color method, e.g. `darker(0.2, 0.5)` or `optimal({ alpha: 0.5 })`.
+/// `None` when an argument can't be evaluated, so the caller fails instead of using 0.
 /// An `undefined` argument or alpha is the same as omitting it
-fn color_method_amount(
+pub(super) fn color_method_arguments(
     method: &str,
-    argument: &Argument<'_>,
+    arguments: &[Argument<'_>],
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-) -> Option<Option<f64>> {
-    match evaluate_expression(argument.as_expression()?, constants, scoping)? {
-        StaticValue::Number(value) if method != "optimal" => Some(Some(value)),
+) -> Option<ColorMethodArguments> {
+    let number = |argument: &Argument<'_>| match evaluate_expression(
+        argument.as_expression()?,
+        constants,
+        scoping,
+    )? {
+        StaticValue::Number(value) => Some(Some(value)),
         StaticValue::Undefined => Some(None),
-        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. }
-            if method == "optimal" =>
-        {
-            match properties.get("alpha") {
-                Some(StaticValue::Number(value)) => Some(Some(*value)),
-                Some(StaticValue::Undefined) | None => Some(None),
-                Some(_) => None,
-            }
+        _ => None,
+    };
+    match (method, arguments) {
+        (_, []) => Some(ColorMethodArguments::default()),
+        ("optimal", [options]) => {
+            let alpha = match evaluate_expression(options.as_expression()?, constants, scoping)? {
+                StaticValue::Undefined => None,
+                StaticValue::Object(properties)
+                | StaticValue::ImportedObject { properties, .. } => match properties.get("alpha") {
+                    Some(StaticValue::Number(value)) => Some(*value),
+                    Some(StaticValue::Undefined) | None => None,
+                    Some(_) => return None,
+                },
+                _ => return None,
+            };
+            Some(ColorMethodArguments {
+                amount: None,
+                alpha,
+            })
         }
+        ("optimal", _) => None,
+        (_, [amount]) => Some(ColorMethodArguments {
+            amount: number(amount)?,
+            alpha: None,
+        }),
+        ("darker" | "lighter" | "saturatedDarker", [amount, alpha]) => Some(ColorMethodArguments {
+            amount: number(amount)?,
+            alpha: number(alpha)?,
+        }),
         _ => None,
     }
 }
