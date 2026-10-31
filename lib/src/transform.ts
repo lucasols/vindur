@@ -48,7 +48,8 @@ export type TransformOptions = {
 // Patterns of code the compiler handles, files matching none of them have no vindur code,
 // so tools can skip them without parsing. Kept loose: a match only means the file may have it
 export const VINDUR_CODE_PATTERNS: readonly RegExp[] = [
-  /\b(?:from\s*|import\s*)['"]vindur['"]/u,
+  // The module literal alone, so comments between it and `from` or `import` don't matter
+  /['"]vindur['"]/u,
   // `dynamicColor` only counts with an expression value, the compiler validates it, so a
   // string value of an unrelated custom prop is left alone
   /\b(?:css|cx)\s*=|\bdynamicColor\s*=\s*\{/u,

@@ -64,3 +64,23 @@ test('should check files that only use scoped variables', async () => {
     "
   `);
 });
+
+test('should check files with a comment before the vindur module name', async () => {
+  const { result } = await invalid(
+    dedent`
+      import { styled } from /* styles */ 'vindur';
+
+      export const Title = styled.div\`
+        color: \${(props) => props.color};
+      \`;
+    `,
+  );
+
+  expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+    "
+    - messageId: 'transformError'
+      msg: 'Invalid arrow function in interpolation at \`... Title = styled\`. Only simple forward references like \${() => Component} are supported'
+      loc: '4:12'
+    "
+  `);
+});

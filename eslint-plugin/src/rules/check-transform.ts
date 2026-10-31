@@ -6,7 +6,6 @@ import {
   transform,
   TransformError,
   TransformWarning,
-  type TransformDynamicColorCache,
   type TransformFS,
   type TransformFunctionCache,
 } from 'vindur/transform';
@@ -29,29 +28,26 @@ function shouldProcessFile(filename: string, source: string): boolean {
   return mayContainVindurCode(source);
 }
 
-type TransformCaches = {
-  functions: TransformFunctionCache;
-  dynamicColors: TransformDynamicColorCache;
-};
-
 // Shared by all files of a lint run, so modules imported by many files, like theme colors or
 // vindurFn mixins, are compiled once. Lint runs from the CLI, the files don't change during it.
 // Keyed by the import aliases, which change how imports resolve
-const transformCaches = new Map<string, TransformCaches>();
+const functionCaches = new Map<string, TransformFunctionCache>();
 
-function getTransformCaches(importAliases: Record<string, string>) {
+function getFunctionCache(
+  importAliases: Record<string, string>,
+): TransformFunctionCache {
   const key = JSON.stringify(importAliases);
-  let caches = transformCaches.get(key);
-  if (!caches) {
-    caches = { functions: {}, dynamicColors: {} };
-    transformCaches.set(key, caches);
+  let cache = functionCaches.get(key);
+  if (!cache) {
+    cache = {};
+    functionCaches.set(key, cache);
   }
-  return caches;
+  return cache;
 }
 
 /** For tests, which lint different contents under the same paths */
 export function clearTransformCaches(): void {
-  transformCaches.clear();
+  functionCaches.clear();
 }
 
 const fs: TransformFS = {
@@ -83,8 +79,6 @@ function runVindurTransform(
     });
   }
 
-  const caches = getTransformCaches(importAliases);
-
   try {
     transform({
       fileAbsPath: filename,
@@ -94,8 +88,8 @@ function runVindurTransform(
       importAliases,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
-      transformDynamicColorCache: caches.dynamicColors,
-      transformFunctionCache: caches.functions,
+      transformDynamicColorCache: {},
+      transformFunctionCache: getFunctionCache(importAliases),
     });
   } catch (error) {
     if (error instanceof TransformError) {
