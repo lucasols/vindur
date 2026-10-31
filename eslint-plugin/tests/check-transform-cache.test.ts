@@ -1,5 +1,5 @@
 import { dedent } from '@ls-stack/utils/dedent';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
   checkTransformRule,
@@ -10,7 +10,6 @@ import { createVindurTester } from './utils/createTester';
 vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
   existsSync: vi.fn(),
-  statSync: vi.fn(),
 }));
 
 const { valid, invalid } = createVindurTester({
@@ -18,18 +17,14 @@ const { valid, invalid } = createVindurTester({
   rule: checkTransformRule,
 });
 
-const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs');
-
-type VirtualFile = { source: string; mtime: number };
-
 // ESLint ignores files outside of its working directory
 const root = process.cwd();
 const themePath = `${root}/theme.ts`;
 
-let files = new Map<string, VirtualFile>();
+let files = new Map<string, string>();
 
 function writeFile(path: string, source: string) {
-  files.set(path, { source, mtime: (files.get(path)?.mtime ?? 0) + 1 });
+  files.set(path, source);
 }
 
 function advanceTime(ms: number) {
@@ -44,13 +39,8 @@ beforeEach(() => {
   vi.mocked(existsSync).mockImplementation((path) => files.has(String(path)));
   vi.mocked(readFileSync).mockImplementation((path) => {
     const file = files.get(String(path));
-    if (!file) throw new Error(`File not found: ${String(path)}`);
-    return file.source;
-  });
-  vi.mocked(statSync).mockImplementation((path) => {
-    const stats = actualFs.statSync(import.meta.filename);
-    stats.mtimeMs = files.get(String(path))?.mtime ?? -1;
-    return stats;
+    if (file === undefined) throw new Error(`File not found: ${String(path)}`);
+    return file;
   });
 });
 
@@ -100,16 +90,21 @@ test('should keep compiled dependencies between back-to-back calls', async () =>
   expect(vi.mocked(readFileSync)).toHaveBeenCalledTimes(1);
 });
 
-test('should check for changes while lint calls keep coming', async () => {
+test('should compile again at least every 30s while lint calls keep coming', async () => {
   writeFile(themePath, `export const BRAND = 'red';\nexport const OTHER = 1;`);
   await valid(buttonCase);
 
   writeFile(themePath, `export const OTHER = 1;`);
-  advanceTime(600);
+  advanceTime(900);
   await valid(buttonCase);
 
-  // A second since the last check, though the previous call was 600ms ago
-  advanceTime(600);
+  // Calls under a second apart reuse the cache until it's 30s old
+  for (let elapsed = 1800; elapsed < 30_000; elapsed += 900) {
+    advanceTime(900);
+    await valid(buttonCase);
+  }
+  advanceTime(900);
+
   const { result } = await invalid(buttonCase);
 
   expect(result.messages.map((message) => message.message)).toEqual([

@@ -1,6 +1,5 @@
 import type { Rule } from 'eslint';
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
   invalidateTransformCache,
@@ -30,118 +29,58 @@ function shouldProcessFile(filename: string, source: string): boolean {
   return mayContainVindurCode(source);
 }
 
-// Shared by all files linted by the process, so modules imported by many files, like theme
-// colors or vindurFn mixins, are compiled once. Keyed by the import aliases, which change how
-// imports resolve
+// Shared by the files of a lint run, so modules imported by many files, like theme colors or
+// vindurFn mixins, are compiled once. Keyed by the import aliases, which change how imports
+// resolve
 type SharedCache = {
   functions: TransformFunctionCache;
-  fs: TransformFS;
-  /** Modification time of each file the compiler read or linted, to evict it when it changes */
-  mtimes: Map<string, number>;
-  /** Fingerprint of the last content compiled for each file, editors lint unsaved buffers */
-  fingerprints: Map<string, string>;
-  /** Files the compiler looked for but didn't find, creating one resets the cache */
-  missingFiles: Set<string>;
-  lastValidation: number;
+  createdAt: number;
+  lastCall: number;
 };
 
 const sharedCaches = new Map<string, SharedCache>();
 
-// Files are checked for changes at most once per interval, a CLI run lints many files in a row
-// and doesn't change them, an editor relints after edits
-const REVALIDATE_INTERVAL_MS = 1000;
-
-function fileMtime(fileAbsPath: string): number {
-  return statSync(fileAbsPath, { throwIfNoEntry: false })?.mtimeMs ?? -1;
-}
-
-function fingerprint(content: string): string {
-  return createHash('sha1').update(content).digest('base64');
-}
+// A CLI run (CI, AI agents) lints files back to back, so the cache is reused with no tracking
+// cost on each file. Long-lived processes, like editor ESLint servers, compile again after a
+// pause between lint calls, and at least every few seconds while calls keep coming, to pick up
+// changed, created or deleted files
+const RESET_AFTER_PAUSE_MS = 1000;
+const RESET_AFTER_AGE_MS = 30_000;
 
 function getSharedCache(importAliases: Record<string, string>): SharedCache {
   const key = JSON.stringify(importAliases);
+  const now = Date.now();
   const existing = sharedCaches.get(key);
-  if (existing) return existing;
+  if (
+    existing
+    && now - existing.lastCall < RESET_AFTER_PAUSE_MS
+    && now - existing.createdAt < RESET_AFTER_AGE_MS
+  ) {
+    existing.lastCall = now;
+    return existing;
+  }
 
-  const mtimes = new Map<string, number>();
-  const fingerprints = new Map<string, string>();
-  const missingFiles = new Set<string>();
-  const cache: SharedCache = {
-    functions: {},
-    fs: {
-      readFile: (fileAbsPath: string) => {
-        // Read after the stat, so a write in between is seen as a change
-        const mtime = fileMtime(fileAbsPath);
-        const content = readFileSync(fileAbsPath, 'utf-8');
-        mtimes.set(fileAbsPath, mtime);
-        fingerprints.set(fileAbsPath, fingerprint(content));
-        return content;
-      },
-      exists: (fileAbsPath: string) => {
-        const found = existsSync(fileAbsPath);
-        if (!found) missingFiles.add(fileAbsPath);
-        return found;
-      },
-    },
-    mtimes,
-    fingerprints,
-    missingFiles,
-    lastValidation: 0,
-  };
+  if (existing) resetCompiledModules(existing);
+  const cache: SharedCache = { functions: {}, createdAt: now, lastCall: now };
   sharedCaches.set(key, cache);
   return cache;
 }
 
-/** Drops all compiled modules, for changes that can't be traced to the modules they affect */
-function resetSharedCache(cache: SharedCache, changedFile: string) {
-  // Also clears the module resolution cache, which is shared by all compilers
-  invalidateTransformCache(cache.functions, changedFile);
-  cache.functions = {};
-  cache.mtimes.clear();
-  cache.fingerprints.clear();
-  cache.missingFiles.clear();
-}
-
-/** Evicts the modules whose files changed on disk, and the modules built from them */
-function evictChangedFiles(cache: SharedCache) {
-  const now = Date.now();
-  if (now - cache.lastValidation < REVALIDATE_INTERVAL_MS) return;
-  cache.lastValidation = now;
-
-  // A module importing a file that didn't exist doesn't depend on it in the compiler, so its
-  // creation can't be traced to the modules to evict
-  for (const fileAbsPath of cache.missingFiles) {
-    if (existsSync(fileAbsPath)) {
-      resetSharedCache(cache, fileAbsPath);
-      return;
-    }
-  }
-
-  for (const [fileAbsPath, mtime] of cache.mtimes) {
-    if (fileMtime(fileAbsPath) !== mtime) {
-      invalidateTransformCache(cache.functions, fileAbsPath);
-      cache.mtimes.delete(fileAbsPath);
-      cache.fingerprints.delete(fileAbsPath);
-    }
-  }
-}
-
-/** The linted file's modules are compiled from `source`, which can differ from the last one */
-function trackLintedFile(cache: SharedCache, filename: string, source: string) {
-  const sourceFingerprint = fingerprint(source);
-  const previous = cache.fingerprints.get(filename);
-  if (previous !== undefined && previous !== sourceFingerprint) {
-    invalidateTransformCache(cache.functions, filename);
-  }
-  cache.fingerprints.set(filename, sourceFingerprint);
-  cache.mtimes.set(filename, fileMtime(filename));
+/** Also clears the native module resolution cache, which all compilers share */
+function resetCompiledModules(cache: SharedCache) {
+  invalidateTransformCache(cache.functions, '');
 }
 
 /** For tests, which lint different contents under the same paths */
 export function clearTransformCaches(): void {
+  for (const cache of sharedCaches.values()) resetCompiledModules(cache);
   sharedCaches.clear();
 }
+
+const fs: TransformFS = {
+  readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
+  exists: (fileAbsPath: string) => existsSync(fileAbsPath),
+};
 
 function runVindurTransform(
   filename: string,
@@ -168,15 +107,13 @@ function runVindurTransform(
   }
 
   const cache = getSharedCache(importAliases);
-  evictChangedFiles(cache);
-  trackLintedFile(cache, filename, source);
 
   try {
     transform({
       fileAbsPath: filename,
       source,
       dev: true, // Always run in dev mode
-      fs: cache.fs,
+      fs,
       importAliases,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
