@@ -801,9 +801,14 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
-export const elementClassName = createClassName('vhash-1');
+export const elementClassName = {
+  selector: '.vhash-1',
+  value: 'vhash-1',
+};
 export const genericPurposeId = 'vhash-2';
 ```
+
+`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error.
 
 You can then use it in styled components, css functions and css props:
 

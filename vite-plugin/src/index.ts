@@ -25,7 +25,7 @@ const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
-const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=/u;
+const VINDUR_JSX_PROP_RE = /\b(?:css|cx|dynamicColor)\s*=/u;
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;

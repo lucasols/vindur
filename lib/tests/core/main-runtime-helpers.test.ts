@@ -498,16 +498,7 @@ describe('mergeStyles', () => {
 });
 
 describe('createClassName', () => {
-  test('should create className object with id', () => {
-    const result = createClassName('test-class');
-
-    expect(result).toEqual({
-      selector: '.test-class',
-      value: 'test-class',
-    });
-  });
-
-  test('should throw error without id', () => {
+  test('should throw when called at runtime', () => {
     expect(() => createClassName()).toThrowErrorMatchingInlineSnapshot(
       `[Error: createClassName cannot be called at runtime]`,
     );

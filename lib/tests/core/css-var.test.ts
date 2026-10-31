@@ -156,3 +156,42 @@ describe('createCssVar', () => {
     `);
   });
 });
+
+describe('stable ID utility references', () => {
+  test('should throw error when referenced without calling', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createCssVar } from 'vindur';
+
+          const makeVar = createCssVar;
+          export const color = makeVar();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createCssVar can only be called directly, eg. createCssVar(), other references to it are not supported
+      loc: 3:16]
+    `);
+  });
+
+  test('should allow typeof references in types', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createClassName } from 'vindur';
+
+        type ClassName = ReturnType<typeof createClassName>;
+
+        export const className: ClassName = createClassName();
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "type ClassName = ReturnType<typeof createClassName>;
+      export const className: ClassName = {
+        selector: ".v1560qbr-className-1",
+        value: "v1560qbr-className-1",
+      };
+      "
+    `);
+  });
+});

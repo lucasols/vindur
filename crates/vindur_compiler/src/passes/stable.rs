@@ -1,4 +1,7 @@
-use oxc_ast::ast::{BindingPattern, CallExpression, Expression, Program, VariableDeclaration};
+use oxc_ast::ast::{
+    BindingPattern, CallExpression, Expression, IdentifierReference, Program, TSTypeQuery,
+    VariableDeclaration,
+};
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::Span;
 use oxc_syntax::scope::ScopeFlags;
@@ -7,6 +10,8 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
 use super::transform_support::generated_name;
+
+const STABLE_UTILITIES: &[&str] = &["stableId", "createClassName", "createCssVar"];
 
 pub(crate) struct StableDeclarationTransform<'a> {
     pub imports: &'a VindurImports<'a>,
@@ -61,10 +66,8 @@ pub(crate) fn transform_stable_declaration(
                         style_flags: Vec::new(),
                     },
                 );
-                let Expression::Identifier(callee) = &call.callee else {
-                    continue;
-                };
-                format!("{}(\"{generated}\")", callee.name)
+                // The import is removed, so the call compiles to the object it returns
+                format!("{{ selector: \".{generated}\", value: \"{generated}\" }}")
             }
         };
         context.edits.push(Edit {
@@ -187,6 +190,30 @@ impl<'a> Visit<'a> for StableCallVisitor<'_> {
         });
     }
 
+    // Calls never reach here, so any other reference would point to the removed import
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self.diagnostic.is_some() {
+            return;
+        }
+        let Some(utility) = self.output.imports.get_identifier(identifier) else {
+            return;
+        };
+        if !STABLE_UTILITIES.contains(&utility) {
+            return;
+        }
+        self.diagnostic = Some(CompilerDiagnostic::error(
+            self.output.file_path,
+            self.output.source,
+            identifier.span,
+            format!(
+                "{utility} can only be called directly, eg. {utility}(), other references to it are not supported"
+            ),
+        ));
+    }
+
+    // `typeof stableId` in types has no runtime reference
+    fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
+
     fn visit_function(&mut self, function: &oxc_ast::ast::Function<'a>, flags: ScopeFlags) {
         self.function_depth += 1;
         walk::walk_function(self, function, flags);
@@ -211,5 +238,5 @@ fn imported_utility<'a>(
         return None;
     };
     let utility = imports.get_identifier(callee)?;
-    matches!(utility, "stableId" | "createClassName" | "createCssVar").then_some(utility)
+    STABLE_UTILITIES.contains(&utility).then_some(utility)
 }

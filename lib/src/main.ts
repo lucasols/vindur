@@ -339,13 +339,10 @@ export function createCssVar(): CssVar {
   throw new Error('createCssVar cannot be called at runtime');
 }
 
-export function createClassName(id?: string): {
+export function createClassName(): {
   selector: string;
   value: string;
 } {
-  if (id) {
-    return { selector: `.${id}`, value: id };
-  }
   throw new Error('createClassName cannot be called at runtime');
 }
 
