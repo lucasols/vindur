@@ -1401,14 +1401,16 @@ Each color in your theme provides:
 - **`value`**: CSS variable reference for the color. `var` (and `contrast.var`) still works as a deprecated alias
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
-- **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
-- **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
-- **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
+- **`darker(amount, alpha?)`**: Mixes the color with black in sRGB (0-1 scale)
+- **`lighter(amount, alpha?)`**: Mixes the color with white in sRGB (0-1 scale)
+- **`saturatedDarker(amount, alpha?)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
 - **`contrast.value`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
-Amounts, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
+The optional `alpha` of `darker`, `lighter` and `saturatedDarker` applies an alpha to the result, e.g. `saturatedDarker(0.86, 0.08)`.
+
+Amounts and alphas, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
 
 ## Dynamic Theme Colors
 

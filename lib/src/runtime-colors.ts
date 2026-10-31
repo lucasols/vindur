@@ -18,9 +18,9 @@ export type StaticColor<D extends string> = {
   var: string;
   defaultHex: D;
   alpha: (alpha: number) => string;
-  darker: (amount: number) => string;
-  lighter: (amount: number) => string;
-  saturatedDarker: (amount: number) => string;
+  darker: (amount: number, alpha?: number) => string;
+  lighter: (amount: number, alpha?: number) => string;
+  saturatedDarker: (amount: number, alpha?: number) => string;
   contrast: {
     value: string;
     /** @deprecated Use `value` instead */
@@ -291,6 +291,9 @@ function staticColorOps(hex: string): ColorOps {
   }
   const alphaHex = (color: Rgb, alpha: number) =>
     toHex(color, Math.round(Math.min(1, Math.max(0, alpha)) * 255));
+  // Matches `with_alpha_hex` in theme_color.rs
+  const withAlphaHex = (color: Rgb, alpha: number | undefined) =>
+    alpha === undefined ? toHex(color) : alphaHex(color, alpha);
   const contrastHex = getContrastHex(rgb);
   const contrastRgb = parseHex(contrastHex) ?? rgb;
   const optimalHex = getOptimalContrastHex(rgb);
@@ -300,9 +303,10 @@ function staticColorOps(hex: string): ColorOps {
     value: hex,
     var: hex,
     alpha: (alpha) => alphaHex(rgb, alpha),
-    darker: (amount) => toHex(mix(rgb, 0, amount)),
-    lighter: (amount) => toHex(mix(rgb, 255, amount)),
-    saturatedDarker: (amount) => toHex(saturatedDarker(rgb, amount)),
+    darker: (amount, alpha) => withAlphaHex(mix(rgb, 0, amount), alpha),
+    lighter: (amount, alpha) => withAlphaHex(mix(rgb, 255, amount), alpha),
+    saturatedDarker: (amount, alpha) =>
+      withAlphaHex(saturatedDarker(rgb, amount), alpha),
     contrast: {
       value: contrastHex,
       var: contrastHex,
@@ -341,14 +345,21 @@ export type ColorOps = {
   /** @deprecated Use `value` instead */
   var: string;
   alpha: (alpha: number) => string;
-  darker: (amount: number) => string;
-  lighter: (amount: number) => string;
-  saturatedDarker: (amount: number) => string;
+  darker: (amount: number, alpha?: number) => string;
+  lighter: (amount: number, alpha?: number) => string;
+  saturatedDarker: (amount: number, alpha?: number) => string;
   contrast: ContrastOps;
 };
 
 function colorMixPercentage(amount: number): string {
   return `${formatFactor(amount * 100)}%`;
+}
+
+// Matches `with_alpha` in dynamic_color_value.rs
+function withAlpha(color: string, alpha: number | undefined): string {
+  return alpha === undefined ? color : (
+      `color-mix(in srgb, ${color} ${colorMixPercentage(alpha)}, transparent)`
+    );
 }
 
 export function buildColorOps({
@@ -365,24 +376,25 @@ export function buildColorOps({
   return {
     value: base,
     var: base,
-    alpha: (alpha: number) =>
-      `color-mix(in srgb, ${base} ${colorMixPercentage(alpha)}, transparent)`,
-    darker: (amount: number) =>
-      `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #000)`,
-    lighter: (amount: number) =>
-      `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #fff)`,
-    saturatedDarker: saturatedDarkerOp,
+    alpha: (alpha: number) => withAlpha(base, alpha),
+    darker: (amount: number, alpha?: number) =>
+      withAlpha(
+        `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #000)`,
+        alpha,
+      ),
+    lighter: (amount: number, alpha?: number) =>
+      withAlpha(
+        `color-mix(in srgb, ${base} ${colorMixPercentage(1 - amount)}, #fff)`,
+        alpha,
+      ),
+    saturatedDarker: (amount: number, alpha?: number) =>
+      withAlpha(saturatedDarkerOp(amount), alpha),
     contrast: {
       value: contrastBase,
       var: contrastBase,
-      optimal: (options?: { alpha?: number }) => {
-        if (options?.alpha !== undefined) {
-          return `color-mix(in srgb, ${contrastOptimalBase} ${colorMixPercentage(options.alpha)}, transparent)`;
-        }
-        return contrastOptimalBase;
-      },
-      alpha: (alpha: number) =>
-        `color-mix(in srgb, ${contrastBase} ${colorMixPercentage(alpha)}, transparent)`,
+      optimal: (options?: { alpha?: number }) =>
+        withAlpha(contrastOptimalBase, options?.alpha),
+      alpha: (alpha: number) => withAlpha(contrastBase, alpha),
     },
   };
 }

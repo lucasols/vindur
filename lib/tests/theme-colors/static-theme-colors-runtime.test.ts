@@ -18,6 +18,7 @@ describe('createStaticThemeColors runtime', () => {
     expect(colors.primary.darker(0.1)).toBe('#006fe6');
     expect(colors.primary.lighter(0.3)).toBe('#4da3ff');
     expect(colors.primary.saturatedDarker(0.1)).toBe('#006fe6');
+    expect(colors.primary.darker(0.1, 0.5)).toBe('#006fe680');
 
     // Contrast operations
     expect(colors.primary.contrast.value).toBe('#fff');
@@ -57,6 +58,10 @@ test('runtime color operations match the compiled production output', () => {
     'lighter(0.35)',
     'saturatedDarker(0.3)',
     'saturatedDarker(0.5)',
+    'darker(0.2, 0.5)',
+    'lighter(0.35, AMOUNT)',
+    'saturatedDarker(0.86, 0.08)',
+    'saturatedDarker(0.5, 0)',
     'alpha(0.4)',
     'alpha(0)',
     'contrast.value',
@@ -72,6 +77,10 @@ test('runtime color operations match the compiled production output', () => {
       color.lighter(0.35),
       color.saturatedDarker(0.3),
       color.saturatedDarker(0.5),
+      color.darker(0.2, 0.5),
+      color.lighter(0.35, 0.3),
+      color.saturatedDarker(0.86, 0.08),
+      color.saturatedDarker(0.5, 0),
       color.alpha(0.4),
       color.alpha(0),
       color.contrast.value,

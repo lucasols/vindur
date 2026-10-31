@@ -42,10 +42,18 @@ pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Optio
     }
 }
 
+/// The evaluated arguments of a color method: `amount` of `darker(amount, alpha)`, and the
+/// `alpha` of `darker`, `lighter`, `saturatedDarker` and `optimal({ alpha })`
+#[derive(Clone, Copy, Default)]
+pub(super) struct ColorMethodArguments {
+    pub amount: Option<f64>,
+    pub alpha: Option<f64>,
+}
+
 pub(super) fn dynamic_color_method(
     receiver: &StaticValue,
     method: &str,
-    amount: Option<f64>,
+    arguments: ColorMethodArguments,
 ) -> Option<StaticValue> {
     let (id, contrast) = match receiver {
         StaticValue::DynamicColor { id, .. } => (id, false),
@@ -61,24 +69,15 @@ pub(super) fn dynamic_color_method(
         format!("var(--{id})")
     };
     if method == "optimal" {
-        return Some(StaticValue::String(amount.map_or_else(
-            || format!("var(--{id}-c-optimal)"),
-            |amount| {
-                format!(
-                    "color-mix(in srgb, var(--{id}-c-optimal) {}%, transparent)",
-                    format_percentage(amount)
-                )
-            },
+        return Some(StaticValue::String(with_alpha(
+            format!("var(--{id}-c-optimal)"),
+            arguments.alpha,
         )));
     }
-    let amount = amount?;
-    let percentage = format_percentage(if method == "alpha" {
-        amount
-    } else {
-        1.0 - amount
-    });
+    let amount = arguments.amount?;
+    let percentage = format_percentage(1.0 - amount);
     let value = match method {
-        "alpha" => format!("color-mix(in srgb, {base} {percentage}%, transparent)"),
+        "alpha" => return Some(StaticValue::String(with_alpha(base, Some(amount)))),
         "darker" => format!("color-mix(in srgb, {base} {percentage}%, #000)"),
         "lighter" => format!("color-mix(in srgb, {base} {percentage}%, #fff)"),
         // Uses the hsl vars set by the runtime, see `saturated_darker` in color_math.rs
@@ -88,7 +87,18 @@ pub(super) fn dynamic_color_method(
         ),
         _ => return None,
     };
-    Some(StaticValue::String(value))
+    Some(StaticValue::String(with_alpha(value, arguments.alpha)))
+}
+
+/// Matches `withAlpha` in lib/src/runtime-colors.ts
+fn with_alpha(color: String, alpha: Option<f64>) -> String {
+    match alpha {
+        Some(alpha) => format!(
+            "color-mix(in srgb, {color} {}%, transparent)",
+            format_percentage(alpha)
+        ),
+        None => color,
+    }
 }
 
 /// Matches `getClassName` in lib/src/runtime-colors.ts: readable `{id}-self-isDark` in
@@ -218,27 +228,37 @@ pub(super) fn invalid_color_method_error(
     ) {
         return None;
     }
-    let [argument] = call.arguments.as_slice() else {
-        return None;
+    let evaluate = |argument: &oxc_ast::ast::Argument<'_>| {
+        evaluate_expression(argument.as_expression()?, constants, scoping)
     };
-    let argument = evaluate_expression(argument.as_expression()?, constants, scoping)?;
-    let (name, amount) = match (method, argument) {
-        (
-            "optimal",
-            StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. },
-        ) => match properties.get("alpha") {
-            Some(StaticValue::Number(alpha)) => ("optimal alpha".to_owned(), *alpha),
+    let values = match (method, call.arguments.as_slice()) {
+        ("optimal", [options]) => match evaluate(options)? {
+            StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
+                match properties.get("alpha") {
+                    Some(StaticValue::Number(alpha)) => vec![("optimal alpha".to_owned(), *alpha)],
+                    _ => return None,
+                }
+            }
             _ => return None,
         },
-        (_, StaticValue::Number(amount)) => (format!("{method} amount"), amount),
+        (_, [amount, rest @ ..]) if rest.len() <= 1 => {
+            [("amount", Some(amount)), ("alpha", rest.first())]
+                .into_iter()
+                .filter_map(|(name, argument)| match evaluate(argument?)? {
+                    StaticValue::Number(value) => Some((format!("{method} {name}"), value)),
+                    _ => None,
+                })
+                .collect()
+        }
         _ => return None,
     };
-    (!(0.0..=1.0).contains(&amount)).then(|| {
-        CompilerDiagnostic::error(
-            file_path,
-            source,
-            call.span,
-            format!("Method {name} must be between 0 and 1, got {amount}"),
-        )
-    })
+    let (name, amount) = values
+        .into_iter()
+        .find(|(_, value)| !(0.0..=1.0).contains(value))?;
+    Some(CompilerDiagnostic::error(
+        file_path,
+        source,
+        call.span,
+        format!("Method {name} must be between 0 and 1, got {amount}"),
+    ))
 }

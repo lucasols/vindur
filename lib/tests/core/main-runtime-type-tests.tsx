@@ -499,6 +499,19 @@ describe('style flags', () => {
   });
 });
 
+test('color ops accept an alpha', () => {
+  const colors = createStaticThemeColors({ primary: '#007bff' });
+
+  const values: string[] = [
+    colors.primary.darker(0.1, 0.5),
+    colors.primary.lighter(0.1, 0.5),
+    colors.primary.saturatedDarker(0.86, 0.08),
+    dynamicColor.darker(0.1, 0.5),
+    dynamicColor.lighter(0.1, 0.5),
+    dynamicColor.saturatedDarker(0.86, 0.08),
+  ];
+});
+
 test('createCssVar', () => {
   const iconColor = createCssVar();
 
