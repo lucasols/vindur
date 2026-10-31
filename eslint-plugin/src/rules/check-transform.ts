@@ -2,16 +2,17 @@ import type { Rule } from 'eslint';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
+  mayContainVindurCode,
   transform,
   TransformError,
   TransformWarning,
+  type TransformDynamicColorCache,
   type TransformFS,
+  type TransformFunctionCache,
 } from 'vindur/transform';
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const FILENAME_REGEX = /^\/[^:]+:\s*/;
-// Matches the vite plugin, a `dynamicColor` prop only counts with an expression value
-const DYNAMIC_COLOR_PROP_REGEX = /\bdynamicColor\s*=\s*\{/u;
 
 function stripFilenameFromMessage(message: string): string {
   // Remove filename prefix like "/path/to/file.tsx: " from the beginning of error messages
@@ -25,27 +26,44 @@ function shouldProcessFile(filename: string, source: string): boolean {
 
   if (filename.includes('node_modules')) return false;
 
-  // Only process files that contain vindur imports or usage
-  return (
-    source.includes('vindur')
-    || source.includes('css`')
-    || source.includes('styled.')
-    || source.includes('cx=')
-    || source.includes('css=')
-    || DYNAMIC_COLOR_PROP_REGEX.test(source)
-  );
+  return mayContainVindurCode(source);
 }
+
+type TransformCaches = {
+  functions: TransformFunctionCache;
+  dynamicColors: TransformDynamicColorCache;
+};
+
+// Shared by all files of a lint run, so modules imported by many files, like theme colors or
+// vindurFn mixins, are compiled once. Lint runs from the CLI, the files don't change during it.
+// Keyed by the import aliases, which change how imports resolve
+const transformCaches = new Map<string, TransformCaches>();
+
+function getTransformCaches(importAliases: Record<string, string>) {
+  const key = JSON.stringify(importAliases);
+  let caches = transformCaches.get(key);
+  if (!caches) {
+    caches = { functions: {}, dynamicColors: {} };
+    transformCaches.set(key, caches);
+  }
+  return caches;
+}
+
+/** For tests, which lint different contents under the same paths */
+export function clearTransformCaches(): void {
+  transformCaches.clear();
+}
+
+const fs: TransformFS = {
+  readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
+  exists: (fileAbsPath: string) => existsSync(fileAbsPath),
+};
 
 function runVindurTransform(
   filename: string,
   source: string,
   importAliases: Record<string, string> = {},
 ) {
-  const fs: TransformFS = {
-    readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
-    exists: (fileAbsPath: string) => existsSync(fileAbsPath),
-  };
-
   const errors: Array<{
     message: string;
     line: number;
@@ -65,6 +83,8 @@ function runVindurTransform(
     });
   }
 
+  const caches = getTransformCaches(importAliases);
+
   try {
     transform({
       fileAbsPath: filename,
@@ -74,8 +94,8 @@ function runVindurTransform(
       importAliases,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
-      transformDynamicColorCache: {},
-      transformFunctionCache: {},
+      transformDynamicColorCache: caches.dynamicColors,
+      transformFunctionCache: caches.functions,
     });
   } catch (error) {
     if (error instanceof TransformError) {

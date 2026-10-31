@@ -4,6 +4,8 @@ import type { SourceMapInput } from 'rollup';
 import {
   transform,
   invalidateTransformCache,
+  mayContainVindurCode,
+  VINDUR_CODE_PATTERNS,
   TransformError,
   type TransformFS,
   type TransformFunctionCache,
@@ -24,19 +26,6 @@ const NODE_MODULES_RE = /node_modules/;
 const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
-const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
-// `dynamicColor` only counts with an expression value, the compiler validates it,
-// so a string value of an unrelated custom prop is left alone
-const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=|\bdynamicColor\s*=\s*\{/u;
-// Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name`,
-// `` `---${name}` `` or `'var(---color)'` (CSS functions are case insensitive and allow spaces,
-// like `VAR( ---color)`), which are renamed or rejected
-const SCOPED_STYLE_KEY_RE = /['"`]---|var\(\s*---/iu;
-const VINDUR_CODE_RES = [
-  VINDUR_MODULE_IMPORT_RE,
-  VINDUR_JSX_PROP_RE,
-  SCOPED_STYLE_KEY_RE,
-];
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
@@ -99,7 +88,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       // older versions ignore it and rely on the `hasVindurStyles` check below
       filter: {
         id: { include: JS_FILE_RE, exclude: NODE_MODULES_RE },
-        code: VINDUR_CODE_RES,
+        code: [...VINDUR_CODE_PATTERNS],
       },
       handler(code, id) {
         // eslint-disable-next-line @ls-stack/prefer-named-functions -- we need to access the context
@@ -391,7 +380,7 @@ function shouldTransform(id: string): boolean {
 function hasVindurStyles(code: string, id: string): boolean {
   return (
     shouldTransform(id)
-    && VINDUR_CODE_RES.some((pattern) => pattern.test(code))
+    && mayContainVindurCode(code)
   );
 }
 
