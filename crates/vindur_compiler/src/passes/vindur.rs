@@ -45,7 +45,7 @@ use super::{
     styled_jsx::{StyledJsxTransform, rewrite_styled_jsx},
     transform_support::{VariableTransform, imported_tag_name, process_variable_declaration},
     value_references::collect_value_referenced_names,
-    vindur_fn_references::runtime_vindur_fn_reference_error,
+    vindur_fn_references::{is_styled_tag, runtime_vindur_fn_reference_error},
 };
 
 pub(crate) struct PassOutput {
@@ -280,6 +280,19 @@ pub(crate) fn transform_program(
                 }
             }
             Statement::ExportDefaultDeclaration(export) => {
+                if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
+                    &export.declaration
+                    && is_styled_tag(&tagged.tag, &imports)
+                    && (tagged.type_arguments.is_some()
+                        || styled_tag_element(&tagged.tag, &imports).is_none())
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        tagged.span,
+                        "default exported styled components only support \"export default styled.tag`...`\", declare it as a variable, e.g. \"const Component = styled...\", and export it with \"export default Component\"".to_owned(),
+                    ));
+                }
                 if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
                     &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)

@@ -1,4 +1,6 @@
-use oxc_ast::ast::{Argument, BindingPattern, Expression, Statement};
+use oxc_ast::ast::{
+    Argument, BindingPattern, Expression, FormalParameter, FormalParameters, Statement,
+};
 use oxc_span::{GetSpan, Span};
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashSet;
@@ -17,9 +19,9 @@ pub(super) fn validate_vindur_function(
         return None;
     };
     let argument = call.arguments.first()?;
-    let (parameters, body, function_span, body_span, is_async, is_generator) = match argument {
+    let (params, body, function_span, body_span, is_async, is_generator) = match argument {
         Argument::ArrowFunctionExpression(function) => (
-            parameter_names(&function.params.items),
+            &*function.params,
             arrow_body_expression(function),
             function.span,
             function.body.span,
@@ -36,7 +38,7 @@ pub(super) fn validate_vindur_function(
                 .as_ref()
                 .map_or(function.span, |body| body.span);
             (
-                parameter_names(&function.params.items),
+                &*function.params,
                 body,
                 function.span,
                 body_span,
@@ -69,6 +71,15 @@ pub(super) fn validate_vindur_function(
             span: function_span,
         });
     }
+    if let Some(span) = rest_parameter_span(params) {
+        return Some(FunctionValidationError {
+            message: format!(
+                "vindurFn \"{name}\" rest parameters are not supported, declare each parameter"
+            ),
+            span,
+        });
+    }
+    let params = &params.items;
     let Some(body) = body else {
         return Some(FunctionValidationError {
             message: format!(
@@ -77,14 +88,77 @@ pub(super) fn validate_vindur_function(
             span: body_span,
         });
     };
-    validate_expression(name, body, &parameters, source, ValidationPosition::Body)
+    validate_parameter_defaults(name, params, source).or_else(|| {
+        validate_expression(
+            name,
+            body,
+            &parameter_names(params),
+            source,
+            ValidationPosition::Body,
+        )
+    })
+}
+
+/// Like in JS, a parameter default can only use the parameters bound before it, e.g. `b` is
+/// not yet initialized in `(a = b, b = 1) => ...`
+fn validate_parameter_defaults(
+    name: &str,
+    params: &[FormalParameter<'_>],
+    source: &str,
+) -> Option<FunctionValidationError> {
+    let mut bound = FxHashSet::default();
+    let validate_default = |default: &Expression<'_>, bound: &FxHashSet<String>| {
+        validate_expression(
+            name,
+            default,
+            bound,
+            source,
+            ValidationPosition::ParameterDefault,
+        )
+    };
+    for parameter in params {
+        if let Some(error) = parameter
+            .initializer
+            .as_deref()
+            .and_then(|default| validate_default(default, &bound))
+        {
+            return Some(error);
+        }
+        let BindingPattern::ObjectPattern(object) = &parameter.pattern else {
+            collect_binding_names(&parameter.pattern, &mut bound);
+            continue;
+        };
+        for property in &object.properties {
+            if let BindingPattern::AssignmentPattern(assignment) = &property.value
+                && let Some(error) = validate_default(&assignment.right, &bound)
+            {
+                return Some(error);
+            }
+            collect_binding_names(&property.value, &mut bound);
+        }
+    }
+    None
+}
+
+/// `...rest` in the parameters or in an object parameter, e.g. `({ a, ...rest }) => ...`
+fn rest_parameter_span(params: &FormalParameters<'_>) -> Option<Span> {
+    params.rest.as_ref().map(|rest| rest.span()).or_else(|| {
+        params.items.iter().find_map(|parameter| {
+            let BindingPattern::ObjectPattern(object) = &parameter.pattern else {
+                return None;
+            };
+            object.rest.as_ref().map(|rest| rest.span)
+        })
+    })
 }
 
 fn arrow_body_expression<'a>(
     function: &'a oxc_ast::ast::ArrowFunctionExpression<'a>,
 ) -> Option<&'a Expression<'a>> {
     match function.body.statements.as_slice() {
-        [Statement::ExpressionStatement(statement)] => Some(&statement.expression),
+        [Statement::ExpressionStatement(statement)] if function.expression => {
+            Some(&statement.expression)
+        }
         [Statement::ReturnStatement(statement)] => statement.argument.as_ref(),
         _ => None,
     }
@@ -125,6 +199,7 @@ fn collect_binding_names(pattern: &BindingPattern<'_>, names: &mut FxHashSet<Str
 #[derive(Clone, Copy)]
 enum ValidationPosition {
     Body,
+    ParameterDefault,
     ConditionalBranch,
     ConditionalTest,
 }
@@ -137,6 +212,19 @@ fn validate_expression(
     position: ValidationPosition,
 ) -> Option<FunctionValidationError> {
     match expression {
+        Expression::Identifier(identifier)
+            if !parameters.contains(identifier.name.as_str())
+                && identifier.name.as_str() != "undefined"
+                && matches!(position, ValidationPosition::ParameterDefault) =>
+        {
+            Some(FunctionValidationError {
+                message: format!(
+                    "vindurFn \"{name}\" parameter defaults can only use literals and earlier parameters, \"{}\" is not supported",
+                    identifier.name
+                ),
+                span: expression.span(),
+            })
+        }
         Expression::Identifier(identifier)
             if !parameters.contains(identifier.name.as_str())
                 && identifier.name.as_str() != "undefined" =>
@@ -193,6 +281,14 @@ fn validate_expression(
                     )
                 })
         }
+        Expression::StringLiteral(literal) if literal.value.contains("${") => {
+            Some(FunctionValidationError {
+                message: format!(
+                    "vindurFn \"{name}\" contains \"${{\" in a plain string, which is not interpolated - use a template literal (`...`) instead"
+                ),
+                span: literal.span,
+            })
+        }
         Expression::TemplateLiteral(template) => template.expressions.iter().find_map(|value| {
             validate_expression(name, value, parameters, source, ValidationPosition::Body)
         }),
@@ -210,6 +306,13 @@ fn validate_expression(
             source,
             position,
         ),
+        // `.map()` callbacks, their parameters are also available in the body
+        Expression::ArrowFunctionExpression(function) => {
+            let mut scoped = parameters.clone();
+            scoped.extend(parameter_names(&function.params.items));
+            arrow_body_expression(function)
+                .and_then(|body| validate_expression(name, body, &scoped, source, position))
+        }
         Expression::ArrayExpression(array) => array.elements.iter().find_map(|element| {
             element
                 .as_expression()

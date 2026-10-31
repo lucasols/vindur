@@ -672,3 +672,107 @@ test('should error on loose inequality in vindurFn conditions', async () => {
     loc: /test.tsx|3:59]
   `);
 });
+
+test('should error on loose equality in vindurFn bodies', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const match = vindurFn((n: number) => \`--match: \${n == 10};\`);
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "match" contains unsupported syntax "n == 10", it can't be evaluated at compile time
+    loc: /test.tsx|3:57]
+  `);
+});
+
+test('should error on unknown references in map callbacks', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        const unit = 'px';
+
+        export const sizes = vindurFn((values: number[]) => values.map((n) => \`\${n}\${unit}\`).join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... sizes = vindurFn((n, values) => \` ... \${unit}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 5:77]
+  `);
+});
+
+test('should error on comparing objects in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+        import { isSame } from '#/functions';
+
+        const theme = { colors: { primary: 'red' } };
+
+        export const box = css\`
+          \${isSame(theme)};
+        \`;
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur';
+
+          export const isSame = vindurFn(({ colors }: { colors: object }) => colors === colors ? 'color: red;' : 'color: blue;');
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Binary expression evaluation failed: only strings, numbers, booleans and undefined can be compared
+    loc: 7:4]
+  `);
+});
+
+test('should error on block bodies without return in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const color = vindurFn((value: string) => { \`color: \${value};\` });
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "color" body is too complex - functions must contain only a single return statement or be arrow functions with template literals
+    loc: /test.tsx|3:49]
+  `);
+});
+
+test('should error on map callbacks with block bodies without return', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const sizes = vindurFn((values: number[]) => values.map((n) => { \`\${n}px\` }).join(' '));
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "sizes" contains unsupported syntax "{ \`\${n}px\` }", it can't be evaluated at compile time
+    loc: /test.tsx|3:70]
+  `);
+});
+
+test('should error on interpolation syntax in plain strings in vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { vindurFn } from 'vindur';
+
+        export const width = vindurFn((size: number) => 'width: \${size}px;');
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn "width" contains "\${" in a plain string, which is not interpolated - use a template literal (\`...\`) instead
+    loc: /test.tsx|3:48]
+  `);
+});

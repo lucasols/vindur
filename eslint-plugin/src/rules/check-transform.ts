@@ -77,12 +77,16 @@ function runVindurTransform(
   } catch (error) {
     if (error instanceof TransformError) {
       if (!error.ignoreInLint) {
+        // Errors located in an imported file are reported at the start of the linted
+        // file, the imported file reports them at the right location when linted
+        const isImportedFileError =
+          error.loc.filename !== undefined && error.loc.filename !== filename;
         // TransformError must always include a valid location in this codebase
         // The ESLint rule environment enforces fail-fast with proper locations
         errors.push({
           message: stripFilenameFromMessage(error.message),
-          line: error.loc.line,
-          column: error.loc.column,
+          line: isImportedFileError ? 1 : error.loc.line,
+          column: isImportedFileError ? 0 : error.loc.column,
           type: 'error',
         });
       }

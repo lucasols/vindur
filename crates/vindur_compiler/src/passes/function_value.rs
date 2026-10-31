@@ -10,6 +10,8 @@ use crate::facts::{
 };
 use crate::semantic::VindurImports;
 
+use super::static_evaluation::is_prototype_setter;
+
 pub(super) fn compile_vindur_function(
     expression: &Expression<'_>,
     imports: &VindurImports<'_>,
@@ -39,6 +41,9 @@ fn compile_function(call: &CallExpression<'_>) -> Result<StaticValue, Span> {
     let [Argument::ArrowFunctionExpression(function)] = call.arguments.as_slice() else {
         return Err(call.span);
     };
+    if let Some(rest) = &function.params.rest {
+        return Err(rest.span());
+    }
     let parameters = function
         .params
         .items
@@ -46,7 +51,9 @@ fn compile_function(call: &CallExpression<'_>) -> Result<StaticValue, Span> {
         .map(compile_parameter)
         .collect::<Result<Vec<_>, _>>()?;
     let body = match function.body.statements.as_slice() {
-        [oxc_ast::ast::Statement::ExpressionStatement(body)] => &body.expression,
+        [oxc_ast::ast::Statement::ExpressionStatement(body)] if function.expression => {
+            &body.expression
+        }
         [oxc_ast::ast::Statement::ReturnStatement(statement)] => {
             statement.argument.as_ref().ok_or(statement.span)?
         }
@@ -150,7 +157,7 @@ fn compile_function_expression(expression: &Expression<'_>) -> Result<FunctionEx
                     let ObjectPropertyKind::ObjectProperty(property) = property else {
                         return Err(property.span());
                     };
-                    if property.computed {
+                    if property.computed || is_prototype_setter(property) {
                         return Err(property.span);
                     }
                     Ok(FunctionObjectExpressionProperty {
@@ -262,6 +269,10 @@ fn compile_function_call(call: &CallExpression<'_>) -> Result<FunctionExpression
             else {
                 return Err(function.body.span);
             };
+            // A block body without `return` returns undefined
+            if !function.expression {
+                return Err(function.body.span);
+            }
             Ok(FunctionExpression::Map {
                 array: Box::new(compile_function_expression(&member.object)?),
                 parameter: identifier.name.to_string(),
@@ -278,8 +289,6 @@ fn compile_operator(operator: BinaryOperator) -> Option<FunctionOperator> {
         BinaryOperator::Subtraction => Some(FunctionOperator::Subtraction),
         BinaryOperator::Multiplication => Some(FunctionOperator::Multiplication),
         BinaryOperator::Division => Some(FunctionOperator::Division),
-        BinaryOperator::Equality => Some(FunctionOperator::Equality),
-        BinaryOperator::Inequality => Some(FunctionOperator::Inequality),
         BinaryOperator::StrictEquality => Some(FunctionOperator::StrictEquality),
         BinaryOperator::StrictInequality => Some(FunctionOperator::StrictInequality),
         BinaryOperator::LessThan => Some(FunctionOperator::LessThan),

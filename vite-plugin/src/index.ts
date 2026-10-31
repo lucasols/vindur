@@ -133,7 +133,11 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
               code: 'VINDUR_TRANSFORM_FAILED',
               id,
               message: error.message,
-              loc: error.loc,
+              loc: {
+                file: error.loc.filename ?? id,
+                line: error.loc.line,
+                column: error.loc.column,
+              },
             });
           }
 

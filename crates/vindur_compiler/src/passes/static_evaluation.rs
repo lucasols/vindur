@@ -2,8 +2,10 @@ use std::borrow::Cow;
 
 use oxc_ast::ast::{
     Argument, ArrayExpression, BindingPattern, Expression, IdentifierReference, ObjectExpression,
-    ObjectPropertyKind, TemplateLiteral, VariableDeclaration, VariableDeclarationKind,
+    ObjectProperty, ObjectPropertyKind, TemplateLiteral, VariableDeclaration,
+    VariableDeclarationKind,
 };
+use oxc_ast_visit::Visit;
 use oxc_ecmascript::{
     GlobalContext, ToBoolean, ToJsString, ToNumber, WithoutGlobalReferenceInformation,
     constant_evaluation::{ConstantValue, ValueType},
@@ -43,9 +45,45 @@ pub(super) fn collect_declaration_constants(
         if let Some(value) = compile_vindur_function(initializer, imports)
             .or_else(|| evaluate_expression(initializer, constants, scoping))
         {
+            if !matches!(value, StaticValue::Keyframes(_))
+                && references_keyframes(initializer, constants, scoping)
+            {
+                continue;
+            }
             constants.insert(identifier.name.to_string(), value);
         }
     }
+}
+
+/// Keyframes names can't be folded into other constants, e.g. `${spin} 1s`: the folded value
+/// loses the keyframes CSS, so an importer of the constant would not load it
+fn references_keyframes(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    struct KeyframesReferenceVisitor<'c> {
+        constants: &'c FxHashMap<String, StaticValue>,
+        scoping: &'c Scoping,
+        found: bool,
+    }
+
+    impl<'a> Visit<'a> for KeyframesReferenceVisitor<'_> {
+        fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+            self.found |= matches!(
+                resolved_constant(identifier, self.constants, self.scoping),
+                Some(StaticValue::Keyframes(_))
+            );
+        }
+    }
+
+    let mut visitor = KeyframesReferenceVisitor {
+        constants,
+        scoping,
+        found: false,
+    };
+    visitor.visit_expression(expression);
+    visitor.found
 }
 
 pub(super) fn evaluate_expression(
@@ -204,7 +242,7 @@ fn math_constant(name: &str) -> Option<f64> {
     }
 }
 
-pub(super) fn evaluate_object(
+fn evaluate_object(
     object: &ObjectExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -214,6 +252,9 @@ pub(super) fn evaluate_object(
         let ObjectPropertyKind::ObjectProperty(property) = property else {
             return None;
         };
+        if is_prototype_setter(property) {
+            return None;
+        }
         let name = property.key.static_name()?.into_owned();
         let value = evaluate_expression(&property.value, constants, scoping)?;
         properties.insert(name, value);
@@ -221,7 +262,17 @@ pub(super) fn evaluate_object(
     Some(StaticValue::Object(properties))
 }
 
-pub(super) fn evaluate_array(
+/// `{ __proto__: value }` sets the prototype instead of defining a property
+pub(super) fn is_prototype_setter(property: &ObjectProperty<'_>) -> bool {
+    !property.computed
+        && !property.shorthand
+        && property
+            .key
+            .static_name()
+            .is_some_and(|name| name == "__proto__")
+}
+
+fn evaluate_array(
     array: &ArrayExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -266,7 +317,7 @@ fn evaluate_template_value(
             if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
                 return None;
             }
-            output.push_str(&static_value_to_string(&value));
+            output.push_str(&static_value_to_string(&value)?);
         }
     }
     Some(output)
@@ -339,41 +390,52 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
     }
 }
 
-pub(super) fn static_value_to_string(value: &StaticValue) -> String {
+/// The CSS text of a value, `None` for values without a CSS representation, e.g. functions,
+/// objects or colors without `.var`
+pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
+    // `undefined` is never a valid CSS value, e.g. an optional vindurFn parameter without a default
+    if matches!(value, StaticValue::Undefined) {
+        return None;
+    }
     if let Some(value) = oxc_constant_value(value)
         && let Some(value) = value.to_js_string(&WithoutGlobalReferenceInformation)
     {
-        return value.into_owned();
+        return Some(value.into_owned());
     }
     match value {
-        StaticValue::Array(values) => values
-            .iter()
-            .map(static_value_to_string)
-            .collect::<Vec<_>>()
-            .join(","),
-        StaticValue::Boolean(_) => unreachable!(),
-        StaticValue::ClassName { name, .. } => format!(".{name}"),
-        StaticValue::CssClass { css, .. } => css.clone(),
-        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. } => {
-            "[dynamic color]".to_owned()
-        }
-        StaticValue::Keyframes(value) => value.clone(),
-        StaticValue::LayerFunction => String::new(),
-        StaticValue::CyclicImport { .. }
-        | StaticValue::MissingImport { .. }
-        | StaticValue::UnsupportedReExport { .. } => String::new(),
-        StaticValue::InvalidFunction { .. } => String::new(),
-        StaticValue::InvalidObject { .. } => String::new(),
+        StaticValue::Array(values) => Some(
+            values
+                .iter()
+                .map(static_value_to_string)
+                .collect::<Option<Vec<_>>>()?
+                .join(","),
+        ),
+        StaticValue::ClassName { name, .. } => Some(format!(".{name}")),
+        StaticValue::Keyframes(value) => Some(value.clone()),
         StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
-        StaticValue::Function(_) | StaticValue::ImportedFunction(_) => "[vindurFn]".to_owned(),
-        StaticValue::Number(_) => unreachable!(),
-        StaticValue::Object(_) | StaticValue::ImportedObject { .. } => "[object Object]".to_owned(),
-        StaticValue::String(_) => unreachable!(),
-        StaticValue::ThemeColor { .. }
+        StaticValue::Boolean(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => unreachable!(),
+        // A css class is a selector or its styles depending on where it's interpolated, only
+        // css templates can tell which
+        StaticValue::CssClass { .. }
+        | StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::LayerFunction
+        | StaticValue::MissingImport { .. }
+        | StaticValue::InvalidFunction { .. }
+        | StaticValue::InvalidObject { .. }
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::Object(_)
+        | StaticValue::ImportedObject { .. }
+        | StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
         | StaticValue::ThemeColors { .. }
-        | StaticValue::UnexportedThemeColors { .. } => "[theme color]".to_owned(),
-        StaticValue::Undefined => unreachable!(),
+        | StaticValue::UnexportedThemeColors { .. }
+        | StaticValue::CyclicImport { .. }
+        | StaticValue::UnsupportedReExport { .. } => None,
     }
 }
 

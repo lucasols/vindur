@@ -9,7 +9,7 @@ use crate::{
 
 use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
-use super::transform_support::VariableTransform;
+use super::transform_support::{VariableTransform, own_declaration};
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
@@ -45,20 +45,17 @@ pub(super) fn process_with_component(
             ),
         ));
     };
+    own_declaration(
+        declaration,
+        transform,
+        "withComponent() must use its own variable declaration",
+    )?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),
         [argument] => (String::new(), false, argument.span()),
         _ => (String::new(), false, call.span),
     };
-    if declaration.declarations.len() != 1 {
-        return Err(CompilerDiagnostic::error(
-            transform.file_path,
-            transform.source,
-            declaration.span,
-            "withComponent() must use its own variable declaration".to_owned(),
-        ));
-    }
     if element.is_empty() {
         return Err(CompilerDiagnostic::error(
             transform.file_path,

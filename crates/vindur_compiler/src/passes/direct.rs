@@ -55,6 +55,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             return;
         }
 
+        // Styled components and global styles are only compiled in module level declarations
         if is_styled_tag(&tagged.tag, self.output.imports) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.output.file_path,
@@ -70,6 +71,16 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             walk::walk_tagged_template_expression(self, tagged);
             return;
         };
+        if tag_name == "createGlobalStyle" {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                tagged.span,
+                "createGlobalStyle is only supported as a module level statement, e.g. \"createGlobalStyle`...`\""
+                    .to_owned(),
+            ));
+            return;
+        }
         if !matches!(tag_name, "css" | "keyframes") {
             walk::walk_tagged_template_expression(self, tagged);
             return;

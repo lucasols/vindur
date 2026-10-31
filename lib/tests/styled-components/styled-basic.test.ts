@@ -228,6 +228,44 @@ describe('styled components - basic functionality', () => {
     `,
     );
   });
+
+  test('should throw error for inline styled(Component) and .attrs() usage', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Base = () => null;
+
+          export function createCard() {
+            return styled(Base)\`
+              background: red;
+            \`
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      loc: 6:9]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          export const components = {
+            Input: styled.input.attrs({ type: 'text' })\`
+              background: red;
+            \`,
+          };
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      loc: 4:9]
+    `);
+  });
 });
 
 test('should keep css classes nested in a styled component className', async () => {

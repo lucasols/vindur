@@ -11,6 +11,7 @@ use super::function_evaluation::{evaluate_argument, function_binary_expression_e
 use super::import_errors::unresolved_import_error;
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+    vindur_function_call_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
@@ -221,6 +222,11 @@ fn build_template_css(
         let Some(value) = evaluate_expression(expression, constants, scoping) else {
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
+                    .or_else(|| {
+                        vindur_function_call_error(
+                            expression, constants, scoping, file_path, source,
+                        )
+                    })
             {
                 return Err(diagnostic);
             }
@@ -282,8 +288,10 @@ fn build_template_css(
         let value = match &value {
             StaticValue::CssClass { css, .. } if followed_by_semicolon => css.clone(),
             StaticValue::CssClass { name, .. } => format!(".{name}"),
+            // Functions, objects and colors without `.value` have no CSS representation
             value => {
-                let value = static_value_to_string(value);
+                let value = static_value_to_string(value)
+                    .ok_or_else(|| interpolation_error(expression, file_path, source, context))?;
                 if let Some(diagnostic) =
                     interpolated_scoped_variable_error(&value, expression, file_path, source)
                 {

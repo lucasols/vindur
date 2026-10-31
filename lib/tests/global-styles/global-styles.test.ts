@@ -383,4 +383,78 @@ describe('createGlobalStyle', () => {
       "
     `);
   });
+
+  test('should error on createGlobalStyle that is not a module level statement', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          export function applyGlobalStyles() {
+            createGlobalStyle\`
+              body { margin: 0; }
+            \`;
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle is only supported as a module level statement, e.g. "createGlobalStyle\`...\`"
+      loc: 4:2]
+    `);
+  });
+
+  test('should error on exported createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          export const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle can't be exported, global styles have no runtime value, use it as a module level statement, e.g. "createGlobalStyle\`...\`"
+      loc: 3:27]
+    `);
+  });
+
+  test('should error when a createGlobalStyle variable is referenced', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`;
+
+          export const App = () => <GlobalStyle />;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: "GlobalStyle" can't be referenced, global styles have no runtime value, use createGlobalStyle as a module level statement, e.g. "createGlobalStyle\`...\`"
+      loc: 3:6]
+    `);
+  });
+
+  test('should error on createGlobalStyle sharing a variable declaration', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`, size = 2;
+
+          export const getSize = () => size;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle must use its own variable declaration
+      loc: 3:0]
+    `);
+  });
 });
