@@ -34,7 +34,9 @@ test('should hash modifier class names in dev mode', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return <div className={"v1560qbr-1-Widget voctcyj-active"}>Content</div>;
+      return (
+        <div className={"v1560qbr-1-Widget v1560qbr-1-Widget-active"}>Content</div>
+      );
     }
     "
   `);
@@ -43,11 +45,11 @@ test('should hash modifier class names in dev mode', async () => {
     ".v1560qbr-1-Widget {
       background: white;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-Widget-active {
         background: blue;
       }
 
-      &.vnwmeu-featured {
+      &.v1560qbr-1-Widget-featured {
         border: 2px solid gold;
       }
     }
@@ -88,7 +90,7 @@ test('should hash modifier class names without suffix in production mode', async
 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
-      return <div className={"v1560qbr-1 voctcyj"}>Content</div>;
+      return <div className={"v1560qbr-1 vmabrr"}>Content</div>;
     }
     "
   `);
@@ -97,11 +99,11 @@ test('should hash modifier class names without suffix in production mode', async
     ".v1560qbr-1 {
       background: white;
 
-      &.voctcyj {
+      &.vmabrr {
         background: blue;
       }
 
-      &.vnwmeu {
+      &.vxwlrrj {
         border: 2px solid gold;
       }
     }
@@ -161,7 +163,7 @@ test('referencing styled component with flags preserves style flag hash', async 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component({ active }: { active: boolean }) {
       return (
-        <div className={"v1560qbr-2" + (active ? " voctcyj" : "")}>
+        <div className={"v1560qbr-2" + (active ? " v1exp0sy" : "")}>
           <div className="v1560qbr-1" />
           <div className="v1560qbr-3">Child</div>
         </div>
@@ -175,7 +177,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.voctcyj & {
+      .v1560qbr-2.v1exp0sy & {
         border-left: 4px solid orange;
       }
     }
@@ -184,7 +186,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       padding: 8px;
       background: white;
 
-      &.voctcyj {
+      &.v1exp0sy {
         background: yellow;
         font-weight: bold;
       }
@@ -194,7 +196,7 @@ test('referencing styled component with flags preserves style flag hash', async 
       border: 1px solid gray;
       padding: 16px;
 
-      .v1560qbr-2.voctcyj & {
+      .v1560qbr-2.v1exp0sy & {
         border-left: 4px solid orange;
       }
     }
@@ -251,7 +253,8 @@ test('should hash every style flag of a compound component reference', async () 
       <div className="v1560qbr-2-Toolbar">
         <button
           className={
-            "v1560qbr-1-Button vr4ikfs-size-large" + (on ? " voctcyj-active" : "")
+            "v1560qbr-1-Button v1560qbr-1-Button-size-large" +
+            (on ? " v1560qbr-1-Button-active" : "")
           }
         />
       </div>
@@ -261,19 +264,19 @@ test('should hash every style flag of a compound component reference', async () 
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         color: red;
       }
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-size-large {
         padding: 8px;
       }
     }
 
     .v1560qbr-2-Toolbar {
-      .v1560qbr-1-Button.voctcyj-active.vr4ikfs-size-large {
+      .v1560qbr-1-Button.v1560qbr-1-Button-active.v1560qbr-1-Button-size-large {
         color: blue;
       }
-      .v1560qbr-1-Button.vr4ikfs-size-large.other.voctcyj-active {
+      .v1560qbr-1-Button.v1560qbr-1-Button-size-large.other.v1560qbr-1-Button-active {
         color: green;
       }
     }
@@ -298,7 +301,7 @@ test('should hash flag classes after a repeated component reference', async () =
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
       <div className="v1560qbr-2-Wrapper">
-        <div className={"v1560qbr-1-Button voctcyj-active"} />
+        <div className={"v1560qbr-1-Button v1560qbr-1-Button-active"} />
       </div>
     );
     "
@@ -306,13 +309,13 @@ test('should hash flag classes after a repeated component reference', async () =
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         color: red;
       }
     }
 
     .v1560qbr-2-Wrapper {
-      .v1560qbr-1-Button.v1560qbr-1-Button.voctcyj-active {
+      .v1560qbr-1-Button.v1560qbr-1-Button.v1560qbr-1-Button-active {
         color: blue;
       }
     }
@@ -351,7 +354,7 @@ test('referencing styled component flags only hashes whole class names', async (
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
-      <div className={"v1560qbr-1 voctcyj"}>
+      <div className={"v1560qbr-1 vmabrr"}>
         <div className="v1560qbr-2" />
       </div>
     );
@@ -360,7 +363,7 @@ test('referencing styled component flags only hashes whole class names', async (
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
     }
@@ -369,7 +372,7 @@ test('referencing styled component flags only hashes whole class names', async (
       .v1560qbr-1.active-icon & {
         color: green;
       }
-      .v1560qbr-1.voctcyj & {
+      .v1560qbr-1.vmabrr & {
         color: blue;
       }
     }
@@ -420,7 +423,7 @@ test('referencing styled component flags hashes every flag of the referenced ele
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
-      <div className={"v1560qbr-1 voctcyj vr4ikfs-small"}>
+      <div className={"v1560qbr-1 vmabrr v16ujyv9-small"}>
         <div className="v1560qbr-2" />
       </div>
     );
@@ -429,25 +432,25 @@ test('referencing styled component flags hashes every flag of the referenced ele
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
-      &.vr4ikfs-small {
+      &.v16ujyv9-small {
         color: red;
       }
-      &.vr4ikfs-large {
+      &.v16ujyv9-large {
         color: red;
       }
     }
 
     .v1560qbr-2 {
-      .v1560qbr-1.vr4ikfs-small.voctcyj & {
+      .v1560qbr-1.v16ujyv9-small.vmabrr & {
         color: green;
       }
-      .v1560qbr-1:hover.voctcyj & {
+      .v1560qbr-1:hover.vmabrr & {
         color: blue;
       }
-      .v1560qbr-1:not(.voctcyj) & {
+      .v1560qbr-1:not(.vmabrr) & {
         color: gray;
       }
       .v1560qbr-1:has(.active) & {
@@ -499,7 +502,7 @@ test('referencing styled component flags hashes flags of nested and scoped refer
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
-      <div className={"v1560qbr-1 voctcyj"}>
+      <div className={"v1560qbr-1 vmabrr"}>
         <div className="v1560qbr-2" />
       </div>
     );
@@ -508,17 +511,17 @@ test('referencing styled component flags hashes flags of nested and scoped refer
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
     }
 
     .v1560qbr-2 {
-      :is(.v1560qbr-1).voctcyj & {
+      :is(.v1560qbr-1).vmabrr & {
         color: green;
       }
       .list .v1560qbr-1 {
-        &.voctcyj .icon {
+        &.vmabrr .icon {
           color: blue;
         }
         & .active {
@@ -526,7 +529,7 @@ test('referencing styled component flags hashes flags of nested and scoped refer
         }
       }
       @scope (.v1560qbr-1) {
-        :scope.voctcyj & {
+        :scope.vmabrr & {
           color: black;
         }
       }
@@ -587,11 +590,11 @@ test('referencing imported styled component flags hashes them as the component m
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      .v1llrsih-1.vum7ukr & {
+      .v1llrsih-1.vxyl5e & {
         color: green;
       }
       .list .v1llrsih-1 {
-        &.v397u9b-small .icon {
+        &.v10hx3vl-small .icon {
           color: blue;
         }
       }
@@ -670,7 +673,7 @@ test('extending a styled component with flags keeps its flags', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
-      <div className={"v1560qbr-1 v1560qbr-2 voctcyj v1x4k6wd"}>
+      <div className={"v1560qbr-1 v1560qbr-2 vmabrr v1jk93k"}>
         <div className="v1560qbr-3" />
       </div>
     );
@@ -679,22 +682,22 @@ test('extending a styled component with flags keeps its flags', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1 {
-      &.voctcyj {
+      &.vmabrr {
         color: red;
       }
     }
 
     .v1560qbr-2 {
-      &.v1x4k6wd {
+      &.v1jk93k {
         font-size: 2em;
       }
-      &.voctcyj {
+      &.vmabrr {
         color: blue;
       }
     }
 
     .v1560qbr-3 {
-      .v1560qbr-1.voctcyj & {
+      .v1560qbr-1.vmabrr & {
         color: green;
       }
     }
@@ -736,7 +739,7 @@ test('referencing a withComponent of an extended component selects its own class
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const App = () => (
-      <a className={"v1560qbr-1 v1560qbr-2 voctcyj"}>
+      <a className={"v1560qbr-1 v1560qbr-2 v1exp0sy"}>
         <div className="v1560qbr-3" />
       </a>
     );
@@ -749,13 +752,13 @@ test('referencing a withComponent of an extended component selects its own class
     }
 
     .v1560qbr-2 {
-      &.voctcyj {
+      &.v1exp0sy {
         color: blue;
       }
     }
 
     .v1560qbr-3 {
-      .v1560qbr-2.voctcyj & {
+      .v1560qbr-2.v1exp0sy & {
         color: green;
       }
     }

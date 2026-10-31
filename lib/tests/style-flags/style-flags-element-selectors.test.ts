@@ -55,7 +55,8 @@ test('should hash style flags in every selector of the element', async () => {
     "export const App = ({ active }: { active: boolean }) => (
       <button
         className={
-          "v1560qbr-1-Button vr4ikfs-size-small" + (active ? " voctcyj-active" : "")
+          "v1560qbr-1-Button v1560qbr-1-Button-size-small" +
+          (active ? " v1560qbr-1-Button-active" : "")
         }
       />
     );
@@ -64,34 +65,34 @@ test('should hash style flags in every selector of the element', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.voctcyj-active.vr4ikfs-size-small {
+      &.v1560qbr-1-Button-active.v1560qbr-1-Button-size-small {
         color: red;
       }
-      .parent &.voctcyj-active,
-      &:focus-visible.vr4ikfs-size-large {
+      .parent &.v1560qbr-1-Button-active,
+      &:focus-visible.v1560qbr-1-Button-size-large {
         color: blue;
       }
-      &:not(.voctcyj-active) {
+      &:not(.v1560qbr-1-Button-active) {
         opacity: 0.5;
       }
-      :is(&.voctcyj-active, &.vr4ikfs-size-large) {
+      :is(&.v1560qbr-1-Button-active, &.v1560qbr-1-Button-size-large) {
         outline: none;
       }
-      &:nth-child(1 of .vr4ikfs-size-small) {
+      &:nth-child(1 of .v1560qbr-1-Button-size-small) {
         color: green;
       }
       &:hover {
-        &.voctcyj-active {
+        &.v1560qbr-1-Button-active {
           color: orange;
         }
       }
       @media (min-width: 600px) {
-        &.vr4ikfs-size-small {
+        &.v1560qbr-1-Button-size-small {
           color: purple;
         }
       }
-      @scope (&.voctcyj-active) {
-        :scope.vr4ikfs-size-large {
+      @scope (&.v1560qbr-1-Button-active) {
+        :scope.v1560qbr-1-Button-size-large {
           color: pink;
         }
       }
@@ -143,9 +144,9 @@ test('should keep style flag names used by other elements', async () => {
       --label: &.active;
       content: ".size-small";
       /* &.active */
-      &.voctcyj-active,
-      &.vr4ikfs-size-small,
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-active,
+      &.v1560qbr-1-Button-size-small,
+      &.v1560qbr-1-Button-size-large {
         color: red;
       }
       & .active,

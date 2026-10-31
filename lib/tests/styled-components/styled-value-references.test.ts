@@ -69,7 +69,7 @@ test('should keep a local styled component with style flags referenced as a valu
     "import { _vCWM } from "vindur";
     import { MoreMenu } from "#/components";
     const IconButton = _vCWM(
-      [["active", "voctcyj-active"]],
+      [["active", "v1560qbr-1-IconButton-active"]],
       "v1560qbr-1-IconButton",
       "button",
     );

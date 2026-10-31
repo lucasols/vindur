@@ -168,12 +168,12 @@ describe('withComponent', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "import { _vCWM } from "vindur";
       export const Button = _vCWM(
-        [["active", "voctcyj-active"]],
+        [["active", "v1560qbr-1-Button-active"]],
         "v1560qbr-1-Button",
         "button",
       );
       export const Link = _vCWM(
-        [["active", "voctcyj-active"]],
+        [["active", "v1560qbr-1-Button-active"]],
         "v1560qbr-1-Button",
         "a",
       );
@@ -191,7 +191,7 @@ describe('withComponent', () => {
         padding: 10px;
         background: blue;
 
-        &.voctcyj-active {
+        &.v1560qbr-1-Button-active {
           background: red;
         }
       }
@@ -639,12 +639,12 @@ describe('withComponent', () => {
         <div className={className + (active ? " active-custom" : "")}>{children}</div>
       );
       export const Button = _vCWM(
-        [["active", "voctcyj-active"]],
+        [["active", "v1560qbr-1-Button-active"]],
         "v1560qbr-1-Button",
         "button",
       );
       export const CustomButton = _vCWM(
-        [["active", "voctcyj-active"]],
+        [["active", "v1560qbr-1-Button-active"]],
         "v1560qbr-1-Button",
         MyCustomComponent,
       );
@@ -662,7 +662,7 @@ describe('withComponent', () => {
         padding: 10px;
         background: blue;
 
-        &.voctcyj-active {
+        &.v1560qbr-1-Button-active {
           background: red;
         }
       }
