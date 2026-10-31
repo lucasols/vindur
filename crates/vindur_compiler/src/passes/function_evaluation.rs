@@ -9,7 +9,7 @@ use crate::facts::{
 
 use super::static_evaluation::{
     evaluate_array, evaluate_binary, evaluate_expression, evaluate_identifier, evaluate_object,
-    resolved_constant, static_value_to_boolean, static_value_to_string,
+    is_local_object_member, resolved_constant, static_value_to_boolean, static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -395,11 +395,12 @@ pub(super) fn evaluate_argument(
         ),
         // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
         // `SIZE as number`
-        argument => evaluate_expression(
-            argument.as_expression()?.get_inner_expression(),
-            constants,
-            scoping,
-        )
-        .filter(is_function_argument_value),
+        argument => {
+            let expression = argument.as_expression()?.get_inner_expression();
+            if is_local_object_member(expression, constants, scoping) {
+                return None;
+            }
+            evaluate_expression(expression, constants, scoping).filter(is_function_argument_value)
+        }
     }
 }

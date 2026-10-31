@@ -18,8 +18,8 @@ use super::interpolation_validation::{
     open_token_end_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
-    resolved_constant, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, has_css_text, is_local_object_member,
+    is_unresolved_import, resolved_constant, static_value_to_string,
 };
 use super::styled::styled_ref_placeholder;
 use super::template_css::{EvaluatedTemplate, validate_template_css};
@@ -409,11 +409,11 @@ fn invalid_object_access_error(
     let Expression::StaticMemberExpression(member) = expression else {
         return None;
     };
+    if is_local_object_member(expression, constants, scoping) {
+        return Some(interpolation_error(expression, file_path, source, context));
+    }
     if let Expression::Identifier(root) = &member.object {
         return match resolved_constant(root, constants, scoping)? {
-            StaticValue::Object(_) => {
-                Some(interpolation_error(expression, file_path, source, context))
-            }
             StaticValue::ImportedObject {
                 properties,
                 source_path,

@@ -967,7 +967,7 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions and runtime values can't be passed.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions, members of local objects and runtime values can't be passed.
 
 Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension, and the components extending or rendering it, can't have style flags, call `withComponent` or select classes of its element, like `&.active` or `${Ext}.active`, import `Card` from the module that declares it instead.
 

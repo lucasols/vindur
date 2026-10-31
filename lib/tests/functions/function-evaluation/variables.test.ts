@@ -252,7 +252,7 @@ test('should throw for dynamic colors passed to functions', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
     loc: 7:10]
   `);
 });
@@ -279,7 +279,7 @@ test('should throw for dynamic colors in object arguments of functions', async (
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
     loc: 7:10]
   `);
 });
@@ -291,11 +291,11 @@ test('should evaluate expression arguments of functions', async () => {
       import { space, bg } from '#/mixins'
 
       const SIZE = 4
-      const COLORS = { primary: 'red' }
+      const PRIMARY = 'red'
 
       export const style = css\`
         \${space(-SIZE)};
-        \${bg(COLORS.primary as string)};
+        \${bg((PRIMARY) as string)};
         \${bg(\`\${SIZE}px\`)};
       \`
     `,
@@ -336,7 +336,34 @@ test('should throw for runtime values passed to functions', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
     loc: 3:50]
+  `);
+});
+
+test('should throw for local object members passed to functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { bg } from '#/mixins'
+
+        const COLORS = { primary: 'red' }
+
+        export const style = css\`
+          \${bg(COLORS.primary)};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const bg = vindurFn((color: string) => \`background: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
+    loc: 7:7]
   `);
 });

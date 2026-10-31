@@ -635,3 +635,22 @@ test('should throw error for arithmetic with undefined imported constants', asyn
   `,
   );
 });
+
+test('should throw for nested members of local objects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const theme = { nested: { size: 4 } }
+
+        const style = css\`
+          padding: \${theme.nested.size}px;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${theme.nested.size}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 6:13]
+  `);
+});

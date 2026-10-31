@@ -209,7 +209,7 @@ pub(super) fn invalid_function_argument_error(
         file_path,
         source,
         argument.span(),
-        "vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed".to_owned(),
+        "vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed".to_owned(),
     ))
 }
 

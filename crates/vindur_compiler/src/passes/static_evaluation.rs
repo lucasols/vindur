@@ -445,6 +445,29 @@ pub(super) fn resolved_constant<'a>(
     constants.get(identifier.name.as_str())
 }
 
+/// A member of a local object at any depth, like `O.a` or `O.nested.b`, which can't be used in
+/// styles, only imported objects can
+pub(super) fn is_local_object_member(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    let Expression::StaticMemberExpression(member) = expression else {
+        return false;
+    };
+    let mut object = &member.object;
+    while let Expression::StaticMemberExpression(inner) = object {
+        object = &inner.object;
+    }
+    let Expression::Identifier(root) = object else {
+        return false;
+    };
+    matches!(
+        resolved_constant(root, constants, scoping),
+        Some(StaticValue::Object(_))
+    )
+}
+
 fn oxc_constant_value(value: &StaticValue) -> Option<ConstantValue<'static>> {
     match value {
         StaticValue::Boolean(value) => Some(ConstantValue::Boolean(*value)),
