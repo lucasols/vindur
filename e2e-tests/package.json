@@ -32,6 +32,7 @@
     "@playwright/test": "catalog:",
     "prettier": "catalog:",
     "tsm": "catalog:",
-    "@ls-stack/utils": "catalog:"
+    "@ls-stack/utils": "catalog:",
+    "source-map": "catalog:"
   }
 }

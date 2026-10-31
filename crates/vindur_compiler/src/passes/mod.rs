@@ -1,4 +1,5 @@
 mod block_validation;
+mod class_props;
 mod color_math;
 mod compile_time_references;
 mod css;

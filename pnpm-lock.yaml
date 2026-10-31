@@ -241,6 +241,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.1.0(react@19.1.0)
+      source-map:
+        specifier: 'catalog:'
+        version: 0.7.6
       tsm:
         specifier: 'catalog:'
         version: 2.3.0

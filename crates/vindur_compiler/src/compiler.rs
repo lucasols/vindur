@@ -8,6 +8,7 @@ use oxc_span::{SourceType, Span};
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 
+use crate::code_map::CodeMap;
 use crate::normalize::normalize_code;
 use crate::passes::{re_exported_vindur_fn_error, transform_program};
 use crate::resolved_imports::{consumed_side_effect_imports, remove_resolved_imports};
@@ -62,6 +63,11 @@ pub struct TransformOutput {
     pub style_dependencies: Vec<String>,
     pub diagnostics: Vec<CompilerDiagnostic>,
     pub css_source_offsets: Vec<u32>,
+    /// Whether the code differs from the source before normalization, so a file the passes
+    /// left alone, like one with only a native SVG `cx` attribute, can be skipped
+    pub changed: bool,
+    /// The `mappings` of the JS sourcemap of `code`, empty without the `sourcemap` option
+    pub js_mappings: String,
 }
 
 #[derive(Default)]
@@ -189,6 +195,8 @@ impl Compiler {
                     style_dependencies: Vec::new(),
                     diagnostics: Vec::new(),
                     css_source_offsets: Vec::new(),
+                    changed: false,
+                    js_mappings: String::new(),
                 };
             }
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -247,7 +255,8 @@ impl Compiler {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
-        let edited_code = match remove_resolved_imports(
+        let code_map = CodeMap::from_edits(source.len(), &pass_output.edits);
+        let (edited_code, imports_map) = match remove_resolved_imports(
             file_path,
             edited_code,
             source_type,
@@ -255,16 +264,23 @@ impl Compiler {
             &imports.side_effect_sources,
             &consumed_imports,
         ) {
-            Ok(code) => code,
+            Ok(result) => result,
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
-        let code = if options.normalize_code {
+        let code_map = code_map.then(&imports_map);
+        let changed = edited_code != source;
+        let (code, code_map) = if options.normalize_code {
             match normalize_code(file_path, &edited_code, source_type) {
-                Ok(code) => code,
+                Ok((code, normalize_map)) => (code, code_map.then(&normalize_map)),
                 Err(diagnostic) => return failed_output(source, diagnostic),
             }
         } else {
-            edited_code
+            (edited_code, code_map)
+        };
+        let js_mappings = if options.sourcemap {
+            code_map.mappings(source, &code)
+        } else {
+            String::new()
         };
 
         {
@@ -281,6 +297,8 @@ impl Compiler {
             style_dependencies,
             diagnostics: pass_output.warnings,
             css_source_offsets: pass_output.css_source_offsets,
+            changed,
+            js_mappings,
         }
     }
 
@@ -667,7 +685,9 @@ impl Compiler {
             CompilerDiagnostic::error(file_path, "", Span::new(0, 0), message)
         })?;
         let mut dependency_options = options.clone();
+        // Only the facts of a dependency are kept, not its code
         dependency_options.normalize_code = false;
+        dependency_options.sourcemap = false;
         let output =
             self.transform_internal(file_path, &source, &dependency_options, loader, traversal);
         traversal.visiting.remove(file_path);
@@ -735,6 +755,8 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
         style_dependencies: Vec::new(),
         diagnostics: vec![diagnostic],
         css_source_offsets: Vec::new(),
+        changed: false,
+        js_mappings: String::new(),
     }
 }
 

@@ -2,6 +2,7 @@ import { SourceMapGenerator } from 'source-map';
 import type { RawSourceMap } from 'source-map';
 
 const LEADING_WHITESPACE = /^\s/u;
+const utf8Decoder = new TextDecoder();
 
 export function createCssSourceMapFromOffsets({
   css,
@@ -21,6 +22,7 @@ export function createCssSourceMapFromOffsets({
     skipValidation: true,
   });
   generator.setSourceContent(filePath, source);
+  const sourceBytes = new TextEncoder().encode(source);
   const generatedLines = css
     .split('\n')
     .flatMap((line, index) =>
@@ -32,10 +34,11 @@ export function createCssSourceMapFromOffsets({
   for (const [index, offset] of sourceOffsets.entries()) {
     const generatedLine = generatedLines[index];
     if (generatedLine === undefined) break;
-    const prefix = source.slice(0, offset);
+    // Offsets are UTF-8 byte offsets, columns are UTF-16 code units like JS strings
+    const prefix = utf8Decoder.decode(sourceBytes.subarray(0, offset));
     const lastNewline = prefix.lastIndexOf('\n');
     const originalLine = prefix.split('\n').length;
-    const originalColumn = offset - lastNewline - 1;
+    const originalColumn = prefix.length - lastNewline - 1;
     generator.addMapping({
       generated: { line: generatedLine + 1, column: 0 },
       original: { line: originalLine, column: originalColumn },

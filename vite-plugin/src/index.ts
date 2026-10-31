@@ -49,7 +49,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   // Track which files depend on which external files (for hot-reload)
   const depToSources = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
   const sourceToDeps = new Map<string, Set<string>>(); // sourceFile -> Set<externalFile>
-  let devServer: ViteDevServer | undefined;
+  let emitSourcemaps = false;
+  let isServe = false;
 
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
@@ -59,8 +60,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   return {
     name: 'vindur',
     enforce: 'pre',
-    configureServer(server) {
-      devServer = server;
+    configResolved(config) {
+      isServe = config.command === 'serve';
+      // Dev always serves sourcemaps, builds follow `build.sourcemap`
+      emitSourcemaps = sourcemap ?? (isServe || !!config.build.sourcemap);
     },
 
     resolveId(id) {
@@ -73,8 +76,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       const originalId = id.slice(1); // strip the leading \0
       const mod = virtualCssModules.get(originalId);
       if (!mod) return '';
-      // Append inline sourcemap for dev diagnostics if available
-      if (mod.map && typeof mod.map === 'object') {
+      // Append inline sourcemap for dev diagnostics if available. Builds hand the map to
+      // Vite only, an inline map would ship the source in unminified CSS
+      if (isServe && mod.map && typeof mod.map === 'object') {
         const hasInlineMap = INLINE_SOURCEMAP_RE.test(mod.code);
         if (!hasInlineMap) {
           const base64 = Buffer.from(JSON.stringify(mod.map)).toString(
@@ -123,7 +127,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           result = transform({
             fileAbsPath: id,
             source: code,
-            dev: devServer?.config.command === 'serve',
+            dev: isServe,
             debug:
               debugLogs ?
                 {
@@ -136,7 +140,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
         } catch (error) {
           if (error instanceof TransformError) {
@@ -177,12 +181,20 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         // Cache the transform result for HMR and virtual load()
         sourceCache.set(id, result);
 
+        // Files the pre-filter matched without vindur code, like a native SVG `cx`
+        // attribute, are left to the next plugins untouched
+        if (!result.changed && !result.css) return null;
+
         const codeWithCssImport =
           result.css && result.css.length > 0 ?
             injectCssImport(result.code, virtualId)
           : result.code;
 
-        return { code: codeWithCssImport, map: result.map };
+        // Without a map Rollup reports the sourcemap as broken, `null` would claim the code
+        // didn't move
+        return result.map ?
+            { code: codeWithCssImport, map: result.map }
+          : codeWithCssImport;
       },
     },
 
@@ -210,7 +222,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           transformFunctionCache: functionCache,
           transformDynamicColorCache: dynamicColorCache,
           importAliases,
-          sourcemap: sourcemap ?? !!devServer,
+          sourcemap: emitSourcemaps,
         });
 
         const vid = makeVirtualId(changed);
@@ -247,7 +259,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
 
           const dependentVid = makeVirtualId(srcId);
@@ -298,7 +310,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
 
           const vid = makeVirtualId(srcId);

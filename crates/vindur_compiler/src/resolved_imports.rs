@@ -1,3 +1,4 @@
+use crate::code_map::CodeMap;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     IdentifierReference, ImportDeclaration, ImportDeclarationSpecifier, Program, Statement,
@@ -25,13 +26,14 @@ pub(crate) fn remove_resolved_imports(
     imported_values: &FxHashMap<String, StaticValue>,
     side_effect_sources: &FxHashSet<String>,
     consumed_imports: &FxHashSet<String>,
-) -> Result<String, CompilerDiagnostic> {
+) -> Result<(String, CodeMap), CompilerDiagnostic> {
     if consumed_imports.is_empty()
         && !imported_values
             .values()
             .any(|value| !is_runtime_value(value))
     {
-        return Ok(code);
+        let map = CodeMap::from_edits(code.len(), &[]);
+        return Ok((code, map));
     }
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, &code, source_type).parse();
@@ -59,9 +61,11 @@ pub(crate) fn remove_resolved_imports(
         &mut edits,
     );
     if edits.is_empty() {
-        return Ok(code);
+        let map = CodeMap::from_edits(code.len(), &[]);
+        return Ok((code, map));
     }
-    apply_edits(file_path, &code, &mut edits)
+    let edited = apply_edits(file_path, &code, &mut edits)?;
+    Ok((edited, CodeMap::from_edits(code.len(), &edits)))
 }
 
 /// Theme colors imported from modules with side effects whose value references are all

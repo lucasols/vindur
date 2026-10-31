@@ -17,6 +17,8 @@ export type VindurTransformResult = {
   styleDependencies: string[];
   code: string;
   map?: RawSourceMap | null;
+  /** `false` when the file has no vindur code to compile, like a native SVG `cx` attribute */
+  changed: boolean;
 };
 
 export type TransformFS = {

@@ -93,6 +93,36 @@ describe('CSS source maps', () => {
     }
   });
 
+  test('should count columns after non-ASCII text in UTF-16 code units', async () => {
+    const source = dedent`
+      import { css } from 'vindur'
+
+      const label = '🎨🎨🎨'; const style = css\`
+        color: blue;
+      \`
+
+      console.log(label, style)
+    `;
+
+    const result = transform({
+      source,
+      fileAbsPath: '/src/test.tsx',
+      fs: emptyFs,
+      transformFunctionCache: {},
+      transformDynamicColorCache: {},
+      importAliases,
+      sourcemap: true,
+    });
+
+    if (!result.cssMap) throw new Error('missing CSS sourcemap');
+    const position = await verifySourceMapMapping(
+      result.cssMap,
+      2,
+      source.split('\n')[2]?.indexOf('`') ?? -1,
+    );
+    expect(position.source).toBe('/src/test.tsx');
+  });
+
   test('should not generate source map when sourcemap option is disabled', () => {
     const source = dedent`
       import { css } from 'vindur'

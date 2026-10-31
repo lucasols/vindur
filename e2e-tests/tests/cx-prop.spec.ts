@@ -10,8 +10,22 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   env = await startEnv('cx-prop-tests', {
+    // Files without vindur styles: one compiled only for its `cx` prop, one with only a
+    // native SVG `cx` attribute that the plugin leaves untouched
+    'Toggle.tsx': dedent`
+      export const Toggle = () => <div data-testid="cx-only" cx={{ $active: true }} />;
+    `,
+    'Dot.tsx': dedent`
+      export const Dot = () => (
+        <svg width="100" height="100">
+          <circle data-testid="svg-circle" cx="50" cy="50" r="10" />
+        </svg>
+      );
+    `,
     'App.tsx': dedent`
       import { styled, css } from "vindur";
+      import { Dot } from "#src/Dot";
+      import { Toggle } from "#src/Toggle";
 
       const Button = styled.button\`
         padding: 8px 16px;
@@ -80,6 +94,9 @@ test.beforeAll(async ({ browser }) => {
               CSS Function with CX
             </div>
 
+            <Toggle />
+            <Dot />
+
             <div 
               data-testid="css-function-mixed"
               className={baseStyles}
@@ -135,4 +152,14 @@ test('should handle css function with mixed classes', async () => {
   await expect(element).toHaveCSS('padding', '10px');
   await expect(element).toHaveClass(/utility/);
   await expect(element).not.toHaveCSS('background-color', 'rgb(240, 248, 255)');
+});
+
+test('should compile the cx prop of a file without styles', async () => {
+  const element = page.getByTestId('cx-only');
+  await expect(element).toHaveClass('active');
+  await expect(element).not.toHaveAttribute('cx');
+});
+
+test('should keep the native cx attribute of svg elements', async () => {
+  await expect(page.getByTestId('svg-circle')).toHaveAttribute('cx', '50');
 });

@@ -6,13 +6,13 @@ use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType, Span};
 
-use crate::{CompilerDiagnostic, edit::apply_edits};
+use crate::{CompilerDiagnostic, code_map::CodeMap, edit::apply_edits};
 
 pub(crate) fn normalize_code(
     file_path: &str,
     source: &str,
     source_type: SourceType,
-) -> Result<String, CompilerDiagnostic> {
+) -> Result<(String, CodeMap), CompilerDiagnostic> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, source, source_type).parse();
     if let Some(diagnostic) = parsed.diagnostics.first() {
@@ -66,14 +66,30 @@ pub(crate) fn normalize_code(
     .visit_program(&parsed.program);
 
     let code = apply_edits(file_path, source, &mut edits)?;
-    if code.starts_with("import {")
-        && code.contains("from \"vindur\";\n\n")
-        && !code.contains("from \"vindur\";\n\n//")
-    {
-        Ok(code.replacen("from \"vindur\";\n\n", "from \"vindur\";\n", 1))
-    } else {
-        Ok(code)
+    let map = CodeMap::from_edits(source.len(), &edits);
+    match vindur_import_blank_line(&code) {
+        Some(blank_line) => {
+            let mut edits = vec![crate::edit::Edit {
+                span: blank_line,
+                replacement: String::new(),
+            }];
+            let normalized = apply_edits(file_path, &code, &mut edits)?;
+            let map = map.then(&CodeMap::from_edits(code.len(), &edits));
+            Ok((normalized, map))
+        }
+        None => Ok((code, map)),
     }
+}
+
+/// The blank line after a leading vindur import, unless a comment follows it
+fn vindur_import_blank_line(code: &str) -> Option<Span> {
+    const VINDUR_IMPORT_END: &str = "from \"vindur\";\n";
+    if !code.starts_with("import {") || code.contains("from \"vindur\";\n\n//") {
+        return None;
+    }
+    let blank_line = code.find("from \"vindur\";\n\n")? + VINDUR_IMPORT_END.len();
+    let start = u32::try_from(blank_line).ok()?;
+    Some(Span::new(start, start + 1))
 }
 
 fn merge_vindur_imports(program: &Program<'_>, source: &str, edits: &mut Vec<crate::edit::Edit>) {

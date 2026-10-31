@@ -1,3 +1,4 @@
+mod code_map;
 mod compiler;
 mod diagnostic;
 mod edit;
