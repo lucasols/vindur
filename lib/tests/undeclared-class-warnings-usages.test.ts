@@ -226,3 +226,25 @@ test('should warn when an svg component only receives the native cx coordinate',
     "
   `);
 });
+
+test('should not warn when the styled component wraps another component', async () => {
+  expect(
+    await getWarnings(dedent`
+      import { styled } from 'vindur'
+
+      const ButtonElement = ({ className, disabled }: { className?: string; disabled?: boolean }) => (
+        <button className={disabled ? className + ' disabled' : className} />
+      )
+
+      const HeaderActionButton = styled(ButtonElement)\`
+        &.disabled { opacity: 0.5; }
+      \`
+
+      export const App = () => <HeaderActionButton disabled />
+    `),
+  ).toMatchInlineSnapshot(`
+    "
+    []
+    "
+  `);
+});
