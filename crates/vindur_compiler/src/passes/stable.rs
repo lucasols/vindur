@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
-use super::{styled::css_class_name_part, transform_support::generated_name};
+use super::transform_support::generated_name;
 
 const STABLE_UTILITIES: &[&str] = &["stableId", "createClassName", "createCssVar"];
 
@@ -89,11 +89,11 @@ pub(crate) fn transform_stable_declaration(
 }
 
 fn stable_name(variable_name: &str, context: &mut StableDeclarationTransform<'_>) -> String {
-    let generated = format!(
-        "{}-{}-{}",
+    let generated = generated_name(
         context.file_hash,
-        css_class_name_part(variable_name),
-        context.id_index
+        *context.id_index,
+        variable_name,
+        context.dev,
     );
     *context.id_index += 1;
     generated

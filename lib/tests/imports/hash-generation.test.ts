@@ -513,8 +513,8 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const uniqueId = "v1560qbr-uniqueId-1";
-      const anotherId = "v1560qbr-anotherId-2";
+      "const uniqueId = "v1560qbr-1-uniqueId";
+      const anotherId = "v1560qbr-2-anotherId";
       const styles = "v1560qbr-3-styles";
       "
     `);

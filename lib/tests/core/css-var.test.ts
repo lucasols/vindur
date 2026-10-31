@@ -255,8 +255,8 @@ describe('stable ID utility references', () => {
     expect(result.code).toMatchInlineSnapshot(`
       "type ClassName = ReturnType<typeof createClassName>;
       export const className: ClassName = {
-        selector: ".v1560qbr-className-1",
-        value: "v1560qbr-className-1",
+        selector: ".v1560qbr-1-className",
+        value: "v1560qbr-1-className",
       };
       "
     `);
