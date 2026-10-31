@@ -1,7 +1,8 @@
 use oxc_ast::ast::{
     AssignmentExpression, AwaitExpression, CallExpression, Expression, ImportExpression,
-    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, NewExpression,
-    TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression, YieldExpression,
+    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, JSXFragment,
+    NewExpression, TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression,
+    YieldExpression,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -166,6 +167,46 @@ pub(super) fn side_effect_in_string_flag_value<'f>(
         finder.visit_expression(expression);
         finder.found.map(|span| (flag.prop_name.as_str(), span))
     })
+}
+
+/// JSX in a style flag value, like `active={open && <Icon />}`, is moved into the className with
+/// the value before it is compiled. Returns the flag name and the span of the JSX
+pub(super) fn jsx_in_flag_value<'f>(
+    element: &JSXElement<'_>,
+    component: &'f StyledComponent,
+) -> Option<(&'f str, Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        let flag = component
+            .style_flags
+            .iter()
+            .find(|flag| flag.prop_name == name.name.as_str())?;
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let mut finder = JsxFinder { found: None };
+        finder.visit_expression(container.expression.as_expression()?);
+        finder.found.map(|span| (flag.prop_name.as_str(), span))
+    })
+}
+
+struct JsxFinder {
+    found: Option<Span>,
+}
+
+impl<'a> Visit<'a> for JsxFinder {
+    fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        self.found.get_or_insert(element.span);
+    }
+
+    fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
+        self.found.get_or_insert(fragment.span);
+    }
 }
 
 fn is_literal_branch_value(expression: &Expression<'_>) -> bool {

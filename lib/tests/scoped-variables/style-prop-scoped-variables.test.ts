@@ -201,6 +201,30 @@ test('should throw for computed scoped variable keys in the style prop', async (
   `);
 });
 
+test('should throw for computed scoped variable keys with escapes or type casts', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const App = ({ name, v }) => <div style={{ [\`\x2d--\${name}\`]: v }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable keys of the \`style\` prop must be written out, like \`'---size'\`, computed keys are not renamed
+    loc: 1:51]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const App = ({ name, v }) => <div style={{ [\`---\${name}\` as string]: v }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable keys of the \`style\` prop must be written out, like \`'---size'\`, computed keys are not renamed
+    loc: 1:51]
+  `);
+});
+
 test('should rename scoped variables of a style object with a type cast', async () => {
   const result = await transformWithFormat({
     source: dedent`

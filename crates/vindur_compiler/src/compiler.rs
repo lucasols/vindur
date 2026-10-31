@@ -439,6 +439,11 @@ impl Compiler {
                             default.local.name.to_string(),
                             imported_value(value, &resolved),
                         );
+                    } else if let Some(re_export) = facts.re_exports.get("default") {
+                        values.insert(
+                            default.local.name.to_string(),
+                            re_export_value("default", re_export, &resolved, file_path, options),
+                        );
                     }
                     continue;
                 }
@@ -487,26 +492,7 @@ impl Compiler {
                             cyclic_imports: facts.cyclic_dependencies.clone(),
                         }
                     } else if let Some(re_export) = facts.re_exports.get(imported_name) {
-                        StaticValue::UnsupportedReExport {
-                            imported_name: imported_name.to_owned(),
-                            source_path: resolved.clone(),
-                            // Relative sources are relative to the re-exporting module,
-                            // the error suggests importing it from this one
-                            re_export: Some(ReExport {
-                                source: if re_export.source.starts_with('.') {
-                                    unresolved_import_path(
-                                        &resolved,
-                                        &re_export.source,
-                                        &options.import_aliases,
-                                    )
-                                    .map(|target| relative_import_specifier(file_path, &target))
-                                } else {
-                                    None
-                                }
-                                .unwrap_or_else(|| re_export.source.clone()),
-                                imported_name: re_export.imported_name.clone(),
-                            }),
-                        }
+                        re_export_value(imported_name, re_export, &resolved, file_path, options)
                     } else if !facts.star_re_exports.is_empty() {
                         StaticValue::UnsupportedReExport {
                             imported_name: imported_name.to_owned(),
@@ -626,6 +612,32 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
 }
 
 /// The value of an import, literals and objects remember the module they come from
+/// An import of a name the module re-exports with `export { X } from`, which isn't followed
+fn re_export_value(
+    imported_name: &str,
+    re_export: &ReExport,
+    source_path: &str,
+    file_path: &str,
+    options: &TransformOptions,
+) -> StaticValue {
+    StaticValue::UnsupportedReExport {
+        imported_name: imported_name.to_owned(),
+        source_path: source_path.to_owned(),
+        // Relative sources are relative to the re-exporting module, the error suggests importing it
+        // from this one
+        re_export: Some(ReExport {
+            source: if re_export.source.starts_with('.') {
+                unresolved_import_path(source_path, &re_export.source, &options.import_aliases)
+                    .map(|target| relative_import_specifier(file_path, &target))
+            } else {
+                None
+            }
+            .unwrap_or_else(|| re_export.source.clone()),
+            imported_name: re_export.imported_name.clone(),
+        }),
+    }
+}
+
 fn imported_value(value: &StaticValue, source_path: &str) -> StaticValue {
     match value {
         StaticValue::Object(properties) => StaticValue::ImportedObject {

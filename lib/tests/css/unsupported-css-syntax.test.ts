@@ -554,3 +554,45 @@ describe('@keyframes inside templates', () => {
     `);
   });
 });
+
+describe('Sass selectors', () => {
+  test('should throw for & joined with a name', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          export const style = css\`&-icon { color: red; }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&\` can't be joined with a name like \`&-suffix\`, CSS reads it as \`&\` followed by an element selector, use a class like \`&.suffix\` or a style flag
+      loc: 2:25]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          export const style = css\`&:is(&-icon) { color: red; }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&\` can't be joined with a name like \`&-suffix\`, CSS reads it as \`&\` followed by an element selector, use a class like \`&.suffix\` or a style flag
+      loc: 2:30]
+    `);
+  });
+
+  test('should throw for placeholder selectors', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+          export const style = css\`%base { color: red; }\`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`%placeholder\` selectors are not supported, use a class or a \`css\` style
+      loc: 2:25]
+    `);
+  });
+});

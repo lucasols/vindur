@@ -160,44 +160,30 @@ test('should allow withComponent of a component rendering an imported styled com
   `);
 });
 
-test('withComponent keeps the flags of its styled component element for references', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur'
+test('should throw for selecting a style flag through a withComponent class its base lacks', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
 
-      const Item = styled.div<{ active: boolean }>\`&.active { color: red; }\`
-      const Base = styled.div\`padding: 4px;\`
-      const LinkedItem = Base.withComponent(Item)
+        const Item = styled.div<{ active: boolean }>\`&.active { color: red; }\`
+        const Base = styled.div\`padding: 4px;\`
+        const LinkedItem = Base.withComponent(Item)
 
-      const List = styled.div\`
-        \${LinkedItem}.active & { color: blue; }
-      \`
+        const List = styled.div\`
+          \${LinkedItem}.active & { color: blue; }
+        \`
 
-      export const App = ({ active }) => (
-        <LinkedItem active={active}>
-          <List />
-        </LinkedItem>
-      )
-    `,
-  });
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Item {
-      &.voctcyj-active {
-        color: red;
-      }
-    }
-
-    .v1560qbr-2-Base {
-      padding: 4px;
-    }
-
-    .v1560qbr-3-List {
-      .v1560qbr-2-Base.voctcyj-active & {
-        color: blue;
-      }
-    }
-    "
+        export const App = ({ active }) => (
+          <LinkedItem active={active}>
+            <List />
+          </LinkedItem>
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be selected through a reference to "LinkedItem" or "Base", they share a class through withComponent, but only some of their elements have this flag. Select it through a reference to the element's styled component instead.
+    loc: 7:6]
   `);
 });
 
@@ -327,7 +313,62 @@ test('should throw for selecting a style flag through withComponent elements wit
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "active" can't be selected through a reference to "A" or "B", they share the class of the styled component they were made from with withComponent, but their elements have different flags. Select it through a reference to the element's styled component instead.
+    [TransformError: /test.tsx: Style flag "active" can't be selected through a reference to "A" or "B", they share a class through withComponent, but only some of their elements have this flag. Select it through a reference to the element's styled component instead.
     loc: 12:6]
+  `);
+});
+
+test('should throw for a style flag of a default re-exported styled base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import Card from '#/components'
+
+        const Ext = styled(Card)<{ big: boolean }>\`&.big { color: blue; }\`
+
+        export const App = () => <Ext big />
+      `,
+      overrideDefaultFs: createFsMock({
+        'components.ts': `export { default } from './card';`,
+        'card.tsx': dedent`
+          import { styled } from 'vindur'
+
+          const Card = styled.div\`color: red;\`
+
+          export default Card
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "default" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 4:19]
+  `);
+});
+
+test('should throw for withComponent with a style flag of a re-exported element', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { Item } from '#/components'
+
+        const Base = styled.div<{ active: boolean }>\`&.active { color: blue; }\`
+        const LinkedItem = Base.withComponent(Item)
+
+        export const App = () => <LinkedItem active />
+      `,
+      overrideDefaultFs: createFsMock({
+        'components.ts': `export { Item } from './item';`,
+        'item.tsx': dedent`
+          import { styled } from 'vindur'
+
+          export const Item = styled.div<{ active: boolean }>\`&.active { color: red; }\`
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Item" is re-exported by /components.ts from "./item", re-exports via \`export ... from\` are not supported, import it from "./item" directly
+    loc: 5:38]
   `);
 });

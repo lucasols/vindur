@@ -87,6 +87,17 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             ));
             return;
         }
+        if let Some((flag_name, span)) = jsx_in_flag_value(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't contain JSX, style flags are booleans or strings"
+                ),
+            ));
+            return;
+        }
         if let Some((flag_name, span)) = rewritten_flag_value(element, component, self.edits) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.file_path,

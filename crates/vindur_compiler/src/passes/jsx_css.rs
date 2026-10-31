@@ -604,14 +604,19 @@ fn scoped_name_value(value: &Expression<'_>) -> Option<Span> {
     }
 }
 
-/// Whether a computed key starts with `---`, e.g. `` `---${name}` `` or `'---' + name`
+/// Whether a computed key starts with `---`, e.g. `` `---${name}` ``, `'---' + name` or
+/// `` `\x2d--${name}` as string ``
 pub(super) fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
-    match expression.without_parentheses() {
+    match expression.get_inner_expression() {
         Expression::StringLiteral(string) => string.value.starts_with("---"),
-        Expression::TemplateLiteral(template) => template
-            .quasis
-            .first()
-            .is_some_and(|quasi| quasi.value.raw.starts_with("---")),
+        Expression::TemplateLiteral(template) => template.quasis.first().is_some_and(|quasi| {
+            quasi
+                .value
+                .cooked
+                .as_ref()
+                .unwrap_or(&quasi.value.raw)
+                .starts_with("---")
+        }),
         Expression::BinaryExpression(binary) => starts_with_scoped_prefix(&binary.left),
         _ => false,
     }

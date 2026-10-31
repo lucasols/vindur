@@ -393,6 +393,13 @@ pub(super) fn evaluate_argument(
             binary.operator,
             evaluate_expression(&binary.right, constants, scoping)?,
         ),
-        _ => None,
+        // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
+        // `SIZE as number`
+        argument => evaluate_expression(
+            argument.as_expression()?.get_inner_expression(),
+            constants,
+            scoping,
+        )
+        .filter(is_function_argument_value),
     }
 }

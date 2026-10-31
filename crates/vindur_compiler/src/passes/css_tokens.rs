@@ -90,19 +90,28 @@ pub(super) struct OpenTokenScanner {
     resume: usize,
 }
 
+/// The token still open at the end of the CSS
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum OpenToken {
+    None,
+    /// A string opened by the quote
+    String(char),
+    Comment,
+}
+
 impl OpenTokenScanner {
-    /// Whether the end of the CSS is inside a string or a comment that is still open
-    pub(super) fn ends_in_string_or_comment(&mut self, css: &str) -> bool {
+    /// The string or comment the end of the CSS is inside of, if it is still open
+    pub(super) fn open_token(&mut self, css: &str) -> OpenToken {
         let mut index = self.resume;
         while index < css.len() {
             let rest = &css[index..];
             if rest.starts_with("/*") && !rest[2..].contains("*/") {
-                return true;
+                return OpenToken::Comment;
             }
-            if rest.starts_with(['"', '\'']) {
+            if let Some(quote) = rest.chars().next().filter(|c| matches!(c, '"' | '\'')) {
                 let (end, closed) = scan_string(css, index);
                 if end >= css.len() && !closed {
-                    return true;
+                    return OpenToken::String(quote);
                 }
                 index = end;
                 continue;
@@ -116,7 +125,7 @@ impl OpenTokenScanner {
             }
             index += rest.chars().next().map_or(1, char::len_utf8);
         }
-        false
+        OpenToken::None
     }
 }
 
@@ -267,27 +276,27 @@ pub(super) fn is_ident_char(character: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::OpenTokenScanner;
+    use super::{OpenToken, OpenTokenScanner};
 
     #[test]
     fn resumes_scanning_grown_css_with_the_same_result() {
         let mut scanner = OpenTokenScanner::default();
         let mut css = String::new();
         for (part, open) in [
-            ("a: 1; content: '", true),
-            ("x; y", true),
-            ("'; b: 2; /", false),
-            ("* c", true),
-            (" */ d: u", false),
-            ("rl(a;b", false),
+            ("a: 1; content: '", OpenToken::String('\'')),
+            ("x; y", OpenToken::String('\'')),
+            ("'; b: 2; /", OpenToken::None),
+            ("* c", OpenToken::Comment),
+            (" */ d: u", OpenToken::None),
+            ("rl(a;b", OpenToken::None),
         ] {
             css.push_str(part);
-            assert_eq!(scanner.ends_in_string_or_comment(&css), open, "{css}");
-            assert_eq!(
-                OpenTokenScanner::default().ends_in_string_or_comment(&css),
-                open,
-                "{css}"
-            );
+            assert_eq!(scanner.open_token(&css), open, "{css}");
+            assert_eq!(OpenTokenScanner::default().open_token(&css), open, "{css}");
         }
+        assert_eq!(
+            OpenTokenScanner::default().open_token("content: \"a"),
+            OpenToken::String('"')
+        );
     }
 }

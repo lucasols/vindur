@@ -199,11 +199,19 @@ fn shared_flag_error(
     element: &str,
     transform: &VariableTransform<'_>,
 ) -> Option<String> {
+    let element_value = transform.constants.get(element)?;
+    // An element imported through a re-export or an import cycle can be a styled component with
+    // the same flags
+    if !base.style_flags.is_empty()
+        && let Some(message) = unknown_import_message(element, element_value, transform.file_path)
+    {
+        return Some(message);
+    }
     // Every styled component's flag classes, with the ones it inherits from an imported base
-    let Some(StaticValue::ClassName {
+    let StaticValue::ClassName {
         style_flags: element_classes,
         ..
-    }) = transform.constants.get(element)
+    } = element_value
     else {
         return None;
     };

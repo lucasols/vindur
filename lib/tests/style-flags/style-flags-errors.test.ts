@@ -392,6 +392,22 @@ test('should throw for delete in string union style flag values', async () => {
   `);
 });
 
+test('should throw for JSX in style flag values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Icon = styled.span\`color: red;\`
+        const Box = styled.div<{ active: boolean }>\`&.active { color: red; }\`
+        export const App = ({ on }) => <Box active={on && <Icon />} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`active\` value can't contain JSX, style flags are booleans or strings
+    loc: 4:50]
+  `);
+});
+
 test('should not warn about classes of descendants in :has()', async () => {
   const warnings: TransformWarning[] = [];
   await transformWithFormat({

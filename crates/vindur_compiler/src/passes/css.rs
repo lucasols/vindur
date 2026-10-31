@@ -143,7 +143,11 @@ pub(super) fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<Str
 
 fn push_plain_section<'a>(sections: &mut Vec<LayerSection<'a>>, css: &'a str) {
     let css = css.trim();
-    if !css.is_empty() {
+    // Like the `;` after a layer rule in `${layer('base')} { ... };`
+    if !css
+        .trim_matches(|character: char| character == ';' || character.is_whitespace())
+        .is_empty()
+    {
         sections.push(LayerSection { layer: None, css });
     }
 }

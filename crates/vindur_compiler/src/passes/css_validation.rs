@@ -1,5 +1,8 @@
 use oxc_css_parser::{
-    ast::{ComponentValue, Declaration, InterpolableIdent, Statement, TokenSeq},
+    ast::{
+        ComplexSelector, ComplexSelectorChild, ComponentValue, CompoundSelector, Declaration,
+        InterpolableIdent, PseudoClassSelectorArgKind, SimpleSelector, Statement, TokenSeq,
+    },
     token::TokenData,
 };
 
@@ -23,6 +26,9 @@ pub(super) fn validate_statements(
                         rule.block.span.start,
                         rule.block.span.start + 1,
                     ));
+                }
+                for selector in &rule.selector.selectors {
+                    validate_complex_selector(selector)?;
                 }
                 validate_statements(&rule.block.statements, source)?;
             }
@@ -53,6 +59,59 @@ pub(super) fn validate_statements(
                     span.end,
                 ));
             }
+        }
+    }
+    Ok(())
+}
+
+fn validate_complex_selector(selector: &ComplexSelector<'_>) -> Result<(), CssError> {
+    for child in &selector.children {
+        if let ComplexSelectorChild::CompoundSelector(compound) = child {
+            validate_compound_selector(compound)?;
+        }
+    }
+    Ok(())
+}
+
+/// The CSS dialect also accepts Sass selectors, like `&-suffix` or `%placeholder`, which browsers
+/// read as other selectors or drop
+fn validate_compound_selector(compound: &CompoundSelector<'_>) -> Result<(), CssError> {
+    for simple in &compound.children {
+        match simple {
+            SimpleSelector::Nesting(nesting) if nesting.suffix.is_some() => {
+                return Err(CssError::new(
+                    "`&` can't be joined with a name like `&-suffix`, CSS reads it as `&` followed by an element selector, use a class like `&.suffix` or a style flag".to_owned(),
+                    nesting.span.start,
+                    nesting.span.end,
+                ));
+            }
+            SimpleSelector::SassPlaceholder(placeholder) => {
+                return Err(CssError::new(
+                    "`%placeholder` selectors are not supported, use a class or a `css` style"
+                        .to_owned(),
+                    placeholder.span.start,
+                    placeholder.span.end,
+                ));
+            }
+            SimpleSelector::PseudoClass(pseudo) => match pseudo.arg.as_ref().map(|arg| &arg.kind) {
+                Some(PseudoClassSelectorArgKind::SelectorList(list)) => {
+                    for selector in &list.selectors {
+                        validate_complex_selector(selector)?;
+                    }
+                }
+                Some(PseudoClassSelectorArgKind::RelativeSelectorList(list)) => {
+                    for selector in &list.selectors {
+                        validate_complex_selector(&selector.complex_selector)?;
+                    }
+                }
+                Some(PseudoClassSelectorArgKind::CompoundSelectorList(list)) => {
+                    for compound in &list.selectors {
+                        validate_compound_selector(compound)?;
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
         }
     }
     Ok(())

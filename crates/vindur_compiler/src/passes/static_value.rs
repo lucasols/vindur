@@ -6,15 +6,16 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::css_syntax::CssError;
-use super::css_tokens::OpenTokenScanner;
+use super::css_tokens::{OpenToken, OpenTokenScanner};
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
 use super::import_errors::{
     member_root_identifier, not_static_import_message, unresolved_import_error,
 };
 use super::interpolation_validation::{
-    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
-    joined_scoped_name_error,
+    interpolated_scoped_variable_error, invalid_array_argument_error,
+    invalid_function_argument_error, invalid_layer_error, joined_scoped_name_error,
+    open_token_end_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
@@ -232,10 +233,11 @@ fn build_template_css(
             Some(_) => None,
             None => evaluate_expression(expression, constants, scoping),
         };
-        let in_string_or_comment = open_tokens.ends_in_string_or_comment(&evaluated.css);
-        if !in_string_or_comment
-            && let Some(diagnostic) =
-                joined_scoped_name_error(&evaluated.css, "", "", expression, file_path, source)
+        let open_token = open_tokens.open_token(&evaluated.css);
+        let in_string_or_comment = open_token != OpenToken::None;
+        // Quoted names like `animation-name: "---spin"` are renamed too, so strings are checked
+        if let Some(diagnostic) =
+            joined_scoped_name_error(&evaluated.css, "", "", expression, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -262,6 +264,11 @@ fn build_template_css(
         let Some(value) = value else {
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
+                    .or_else(|| {
+                        invalid_function_argument_error(
+                            expression, constants, scoping, file_path, source,
+                        )
+                    })
             {
                 return Err(diagnostic);
             }
@@ -301,24 +308,26 @@ fn build_template_css(
             StaticValue::CssClass { name, .. } => format!(".{name}"),
             value => {
                 let value = static_value_to_string(value);
-                // Names in strings and comments are not renamed
-                if !in_string_or_comment {
-                    let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
-                    if let Some(diagnostic) =
-                        interpolated_scoped_variable_error(&value, expression, file_path, source)
-                            .or_else(|| {
-                                joined_scoped_name_error(
-                                    &evaluated.css,
-                                    &value,
-                                    css_after,
-                                    expression,
-                                    file_path,
-                                    source,
-                                )
-                            })
-                    {
-                        return Err(diagnostic);
-                    }
+                let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
+                if let Some(diagnostic) =
+                    open_token_end_error(&value, open_token, expression, file_path, source)
+                        .or_else(|| {
+                            interpolated_scoped_variable_error(
+                                &value, expression, file_path, source,
+                            )
+                        })
+                        .or_else(|| {
+                            joined_scoped_name_error(
+                                &evaluated.css,
+                                &value,
+                                css_after,
+                                expression,
+                                file_path,
+                                source,
+                            )
+                        })
+                {
+                    return Err(diagnostic);
                 }
                 value
             }

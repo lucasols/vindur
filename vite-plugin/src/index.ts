@@ -27,8 +27,9 @@ const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
 const VINDUR_JSX_PROP_RE = /\b(?:css|cx|dynamicColor)\s*=/u;
 // Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name`,
-// `` `---${name}` `` or `'var(---color)'`, which are renamed or rejected
-const SCOPED_STYLE_KEY_RE = /['"`]---|var\(---/u;
+// `` `---${name}` `` or `'var(---color)'` (CSS functions are case insensitive and allow spaces,
+// like `VAR( ---color)`), which are renamed or rejected
+const SCOPED_STYLE_KEY_RE = /['"`]---|var\(\s*---/iu;
 const VINDUR_CODE_RES = [
   VINDUR_MODULE_IMPORT_RE,
   VINDUR_JSX_PROP_RE,

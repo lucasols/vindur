@@ -252,8 +252,8 @@ test('should throw for dynamic colors passed to functions', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Unresolved function call at \`... Box = styled\` ... \${paint(accent)}, function must be statically analyzable and correctly imported with the configured aliases
-    loc: 7:4]
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 7:10]
   `);
 });
 
@@ -279,7 +279,64 @@ test('should throw for dynamic colors in object arguments of functions', async (
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Unresolved function call at \`... Box = styled\` ... \${paint({ color: accent })}, function must be statically analyzable and correctly imported with the configured aliases
-    loc: 7:4]
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 7:10]
+  `);
+});
+
+test('should evaluate expression arguments of functions', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { space, bg } from '#/mixins'
+
+      const SIZE = 4
+      const COLORS = { primary: 'red' }
+
+      export const style = css\`
+        \${space(-SIZE)};
+        \${bg(COLORS.primary as string)};
+        \${bg(\`\${SIZE}px\`)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'mixins.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const space = vindurFn((size: number) => \`margin: \${size}px;\`)
+        export const bg = vindurFn((color: string) => \`background: \${color};\`)
+      `,
+    }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      margin: -4px;
+      background: red;
+      background: 4px;
+    }
+    "
+  `);
+});
+
+test('should throw for runtime values passed to functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { bg } from '#/mixins'
+
+        export const App = ({ theme }) => <div css={\`\${bg(theme.color)}\`} />
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const bg = vindurFn((color: string) => \`background: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 3:50]
   `);
 });

@@ -615,3 +615,71 @@ test('should throw for quoted scoped names with a line continuation', async () =
     loc: 5:18]
   `);
 });
+
+test('should throw for interpolated values that would end a string or comment', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const TEXT = 'a" b'
+        export const style = css\`content: "\${TEXT}";\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Values interpolated in a CSS string can't contain \`"\` or a line break, or end with \`\\\`, as they would end the string
+    loc: 3:37]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const TEXT = 'a */ color: red; /*'
+        export const style = css\`/* \${TEXT} */ color: blue;\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Values interpolated in a CSS comment can't contain \`*/\`
+    loc: 3:30]
+  `);
+});
+
+test('should interpolate values in strings', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      const TEXT = 'hello'
+      export const style = css\`&::after { content: "\${TEXT}"; }\`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const TEXT = "hello";
+    export const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      &::after {
+        content: "hello";
+      }
+    }
+    "
+  `);
+});
+
+test('should throw for scoped names interpolated in strings', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const NAME = '---spin'
+        export const style = css\`animation-name: "\${NAME}";\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---spin", write scoped variables directly in the template
+    loc: 3:44]
+  `);
+});

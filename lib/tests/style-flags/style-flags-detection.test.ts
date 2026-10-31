@@ -602,3 +602,25 @@ test('should not read type arguments of other tags as style flags', async () => 
     "
   `);
 });
+
+test('should resolve exported type aliases of style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      export type Props = { active: boolean }
+
+      const Box = styled.div<Props>\`&.active { color: red; }\`
+
+      export const App = ({ on }) => <Box active={on} />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export type Props = { active: boolean };
+    export const App = ({ on }) => (
+      <div className={"v1560qbr-1-Box" + (on ? " voctcyj-active" : "")} />
+    );
+    "
+  `);
+});

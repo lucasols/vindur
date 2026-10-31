@@ -218,6 +218,8 @@ const Button = styled.button`
 `;
 ```
 
+A value interpolated in a CSS string can't contain its quote or a line break, or end with `\`, and a value interpolated in a comment can't contain `*/`, since they would end the string or comment.
+
 The global `Math` constants (`PI`, `E`, `LN2`, `LN10`, `LOG2E`, `LOG10E`,
 `SQRT1_2`, and `SQRT2`) support compile-time interpolation and arithmetic:
 
@@ -283,7 +285,7 @@ const CustomComponent = Button.withComponent(MyComponent); // Will render <MyCom
 
 `withComponent` must be the initializer of its own top-level variable declaration, like the examples above. A custom component must be passed by a name starting with an uppercase letter, as JSX renders lowercase names as HTML elements.
 
-When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it. A component extending an imported styled component, like `styled(Card)`, can't call `withComponent`, as the styles of `Card` would be lost, call it on `Card` in its own file and extend that instead. Elements made with `withComponent` from the same component share its class, so a style flag can't be selected through a reference to one of them, like `${Link}.active &`, when their styled component elements have different flags for it.
+When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it. A component extending an imported styled component, like `styled(Card)`, can't call `withComponent`, as the styles of `Card` would be lost, call it on `Card` in its own file and extend that instead. Elements made with `withComponent` from the same component share its class, so a style flag can't be selected through a reference to one of them, like `${Link}.active &`, unless every component sharing the class has that same flag, select it through a reference to the element's styled component instead.
 
 ### Default Attributes
 
@@ -926,6 +928,8 @@ createGlobalStyle`
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
+Sass selectors are compile errors: `&` can't be joined with a name, like `&-icon`, which CSS reads as `&` followed by an `-icon` element (use a class like `&.icon` or a style flag), and `%placeholder` selectors are not supported.
+
 ### Mixins and Functions
 
 Create reusable style functions with `vindurFn`:
@@ -963,7 +967,7 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and expressions of them, or arrays and objects of them, colors, functions and runtime values can't be passed.
 
 Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension can't have style flags, call `withComponent` or select classes of its element, like `&.active`, import `Card` from the module that declares it instead.
 

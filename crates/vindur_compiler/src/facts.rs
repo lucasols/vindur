@@ -147,7 +147,7 @@ pub enum StaticValue {
 }
 
 /// A class applied by a style flag, e.g. `size-small` for `size: 'small' | 'large'`
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleFlagClass {
     /// The class as written in the CSS, e.g. `size-small`
