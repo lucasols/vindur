@@ -6,25 +6,26 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 
 use super::css_syntax::CssError;
+use super::css_tokens::{OpenToken, OpenTokenScanner};
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
-use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::function_evaluation::{evaluate_argument, function_evaluation_error};
 use super::import_errors::unresolved_import_error;
 use super::interpolation_validation::{
-    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+    interpolated_scoped_variable_error, invalid_array_argument_error,
+    invalid_function_argument_error, invalid_layer_error, joined_scoped_name_error,
+    open_token_end_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, is_unresolved_import, resolved_constant,
-    static_value_to_string,
+    collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
+    resolved_constant, static_value_to_string,
 };
-use super::styled::{StyleFlag, styled_ref_placeholder};
+use super::styled::styled_ref_placeholder;
 use super::template_css::{EvaluatedTemplate, validate_template_css};
 use super::unsupported_css_syntax::unsupported_syntax_error;
 
 pub(crate) struct TemplateContext<'a> {
     pub variable_name: Option<&'a str>,
     pub tag_type: &'a str,
-    /// Style flags of a styled component, their selectors are replaced after validation
-    pub style_flags: &'a [StyleFlag],
 }
 
 pub(crate) fn collect_constants(
@@ -122,8 +123,12 @@ fn build_template_css(
     forced_extensions: &[usize],
 ) -> Result<EvaluatedTemplate, CompilerDiagnostic> {
     let mut evaluated = EvaluatedTemplate::default();
+    let mut open_tokens = OpenTokenScanner::default();
     let mut previous_was_css_extension = false;
     for (index, quasi) in template.quasis.iter().enumerate() {
+        if let Some(diagnostic) = cooked_escape_error(quasi, file_path, source) {
+            return Err(diagnostic);
+        }
         let quasi_start = evaluated.css.len();
         evaluated.css.push_str(quasi_text(quasi));
         evaluated.map_quasi(quasi_start, quasi);
@@ -204,23 +209,59 @@ fn build_template_css(
                     .to_owned(),
             ));
         }
-        if let Some(message) = binary_expression_error(expression, constants, scoping) {
+        if let Some(message) = function_call_error(expression, constants, scoping) {
             return Err(CompilerDiagnostic::error(
                 file_path,
                 source,
                 expression.span(),
-                format!("Binary expression evaluation failed: {message}"),
+                message,
             ));
         }
         let expression_start = evaluated.css.len();
-        if let Some(reference) = forward_styled_reference(expression) {
+        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
+            starts_with_semicolon(next.value.cooked.as_ref().unwrap_or(&next.value.raw))
+        });
+        let forward_reference = forward_styled_reference(expression);
+        let value = match forward_reference {
+            Some(_) => None,
+            None => evaluate_expression(expression, constants, scoping),
+        };
+        let open_token = open_tokens.open_token(&evaluated.css);
+        let in_string_or_comment = open_token != OpenToken::None;
+        // Quoted names like `animation-name: "---spin"` are renamed too, so strings are checked
+        if let Some(diagnostic) =
+            joined_scoped_name_error(&evaluated.css, "", "", expression, file_path, source)
+        {
+            return Err(diagnostic);
+        }
+        if has_semicolon
+            && !in_string_or_comment
+            && (forward_reference.is_some() || matches!(value, Some(StaticValue::ClassName { .. })))
+        {
+            let expression_source =
+                &source[expression.span().start as usize..expression.span().end as usize];
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                expression.span(),
+                format!(
+                    "`${{{expression_source}}}` is a class selector and can't be followed by `;`, use `styled(Component)` to extend a styled component's styles, or remove the `;` to use it as a selector"
+                ),
+            ));
+        }
+        if let Some(reference) = forward_reference {
             evaluated.css.push_str(&styled_ref_placeholder(reference));
             evaluated.map_expression(expression_start, expression.span());
             continue;
         }
-        let Some(value) = evaluate_expression(expression, constants, scoping) else {
+        let Some(value) = value else {
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
+                    .or_else(|| {
+                        invalid_function_argument_error(
+                            expression, constants, scoping, file_path, source,
+                        )
+                    })
             {
                 return Err(diagnostic);
             }
@@ -235,34 +276,19 @@ fn build_template_css(
             );
         };
         // Colors and palettes are objects, only their `.value` and methods are CSS values
-        if matches!(
-            value,
-            StaticValue::Boolean(_)
-                | StaticValue::Undefined
-                | StaticValue::Object(_)
-                | StaticValue::ImportedObject { .. }
-                | StaticValue::LayerFunction
-                | StaticValue::DynamicColor { .. }
-                | StaticValue::DynamicColorPath { .. }
-                | StaticValue::ThemeColor { .. }
-                | StaticValue::ThemeColorContrast { .. }
-                | StaticValue::ThemeColors { .. }
-                | StaticValue::UnexportedThemeColors { .. }
-        ) || is_unresolved_import(&value)
+        if matches!(value, StaticValue::LayerFunction)
+            || !has_css_text(&value)
+            || is_unresolved_import(&value)
         {
             return Err(interpolation_error(expression, file_path, source, context));
         }
-        let has_semicolon = template.quasis.get(index + 1).is_some_and(|next| {
-            next.value
-                .cooked
-                .as_ref()
-                .unwrap_or(&next.value.raw)
-                .trim_start()
-                .starts_with(';')
-        });
         let forced_semicolon = !has_semicolon && forced_extensions.contains(&index);
-        let followed_by_semicolon = has_semicolon || forced_semicolon;
-        if matches!(value, StaticValue::CssClass { .. }) && !followed_by_semicolon {
+        // In a string, like `content: '${base};'`, a css constant is its selector text
+        let followed_by_semicolon = (has_semicolon || forced_semicolon) && !in_string_or_comment;
+        if matches!(value, StaticValue::CssClass { .. })
+            && !followed_by_semicolon
+            && !in_string_or_comment
+        {
             evaluated.selector_classes.push(index);
         }
         let is_css_extension =
@@ -284,9 +310,35 @@ fn build_template_css(
             StaticValue::CssClass { name, .. } => format!(".{name}"),
             value => {
                 let value = static_value_to_string(value);
-                if let Some(diagnostic) =
-                    interpolated_scoped_variable_error(&value, expression, file_path, source)
-                {
+                let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
+                // vindurFn results are written trimmed, so the checks see the written text
+                let written = if matches!(expression, Expression::CallExpression(_)) {
+                    value.trim()
+                } else {
+                    &value
+                };
+                if let Some(diagnostic) = open_token_end_error(
+                    &evaluated.css,
+                    written,
+                    css_after,
+                    open_token,
+                    expression,
+                    file_path,
+                    source,
+                )
+                .or_else(|| {
+                    interpolated_scoped_variable_error(written, expression, file_path, source)
+                })
+                .or_else(|| {
+                    joined_scoped_name_error(
+                        &evaluated.css,
+                        written,
+                        css_after,
+                        expression,
+                        file_path,
+                        source,
+                    )
+                }) {
                     return Err(diagnostic);
                 }
                 value
@@ -319,7 +371,19 @@ fn build_template_css(
     Ok(evaluated)
 }
 
-fn binary_expression_error(
+/// Whether the text starts with `;` after whitespace and comments
+fn starts_with_semicolon(text: &str) -> bool {
+    let mut rest = text.trim_start();
+    while let Some(comment) = rest.strip_prefix("/*") {
+        let Some(end) = comment.find("*/") else {
+            return false;
+        };
+        rest = comment[end + 2..].trim_start();
+    }
+    rest.starts_with(';')
+}
+
+fn function_call_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -339,7 +403,7 @@ fn binary_expression_error(
         .iter()
         .map(|argument| evaluate_argument(argument, constants, scoping))
         .collect::<Option<Vec<_>>>()?;
-    function_binary_expression_error(function, &arguments)
+    function_evaluation_error(function, &arguments)
 }
 
 /// A member chain rooted at an imported object, e.g. `theme.colors.primary`. When it can't be
@@ -382,7 +446,7 @@ fn imported_function_preserves_boundary(
     quasis.last().is_some_and(|quasi| quasi.contains('\n'))
 }
 
-fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
+pub(super) fn forward_styled_reference<'e>(expression: &'e Expression<'_>) -> Option<&'e str> {
     let Expression::ArrowFunctionExpression(arrow) = expression else {
         return None;
     };
@@ -443,6 +507,50 @@ fn interpolation_error(
     } else {
         diagnostic
     }
+}
+
+/// JavaScript escapes are applied to the template text, so a CSS escape like `\e900` would lose its
+/// backslash. Only `\\`, `` \` `` and `\$` are allowed. Escapes JavaScript doesn't support, like
+/// `\2014`, are rejected too, otherwise the whole template would be used as written
+fn cooked_escape_error(
+    quasi: &TemplateElement<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    // The source text, `raw` has its CRLF line breaks normalized, which would move the offsets
+    let raw = source
+        .get(quasi.span.start as usize..quasi.span.end as usize)
+        .unwrap_or(quasi.value.raw.as_str());
+    let mut characters = raw.char_indices();
+    while let Some((index, character)) = characters.next() {
+        if character != '\\' {
+            continue;
+        }
+        let (_, escaped) = characters.next()?;
+        if matches!(escaped, '\\' | '`' | '$') {
+            continue;
+        }
+        let start = quasi.span.start + u32::try_from(index).ok()?;
+        let message = if escaped.is_whitespace() {
+            "A `\\` before a line break or space is a JavaScript escape in the template, remove it or write `\\\\` for a CSS escape".to_owned()
+        } else if escaped.is_alphanumeric() && !escaped.is_ascii_hexdigit() {
+            // A CSS escape of a letter is the letter itself, like `\n` for `n`
+            format!(
+                "`\\{escaped}` is a JavaScript escape in the template, write the character itself or a CSS escape of its hex code, like `\\\\A` for a line break or `\\\\2014` for `—`"
+            )
+        } else {
+            format!(
+                "`\\{escaped}` is a JavaScript escape in the template, write `\\\\{escaped}` for a CSS escape"
+            )
+        };
+        return Some(CompilerDiagnostic::error(
+            file_path,
+            source,
+            oxc_span::Span::new(start, start + 1 + u32::try_from(escaped.len_utf8()).ok()?),
+            message,
+        ));
+    }
+    None
 }
 
 fn quasi_text<'q>(quasi: &'q TemplateElement<'_>) -> &'q str {

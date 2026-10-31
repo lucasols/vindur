@@ -424,7 +424,7 @@ describe('keyframes cross-file imports', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "unknownAnimation" not found in /animations.ts
+      [TransformError: /test.tsx: "unknownAnimation" not found in /animations.ts, export it by name, like \`export const unknownAnimation = ...\` or \`export { unknownAnimation }\`
       loc: 5:15]
     `,
     );

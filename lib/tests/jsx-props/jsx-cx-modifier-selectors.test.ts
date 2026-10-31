@@ -38,20 +38,16 @@ test('should only rewrite whole cx modifier class names in css', async () => {
         <>
           <div
             className={
-              "v1560qbr-1-Box " +
-              cx({
-                "v1560qbr-2-active": isActive,
-                "v1560qbr-3-activeIcon": hasIcon,
-              })
+              "v1560qbr-1-Box" +
+              (isActive ? " v1560qbr-2-active" : "") +
+              (hasIcon ? " v1560qbr-3-activeIcon" : "")
             }
           />
           <div
             className={
-              "v1560qbr-4-css-prop-4 " +
-              cx({
-                "v1560qbr-5-active": isActive,
-                "v1560qbr-6-activeIcon": hasIcon,
-              })
+              "v1560qbr-4-css-prop-4" +
+              (isActive ? " v1560qbr-5-active" : "") +
+              (hasIcon ? " v1560qbr-6-activeIcon" : "")
             }
           />
         </>
@@ -126,16 +122,13 @@ test('should rewrite every cx modifier class of compound selectors', async () =>
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ isActive, isSelected }) {
+    "function Component({ isActive, isSelected }) {
       return (
         <div
           className={
-            "v1560qbr-1-Box " +
-            cx({
-              "v1560qbr-2-active": isActive,
-              "v1560qbr-3-selected": isSelected,
-            })
+            "v1560qbr-1-Box" +
+            (isActive ? " v1560qbr-2-active" : "") +
+            (isSelected ? " v1560qbr-3-selected" : "")
           }
         />
       );
@@ -178,16 +171,13 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ isActive, isHidden }) {
+    "function Component({ isActive, isHidden }) {
       return (
         <div
           className={
-            "v1560qbr-1-Box " +
-            cx({
-              "v1560qbr-2-active": isActive,
-              "v1560qbr-3-hidden": isHidden,
-            })
+            "v1560qbr-1-Box" +
+            (isActive ? " v1560qbr-2-active" : "") +
+            (isHidden ? " v1560qbr-3-hidden" : "")
           }
         />
       );
@@ -560,16 +550,8 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ b }) => (
-      <div
-        className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-active": b,
-          })
-        }
-      />
+    "export const App = ({ b }) => (
+      <div className={"v1560qbr-1-Box" + (b ? " v1560qbr-2-active" : "")} />
     );
     "
   `);

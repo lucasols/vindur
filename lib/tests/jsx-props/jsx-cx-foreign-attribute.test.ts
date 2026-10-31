@@ -58,14 +58,8 @@ test('should still apply vindur cx objects on svg elements', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const Dot = ({ active }: { active: boolean }) => (
-      <circle
-        r="2"
-        className={cx({
-          active: active,
-        })}
-      />
+    "export const Dot = ({ active }: { active: boolean }) => (
+      <circle r="2" className={active ? "active" : ""} />
     );
     "
   `);
@@ -312,8 +306,7 @@ test('should apply cx classes of styled custom components with a forwarded css p
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { Pie } from "recharts";
+    "import { Pie } from "recharts";
     export const Chart = ({
       active,
       label,
@@ -324,12 +317,7 @@ test('should apply cx classes of styled custom components with a forwarded css p
       <>
         <Pie
           css={label}
-          className={
-            "v1560qbr-1-StyledPie " +
-            cx({
-              "v1560qbr-2-active": active,
-            })
-          }
+          className={"v1560qbr-1-StyledPie" + (active ? " v1560qbr-2-active" : "")}
         />
         <div className="v1560qbr-4-css-prop-4" />
       </>
@@ -374,17 +362,14 @@ test('should import mergeClassNames for cx on styled custom components with spre
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     import { Pie } from "recharts";
     export const Chart = ({ active, ...props }: { active: boolean }) => (
       <Pie
         {...props}
         className={mergeClassNames(
           [props],
-          "v1560qbr-1-StyledPie " +
-            cx({
-              "v1560qbr-2-active": active,
-            }),
+          "v1560qbr-1-StyledPie" + (active ? " v1560qbr-2-active" : ""),
         )}
       />
     );
@@ -450,47 +435,24 @@ test('should not let a cx prop variable shadow the cx helper', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as _vCx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     export function Point({ cx, cy, active, p }) {
       return (
         <circle
           {...p}
           cx={cx}
           cy={cy}
-          className={_vCx(
-            mergeClassNames([p], "v1560qbr-1-Dot"),
-            active && "voctcyj-active",
-          )}
+          className={
+            mergeClassNames([p], "v1560qbr-1-Dot") +
+            (active ? " voctcyj-active" : "")
+          }
         />
       );
     }
     export function App({ cx }) {
-      return (
-        <div
-          className={_vCx({
-            active: true,
-          })}
-        />
-      );
+      return <div className={"active"} />;
     }
     "
-  `);
-});
-
-test('should throw when a binding takes the reserved cx helper alias', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        const _vCx = 1;
-
-        export function Point({ cx, active }) {
-          return <circle cx={cx} data-x={_vCx} cx={{ $active: active }} />;
-        }
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "_vCx" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved
-    loc: 1:6]
   `);
 });
 
@@ -505,14 +467,8 @@ test('should insert the helper import after directives', async () => {
 
   expect(result.code).toMatchInlineSnapshot(`
     ""use client";
-    import { cx } from "vindur";
-    export const App = ({ a }) => (
-      <div
-        className={cx({
-          on: a,
-        })}
-      />
-    );
+
+    export const App = ({ a }) => <div className={a ? "on" : ""} />;
     "
   `);
 });

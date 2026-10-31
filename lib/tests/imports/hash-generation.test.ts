@@ -356,20 +356,9 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      const styles = "v1560qbr-1-styles";
+      "const styles = "v1560qbr-1-styles";
       const App = () => (
-        <div
-          className={
-            styles +
-            " " +
-            cx({
-              "v1560qbr-2-active": true,
-              "v1560qbr-3-loading": false,
-              "v1560qbr-4-disabled": true,
-            })
-          }
-        />
+        <div className={styles + " v1560qbr-2-active v1560qbr-4-disabled"} />
       );
       "
     `);
@@ -514,8 +503,8 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const uniqueId = "v1560qbr-uniqueId-1";
-      const anotherId = "v1560qbr-anotherId-2";
+      "const uniqueId = "v1560qbr-1-uniqueId";
+      const anotherId = "v1560qbr-2-anotherId";
       const styles = "v1560qbr-3-styles";
       "
     `);
@@ -548,23 +537,8 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      const App1 = () => (
-        <div
-          className={cx({
-            active: true,
-            loading: false,
-          })}
-        />
-      );
-      const App2 = () => (
-        <div
-          className={cx({
-            active: true,
-            disabled: true,
-          })}
-        />
-      );
+      "const App1 = () => <div className={"active"} />;
+      const App2 = () => <div className={"active disabled"} />;
       const styles = "v1560qbr-1-styles";
       "
     `);
@@ -621,7 +595,7 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { createDynamicCssColor, cx } from "vindur";
+      "import { createDynamicCssColor } from "vindur";
 
       // Index 1
 
@@ -636,15 +610,7 @@ describe('imported file hash generation', () => {
       // Index 5
       const containerStyles = "v1560qbr-4-containerStyles";
       const App = () => (
-        <div
-          className={
-            containerStyles +
-            " " +
-            cx({
-              "v1560qbr-5-active": true,
-            })
-          }
-        >
+        <div className={containerStyles + " v1560qbr-5-active"}>
           <button
             {...themeColor._sp("#red", {
               className: "v1560qbr-3-Button",

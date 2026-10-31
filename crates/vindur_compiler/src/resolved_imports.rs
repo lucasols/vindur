@@ -185,35 +185,42 @@ fn collect_resolved_import_edits(
         // Unused imports are not consumed, TypeScript compilers would drop them with the module
         let mut keeps_module = false;
         let mut default_specifier = None;
+        let mut namespace_specifier = None;
         let mut runtime_specifiers = Vec::new();
         let mut has_value_specifiers = false;
         let mut has_consumed_values = false;
         for specifier in specifiers {
             has_consumed_values |= consumed_imports.contains(specifier.local().name.as_str());
-            let compile_time_value = match specifier {
-                ImportDeclarationSpecifier::ImportSpecifier(named) => imported_values
-                    .get(named.local.name.as_str())
+            let local = match specifier {
+                ImportDeclarationSpecifier::ImportSpecifier(named) => Some(&named.local),
+                ImportDeclarationSpecifier::ImportDefaultSpecifier(default) => Some(&default.local),
+                ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => None,
+            };
+            let compile_time_value = local.and_then(|local| {
+                imported_values
+                    .get(local.name.as_str())
                     .filter(|value| !is_runtime_value(value))
                     .filter(|_| {
-                        named
-                            .local
+                        local
                             .symbol_id
                             .get()
                             .is_some_and(|symbol_id| scoping.symbol_is_unused(symbol_id))
-                    }),
-                _ => None,
-            };
+                    })
+            });
             let Some(value) = compile_time_value else {
                 has_value_specifiers |= is_value_specifier(specifier, scoping);
                 let span = specifier.span();
                 let specifier_source = source[span.start as usize..span.end as usize].to_owned();
-                if matches!(
-                    specifier,
-                    ImportDeclarationSpecifier::ImportDefaultSpecifier(_)
-                ) {
-                    default_specifier = Some(specifier_source);
-                } else {
-                    runtime_specifiers.push(specifier_source);
+                match specifier {
+                    ImportDeclarationSpecifier::ImportDefaultSpecifier(_) => {
+                        default_specifier = Some(specifier_source);
+                    }
+                    ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => {
+                        namespace_specifier = Some(specifier_source);
+                    }
+                    ImportDeclarationSpecifier::ImportSpecifier(_) => {
+                        runtime_specifiers.push(specifier_source);
+                    }
                 }
                 continue;
             };
@@ -244,7 +251,9 @@ fn collect_resolved_import_edits(
             }
             continue;
         }
-        let has_runtime_specifiers = default_specifier.is_some() || !runtime_specifiers.is_empty();
+        let has_runtime_specifiers = default_specifier.is_some()
+            || namespace_specifier.is_some()
+            || !runtime_specifiers.is_empty();
         edits.push(Edit {
             span: if !has_runtime_specifiers && keeps_module {
                 declaration.span
@@ -252,8 +261,13 @@ fn collect_resolved_import_edits(
                 expand_removal_to_line(source, declaration.span)
             },
             replacement: if has_runtime_specifiers {
-                let rebuilt =
-                    rebuilt_import(declaration, source, default_specifier, &runtime_specifiers);
+                let rebuilt = rebuilt_import(
+                    declaration,
+                    source,
+                    default_specifier,
+                    namespace_specifier,
+                    &runtime_specifiers,
+                );
                 // Type-only and unused specifiers are dropped by TypeScript compilers, which
                 // would drop the module too
                 if keeps_module && !has_value_specifiers {
@@ -270,12 +284,14 @@ fn collect_resolved_import_edits(
     }
 }
 
-/// Rebuilds an import declaration with only its runtime specifiers, keeping the default
-/// specifier, the `import type` kind and any import attributes
+/// Rebuilds an import declaration with only its runtime specifiers, keeping the default and
+/// namespace specifiers, the `import type` kind and any import attributes. A namespace import
+/// can't be combined with named ones, so the import only has named specifiers without it
 fn rebuilt_import(
     declaration: &ImportDeclaration<'_>,
     source: &str,
     default_specifier: Option<String>,
+    namespace_specifier: Option<String>,
     named_specifiers: &[String],
 ) -> String {
     let kind = if declaration.import_kind.is_type() {
@@ -283,8 +299,9 @@ fn rebuilt_import(
     } else {
         ""
     };
-    let named =
-        (!named_specifiers.is_empty()).then(|| format!("{{ {} }}", named_specifiers.join(", ")));
+    let named = namespace_specifier.or_else(|| {
+        (!named_specifiers.is_empty()).then(|| format!("{{ {} }}", named_specifiers.join(", ")))
+    });
     let bindings = default_specifier
         .into_iter()
         .chain(named)

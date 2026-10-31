@@ -56,12 +56,7 @@ describe('JSX cx prop on plain DOM elements without CSS context', () => {
       "import { cx } from "vindur";
       function Component({ isActive, hasError }) {
         return (
-          <div
-            className={cx({
-              active: isActive,
-              error: hasError,
-            })}
-          />
+          <div className={(isActive ? "active" : "") + (hasError ? " error" : "")} />
         );
       }
       "
@@ -87,11 +82,7 @@ describe('JSX cx prop on plain DOM elements without CSS context', () => {
         return (
           <div
             className={
-              "base-class " +
-              cx({
-                active: isActive,
-                error: hasError,
-              })
+              "base-class" + (isActive ? " active" : "") + (hasError ? " error" : "")
             }
           />
         );
@@ -113,15 +104,8 @@ test('should escape quotes in pass-through cx class names', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ active }) {
-      return (
-        <div
-          className={cx({
-            'after:content-["hello"]': active,
-          })}
-        />
-      );
+    "function Component({ active }) {
+      return <div className={active ? 'after:content-["hello"]' : ""} />;
     }
     "
   `);
@@ -193,14 +177,45 @@ test('should keep transformed code inside cx values', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ id }) => (
-      <div
-        className={cx({
-          selected: id === "v1560qbr-1",
-        })}
-      />
+    "export const App = ({ id }) => (
+      <div className={id === "v1560qbr-1" ? "selected" : ""} />
     );
+    "
+  `);
+});
+
+test('should keep JSX string class names when merging generated classes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+
+      function Component({ isActive }) {
+        return (
+          <>
+            <div
+              className="a
+                b"
+              css={\`color: red;\`}
+            />
+            <div className='q"z &amp; y' cx={{ $active: isActive }} />
+          </>
+        );
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "function Component({ isActive }) {
+      return (
+        <>
+          <div
+            className="a
+              b v1560qbr-1-css-prop-1"
+          />
+          <div className={'q"z & y' + (isActive ? " active" : "")} />
+        </>
+      );
+    }
     "
   `);
 });

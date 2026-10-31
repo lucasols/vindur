@@ -27,18 +27,9 @@ test('should keep an imported css constant used as a className value', async () 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { shared } from "#/constants";
+    "import { shared } from "#/constants";
     export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          shared +
-          " " +
-          cx({
-            active: on,
-          })
-        }
-      />
+      <div className={shared + (on ? " active" : "")} />
     );
     "
   `);
@@ -113,6 +104,34 @@ test('should keep default and type imports when removing compile-time specifiers
     export const A = (props: Props & Item) => (
       <Widget className={styles} {...props} />
     );
+    "
+  `);
+});
+
+test('should keep namespace imports when removing compile-time specifiers', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import SIZE, * as constants from '#/sizes';
+
+      export const styles = css\`
+        width: \${SIZE}px;
+      \`;
+
+      console.log(constants);
+    `,
+    overrideDefaultFs: createFsMock({
+      'sizes.ts': dedent`
+        const SIZE = 12;
+        export default SIZE;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import * as constants from "#/sizes";
+    export const styles = "v1560qbr-1-styles";
+    console.log(constants);
     "
   `);
 });
@@ -204,19 +223,14 @@ test('should keep imports of plain constants used in non-vindur templates', asyn
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { centerContent } from "./consts";
+    "import { centerContent } from "./consts";
     import { styled } from "@linaria/react";
     const Box = styled.div\`
       \${centerContent};
     \`;
     export const X = () => (
       <Box>
-        <span
-          className={cx({
-            a: true,
-          })}
-        />
+        <span className={"a"} />
       </Box>
     );
     "

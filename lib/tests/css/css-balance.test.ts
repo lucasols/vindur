@@ -113,7 +113,7 @@ test('should throw for an unexpected closing parenthesis', async () => {
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: expect token \`;\`, but found \`)\`
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: unexpected \`)\`
     loc: 5:14]
   `);
 });
@@ -144,5 +144,23 @@ test('should accept brackets inside strings, comments and quoted urls', async ()
       }
     }
     "
+  `);
+});
+
+test('should throw for an unclosed string', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          &::before { content: "a; }
+          color: red;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... style = css\`: unclosed string, add \`"\`
+    loc: 4:23]
   `);
 });

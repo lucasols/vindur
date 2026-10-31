@@ -1,6 +1,6 @@
 {
   "name": "@vindur-css/native-win32-x64-msvc",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "cpu": [
     "x64"
   ],

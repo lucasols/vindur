@@ -192,7 +192,7 @@ test('should error on createGlobalStyle outside a top-level statement', async ()
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindur's "createGlobalStyle" is compiled away and can't be used here, use it as a top-level statement or const declaration, eg. createGlobalStyle\`body { margin: 0; }\`
+    [TransformError: /test.tsx: createGlobalStyle can't be exported, its styles are added where it is declared, remove the \`export\`
     loc: 3:15]
   `);
 });
@@ -209,5 +209,29 @@ test('should error on layer outside a vindur style', async () => {
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: vindur's "layer" is compiled away and can't be used here, use it inside a vindur style, eg. \${layer('base')} { color: red; }
     loc: 3:25]
+  `);
+});
+
+test('should compile css templates inside assigned templates of other tags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { html } from 'lit'
+
+      export const tpl = html\`<b class=\${css\`color: red;\`}></b>\`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { html } from "lit";
+    export const tpl = html\`<b class=\${"v1560qbr-1"}></b>\`;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      color: red;
+    }
+    "
   `);
 });

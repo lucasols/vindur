@@ -74,10 +74,10 @@ describe('CX prop index assignment according to spec', () => {
     });
 
     // All classes should use the same file hash but different indices in production
-    expect(result.code).toContain('"v1560qbr-3"'); // first active (after css=1, css-prop=2)
-    expect(result.code).toContain('"v1560qbr-4"'); // disabled
-    expect(result.code).toContain('"v1560qbr-7"'); // second active (after styled=5, css-prop=6)
-    expect(result.code).toContain('"v1560qbr-8"'); // loading
+    expect(result.code).toContain('" v1560qbr-3"'); // first active (after css=1, css-prop=2)
+    expect(result.code).toContain('" v1560qbr-4"'); // disabled
+    expect(result.code).toContain('" v1560qbr-7"'); // second active (after styled=5, css-prop=6)
+    expect(result.code).toContain('" v1560qbr-8"'); // loading
 
     // Should NOT contain the className suffix in production
     expect(result.code).not.toContain('active');
@@ -85,8 +85,8 @@ describe('CX prop index assignment according to spec', () => {
     expect(result.code).not.toContain('loading');
 
     // Check that each active usage gets a different index (no reuse)
-    const v3Count = (result.code.match(/"v1560qbr-3"/g) || []).length;
-    const v7Count = (result.code.match(/"v1560qbr-7"/g) || []).length;
+    const v3Count = (result.code.match(/" v1560qbr-3"/g) || []).length;
+    const v7Count = (result.code.match(/" v1560qbr-7"/g) || []).length;
     expect(v3Count).toBe(1); // First active usage
     expect(v7Count).toBe(1); // Second active usage
   });
@@ -115,15 +115,12 @@ describe('CX prop index assignment according to spec', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      const App = ({ hasSubtasks, isExpanded }) => (
+      "const App = ({ hasSubtasks, isExpanded }) => (
         <div
           className={
-            "v1560qbr-1 " +
-            cx({
-              "v1560qbr-2": hasSubtasks,
-              "v1560qbr-3": isExpanded,
-            })
+            "v1560qbr-1" +
+            (hasSubtasks ? " v1560qbr-2" : "") +
+            (isExpanded ? " v1560qbr-3" : "")
           }
         >
           <span className="icon" />

@@ -507,7 +507,7 @@ test('should throw error when imported CSS is not found', async () => {
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(
     `
-    [TransformError: /test.tsx: "unknownStyles" not found in /styles.ts
+    [TransformError: /test.tsx: "unknownStyles" not found in /styles.ts, export it by name, like \`export const unknownStyles = ...\` or \`export { unknownStyles }\`
     loc: 5:4]
   `,
   );

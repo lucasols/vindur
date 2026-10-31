@@ -39,19 +39,14 @@ test('should merge css prop and cx prop with an existing className', async () =>
         <>
           <div
             className={
-              "base v1560qbr-1-css-prop-1 " +
-              cx({
-                "v1560qbr-2-active": isActive,
-              })
+              "base v1560qbr-1-css-prop-1" + (isActive ? " v1560qbr-2-active" : "")
             }
           />
           <div
             className={
               (extra || "") +
-              " v1560qbr-3-css-prop-3 " +
-              cx({
-                "v1560qbr-4-active": isActive,
-              })
+              " v1560qbr-3-css-prop-3" +
+              (isActive ? " v1560qbr-4-active" : "")
             }
           />
         </>
@@ -113,20 +108,11 @@ test('should keep multiline and escaped className strings valid when merging cx 
         <>
           <div
             className={
-              "base\\n          a\\\\\\\\b & c v1560qbr-1-css-prop-1 " +
-              cx({
-                "v1560qbr-2-active": isActive,
-              })
+              "base\\n          a\\\\\\\\b & c v1560qbr-1-css-prop-1" +
+              (isActive ? " v1560qbr-2-active" : "")
             }
           />
-          <div
-            className={
-              "plain\\n          other " +
-              cx({
-                active: isActive,
-              })
-            }
-          />
+          <div className={"plain\\n          other" + (isActive ? " active" : "")} />
         </>
       );
     }
@@ -167,7 +153,7 @@ test('should merge explicit className with spread props', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     function Component({ isActive, next, count, extra, ...props }) {
       return (
         <>
@@ -175,11 +161,7 @@ test('should merge explicit className with spread props', async () => {
           <div
             {...props}
             className={
-              ((isActive ? "on" : undefined) || "") +
-              " " +
-              cx({
-                active: isActive,
-              })
+              ((isActive ? "on" : undefined) || "") + (isActive ? " active" : "")
             }
           />
           <div
@@ -189,13 +171,7 @@ test('should merge explicit className with spread props', async () => {
           />
           <div
             {...props}
-            className={
-              ("v1560qbr-4" || "") +
-              " " +
-              cx({
-                active: isActive,
-              })
-            }
+            className={("v1560qbr-4" || "") + (isActive ? " active" : "")}
           />
           <div
             {...props}
@@ -309,16 +285,13 @@ test('should keep the user cx import when generated classes still call cx', asyn
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ big, active }) {
+    "function Component({ big, active }) {
       return (
         <button
           className={
             ("base" + (big ? " big" : "") || "") +
-            " v1560qbr-1-Btn " +
-            cx({
-              "v1560qbr-2-active": active,
-            })
+            " v1560qbr-1-Btn" +
+            (active ? " v1560qbr-2-active" : "")
           }
         />
       );
@@ -357,18 +330,9 @@ test('should import helpers under an alias when another binding uses their name'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as _vCx } from "vindur";
-    import cx from "classnames";
+    "import cx from "classnames";
     export const Component = ({ active }) => (
-      <div
-        className={
-          (cx("base") || "") +
-          " " +
-          _vCx({
-            active: active,
-          })
-        }
-      />
+      <div className={(cx("base") || "") + (active ? " active" : "")} />
     );
     "
   `);
@@ -384,14 +348,9 @@ test('should not let a type-only cx import stand in for the cx helper', async ()
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as _vCx } from "vindur";
-    import type { cx } from "vindur";
+    "import type { cx } from "vindur";
     export const Component = ({ active }) => (
-      <div
-        className={_vCx({
-          active: active,
-        })}
-      />
+      <div className={active ? "active" : ""} />
     );
     "
   `);
@@ -410,18 +369,10 @@ test('should insert className before the end of the opening tag after comments',
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     export const App = ({ p, c }) => (
       <>
-        <div
-          {...p}
-          /* note */ className={mergeClassNames(
-            [p],
-            cx({
-              a: c,
-            }),
-          )}
-        ></div>
+        <div {...p} /* note */ className={mergeClassNames([p], c ? "a" : "")}></div>
         <div {...p} className={mergeClassNames([p], "v1560qbr-1-css-prop-1")} />
       </>
     );
@@ -436,16 +387,11 @@ test('should insert className before a self-closing tag after a line comment end
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     export const App = ({ p, c }) => (
       <div
         {...p} // note
-        className={mergeClassNames(
-          [p],
-          cx({
-            b: c,
-          }),
-        )}
+        className={mergeClassNames([p], c ? "b" : "")}
       />
     );
     "
@@ -467,12 +413,7 @@ test('should merge a cx prop after dynamicColor on a styled component with sprea
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import {
-      createDynamicCssColor,
-      cx,
-      mergeClassNames,
-      mergeStyles,
-    } from "vindur";
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const App = ({ p, v, x }) => (
       <div
@@ -480,10 +421,7 @@ test('should merge a cx prop after dynamicColor on a styled component with sprea
         {...color._sp(v, {
           className: mergeClassNames(
             [p],
-            "v1560qbr-2-Box " +
-              cx({
-                "v1560qbr-3-on": x,
-              }),
+            "v1560qbr-2-Box" + (x ? " v1560qbr-3-on" : ""),
           ),
           style: mergeStyles([p]),
         })}

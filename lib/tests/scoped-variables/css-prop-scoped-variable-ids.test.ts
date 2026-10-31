@@ -21,16 +21,9 @@ test('should give css prop scoped variables ids after the cx classes of the elem
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     export const Box = ({ on }) => (
-      <div
-        className={
-          "v1560qbr-1 " +
-          cx({
-            "v1560qbr-2": on,
-          })
-        }
-      />
+      <div className={"v1560qbr-1" + (on ? " v1560qbr-2" : "")} />
     );
     const color = createDynamicCssColor("v1560qbr-4", false);
     export const Badge = ({ c }) => (
@@ -96,6 +89,19 @@ test('should reject scoped variables from interpolated values', async () => {
     [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---gap", write scoped variables directly in the template
     loc: 6:13]
   `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const FONTS = '"---a", "---b"'
+
+        export const App = () => <div css={\`font-family: \${FONTS};\`} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Interpolated values can't contain scoped variables like "---a", write scoped variables directly in the template
+    loc: 3:51]
+  `);
 });
 
 test('should map a style prop variable declared by a child css prop', async () => {
@@ -126,6 +132,245 @@ test('should map a style prop variable declared by a child css prop', async () =
     ".v1560qbr-1-css-prop-1 {
       --v1560qbr-2-width: 10px;
       width: var(--v1560qbr-2-width);
+    }
+    "
+  `);
+});
+
+test('should reserve ids for css prop scoped variables with underscores', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      export const App = () => (
+        <div css={\`---a_b: 1px; ---a_c: 2px; width: calc(var(---a_b) + var(---a_c));\`} />
+      )
+
+      const color = createDynamicCssColor()
+
+      export const Swatch = () => <div {...color.set('#fff')} />
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    export const App = () => <div className="v1560qbr-1" />;
+    const color = createDynamicCssColor("v1560qbr-4", false);
+    export const Swatch = () => <div {...color.set("#fff")} />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1 {
+      --v1560qbr-2: 1px;
+      --v1560qbr-3: 2px;
+      width: calc(var(--v1560qbr-2) + var(--v1560qbr-3));
+    }
+    "
+  `);
+});
+
+test('should not reuse the id of a later dynamic color for a styled scoped variable', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, createDynamicCssColor } from 'vindur'
+
+      export const Panel = ({ children }) => (
+        <div css={\`---gap: 8px; padding: var(---gap);\`}>{children}</div>
+      )
+
+      export const Card = styled.div\`---radius: 4px; border-radius: var(---radius);\`
+
+      export const accent = createDynamicCssColor()
+
+      export const Title = styled.h1\`color: \${accent.var};\`
+
+      export const App = () => (
+        <Card dynamicColor={accent.set('#f00')}>
+          <Panel>
+            <Title>hi</Title>
+          </Panel>
+        </Card>
+      )
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, _vSC } from "vindur";
+    export const Panel = ({ children }) => (
+      <div className="v1560qbr-1">{children}</div>
+    );
+    export const Card = _vSC("div", "v1560qbr-3");
+    export const accent = createDynamicCssColor("v1560qbr-5", false);
+    export const Title = _vSC("h1", "v1560qbr-6");
+    export const App = () => (
+      <Card {...accent._sp("#f00")}>
+        <Panel>
+          <Title>hi</Title>
+        </Panel>
+      </Card>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-3 {
+      --v1560qbr-4: 4px;
+      border-radius: var(--v1560qbr-4);
+    }
+
+    .v1560qbr-6 {
+      color: var(--v1560qbr-5);
+    }
+
+    .v1560qbr-1 {
+      --v1560qbr-2: 8px;
+      padding: var(--v1560qbr-2);
+    }
+    "
+  `);
+});
+
+test('should throw for scoped variable names built with interpolations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const name = 'gap'
+
+        export const App = () => (
+          <div css={\`---\${name}-x: 1px; margin: var(---other);\`} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 4:18]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const size = 'sm'
+
+        const Box = styled.div\`
+          padding: var(---space-\${size});
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 6:26]
+  `);
+});
+
+test('should throw for scoped variable names completed by the template after an interpolation', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        const PREFIX = '---';
+
+        export const style = css\`
+          \${PREFIX}tone: red;
+          color: var(---tone);
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 6:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        const DASH = '-';
+
+        export const style = css\`
+          ---tone: red;
+          color: var(-\${DASH}-tone);
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 7:16]
+  `);
+});
+
+test('should throw for scoped variable names joined by empty or trimmed interpolations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const EMPTY = ''
+
+        export const App = () => (
+          <div css={\`--\${EMPTY}-gap: 1px; margin: var(---gap);\`} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 4:17]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { dash } from '#/mixins'
+
+        export const style = css\`
+          -\${dash()}-gap: 1px;
+          margin: var(---gap);
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const dash = vindurFn(() => ' -')
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 5:5]
+  `);
+});
+
+test('should allow interpolated values with `---` that is not a scoped name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+
+      const HERO = '/img/hero---large.png';
+      const LABEL = 'a---b';
+
+      export const style = css\`
+        background: url("\${HERO}");
+        mask: url(\${HERO});
+        &::before {
+          content: '\${LABEL}';
+        }
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      background: url("/img/hero---large.png");
+      mask: url(/img/hero---large.png);
+      &::before {
+        content: "a---b";
+      }
     }
     "
   `);

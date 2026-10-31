@@ -1,8 +1,12 @@
 use oxc_ast::ast::{
-    Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement,
+    AssignmentExpression, AwaitExpression, CallExpression, Expression, ImportExpression,
+    JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, JSXFragment,
+    NewExpression, TaggedTemplateExpression, UnaryExpression, UnaryOperator, UpdateExpression,
+    YieldExpression,
 };
+use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use rustc_hash::FxHashMap;
 
 use crate::edit::Edit;
@@ -33,7 +37,6 @@ pub(super) fn css_attribute_is_compile_time(
 
 pub(super) struct DynamicFlagClass {
     pub(super) concat: String,
-    pub(super) cx: String,
 }
 
 pub(super) fn collect_flag_class(
@@ -66,7 +69,6 @@ pub(super) fn collect_flag_class(
                                 " + (({expression_source}) ? \" {}\" : \"\")",
                                 flag.hashed_class_name
                             ),
-                            cx: format!("({expression_source}) && \"{}\"", flag.hashed_class_name),
                         });
                     }
                 }
@@ -83,23 +85,192 @@ pub(super) fn collect_flag_class(
                         static_classes.push(format!("{}-{}", flag.hashed_class_name, value.value))
                     }
                     expression => {
-                        let span = expression.span();
-                        let expression_source = &source[span.start as usize..span.end as usize];
-                        dynamic_classes.push(DynamicFlagClass {
-                            concat: format!(
-                                " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
-                                flag.hashed_class_name
-                            ),
-                            cx: format!(
-                                "({expression_source}) && `{}-${{({expression_source})}}`",
-                                flag.hashed_class_name
-                            ),
-                        });
+                        let concat = match expression
+                            .as_expression()
+                            .and_then(|value| literal_branch_classes(value, flag, source))
+                        {
+                            Some(classes) => format!(" + {classes}"),
+                            None => {
+                                let span = expression.span();
+                                let expression_source =
+                                    &source[span.start as usize..span.end as usize];
+                                format!(
+                                    " + (({expression_source}) ? \" {}-\" + ({expression_source}) : \"\")",
+                                    flag.hashed_class_name
+                                )
+                            }
+                        };
+                        dynamic_classes.push(DynamicFlagClass { concat });
                     }
                 }
             }
             _ => {}
         },
+    }
+}
+
+/// The class of a string union flag value that picks between string literals, like
+/// `isLarge ? 'large' : 'small'`, as a conditional between the classes, so the value is read once
+fn literal_branch_classes(
+    expression: &Expression<'_>,
+    flag: &StyleFlag,
+    source: &str,
+) -> Option<String> {
+    match expression {
+        Expression::StringLiteral(value) if value.value.is_empty() => Some("\"\"".to_owned()),
+        Expression::StringLiteral(value) => Some(js_string_literal(&format!(
+            " {}-{}",
+            flag.hashed_class_name, value.value
+        ))),
+        Expression::ParenthesizedExpression(parenthesized) => {
+            literal_branch_classes(&parenthesized.expression, flag, source)
+        }
+        Expression::ConditionalExpression(conditional) => {
+            let consequent = literal_branch_classes(&conditional.consequent, flag, source)?;
+            let alternate = literal_branch_classes(&conditional.alternate, flag, source)?;
+            let span = conditional.test.span();
+            Some(format!(
+                "(({}) ? {consequent} : {alternate})",
+                &source[span.start as usize..span.end as usize]
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// String union flag values are read twice in the emitted class, so they must have no side
+/// effects, unless they pick between string literals. Returns the flag name and the span of the
+/// first expression that may have one
+pub(super) fn side_effect_in_string_flag_value<'f>(
+    element: &JSXElement<'_>,
+    component: &'f StyledComponent,
+) -> Option<(&'f str, Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        let flag = component.style_flags.iter().find(|flag| {
+            flag.prop_name == name.name.as_str()
+                && matches!(flag.kind, StyleFlagKind::StringUnion(_))
+        })?;
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let expression = container.expression.as_expression()?;
+        if is_literal_branch_value(expression) {
+            return None;
+        }
+        let mut finder = SideEffectFinder { found: None };
+        finder.visit_expression(expression);
+        finder.found.map(|span| (flag.prop_name.as_str(), span))
+    })
+}
+
+/// JSX in a style flag value, like `active={open && <Icon />}`, is moved into the className with
+/// the value before it is compiled. Returns the flag name and the span of the JSX
+pub(super) fn jsx_in_flag_value<'f>(
+    element: &JSXElement<'_>,
+    component: &'f StyledComponent,
+) -> Option<(&'f str, Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        let flag = component
+            .style_flags
+            .iter()
+            .find(|flag| flag.prop_name == name.name.as_str())?;
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        find_jsx(container.expression.as_expression()?).map(|span| (flag.prop_name.as_str(), span))
+    })
+}
+
+/// The span of the first JSX in the expression, like `<Icon />` in `open && <Icon />`
+pub(super) fn find_jsx(expression: &Expression<'_>) -> Option<Span> {
+    let mut finder = JsxFinder { found: None };
+    finder.visit_expression(expression);
+    finder.found
+}
+
+struct JsxFinder {
+    found: Option<Span>,
+}
+
+impl<'a> Visit<'a> for JsxFinder {
+    fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        self.found.get_or_insert(element.span);
+    }
+
+    fn visit_jsx_fragment(&mut self, fragment: &JSXFragment<'a>) {
+        self.found.get_or_insert(fragment.span);
+    }
+}
+
+fn is_literal_branch_value(expression: &Expression<'_>) -> bool {
+    match expression {
+        Expression::StringLiteral(_) => true,
+        Expression::ParenthesizedExpression(parenthesized) => {
+            is_literal_branch_value(&parenthesized.expression)
+        }
+        Expression::ConditionalExpression(conditional) => {
+            is_literal_branch_value(&conditional.consequent)
+                && is_literal_branch_value(&conditional.alternate)
+        }
+        _ => false,
+    }
+}
+
+struct SideEffectFinder {
+    found: Option<Span>,
+}
+
+impl<'a> Visit<'a> for SideEffectFinder {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        self.found.get_or_insert(call.span);
+    }
+
+    fn visit_new_expression(&mut self, new: &NewExpression<'a>) {
+        self.found.get_or_insert(new.span);
+    }
+
+    fn visit_assignment_expression(&mut self, assignment: &AssignmentExpression<'a>) {
+        self.found.get_or_insert(assignment.span);
+    }
+
+    fn visit_update_expression(&mut self, update: &UpdateExpression<'a>) {
+        self.found.get_or_insert(update.span);
+    }
+
+    fn visit_await_expression(&mut self, await_expression: &AwaitExpression<'a>) {
+        self.found.get_or_insert(await_expression.span);
+    }
+
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        self.found.get_or_insert(tagged.span);
+    }
+
+    fn visit_yield_expression(&mut self, yield_expression: &YieldExpression<'a>) {
+        self.found.get_or_insert(yield_expression.span);
+    }
+
+    fn visit_import_expression(&mut self, import: &ImportExpression<'a>) {
+        self.found.get_or_insert(import.span);
+    }
+
+    fn visit_unary_expression(&mut self, unary: &UnaryExpression<'a>) {
+        if unary.operator == UnaryOperator::Delete {
+            self.found.get_or_insert(unary.span);
+        } else {
+            walk::walk_unary_expression(self, unary);
+        }
     }
 }
 
@@ -184,21 +355,78 @@ pub(super) fn inlined_component_classes(
     }
 }
 
-/// `literal` followed by the classes of dynamic style flags and a cx call
-pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx_call: Option<&str>) -> String {
-    match (flag_suffix.is_empty(), cx_call) {
-        (true, None) => js_string_literal(literal),
-        (true, Some(cx_call)) => {
-            format!("{} + {cx_call}", js_string_literal(&format!("{literal} ")))
-        }
-        (false, None) => format!("{}{flag_suffix}", js_string_literal(literal)),
-        (false, Some(cx_call)) => {
-            format!(
-                "{}{flag_suffix} + \" \" + {cx_call}",
-                js_string_literal(literal)
-            )
-        }
+/// The classes of a cx prop, compiled to string concatenation instead of a runtime call
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CxClasses {
+    /// The classes of `true` values
+    pub static_classes: Vec<String>,
+    /// The `(condition, class)` of the other values, in the order of the object
+    pub conditional: Vec<(String, String)>,
+}
+
+impl CxClasses {
+    /// The conditional classes appended to a non-empty class name, e.g. ` + (on ? " active" : "")`
+    fn conditional_suffix(&self) -> String {
+        self.conditional
+            .iter()
+            .map(|(condition, class)| {
+                format!(
+                    " + ({condition} ? {} : \"\")",
+                    js_string_literal(&format!(" {class}"))
+                )
+            })
+            .collect()
     }
+
+    /// The classes appended to a non-empty class name expression, e.g.
+    /// ` + " static" + (on ? " active" : "")`
+    pub(super) fn suffix(&self) -> String {
+        let static_part = if self.static_classes.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " + {}",
+                js_string_literal(&format!(" {}", self.static_classes.join(" ")))
+            )
+        };
+        format!("{static_part}{}", self.conditional_suffix())
+    }
+}
+
+/// `literal` followed by the classes of dynamic style flags and of a cx prop
+pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx: Option<&CxClasses>) -> String {
+    let Some(cx) = cx else {
+        return format!("{}{flag_suffix}", js_string_literal(literal));
+    };
+    let literal = std::iter::once(literal)
+        .chain(cx.static_classes.iter().map(String::as_str))
+        .filter(|class| !class.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !literal.is_empty() {
+        return format!(
+            "{}{flag_suffix}{}",
+            js_string_literal(&literal),
+            cx.conditional_suffix()
+        );
+    }
+    if cx.conditional.is_empty() {
+        return js_string_literal("");
+    }
+    // Without a class before them, the first class has no leading space
+    cx.conditional
+        .iter()
+        .enumerate()
+        .map(|(index, (condition, class))| {
+            let class = if index == 0 {
+                class.clone()
+            } else {
+                format!(" {class}")
+            };
+            format!("({condition} ? {} : \"\")", js_string_literal(&class))
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
 }
 
 pub(super) fn class_name_expression(
