@@ -1,6 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Argument, CallExpression, Declaration, Expression, IdentifierReference, JSXElement,
+    JSXFragment, ObjectExpression, Program, Statement, TSTypeParameterInstantiation,
+    TaggedTemplateExpression, VariableDeclaration, VariableDeclarationKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -195,15 +196,10 @@ pub(crate) fn styled_tag_component_with_attrs(
             ));
         }
         if !context.components.contains_key(name)
-            && local_non_component_binding(context.program, name)
+            && let Some(diagnostic) =
+                local_base_diagnostic(context.program, base, context.file_path, context.source)
         {
-            return Err(CompilerDiagnostic::error(
-                context.file_path,
-                context.source,
-                base.span,
-                format!("Cannot extend \"{name}\": it is not a component or styled component."),
-            )
-            .ignored_in_lint());
+            return Err(diagnostic);
         }
     }
     let Some(component) = component else {
@@ -234,7 +230,14 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
         return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
     }
     if let Expression::CallExpression(call) = attrs_base(tag)
-        && let [Argument::CallExpression(_)] = call.arguments.as_slice()
+        && matches!(call.callee, Expression::Identifier(_))
+        && let [argument] = call.arguments.as_slice()
+        && matches!(
+            argument
+                .as_expression()
+                .map(Expression::get_inner_expression),
+            Some(Expression::CallExpression(_))
+        )
     {
         return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
     }
@@ -252,26 +255,103 @@ fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
     tag
 }
 
-fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
-    program.body.iter().any(|statement| {
-        let Statement::VariableDeclaration(declaration) = statement else {
-            return false;
-        };
-        declaration.declarations.iter().any(|declarator| {
+enum LocalBaseError {
+    DeclaredAfter,
+    Destructured,
+    NotComponent,
+    NotConst,
+}
+
+impl LocalBaseError {
+    fn message(&self, name: &str) -> String {
+        match self {
+            Self::DeclaredAfter => {
+                format!("Cannot extend \"{name}\": declare it before extending it.")
+            }
+            Self::Destructured => format!(
+                "Cannot extend \"{name}\": destructured locals can't be extended, extend the property directly, e.g. styled(object.{name})."
+            ),
+            Self::NotComponent => format!(
+                "Cannot extend \"{name}\": only locals initialized with a function, a class or a call like memo(Component) can be extended, extend the original component directly instead."
+            ),
+            Self::NotConst => {
+                format!("Cannot extend \"{name}\": declare it with const.")
+            }
+        }
+    }
+}
+
+/// Builds the error for a top-level local that can't be used as a base component, bases that
+/// aren't top-level variables, like imports, are accepted
+pub(super) fn local_base_diagnostic(
+    program: &Program<'_>,
+    base: &IdentifierReference<'_>,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let error = local_base_error(program, base)?;
+    let diagnostic = CompilerDiagnostic::error(
+        file_path,
+        source,
+        base.span,
+        error.message(base.name.as_str()),
+    );
+    // TypeScript already reports using a const or let before its declaration
+    Some(if matches!(error, LocalBaseError::DeclaredAfter) {
+        diagnostic.ignored_in_lint()
+    } else {
+        diagnostic
+    })
+}
+
+/// Top-level locals are extendable when declared with const before they are extended and
+/// initialized with a function, a class or a call like `memo(Component)`
+fn local_base_error(
+    program: &Program<'_>,
+    base: &IdentifierReference<'_>,
+) -> Option<LocalBaseError> {
+    let (declaration, declarator) = top_level_variable_declarations(program)
+        .flat_map(|declaration| {
+            declaration
+                .declarations
+                .iter()
+                .map(move |declarator| (declaration, declarator))
+        })
+        .find(|(_, declarator)| {
             declarator
                 .id
-                .get_binding_identifier()
-                .is_some_and(|identifier| identifier.name.as_str() == expected)
-                && declarator.init.as_ref().is_some_and(|initializer| {
-                    !matches!(
-                        initializer,
-                        Expression::ArrowFunctionExpression(_)
-                            | Expression::FunctionExpression(_)
-                            | Expression::ClassExpression(_)
-                            | Expression::CallExpression(_)
-                    )
-                })
-        })
+                .get_binding_identifiers()
+                .iter()
+                .any(|identifier| identifier.name == base.name)
+        })?;
+    if declaration.kind != VariableDeclarationKind::Const {
+        return Some(LocalBaseError::NotConst);
+    }
+    if declarator.span.start > base.span.start {
+        return Some(LocalBaseError::DeclaredAfter);
+    }
+    if declarator.id.get_binding_identifier().is_none() {
+        return Some(LocalBaseError::Destructured);
+    }
+    match declarator.init.as_ref()?.get_inner_expression() {
+        Expression::ArrowFunctionExpression(_)
+        | Expression::FunctionExpression(_)
+        | Expression::ClassExpression(_)
+        | Expression::CallExpression(_) => None,
+        _ => Some(LocalBaseError::NotComponent),
+    }
+}
+
+fn top_level_variable_declarations<'b, 'a>(
+    program: &'b Program<'a>,
+) -> impl Iterator<Item = &'b VariableDeclaration<'a>> {
+    program.body.iter().filter_map(|statement| match statement {
+        Statement::VariableDeclaration(declaration) => Some(&**declaration),
+        Statement::ExportNamedDeclaration(export) => match &export.declaration {
+            Some(Declaration::VariableDeclaration(declaration)) => Some(&**declaration),
+            _ => None,
+        },
+        _ => None,
     })
 }
 
