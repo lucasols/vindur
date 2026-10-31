@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::normalize::normalize_code;
 use crate::passes::transform_program;
-use crate::resolved_imports::remove_resolved_imports;
+use crate::resolved_imports::{consumed_side_effect_imports, remove_resolved_imports};
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
@@ -206,22 +206,29 @@ impl Compiler {
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
         pass_output.facts.has_side_effects |= imports.has_side_effects;
-        let mut style_dependencies = imports.style_dependencies;
-        // Importers drop a module without side effects, which stays correct only while its
-        // imports have none either, so changing them has to update the importers
-        if !pass_output.facts.has_side_effects {
-            for dependency in &imports.fact_dependencies {
-                if !style_dependencies.contains(dependency) {
-                    style_dependencies.push(dependency.clone());
-                }
-            }
-        }
+        let style_dependencies = imports.style_dependencies;
         pass_output
             .facts
             .dependencies
             .clone_from(&style_dependencies);
+        // Importers drop a module without side effects, which stays correct only while its
+        // imports have none either, so changing them has to update the importers
+        if !pass_output.facts.has_side_effects {
+            for dependency in &imports.fact_dependencies {
+                if !pass_output.facts.dependencies.contains(dependency) {
+                    pass_output.facts.dependencies.push(dependency.clone());
+                }
+            }
+        }
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
         pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
+        let consumed_imports = consumed_side_effect_imports(
+            &parsed.program,
+            semantic.scoping(),
+            &pass_output.edits,
+            &imports.values,
+            &imports.side_effect_sources,
+        );
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -232,6 +239,7 @@ impl Compiler {
             source_type,
             &imports.values,
             &imports.side_effect_sources,
+            &consumed_imports,
         ) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),

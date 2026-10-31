@@ -801,7 +801,7 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
-export const elementClassName = createClassName('vhash-1');
+export const elementClassName = { selector: '.vhash-1', value: 'vhash-1' };
 export const genericPurposeId = 'vhash-2';
 ```
 
@@ -891,6 +891,8 @@ createGlobalStyle`
   }
 `;
 ```
+
+`createGlobalStyle` must be a top-level statement or `const` declaration, other uses, e.g. `export default createGlobalStyle` or calls inside functions, are a compile error.
 
 Global styles support variable interpolation just like regular styles:
 
@@ -1543,6 +1545,8 @@ Compiles to:
   }
 }
 ```
+
+`layer` can only be used inside vindur styles, using it elsewhere is a compile error.
 
 ## License
 

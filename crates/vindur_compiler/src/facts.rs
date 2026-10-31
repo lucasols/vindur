@@ -67,6 +67,10 @@ pub enum StaticValue {
     CssClass {
         name: String,
         css: String,
+        /// The css references keyframes, whose `@keyframes` rule only loads with the modules
+        /// that define them
+        #[serde(default)]
+        uses_keyframes: bool,
     },
     DynamicColor {
         id: String,

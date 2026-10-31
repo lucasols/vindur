@@ -16,9 +16,11 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
+    function_evaluation::evaluate_argument,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     scoped::{ScopedVariables, process_scoped_variables},
+    static_evaluation::evaluate_expression,
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
         flag_classes, missing_style_flag_classes, other_element_flag_classes,
@@ -522,6 +524,11 @@ pub(super) fn process_variable_declaration(
                 StaticValue::CssClass {
                     name: generated_name.clone(),
                     css: content,
+                    uses_keyframes: uses_keyframes(
+                        &tagged.quasi.expressions,
+                        transform.constants,
+                        transform.scoping,
+                    ),
                 }
             } else {
                 StaticValue::Keyframes(generated_name.clone())
@@ -594,6 +601,40 @@ fn validate_vindur_function_declaration(
         );
     }
     Ok(())
+}
+
+/// Whether a `css` template interpolates keyframes, directly or through another `css` class
+fn uses_keyframes(
+    expressions: &[Expression<'_>],
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    expressions.iter().any(|expression| {
+        // Keyframes passed to a vindurFn end up in its result as plain text
+        let in_arguments = match expression {
+            Expression::CallExpression(call) => call.arguments.iter().any(|argument| {
+                evaluate_argument(argument, constants, scoping)
+                    .is_some_and(|value| value_uses_keyframes(&value))
+            }),
+            _ => false,
+        };
+        in_arguments
+            || evaluate_expression(expression, constants, scoping)
+                .is_some_and(|value| value_uses_keyframes(&value))
+    })
+}
+
+fn value_uses_keyframes(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Keyframes(_)
+        | StaticValue::CssClass {
+            uses_keyframes: true,
+            ..
+        } => true,
+        StaticValue::Array(values) => values.iter().any(value_uses_keyframes),
+        StaticValue::Object(properties) => properties.values().any(value_uses_keyframes),
+        _ => false,
+    }
 }
 
 fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {

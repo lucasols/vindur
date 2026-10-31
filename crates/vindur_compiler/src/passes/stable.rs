@@ -55,10 +55,8 @@ pub(crate) fn transform_stable_declaration(
                     style_flags: Vec::new(),
                 },
             );
-            let Expression::Identifier(callee) = &call.callee else {
-                continue;
-            };
-            format!("{}(\"{generated}\")", callee.name)
+            // The import is removed as a compile-time import, so emit the value itself
+            format!("{{ selector: \".{generated}\", value: \"{generated}\" }}")
         };
         context.edits.push(Edit {
             span: call.span,
