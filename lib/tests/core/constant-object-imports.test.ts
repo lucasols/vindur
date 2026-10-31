@@ -654,3 +654,39 @@ test('should throw for nested members of local objects', async () => {
     loc: 6:13]
   `);
 });
+
+test('should throw for members of local objects inside interpolated expressions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const theme = { size: 4 }
+
+        const style = css\`
+          padding: \${(theme.size as number)}px;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${(theme.size as number)}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 6:13]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const theme = { size: 4 }
+
+        const style = css\`
+          padding: \${\`\${theme.size}px\`};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${\`\${theme.size}px\`}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 6:13]
+  `);
+});

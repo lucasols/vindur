@@ -221,10 +221,12 @@ fn layer_marker_starts(css: &str) -> impl Iterator<Item = usize> + '_ {
     })
 }
 
-/// Collapses repeated `;` separators, comments, strings and urls are kept as is
+/// Collapses repeated `;` separators, comments, strings, urls and `;` inside parentheses or
+/// brackets, which are part of a custom property value, are kept as is
 fn collapse_double_semicolons(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut previous_was_semicolon = false;
+    let mut bracket_depth = 0_usize;
     let mut index = 0;
     while let Some(character) = css[index..].chars().next() {
         if let Some(end) = skipped_token_end(css, index) {
@@ -234,7 +236,12 @@ fn collapse_double_semicolons(css: &str) -> String {
             continue;
         }
         index += character.len_utf8();
-        if character == ';' {
+        match character {
+            '(' | '[' => bracket_depth += 1,
+            ')' | ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        if character == ';' && bracket_depth == 0 {
             if previous_was_semicolon {
                 continue;
             }
@@ -333,6 +340,7 @@ mod tests {
             clean_css("background: \\75 rl(a;;b.png);;"),
             "background: \\75 rl(a;;b.png);"
         );
+        assert_eq!(clean_css("--x: (a;;b) [c;;d];;"), "--x: (a;;b) [c;;d];");
     }
 
     #[test]

@@ -365,16 +365,20 @@ impl Compiler {
                 has_side_effects = true;
                 // Values imported back into the cycle are reported where they're used
                 for specifier in import.specifiers.iter().flatten() {
-                    if !is_type_only_specifier(specifier, scoping)
-                        && let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier
+                    if is_type_only_specifier(specifier, scoping)
+                        || matches!(
+                            specifier,
+                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                        )
                     {
-                        values.insert(
-                            specifier.local.name.to_string(),
-                            StaticValue::CyclicImport {
-                                source_path: resolved.clone(),
-                            },
-                        );
+                        continue;
                     }
+                    values.insert(
+                        specifier.local().name.to_string(),
+                        StaticValue::CyclicImport {
+                            source_path: resolved.clone(),
+                        },
+                    );
                 }
                 continue;
             };

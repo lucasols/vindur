@@ -1,9 +1,11 @@
 use std::borrow::Cow;
 
 use oxc_ast::ast::{
-    Argument, ArrayExpression, BindingPattern, Expression, IdentifierReference, ObjectExpression,
-    ObjectPropertyKind, TemplateLiteral, VariableDeclaration, VariableDeclarationKind,
+    Argument, ArrayExpression, BindingPattern, CallExpression, Expression, IdentifierReference,
+    ObjectExpression, ObjectPropertyKind, StaticMemberExpression, TemplateLiteral,
+    VariableDeclaration, VariableDeclarationKind,
 };
+use oxc_ast_visit::{Visit, walk};
 use oxc_ecmascript::{
     GlobalContext, ToBoolean, ToJsString, ToNumber, WithoutGlobalReferenceInformation,
     constant_evaluation::{ConstantValue, ValueType},
@@ -445,27 +447,48 @@ pub(super) fn resolved_constant<'a>(
     constants.get(identifier.name.as_str())
 }
 
-/// A member of a local object at any depth, like `O.a` or `O.nested.b`, which can't be used in
-/// styles, only imported objects can
-pub(super) fn is_local_object_member(
+/// Whether the expression reads a member of a local object at any depth, like `O.a`,
+/// `O.nested.b` or `` `${O.a}px` ``, which can't be used in styles, only imported objects can
+pub(super) fn contains_local_object_member(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> bool {
-    let Expression::StaticMemberExpression(member) = expression else {
-        return false;
+    let mut finder = LocalObjectMemberFinder {
+        constants,
+        scoping,
+        found: false,
     };
-    let mut object = &member.object;
-    while let Expression::StaticMemberExpression(inner) = object {
-        object = &inner.object;
+    finder.visit_expression(expression);
+    finder.found
+}
+
+struct LocalObjectMemberFinder<'c> {
+    constants: &'c FxHashMap<String, StaticValue>,
+    scoping: &'c Scoping,
+    found: bool,
+}
+
+impl<'a> Visit<'a> for LocalObjectMemberFinder<'_> {
+    fn visit_static_member_expression(&mut self, member: &StaticMemberExpression<'a>) {
+        let mut object = member.object.get_inner_expression();
+        while let Expression::StaticMemberExpression(inner) = object {
+            object = inner.object.get_inner_expression();
+        }
+        if let Expression::Identifier(root) = object
+            && matches!(
+                resolved_constant(root, self.constants, self.scoping),
+                Some(StaticValue::Object(_))
+            )
+        {
+            self.found = true;
+        } else {
+            walk::walk_static_member_expression(self, member);
+        }
     }
-    let Expression::Identifier(root) = object else {
-        return false;
-    };
-    matches!(
-        resolved_constant(root, constants, scoping),
-        Some(StaticValue::Object(_))
-    )
+
+    // vindurFn arguments are checked when the call is evaluated, with their own error
+    fn visit_call_expression(&mut self, _call: &CallExpression<'a>) {}
 }
 
 fn oxc_constant_value(value: &StaticValue) -> Option<ConstantValue<'static>> {

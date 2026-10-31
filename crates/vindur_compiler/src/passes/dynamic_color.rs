@@ -236,7 +236,10 @@ impl DynamicColorVisitor<'_> {
         ))
     }
 
-    fn color_expressions(&self, expression: &JSXExpression<'_>) -> Option<Vec<ColorExpression>> {
+    fn color_expressions(
+        &mut self,
+        expression: &JSXExpression<'_>,
+    ) -> Option<Vec<ColorExpression>> {
         match expression {
             JSXExpression::CallExpression(call) => self.call_color(call),
             JSXExpression::ArrayExpression(array) => array
@@ -252,7 +255,10 @@ impl DynamicColorVisitor<'_> {
         }
     }
 
-    fn call_color(&self, call: &oxc_ast::ast::CallExpression<'_>) -> Option<Vec<ColorExpression>> {
+    fn call_color(
+        &mut self,
+        call: &oxc_ast::ast::CallExpression<'_>,
+    ) -> Option<Vec<ColorExpression>> {
         let Expression::StaticMemberExpression(callee) = &call.callee else {
             return None;
         };
@@ -276,10 +282,11 @@ impl DynamicColorVisitor<'_> {
             if matches!(argument, Argument::SpreadElement(_)) {
                 return None;
             }
-            let span = argument.span();
+            // The argument is moved, with the edits other passes made inside it, like an inline
+            // `stableId()`
             return Some(vec![ColorExpression {
                 name: color.name.to_string(),
-                value: self.output.source[span.start as usize..span.end as usize].to_owned(),
+                value: take_edited_source(self.output.source, argument.span(), self.output.edits),
             }]);
         };
         Some(vec![ColorExpression {

@@ -8,7 +8,7 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 use super::css_syntax::CssError;
 use super::css_tokens::{OpenToken, OpenTokenScanner};
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
-use super::function_evaluation::{evaluate_argument, function_binary_expression_error};
+use super::function_evaluation::{evaluate_argument, function_evaluation_error};
 use super::import_errors::{
     member_root_identifier, not_static_import_message, unresolved_import_error,
 };
@@ -18,7 +18,7 @@ use super::interpolation_validation::{
     open_token_end_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, evaluate_expression, has_css_text, is_local_object_member,
+    collect_declaration_constants, contains_local_object_member, evaluate_expression, has_css_text,
     is_unresolved_import, resolved_constant, static_value_to_string,
 };
 use super::styled::styled_ref_placeholder;
@@ -216,12 +216,12 @@ fn build_template_css(
                     .to_owned(),
             ));
         }
-        if let Some(message) = binary_expression_error(expression, constants, scoping) {
+        if let Some(message) = function_call_error(expression, constants, scoping) {
             return Err(CompilerDiagnostic::error(
                 file_path,
                 source,
                 expression.span(),
-                format!("Binary expression evaluation failed: {message}"),
+                message,
             ));
         }
         let expression_start = evaluated.css.len();
@@ -309,9 +309,15 @@ fn build_template_css(
             value => {
                 let value = static_value_to_string(value);
                 let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
+                // vindurFn results are written trimmed, so the checks see the written text
+                let written = if matches!(expression, Expression::CallExpression(_)) {
+                    value.trim()
+                } else {
+                    &value
+                };
                 if let Some(diagnostic) = open_token_end_error(
                     &evaluated.css,
-                    &value,
+                    written,
                     css_after,
                     open_token,
                     expression,
@@ -319,12 +325,12 @@ fn build_template_css(
                     source,
                 )
                 .or_else(|| {
-                    interpolated_scoped_variable_error(&value, expression, file_path, source)
+                    interpolated_scoped_variable_error(written, expression, file_path, source)
                 })
                 .or_else(|| {
                     joined_scoped_name_error(
                         &evaluated.css,
-                        &value,
+                        written,
                         css_after,
                         expression,
                         file_path,
@@ -375,7 +381,7 @@ fn starts_with_semicolon(text: &str) -> bool {
     rest.starts_with(';')
 }
 
-fn binary_expression_error(
+fn function_call_error(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -395,7 +401,7 @@ fn binary_expression_error(
         .iter()
         .map(|argument| evaluate_argument(argument, constants, scoping))
         .collect::<Option<Vec<_>>>()?;
-    function_binary_expression_error(function, &arguments)
+    function_evaluation_error(function, &arguments)
 }
 
 fn invalid_object_access_error(
@@ -406,12 +412,12 @@ fn invalid_object_access_error(
     source: &str,
     context: &TemplateContext<'_>,
 ) -> Option<CompilerDiagnostic> {
+    if contains_local_object_member(expression, constants, scoping) {
+        return Some(interpolation_error(expression, file_path, source, context));
+    }
     let Expression::StaticMemberExpression(member) = expression else {
         return None;
     };
-    if is_local_object_member(expression, constants, scoping) {
-        return Some(interpolation_error(expression, file_path, source, context));
-    }
     if let Expression::Identifier(root) = &member.object {
         return match resolved_constant(root, constants, scoping)? {
             StaticValue::ImportedObject {

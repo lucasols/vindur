@@ -91,8 +91,8 @@ pub(super) fn open_token_end_error(
 }
 
 /// A scoped name joined from the template text and an interpolated value, like `---${name}`,
-/// `-${'--gap'}` or `${'---'}gap`, would only be a scoped name after evaluation, so it is never
-/// renamed consistently
+/// `-${'--gap'}`, `${'---'}gap` or `--${''}-gap`, would only be a scoped name after evaluation,
+/// so it is never renamed consistently
 pub(super) fn joined_scoped_name_error(
     css_before: &str,
     value: &str,
@@ -104,10 +104,11 @@ pub(super) fn joined_scoped_name_error(
     let before = trailing_ident(css_before);
     let joins_before = ends_with_scoped_prefix(css_before)
         || (!before.is_empty() && format!("{before}{}", leading_ident(value)).starts_with("---"));
-    let joins_after = !value.is_empty() && {
+    let joins_after = {
         let joined = format!("{css_before}{value}");
         let end = trailing_ident(&joined);
-        end.len() > before.len()
+        // An empty value joins the text around it
+        (end.len() > before.len() || (value.is_empty() && !before.is_empty()))
             && !leading_ident(css_after).is_empty()
             && format!("{end}{}", leading_ident(css_after)).starts_with("---")
     };

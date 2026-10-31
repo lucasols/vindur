@@ -8,8 +8,9 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_array, evaluate_binary, evaluate_expression, evaluate_identifier, evaluate_object,
-    is_local_object_member, resolved_constant, static_value_to_boolean, static_value_to_string,
+    contains_local_object_member, evaluate_array, evaluate_binary, evaluate_expression,
+    evaluate_identifier, evaluate_object, has_css_text, resolved_constant, static_value_to_boolean,
+    static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -26,7 +27,9 @@ pub(super) fn evaluate_function(
     evaluate_function_expression(&function.body, &bindings)
 }
 
-pub(super) fn function_binary_expression_error(
+/// Why a vindurFn call can't be evaluated, like an undefined operand or an interpolated value
+/// without CSS text
+pub(super) fn function_evaluation_error(
     function: &CompiledFunction,
     arguments: &[StaticValue],
 ) -> Option<String> {
@@ -37,48 +40,62 @@ pub(super) fn function_binary_expression_error(
     for (index, parameter) in function.parameters.iter().enumerate() {
         bind_parameter(parameter, arguments.get(index), &mut bindings)?;
     }
-    find_binary_expression_error(&function.body, &bindings)
+    find_evaluation_error(&function.body, &bindings)
 }
 
-fn find_binary_expression_error(
+fn find_evaluation_error(
     expression: &FunctionExpression,
     bindings: &FxHashMap<String, StaticValue>,
 ) -> Option<String> {
     match expression {
         FunctionExpression::Array { elements } => elements
             .iter()
-            .find_map(|element| find_binary_expression_error(element, bindings)),
+            .find_map(|element| find_evaluation_error(element, bindings)),
         FunctionExpression::Binary {
             left,
             operator,
             right,
-        } => find_binary_expression_error(left, bindings)
-            .or_else(|| find_binary_expression_error(right, bindings))
-            .or_else(|| binary_expression_error(left, *operator, right, bindings)),
+        } => find_evaluation_error(left, bindings)
+            .or_else(|| find_evaluation_error(right, bindings))
+            .or_else(|| {
+                binary_expression_error(left, *operator, right, bindings)
+                    .map(|message| format!("Binary expression evaluation failed: {message}"))
+            }),
         FunctionExpression::Conditional {
             test,
             consequent,
             alternate,
-        } => find_binary_expression_error(test, bindings).or_else(|| {
+        } => find_evaluation_error(test, bindings).or_else(|| {
             let branch = if static_value_to_boolean(&evaluate_function_expression(test, bindings)?)
             {
                 consequent
             } else {
                 alternate
             };
-            find_binary_expression_error(branch, bindings)
+            find_evaluation_error(branch, bindings)
         }),
-        FunctionExpression::IsArray { value } => find_binary_expression_error(value, bindings),
-        FunctionExpression::Join { array, separator } => {
-            find_binary_expression_error(array, bindings)
-                .or_else(|| find_binary_expression_error(separator, bindings))
-        }
+        FunctionExpression::IsArray { value } => find_evaluation_error(value, bindings),
+        FunctionExpression::Join { array, separator } => find_evaluation_error(array, bindings)
+            .or_else(|| find_evaluation_error(separator, bindings))
+            .or_else(|| {
+                let StaticValue::Array(values) = evaluate_function_expression(array, bindings)?
+                else {
+                    return None;
+                };
+                let separator = evaluate_function_expression(separator, bindings)?;
+                values
+                    .iter()
+                    .filter(|value| !matches!(value, StaticValue::Undefined))
+                    .chain([&separator])
+                    .any(|value| !has_css_text(value))
+                    .then(|| no_css_text_error("a joined array element"))
+            }),
         FunctionExpression::Map {
             array,
             parameter,
             body,
         } => {
-            if let Some(error) = find_binary_expression_error(array, bindings) {
+            if let Some(error) = find_evaluation_error(array, bindings) {
                 return Some(error);
             }
             let StaticValue::Array(values) = evaluate_function_expression(array, bindings)? else {
@@ -87,19 +104,26 @@ fn find_binary_expression_error(
             values.into_iter().find_map(|value| {
                 let mut scoped = bindings.clone();
                 scoped.insert(parameter.clone(), value);
-                find_binary_expression_error(body, &scoped)
+                find_evaluation_error(body, &scoped)
             })
         }
         FunctionExpression::Object { properties } => properties
             .iter()
-            .find_map(|property| find_binary_expression_error(&property.value, bindings)),
-        FunctionExpression::Template { expressions, .. } => expressions
-            .iter()
-            .find_map(|value| find_binary_expression_error(value, bindings)),
+            .find_map(|property| find_evaluation_error(&property.value, bindings)),
+        FunctionExpression::Template { expressions, .. } => expressions.iter().find_map(|value| {
+            find_evaluation_error(value, bindings).or_else(|| {
+                (!has_css_text(&evaluate_function_expression(value, bindings)?))
+                    .then(|| no_css_text_error(&format!("'{}'", expression_label(value))))
+            })
+        }),
+        FunctionExpression::String { value } => {
+            interpolated_bindings(value, bindings).find_map(|(name, binding)| {
+                (!has_css_text(binding)).then(|| no_css_text_error(&format!("'{name}'")))
+            })
+        }
         FunctionExpression::Boolean { .. }
         | FunctionExpression::Number { .. }
         | FunctionExpression::Parameter { .. }
-        | FunctionExpression::String { .. }
         | FunctionExpression::Undefined => None,
     }
 }
@@ -144,6 +168,22 @@ fn binary_expression_error(
         return Some("operands must be numbers".to_owned());
     }
     None
+}
+
+fn no_css_text_error(label: &str) -> String {
+    format!(
+        "vindurFn interpolates {label}, which has no CSS text, undefined, booleans and objects can't be written in styles"
+    )
+}
+
+/// The parameters a quoted string substitutes, like `size` in `'${size}px'`
+fn interpolated_bindings<'b>(
+    value: &'b str,
+    bindings: &'b FxHashMap<String, StaticValue>,
+) -> impl Iterator<Item = (&'b String, &'b StaticValue)> {
+    bindings
+        .iter()
+        .filter(move |(name, _)| value.contains(&format!("${{{name}}}")))
 }
 
 fn expression_label(expression: &FunctionExpression) -> &str {
@@ -224,7 +264,10 @@ fn evaluate_function_expression(
         FunctionExpression::Parameter { name } => bindings.get(name).cloned(),
         FunctionExpression::String { value } => {
             let mut output = value.clone();
-            for (name, binding) in bindings {
+            for (name, binding) in interpolated_bindings(value, bindings) {
+                if !has_css_text(binding) {
+                    return None;
+                }
                 output = output.replace(&format!("${{{name}}}"), &static_value_to_string(binding));
             }
             Some(StaticValue::String(output))
@@ -258,18 +301,20 @@ fn evaluate_function_expression(
             let StaticValue::Array(values) = evaluate_function_expression(array, bindings)? else {
                 return None;
             };
-            let separator =
-                static_value_to_string(&evaluate_function_expression(separator, bindings)?);
+            let separator = evaluate_function_expression(separator, bindings)?;
+            if !has_css_text(&separator) {
+                return None;
+            }
             Some(StaticValue::String(
                 values
                     .iter()
                     // Like in JS, undefined elements are joined as empty strings
                     .map(|value| match value {
-                        StaticValue::Undefined => String::new(),
-                        value => static_value_to_string(value),
+                        StaticValue::Undefined => Some(String::new()),
+                        value => has_css_text(value).then(|| static_value_to_string(value)),
                     })
-                    .collect::<Vec<_>>()
-                    .join(&separator),
+                    .collect::<Option<Vec<_>>>()?
+                    .join(&static_value_to_string(&separator)),
             ))
         }
         FunctionExpression::Map {
@@ -298,9 +343,11 @@ fn evaluate_function_expression(
             for (index, quasi) in quasis.iter().enumerate() {
                 output.push_str(quasi);
                 if let Some(expression) = expressions.get(index) {
-                    output.push_str(&static_value_to_string(&evaluate_function_expression(
-                        expression, bindings,
-                    )?));
+                    let value = evaluate_function_expression(expression, bindings)?;
+                    if !has_css_text(&value) {
+                        return None;
+                    }
+                    output.push_str(&static_value_to_string(&value));
                 }
             }
             Some(StaticValue::String(output))
@@ -368,6 +415,12 @@ pub(super) fn evaluate_argument(
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<StaticValue> {
+    if argument
+        .as_expression()
+        .is_some_and(|expression| contains_local_object_member(expression, constants, scoping))
+    {
+        return None;
+    }
     match argument {
         Argument::BooleanLiteral(literal) => Some(StaticValue::Boolean(literal.value)),
         Argument::StringLiteral(literal) => Some(StaticValue::String(literal.value.to_string())),
@@ -395,12 +448,11 @@ pub(super) fn evaluate_argument(
         ),
         // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
         // `SIZE as number`
-        argument => {
-            let expression = argument.as_expression()?.get_inner_expression();
-            if is_local_object_member(expression, constants, scoping) {
-                return None;
-            }
-            evaluate_expression(expression, constants, scoping).filter(is_function_argument_value)
-        }
+        argument => evaluate_expression(
+            argument.as_expression()?.get_inner_expression(),
+            constants,
+            scoping,
+        )
+        .filter(is_function_argument_value),
     }
 }

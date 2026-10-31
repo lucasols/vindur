@@ -361,3 +361,42 @@ test('should throw for computed scoped variable keys in nested style objects', a
     loc: 4:19]
   `);
 });
+
+test('should throw for conditional computed scoped variable keys in the style prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`width: var(---size); height: var(---large);\`
+
+        export const App = ({ large }) => (
+          <Card style={{ [large ? '---large' : '---size']: 10 }} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable keys of the \`style\` prop must be written out, like \`'---size'\`, computed keys are not renamed
+    loc: 6:18]
+  `);
+});
+
+test('should throw for scoped variables read in attrs values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div.attrs({ style: { color: 'var(---color)' } })\`
+          ---color: red;
+          color: var(---color);
+        \`
+
+        export const App = () => <Card />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: styled.*.attrs() values cannot read scoped variables, they are not renamed there, read them in the styles of the component
+    loc: 3:48]
+  `);
+});

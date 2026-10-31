@@ -367,3 +367,93 @@ test('should throw for local object members passed to functions', async () => {
     loc: 7:7]
   `);
 });
+
+test('should throw for local object members in expression arguments of functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { pad } from '#/mixins'
+
+        const SPACING = { base: 4 }
+
+        export const style = css\`
+          \${pad(SPACING.base * 2)};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const pad = vindurFn((size: number) => \`padding: \${size}px;\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
+    loc: 7:8]
+  `);
+});
+
+test('should throw for values without CSS text written by functions', async () => {
+  const mixinsFs = createFsMock({
+    'mixins.ts': dedent`
+      import { vindurFn } from 'vindur'
+
+      export const color = vindurFn((value?: string) => \`color: \${value};\`)
+      export const quoted = vindurFn((value?: string) => 'color: \${value};')
+      export const joined = vindurFn((on: boolean) => [on ? 'a' : on, 'b'].join(' '))
+    `,
+  });
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { color } from '#/mixins'
+
+        export const style = css\`
+          \${color()};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates 'value', which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { quoted } from '#/mixins'
+
+        export const style = css\`
+          \${quoted()};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates 'value', which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { joined } from '#/mixins'
+
+        export const style = css\`
+          font-family: \${joined(false)};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates a joined array element, which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:17]
+  `);
+});

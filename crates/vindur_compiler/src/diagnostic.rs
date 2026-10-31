@@ -98,10 +98,21 @@ fn position_at(source: &str, offset: u32) -> SourcePosition {
     while !source.is_char_boundary(bounded_offset) {
         bounded_offset -= 1;
     }
-    let prefix = &source[..bounded_offset];
-    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
-    let line =
-        u32::try_from(prefix.bytes().filter(|byte| *byte == b'\n').count() + 1).unwrap_or(u32::MAX);
+    // Line breaks are counted like in JS and ESLint, `\r\n`, `\n`, `\r`, U+2028 and U+2029
+    let mut line = 1_usize;
+    let mut line_start = 0;
+    for (index, character) in source[..bounded_offset].char_indices() {
+        let is_line_break = match character {
+            '\n' | '\u{2028}' | '\u{2029}' => true,
+            '\r' => !source[index + 1..].starts_with('\n'),
+            _ => false,
+        };
+        if is_line_break {
+            line += 1;
+            line_start = index + character.len_utf8();
+        }
+    }
+    let line = u32::try_from(line).unwrap_or(u32::MAX);
     let column = u32::try_from(source[line_start..bounded_offset].encode_utf16().count())
         .unwrap_or(u32::MAX);
 
@@ -109,5 +120,23 @@ fn position_at(source: &str, offset: u32) -> SourcePosition {
         line,
         column,
         offset,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::position_at;
+
+    #[test]
+    fn counts_line_breaks_like_js() {
+        let source = "a\r\nb\rc\nd\u{2028}e";
+        let position = |offset: usize| {
+            let position = position_at(source, u32::try_from(offset).unwrap_or(u32::MAX));
+            (position.line, position.column)
+        };
+        assert_eq!(position(source.find('b').unwrap_or(0)), (2, 0));
+        assert_eq!(position(source.find('c').unwrap_or(0)), (3, 0));
+        assert_eq!(position(source.find('d').unwrap_or(0)), (4, 0));
+        assert_eq!(position(source.find('e').unwrap_or(0)), (5, 0));
     }
 }

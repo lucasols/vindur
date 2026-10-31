@@ -305,6 +305,47 @@ test('should throw for scoped variable names completed by the template after an 
   `);
 });
 
+test('should throw for scoped variable names joined by empty or trimmed interpolations', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        const EMPTY = ''
+
+        export const App = () => (
+          <div css={\`--\${EMPTY}-gap: 1px; margin: var(---gap);\`} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 4:17]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { dash } from '#/mixins'
+
+        export const style = css\`
+          -\${dash()}-gap: 1px;
+          margin: var(---gap);
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const dash = vindurFn(() => ' -')
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 5:5]
+  `);
+});
+
 test('should allow interpolated values with `---` that is not a scoped name', async () => {
   const result = await transformWithFormat({
     source: dedent`

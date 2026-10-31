@@ -531,6 +531,23 @@ test('should throw for scoped font family names of several words', async () => {
   `);
 });
 
+test('should throw for scoped font family names after another family word in the font shorthand', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const style = css\`
+          font: 16px brand ---custom;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped font family name \`---custom\` must be a single word, family names of several words are not renamed as one name
+    loc: 4:19]
+  `);
+});
+
 test('should throw for escaped quoted scoped names', async () => {
   await expect(
     transformWithFormat({

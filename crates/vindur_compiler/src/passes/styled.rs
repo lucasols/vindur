@@ -10,7 +10,7 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
-use super::jsx_css::starts_with_scoped_prefix;
+use super::jsx_css::{scoped_name_value, starts_with_scoped_prefix};
 use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
@@ -417,6 +417,7 @@ const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass 
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
 const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
 const ATTRS_SCOPED_VARIABLE_ERROR: &str = "styled.*.attrs() cannot set scoped variables, set them in the `style` prop where the component is rendered";
+const ATTRS_SCOPED_READ_ERROR: &str = "styled.*.attrs() values cannot read scoped variables, they are not renamed there, read them in the styles of the component";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -453,7 +454,7 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
         }
     }
 
-    // Only scoped variable keys of the `style` prop are renamed
+    // Only scoped variable keys of the `style` prop are renamed, not keys or values in attrs
     fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
         let is_scoped_key = match property.key.static_name() {
             Some(name) => name.starts_with("---"),
@@ -465,6 +466,8 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
         if is_scoped_key {
             self.found
                 .get_or_insert((property.key.span(), ATTRS_SCOPED_VARIABLE_ERROR));
+        } else if let Some(span) = scoped_name_value(&property.value) {
+            self.found.get_or_insert((span, ATTRS_SCOPED_READ_ERROR));
         } else {
             walk::walk_object_property(self, property);
         }

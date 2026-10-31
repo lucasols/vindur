@@ -573,7 +573,7 @@ fn unrenamed_scoped_variable(property: &ObjectProperty<'_>) -> Option<(Span, &'s
 
 /// The string the value can evaluate to that reads a scoped name, like `'var(---size)'` in
 /// `active ? 'var(---size)' : undefined` or `` `var(---${name})` ``
-fn scoped_name_value(value: &Expression<'_>) -> Option<Span> {
+pub(super) fn scoped_name_value(value: &Expression<'_>) -> Option<Span> {
     match value.get_inner_expression() {
         Expression::StringLiteral(string) => {
             contains_scoped_name(&string.value).then_some(string.span)
@@ -604,8 +604,8 @@ fn scoped_name_value(value: &Expression<'_>) -> Option<Span> {
     }
 }
 
-/// Whether a computed key starts with `---`, e.g. `` `---${name}` ``, `'---' + name` or
-/// `` `\x2d--${name}` as string ``
+/// Whether a computed key can start with `---`, e.g. `` `---${name}` ``, `'---' + name`,
+/// `` `\x2d--${name}` as string `` or `large ? '---large' : '---size'`
 pub(super) fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
     match expression.get_inner_expression() {
         Expression::StringLiteral(string) => string.value.starts_with("---"),
@@ -618,6 +618,13 @@ pub(super) fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
                 .starts_with("---")
         }),
         Expression::BinaryExpression(binary) => starts_with_scoped_prefix(&binary.left),
+        Expression::ConditionalExpression(conditional) => {
+            starts_with_scoped_prefix(&conditional.consequent)
+                || starts_with_scoped_prefix(&conditional.alternate)
+        }
+        Expression::LogicalExpression(logical) => {
+            starts_with_scoped_prefix(&logical.left) || starts_with_scoped_prefix(&logical.right)
+        }
         _ => false,
     }
 }

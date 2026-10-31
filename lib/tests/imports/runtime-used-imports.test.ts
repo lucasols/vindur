@@ -108,6 +108,34 @@ test('should keep default and type imports when removing compile-time specifiers
   `);
 });
 
+test('should keep namespace imports when removing compile-time specifiers', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+      import SIZE, * as constants from '#/sizes';
+
+      export const styles = css\`
+        width: \${SIZE}px;
+      \`;
+
+      console.log(constants);
+    `,
+    overrideDefaultFs: createFsMock({
+      'sizes.ts': dedent`
+        const SIZE = 12;
+        export default SIZE;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import * as constants from "#/sizes";
+    export const styles = "v1560qbr-1-styles";
+    console.log(constants);
+    "
+  `);
+});
+
 const helpersFs = createFsMock({
   'helpers.ts': dedent`
     import { css, vindurFn } from 'vindur';

@@ -336,4 +336,25 @@ describe('Dynamic Colors - Edge Cases', () => {
       loc: 5:52]
     `);
   });
+
+  test('should keep the edits of other passes inside the set argument', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, stableId } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        export const App = () => (
+          <div dynamicColor={color.set(stableId() ? '#fff' : '#000')} />
+        )
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color = createDynamicCssColor("v1560qbr-1-color", true);
+      export const App = () => <div {...color._sp("v1560qbr-2" ? "#fff" : "#000")} />;
+      "
+    `);
+  });
 });

@@ -453,7 +453,7 @@ impl ScopedIdentCollector<'_> {
     /// An unquoted family name can be several words, like `---brand sans`, which would be renamed
     /// differently than the quoted `"---brand sans"`
     /// In the `font` shorthand the family comes last, after the size, like `bold medium ---brand`,
-    /// so only words after a scoped name are part of its family there
+    /// so a word before a scoped name is only part of its family when it isn't a font keyword
     fn reject_multiword_scoped_family(
         &mut self,
         values: &[ComponentValue<'_>],
@@ -473,8 +473,12 @@ impl ScopedIdentCollector<'_> {
                 continue;
             };
             let words = match property {
-                FontProperty::Shorthand => &[first][..],
-                FontProperty::Family => &[first, second][..],
+                FontProperty::Shorthand
+                    if is_font_shorthand_keyword(&self.source[first.0..first.1]) =>
+                {
+                    &[first][..]
+                }
+                _ => &[first, second][..],
             };
             if let Some(&(start, end)) = words
                 .iter()
@@ -627,6 +631,41 @@ fn font_property(property: &str) -> Option<FontProperty> {
     } else {
         None
     }
+}
+
+/// The style, variant, weight, stretch and size keywords written before the family in the `font`
+/// shorthand, like `bold` and `medium` in `bold medium ---brand`
+fn is_font_shorthand_keyword(word: &str) -> bool {
+    [
+        "normal",
+        "italic",
+        "oblique",
+        "small-caps",
+        "bold",
+        "bolder",
+        "lighter",
+        "ultra-condensed",
+        "extra-condensed",
+        "condensed",
+        "semi-condensed",
+        "semi-expanded",
+        "expanded",
+        "extra-expanded",
+        "ultra-expanded",
+        "xx-small",
+        "x-small",
+        "small",
+        "medium",
+        "large",
+        "x-large",
+        "xx-large",
+        "xxx-large",
+        "larger",
+        "smaller",
+        "math",
+    ]
+    .iter()
+    .any(|keyword| word.eq_ignore_ascii_case(keyword))
 }
 
 fn has_initial_value(rule: &AtRule<'_>) -> bool {
