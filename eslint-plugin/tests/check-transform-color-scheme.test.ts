@@ -54,3 +54,14 @@ test('should not report the configured scheme classes as undeclared', async () =
 
   expect(result.messages).toEqual([]);
 });
+
+test('should fail on invalid colorSchemeClassNames', async () => {
+  await expect(
+    invalid({
+      code,
+      options: [{ colorSchemeClassNames: { light: 'lm', dark: 'dm dark' } }],
+    }),
+  ).rejects.toThrow(
+    'colorSchemeClassNames.dark must be a single class name, got "dm dark"',
+  );
+});

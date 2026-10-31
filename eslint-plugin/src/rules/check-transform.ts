@@ -7,6 +7,7 @@ import {
   transform,
   TransformError,
   TransformWarning,
+  validateColorSchemeClassNames,
   type TransformFS,
   type TransformFunctionCache,
   type TransformOptions,
@@ -195,6 +196,9 @@ export const checkTransformRule: Rule.RuleModule = {
     const source = context.sourceCode.getText();
     const options = context.options[0] || {};
     const importAliases = options.importAliases || {};
+    // Outside the transform, whose non-transform errors are skipped, so an invalid config
+    // fails the lint run instead of silently disabling the rule
+    validateColorSchemeClassNames(options.colorSchemeClassNames);
 
     // Only process relevant files
     if (!shouldProcessFile(filename, source)) return {};
