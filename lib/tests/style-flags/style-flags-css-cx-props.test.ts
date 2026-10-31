@@ -213,3 +213,22 @@ test('should merge style flags into the css and cx prop className with a classNa
     "
   `);
 });
+
+test('should throw for style flag classes selected in the css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &.active { color: red; }
+        \`
+
+        export const App = ({ on }) => <Box active={on} css={\`&.active { color: blue; }\`} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag class \`active\` of \`Box\` can't be selected in its css prop, the element gets the hashed flag class, style it in the styles of \`Box\`
+    loc: 7:53]
+  `);
+});

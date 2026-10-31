@@ -106,9 +106,25 @@ fn validate_global_at_rule(rule: &AtRule<'_>, source: &str) -> Result<(), CssErr
         }
     } else if name == "keyframes" {
         validate_block_kind(&block.statements, BlockKind::Keyframes, source, inner, None)?;
-    } else if name == "font-feature-values" {
-        // Its block holds rules, so a `;` between them drops the next one
-        reject_stray_semicolons(&block.statements, source, inner, None)?;
+    } else if name == "font-feature-values" || name == "page" {
+        // They hold at-rules, like `@swash` or `@top-left`, and declarations, browsers drop
+        // style rules in them
+        if let Some(nested) = block
+            .statements
+            .iter()
+            .find(|statement| matches!(statement, Statement::QualifiedRule(_)))
+        {
+            let span = statement_span(nested);
+            return Err(CssError::syntax(
+                format!("`@{}` can't contain style rules", rule.name.raw),
+                span.start,
+                span.end,
+            ));
+        }
+        // A `;` between the rules of `@font-feature-values` drops the next one
+        if name == "font-feature-values" {
+            reject_stray_semicolons(&block.statements, source, inner, None)?;
+        }
     } else if DECLARATION_AT_RULES.contains(&name.as_str())
         && let Some(nested) = block
             .statements
@@ -275,14 +291,27 @@ pub(super) fn check_global_start_order(previous: &[String], css: &str) -> Result
             }
         }
     }
+    // The leading rules of this template continue the order, a `@layer` statement after the
+    // `@import` of an earlier one ends the imports
+    let mut in_earlier = true;
     for name in leading_start_rules(css).1 {
-        let (order, _) = start_order(&name, true, latest.map(|(order, _)| order));
+        let (order, label) = start_order(&name, true, latest.map(|(order, _)| order));
         if let Some((latest_order, latest_label)) = latest
             && order < latest_order
         {
-            return Err(format!(
-                "`@{name}` must come before `{latest_label}` of an earlier `createGlobalStyle`, browsers ignore it after it, move it into that `createGlobalStyle`"
-            ));
+            return Err(if in_earlier {
+                format!(
+                    "`@{name}` must come before `{latest_label}` of an earlier `createGlobalStyle`, browsers ignore it after it, move it into that `createGlobalStyle`"
+                )
+            } else {
+                format!(
+                    "`@{name}` must come before `{latest_label}`, which follows the start rules of an earlier `createGlobalStyle`, browsers ignore it after it, move both into that `createGlobalStyle`"
+                )
+            });
+        }
+        if latest.is_none_or(|(latest, _)| order > latest) {
+            latest = label.map(|label| (order, label));
+            in_earlier = false;
         }
     }
     Ok(())

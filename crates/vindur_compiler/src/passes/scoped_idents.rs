@@ -52,6 +52,7 @@ pub(super) fn collect_scoped_idents(
         idents: Vec::new(),
         quoted_names: None,
         names_fonts: None,
+        grid_names: false,
         error: None,
     };
     collector.statements(statements)?;
@@ -70,6 +71,8 @@ struct ScopedIdentCollector<'a> {
     quoted_names: Option<QuotedNames>,
     /// The font property whose names are font families in the current declaration
     names_fonts: Option<FontProperty>,
+    /// Whether names are grid line or area names, like in `[---main-start]` or `grid-area: ---main`
+    grid_names: bool,
     /// The first unsupported scoped name
     error: Option<CssError>,
 }
@@ -286,14 +289,17 @@ impl ScopedIdentCollector<'_> {
     fn declaration(&mut self, declaration: &Declaration<'_>, role: ScopedRole) {
         let quoted_names = self.quoted_names;
         let names_fonts = self.names_fonts;
+        let grid_names = self.grid_names;
         if let InterpolableIdent::Literal(name) = &declaration.name {
             self.push(name.span.start, name.span.end, name.raw, role);
             self.quoted_names = quoted_names_kind(name.name);
             self.names_fonts = font_property(name.name);
+            self.grid_names = is_grid_placement(name.name);
         }
         self.values(&declaration.value);
         self.quoted_names = quoted_names;
         self.names_fonts = names_fonts;
+        self.grid_names = grid_names;
     }
 
     /// Some properties name things with strings, `animation: "---spin" 1s` uses `---spin`, also in
@@ -416,7 +422,12 @@ impl ScopedIdentCollector<'_> {
                 }
                 _ => self.values(&function.args),
             },
-            ComponentValue::BracketBlock(block) => self.values(&block.value),
+            // Brackets in values hold grid line names, like `[---main-start]`
+            ComponentValue::BracketBlock(block) => {
+                let grid_names = std::mem::replace(&mut self.grid_names, true);
+                self.values(&block.value);
+                self.grid_names = grid_names;
+            }
             ComponentValue::Calc(calc) => {
                 self.value(&calc.left, ScopedRole::Name);
                 self.value(&calc.right, ScopedRole::Name);
@@ -496,6 +507,17 @@ impl ScopedIdentCollector<'_> {
             ));
         }
         if raw.len() > SCOPED_PREFIX.len() && raw.starts_with(SCOPED_PREFIX) {
+            // Lines named by an area, like `---main-start` for `---main`, couldn't be renamed to match
+            if self.grid_names && role == ScopedRole::Name && self.error.is_none() {
+                self.error = Some(CssError::new(
+                    format!(
+                        "Scoped names are not supported in grid line and area names, write `{}` as a plain name, they are already local to their grid container",
+                        &raw[SCOPED_PREFIX.len()..]
+                    ),
+                    start,
+                    end,
+                ));
+            }
             // Names are matched as written, `---sp\69n` and `---spin` would get different hashes
             if raw.contains('\\') && self.error.is_none() {
                 self.error = Some(CssError::new(
@@ -582,6 +604,21 @@ enum FontProperty {
     Family,
 }
 
+/// Properties that place items by grid line or area names
+fn is_grid_placement(property: &str) -> bool {
+    [
+        "grid-area",
+        "grid-row",
+        "grid-column",
+        "grid-row-start",
+        "grid-row-end",
+        "grid-column-start",
+        "grid-column-end",
+    ]
+    .iter()
+    .any(|name| property.eq_ignore_ascii_case(name))
+}
+
 fn font_property(property: &str) -> Option<FontProperty> {
     if property.eq_ignore_ascii_case("font") {
         Some(FontProperty::Shorthand)
@@ -639,7 +676,9 @@ fn has_quoted_scoped_name(text: &str) -> bool {
         if let Some(end) = skipped_token_end(text, index) {
             if matches!(character, '"' | '\'')
                 && let Some(content) = text.get(index + 1..end.saturating_sub(1))
-                && is_scoped_name(content)
+                // Escaped names, like `"\2d --brand"`, are the same names
+                && (is_scoped_name(content)
+                    || (content.contains('\\') && is_scoped_name(&decode_ident(content))))
             {
                 return true;
             }
@@ -680,9 +719,11 @@ fn scoped_ident_ranges(text: &str) -> Vec<ScopedIdentRange> {
         if is_ident_char(character) {
             let end = ident_end(text, index);
             let ident = &text[index..end];
+            // An escaped prefix, like `\2d --card`, is a scoped name too, rejected where it's used
             if !attribute_value
                 && ident.len() > SCOPED_PREFIX.len()
-                && ident.starts_with(SCOPED_PREFIX)
+                && (ident.starts_with(SCOPED_PREFIX)
+                    || (ident.contains('\\') && decode_ident(ident).starts_with(SCOPED_PREFIX)))
             {
                 ranges.push(ScopedIdentRange {
                     start: index,

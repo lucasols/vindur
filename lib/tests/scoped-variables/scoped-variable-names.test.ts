@@ -314,6 +314,38 @@ test('should throw for scoped names in grid area strings', async () => {
   `);
 });
 
+test('should throw for scoped grid line and area names', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const layout = css\`
+          grid-template-columns: [---main-start] 1fr [---main-end];
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names are not supported in grid line and area names, write \`main-start\` as a plain name, they are already local to their grid container
+    loc: 4:26]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        export const item = css\`
+          grid-area: ---main;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names are not supported in grid line and area names, write \`main\` as a plain name, they are already local to their grid container
+    loc: 4:13]
+  `);
+});
+
 test('should throw for uppercase scoped font family names', async () => {
   await expect(
     transformWithFormat({
@@ -601,5 +633,39 @@ test('should throw for scoped names after a comment naming a view transition', a
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Scoped names in selectors are only supported in \`::view-transition-*()\` pseudo-elements, \`---card\` names something in the HTML or JS, which is not renamed, use a plain name
     loc: 4:33]
+  `);
+});
+
+test('should throw for escaped scoped names in selectors and font family preludes', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          .\\2d --card { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped names in selectors are only supported in \`::view-transition-*()\` pseudo-elements, \`\\2d --card\` names something in the HTML or JS, which is not renamed, use a plain name
+    loc: 4:3]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @font-feature-values "\\2d --brand" {
+            @swash { fancy: 1; }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped CSS variables are not supported in \`@font-feature-values\` rule preludes
+    loc: 4:23]
   `);
 });

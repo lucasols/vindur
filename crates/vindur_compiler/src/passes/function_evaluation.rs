@@ -343,6 +343,23 @@ fn compare_numbers(
     Some(StaticValue::Boolean(compare(left, right)))
 }
 
+/// Colors and functions are only known by their CSS reads, a function would write placeholders like
+/// `[dynamic color]` for them
+fn is_function_argument_value(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::ImportedValue { value, .. } => is_function_argument_value(value),
+        StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. }
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. } => false,
+        _ => true,
+    }
+}
+
 pub(super) fn evaluate_argument(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -360,7 +377,8 @@ pub(super) fn evaluate_argument(
                 StaticValue::ImportedObject { properties, .. } => {
                     Some(StaticValue::Object(properties.clone()))
                 }
-                _ => evaluate_identifier(identifier, constants, scoping),
+                _ => evaluate_identifier(identifier, constants, scoping)
+                    .filter(is_function_argument_value),
             }
         }
         Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),

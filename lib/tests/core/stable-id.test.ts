@@ -168,6 +168,34 @@ describe('createClassName', () => {
     );
   });
 
+  test('should throw error for let declarations', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { stableId } from 'vindur';
+
+          export let id = stableId();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+      loc: 3:7]
+    `);
+
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createClassName } from 'vindur';
+
+          export let className = createClassName();
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+      loc: 3:7]
+    `);
+  });
+
   test('should throw error with inline usage inside functions', async () => {
     await expect(
       transformWithFormat({

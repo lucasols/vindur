@@ -111,6 +111,61 @@ test('should throw for a stray `;` between keyframe blocks', async () => {
   `);
 });
 
+test('should throw for an extra `}` in keyframes', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { keyframes } from 'vindur'
+
+        const fade = keyframes\`
+          from { opacity: 0 } }
+          to { opacity: 1 }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`}\`
+    loc: 4:22]
+  `);
+});
+
+test('should throw for style rules in `@page` and `@font-feature-values`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @page {
+            margin: 1cm;
+            .title { color: red; }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@page\` can't contain style rules
+    loc: 6:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @font-feature-values Font One {
+            .title { color: red; }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`@font-feature-values\` can't contain style rules
+    loc: 5:4]
+  `);
+});
+
 test('should throw for an unterminated at-rule at the end of createGlobalStyle', async () => {
   await expect(
     transformWithFormat({

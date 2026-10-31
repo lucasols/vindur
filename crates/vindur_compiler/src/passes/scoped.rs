@@ -18,9 +18,6 @@ pub(crate) struct ScopedVariables {
     /// Variables registered by an `@property` rule with an `initial-value`, reading them is valid
     /// without a declaration
     pub registered: FxHashSet<String>,
-    /// The lowest index a new variable can get. The css prop pass moves the file index back to
-    /// precomputed class indices, so it alone can't keep variable indices unique
-    pub next_index: u32,
 }
 
 impl ScopedVariables {
@@ -82,9 +79,10 @@ pub(crate) fn process_scoped_variables(
             .generated
             .entry(name.to_owned())
             .or_insert_with(|| {
-                let index = (*id_index).max(variables.next_index);
-                *id_index = index + 1;
-                variables.next_index = index + 1;
+                // The css prop pass moves the index back to the ids reserved for its template,
+                // which `id_order` counts for every scoped name the template can declare
+                let index = *id_index;
+                *id_index += 1;
                 if dev {
                     format!("{file_hash}-{index}-{name}")
                 } else {

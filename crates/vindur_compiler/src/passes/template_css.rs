@@ -132,17 +132,21 @@ pub(crate) fn validate_template_css(
         Ok(match validate(&rebuilt.css) {
             Ok(()) => true,
             // With several missing `;` forcing one only moves the error to the next one
-            Err(rebuilt_error) => {
-                forced.iter().any(|&index| is_related(index))
-                    && position
-                        .zip(rebuilt.error_position(&rebuilt_error, source, template))
-                        .is_some_and(|(position, rebuilt_position)| rebuilt_position > position)
-            }
+            Err(rebuilt_error) => position
+                .zip(rebuilt.error_position(&rebuilt_error, source, template))
+                .is_some_and(|(position, rebuilt_position)| rebuilt_position > position),
         })
     };
-    // The parser can report the error before the interpolation, at the `{` of the rule holding it,
-    // so every candidate is tried, `fixes_error` rejects the ones that don't fix the error
-    if let Some(index) = missing_extension(&evaluated.selector_classes, fixes_error)?
+    // Each candidate rebuilds and validates the template, so ones that can't be the cause, after
+    // an error outside their rule, are skipped. The parser can report the error before the
+    // interpolation, at the `{` of the rule holding it, which `is_related` keeps
+    let candidates = evaluated
+        .selector_classes
+        .iter()
+        .copied()
+        .filter(|&index| position.is_none() || is_related(index))
+        .collect::<Vec<_>>();
+    if let Some(index) = missing_extension(&candidates, fixes_error)?
         && let Some(expression) = template.expressions.get(index)
     {
         let span = expression.span();

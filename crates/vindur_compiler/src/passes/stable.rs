@@ -6,6 +6,8 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue, semantic::VindurImports};
 
+use super::transform_support::require_const;
+
 pub(crate) struct StableDeclarationTransform<'a> {
     pub imports: &'a VindurImports<'a>,
     pub constants: &'a mut FxHashMap<String, StaticValue>,
@@ -28,6 +30,7 @@ pub(crate) fn transform_stable_declaration(
         let Some(utility) = imported_utility(call, context.imports) else {
             continue;
         };
+        require_const(declaration, context.file_path, context.source)?;
         let BindingPattern::BindingIdentifier(identifier) = &declarator.id else {
             return Err(CompilerDiagnostic::error(
                 context.file_path,

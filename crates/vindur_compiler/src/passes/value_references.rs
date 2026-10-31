@@ -12,7 +12,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
-use super::styled::styled_base_root_name;
+use super::styled::{StyledComponent, styled_base_root_name};
 use super::vindur_fn_references::{
     is_css_template_attribute, is_styled_tag, is_vindur_template_tag,
 };
@@ -32,7 +32,7 @@ pub(super) fn collect_value_referenced_names(
     imports: &VindurImports<'_>,
     file_path: &str,
     source: &str,
-) -> Result<FxHashSet<String>, CompilerDiagnostic> {
+) -> Result<ValueReferences, CompilerDiagnostic> {
     let top_level = top_level_styled_declarations(program, imports);
     if let Some((span, message)) = shadowed_styled_component(scoping, &top_level.styled_symbols) {
         return Err(CompilerDiagnostic::error(file_path, source, span, message));
@@ -45,12 +45,56 @@ pub(super) fn collect_value_referenced_names(
         base_names: top_level.base_names,
         scopes: Vec::new(),
         names: FxHashSet::default(),
+        shadowed_bases: Vec::new(),
         first_error: None,
     };
     visitor.visit_program(program);
     match visitor.first_error {
         Some((span, message)) => Err(CompilerDiagnostic::error(file_path, source, span, message)),
-        None => Ok(visitor.names),
+        None => Ok(ValueReferences {
+            names: visitor.names,
+            shadowed_bases: visitor.shadowed_bases,
+        }),
+    }
+}
+
+pub(super) struct ValueReferences {
+    pub names: FxHashSet<String>,
+    /// Usages of styled components whose base is shadowed where they are used
+    pub shadowed_bases: Vec<ShadowedBase>,
+}
+
+/// A local binding with the name of the component a styled component is built from, where that
+/// styled component is used in JSX, e.g. a `Card` prop where `<StyledCard />` of `styled(Card)`
+/// is used. Only an error when the JSX is compiled to the base, runtime components keep their own
+/// reference to it
+pub(super) struct ShadowedBase {
+    pub component: String,
+    pub span: Span,
+    pub message: String,
+}
+
+impl ShadowedBase {
+    /// The error of the first usage compiled to its base, the JSX of runtime components is kept
+    pub(super) fn first_error(
+        shadowed: &[Self],
+        components: &FxHashMap<String, StyledComponent>,
+        file_path: &str,
+        source: &str,
+    ) -> Result<(), CompilerDiagnostic> {
+        match shadowed.iter().find(|shadowed| {
+            components
+                .get(&shadowed.component)
+                .is_some_and(|component| !component.runtime)
+        }) {
+            Some(shadowed) => Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                shadowed.span,
+                shadowed.message.clone(),
+            )),
+            None => Ok(()),
+        }
     }
 }
 
@@ -64,6 +108,7 @@ struct ValueReferenceVisitor<'s, 'i> {
     base_names: FxHashMap<String, String>,
     scopes: Vec<ScopeId>,
     names: FxHashSet<String>,
+    shadowed_bases: Vec<ShadowedBase>,
     first_error: Option<(Span, String)>,
 }
 
@@ -86,7 +131,7 @@ impl<'a> Visit<'a> for ValueReferenceVisitor<'_, '_> {
 
     fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
         match &element.name {
-            JSXElementName::IdentifierReference(name) => self.reject_shadowed_base(name),
+            JSXElementName::IdentifierReference(name) => self.record_shadowed_base(name),
             name => self.visit_jsx_element_name(name),
         }
         for attribute in &element.attributes {
@@ -151,11 +196,10 @@ impl ValueReferenceVisitor<'_, '_> {
     /// The JSX of styled components is compiled to the components they are built from, so a local
     /// binding with the name of one would render the binding instead, e.g. a `Card` prop where
     /// `<StyledCard />` of `styled(Card)` is used
-    fn reject_shadowed_base(&mut self, name: &IdentifierReference<'_>) {
-        if self.first_error.is_some()
-            || !self
-                .top_level_symbol(name)
-                .is_some_and(|symbol_id| self.styled_symbols.contains(&symbol_id))
+    fn record_shadowed_base(&mut self, name: &IdentifierReference<'_>) {
+        if !self
+            .top_level_symbol(name)
+            .is_some_and(|symbol_id| self.styled_symbols.contains(&symbol_id))
         {
             return;
         }
@@ -168,20 +212,30 @@ impl ValueReferenceVisitor<'_, '_> {
         while let Some(base) = self.base_names.get(component)
             && depth < self.base_names.len()
         {
-            if let Some(symbol_id) = self.scoping.find_binding(scope_id, base.as_str().into())
+            if let Some(symbol_id) = self.value_binding(scope_id, base)
                 && self.scoping.symbol_scope_id(symbol_id) != self.scoping.root_scope_id()
             {
-                self.first_error = Some((
-                    self.scoping.symbol_span(symbol_id),
-                    format!(
+                self.shadowed_bases.push(ShadowedBase {
+                    component: name.name.to_string(),
+                    span: self.scoping.symbol_span(symbol_id),
+                    message: format!(
                         "\"{base}\" shadows the component \"{base}\" a styled component is built from, rename this binding"
                     ),
-                ));
+                });
                 return;
             }
             component = base;
             depth += 1;
         }
+    }
+
+    /// The value binding `name` resolves to from the scope, type bindings like `<Card>` type
+    /// parameters don't shadow values
+    fn value_binding(&self, scope_id: ScopeId, name: &str) -> Option<SymbolId> {
+        self.scoping
+            .scope_ancestors(scope_id)
+            .filter_map(|scope_id| self.scoping.get_binding(scope_id, name.into()))
+            .find(|symbol_id| self.scoping.symbol_flags(*symbol_id).is_value())
     }
 
     fn top_level_symbol(&self, identifier: &IdentifierReference<'_>) -> Option<SymbolId> {

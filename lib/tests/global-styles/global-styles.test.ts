@@ -461,3 +461,19 @@ test('should throw for stylesheet start rules out of order across global styles'
     loc: 4:0]
   `);
 });
+
+test('should throw for start rules after the leading rules that follow an earlier global style', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`@import url(a.css);\`
+        createGlobalStyle\`@layer base; @import url(b.css);\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@import\` must come before \`@layer\`, which follows the start rules of an earlier \`createGlobalStyle\`, browsers ignore it after it, move both into that \`createGlobalStyle\`
+    loc: 4:0]
+  `);
+});

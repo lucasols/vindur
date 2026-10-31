@@ -87,15 +87,16 @@ pub(super) fn push_global_style(
 /// would keep the compiled value
 pub(super) fn require_const(
     declaration: &VariableDeclaration<'_>,
-    transform: &VariableTransform<'_>,
+    file_path: &str,
+    source: &str,
 ) -> Result<(), CompilerDiagnostic> {
     if declaration.kind == VariableDeclarationKind::Const {
         return Ok(());
     }
     let keyword = declaration.kind.as_str();
     Err(CompilerDiagnostic::error(
-        transform.file_path,
-        transform.source,
+        file_path,
+        source,
         oxc_span::Span::new(
             declaration.span.start,
             declaration.span.start + u32::try_from(keyword.len()).unwrap_or(0),
@@ -130,7 +131,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createDynamicCssColor")
         {
-            require_const(declaration, transform)?;
+            require_const(declaration, transform.file_path, transform.source)?;
             if !call.arguments.is_empty() {
                 return Err(CompilerDiagnostic::error(
                     transform.file_path,
@@ -167,7 +168,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createStaticThemeColors")
         {
-            require_const(declaration, transform)?;
+            require_const(declaration, transform.file_path, transform.source)?;
             let colors = parse_theme_colors(&call.arguments).map_err(|error| {
                 CompilerDiagnostic::error(
                     transform.file_path,
@@ -212,7 +213,7 @@ pub(super) fn process_variable_declaration(
             },
         )?;
         if let Some(styled_definition) = styled_definition {
-            require_const(declaration, transform)?;
+            require_const(declaration, transform.file_path, transform.source)?;
             let base_component = styled_definition.base_component;
             let own_attrs = styled_definition.attrs;
             let own_style_flags = styled_definition.style_flags;
@@ -573,7 +574,7 @@ pub(super) fn process_variable_declaration(
         if !matches!(tag_name, "css" | "keyframes") {
             continue;
         }
-        require_const(declaration, transform)?;
+        require_const(declaration, transform.file_path, transform.source)?;
 
         let variable_name = identifier.name.as_str();
         let generated_name = generated_name(

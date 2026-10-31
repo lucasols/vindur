@@ -8,7 +8,7 @@ use oxc_css_parser::{
 use super::block_validation::{validate_block_kind, validate_global_top_level};
 use super::css::reject_misplaced_layers;
 use super::css_balance::check_balance;
-use super::css_tokens::is_inside_block;
+use super::css_tokens::{block_end, is_inside_block};
 use super::css_validation::validate_statements;
 use super::scoped_idents::collect_scoped_idents;
 
@@ -153,6 +153,10 @@ fn keyframes_error(css: &str, error: CssError) -> CssError {
     let at_wrapper_start = error.start < KEYFRAMES_WRAPPER_START.len();
     if !at_wrapper_start && error.start < unclosed.len() {
         return error;
+    }
+    // A `}` of the CSS that closes the wrapper before its end
+    if let Some(end) = block_end(&unclosed, KEYFRAMES_WRAPPER_START.len() - 1) {
+        return CssError::syntax("unexpected `}`".to_owned(), end - 1, end);
     }
     if let Err(balance_error) = check_balance(&format!("{unclosed}}}")) {
         return balance_error;

@@ -47,7 +47,7 @@ use super::{
         GLOBAL_STYLE_EXPORT_ERROR, VariableTransform, imported_tag_name,
         process_variable_declaration, push_global_style,
     },
-    value_references::collect_value_referenced_names,
+    value_references::{ShadowedBase, collect_value_referenced_names},
     vindur_fn_references::{is_styled_tag, runtime_vindur_fn_reference_error},
 };
 
@@ -135,8 +135,9 @@ pub(crate) fn transform_program(
     let mut cx_key_usages = CxKeyUsages::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
-    let value_referenced_names =
+    let value_references =
         collect_value_referenced_names(program, scoping, &imports, file_path, source)?;
+    let value_referenced_names = value_references.names;
     let extended_names = collect_extended_names(program, &imports);
     let exported_object_names = collect_exported_object_names(program);
     let jsx_id_events = collect_jsx_id_events(program);
@@ -458,6 +459,12 @@ pub(crate) fn transform_program(
         },
     )?;
 
+    ShadowedBase::first_error(
+        &value_references.shadowed_bases,
+        &styled_components,
+        file_path,
+        source,
+    )?;
     rewrite_styled_jsx(
         program,
         StyledJsxTransform {

@@ -25,7 +25,7 @@ const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
-const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=/u;
+const VINDUR_JSX_PROP_RE = /\b(?:css|cx|dynamicColor)\s*=/u;
 // Scoped variable keys of a `style` prop, like `'---color'`, which are renamed or rejected
 const SCOPED_STYLE_KEY_RE = /['"`]---[\w-]/u;
 const VINDUR_CODE_RES = [
@@ -180,13 +180,12 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     async handleHotUpdate(ctx) {
       const changed = ctx.file;
+      // Invalidate the cached facts of the file, also when it is only read for the facts of
+      // another file, like its side effects, so re-importers get fresh compiled values
+      invalidateTransformCache(functionCache, changed);
 
       // If the changed file is a source, recompile it and return both modules
       if (sourceCache.has(changed)) {
-        // Invalidate cached exported functions/colors from this file
-        // so re-importers get fresh compiled values
-        invalidateTransformCache(functionCache, changed);
-
         const code = await ctx.read();
         const result = transform({
           fileAbsPath: changed,
@@ -268,7 +267,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       const affected = depToSources.get(changed);
       if (affected && affected.size > 0) {
         const mods: ModuleNode[] = [];
-        invalidateTransformCache(functionCache, changed);
         // Include the changed module(s) so non-vindur updates (like JSX text) still HMR
         for (const m of ctx.modules) mods.push(m);
         for (const srcId of collectAffectedSources(changed)) {

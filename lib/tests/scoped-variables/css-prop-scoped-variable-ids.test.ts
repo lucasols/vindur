@@ -164,3 +164,65 @@ test('should reserve ids for css prop scoped variables with underscores', async 
     "
   `);
 });
+
+test('should not reuse the id of a later dynamic color for a styled scoped variable', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled, createDynamicCssColor } from 'vindur'
+
+      export const Panel = ({ children }) => (
+        <div css={\`---gap: 8px; padding: var(---gap);\`}>{children}</div>
+      )
+
+      export const Card = styled.div\`---radius: 4px; border-radius: var(---radius);\`
+
+      export const accent = createDynamicCssColor()
+
+      export const Title = styled.h1\`color: \${accent.var};\`
+
+      export const App = () => (
+        <Card dynamicColor={accent.set('#f00')}>
+          <Panel>
+            <Title>hi</Title>
+          </Panel>
+        </Card>
+      )
+    `,
+    production: true,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor, _vSC } from "vindur";
+    export const Panel = ({ children }) => (
+      <div className="v1560qbr-1">{children}</div>
+    );
+    export const Card = _vSC("div", "v1560qbr-3");
+    export const accent = createDynamicCssColor("v1560qbr-5", false);
+    export const Title = _vSC("h1", "v1560qbr-6");
+    export const App = () => (
+      <Card {...accent._sp("#f00")}>
+        <Panel>
+          <Title>hi</Title>
+        </Panel>
+      </Card>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-3 {
+      --v1560qbr-4: 4px;
+      border-radius: var(--v1560qbr-4);
+    }
+
+    .v1560qbr-6 {
+      color: var(--v1560qbr-5);
+    }
+
+    .v1560qbr-1 {
+      --v1560qbr-2: 8px;
+      padding: var(--v1560qbr-2);
+    }
+    "
+  `);
+});

@@ -163,6 +163,25 @@ test('should throw for scoped variables read in style prop values', async () => 
   `);
 });
 
+test('should throw for scoped variables starting with a digit read in style prop values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div\`padding: var(---2xl);\`
+
+        export const App = () => (
+          <Card style={{ '---2xl': '8px', margin: 'var(---2xl)' }} />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variables can't be read in \`style\` prop values, they are not renamed there, read them in the styles of the element
+    loc: 6:42]
+  `);
+});
+
 test('should throw for computed scoped variable keys in the style prop', async () => {
   await expect(
     transformWithFormat({

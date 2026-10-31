@@ -12,8 +12,11 @@ use crate::{CompilerDiagnostic, edit::Edit, facts::StaticValue};
 use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
+    css_tokens::{ident_end, is_ident_char, skipped_token_end},
     cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
-    jsx_attributes::{find_attribute, find_last_attribute, opening_attribute_insertion_offset},
+    jsx_attributes::{
+        find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
+    },
     jsx_class_name::{
         ClassNameMerge, ClassNameSources, class_name_merge, emit_class_concat,
         merge_class_name_inputs,
@@ -24,6 +27,7 @@ use super::{
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::resolved_constant,
     static_value::{TemplateContext, evaluate_template},
+    style_flag_selectors::style_classes,
     styled::StyledComponent,
     styled_jsx_helpers::{
         ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
@@ -242,6 +246,15 @@ impl JsxCssVisitor<'_> {
                         return;
                     }
                 };
+                if let Some(message) = self.selected_flag_class(element, &content) {
+                    self.diagnostic = Some(CompilerDiagnostic::error(
+                        self.output.file_path,
+                        self.output.source,
+                        template.span,
+                        message,
+                    ));
+                    return;
+                }
                 let index = cx_transform.map_or_else(
                     || {
                         let index = *self.output.id_index;
@@ -437,6 +450,29 @@ impl JsxCssVisitor<'_> {
         );
     }
 
+    /// A styled component's element gets the hashed classes of its style flags, so a flag class
+    /// selected by the element's css prop, like `&.active`, would never match
+    fn selected_flag_class(&self, element: &JSXElement<'_>, content: &str) -> Option<String> {
+        let name = jsx_name(&element.opening_element.name)?;
+        let Some(StaticValue::ClassName { style_flags, .. }) = self.output.constants.get(name)
+        else {
+            return None;
+        };
+        if style_flags.is_empty() {
+            return None;
+        }
+        // Invalid CSS fails later with its own error
+        let classes = style_classes(content).ok()?;
+        let class = classes
+            .element
+            .iter()
+            .find(|class| style_flags.iter().any(|flag| flag.original == class.name))?;
+        Some(format!(
+            "Style flag class `{}` of `{name}` can't be selected in its css prop, the element gets the hashed flag class, style it in the styles of `{name}`",
+            class.name
+        ))
+    }
+
     fn invalid_value(&mut self, span: oxc_span::Span) {
         self.diagnostic = Some(CompilerDiagnostic::error(
             self.output.file_path,
@@ -547,46 +583,24 @@ pub(super) fn starts_with_scoped_prefix(expression: &Expression<'_>) -> bool {
     }
 }
 
-/// Whether the text has a `---name`, like `var(---size)`. Quoted strings and `url()` are text, like
-/// `url(/---hero.png)`
+/// Whether the text has a `---name`, like `var(---size)`, with the same name rule as the renamer.
+/// Comments, quoted strings and `url()` are text, like `url(/---hero.png)`
 fn contains_scoped_name(text: &str) -> bool {
     let mut index = 0;
     while let Some(character) = text[index..].chars().next() {
-        let rest = &text[index..];
-        let skipped = if matches!(character, '"' | '\'') {
-            rest[1..].find(character).map(|end| end + 2)
-        } else if rest
-            .get(..4)
-            .is_some_and(|name| name.eq_ignore_ascii_case("url("))
-            && !continues_word(text, index)
-        {
-            rest.find(')').map(|end| end + 1)
-        } else {
-            None
-        };
-        if let Some(length) = skipped {
-            index += length;
+        if let Some(end) = skipped_token_end(text, index) {
+            index = end;
             continue;
         }
-        if rest.starts_with("---")
-            && rest[3..]
-                .chars()
-                .next()
-                .is_some_and(|next| next.is_alphabetic() || next == '_')
-            && !continues_word(text, index)
+        if text[index..].starts_with("---")
+            && ident_end(text, index + 3) > index + 3
+            && !text[..index].chars().next_back().is_some_and(is_ident_char)
         {
             return true;
         }
         index += character.len_utf8();
     }
     false
-}
-
-fn continues_word(text: &str, index: usize) -> bool {
-    text[..index]
-        .chars()
-        .next_back()
-        .is_some_and(|character| character.is_alphanumeric() || matches!(character, '-' | '_'))
 }
 
 /// The inline object of a `style` prop, also with a type cast like

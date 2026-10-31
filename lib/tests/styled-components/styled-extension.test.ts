@@ -529,6 +529,54 @@ test('should throw for a caught error shadowing the base of a styled component',
   `);
 });
 
+test('should allow shadowing the base of a styled component kept as a runtime component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Card = (props: { className?: string }) => <div {...props} />
+      export const StyledCard = styled(Card)\`color: red;\`
+
+      export function App({ Card }) {
+        return <StyledCard />
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    const Card = (props: { className?: string }) => <div {...props} />;
+    export const StyledCard = _vSC(Card, "v1560qbr-1-StyledCard");
+    export function App({ Card }) {
+      return <StyledCard />;
+    }
+    "
+  `);
+});
+
+test('should allow type parameters with the name of a base of a styled component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Card = (props: { className?: string }) => <div {...props} />
+      const StyledCard = styled(Card)\`color: red;\`
+
+      export function List<Card>(items: Card[]) {
+        return <StyledCard />
+      }
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const Card = (props: { className?: string }) => <div {...props} />;
+    export function List<Card>(items: Card[]) {
+      return <Card className="v1560qbr-1-StyledCard" />;
+    }
+    "
+  `);
+});
+
 test('should allow bindings with the name of a base where the styled component is not used', async () => {
   const result = await transformWithFormat({
     source: dedent`

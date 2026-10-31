@@ -163,7 +163,7 @@ const buttonBase = css`
 <button className={buttonBase}>Click me</button>
 ```
 
-Vindur declarations, like `css`, `styled`, `keyframes` or `createDynamicCssColor()`, must use `const`, they are evaluated once at compile time.
+Vindur declarations, like `css`, `styled`, `keyframes`, `createDynamicCssColor()`, `stableId()` or `createClassName()`, must use `const`, they are evaluated once at compile time.
 
 ### Styled Components
 
@@ -281,7 +281,7 @@ const CustomComponent = Button.withComponent(MyComponent); // Will render <MyCom
 
 `withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
 
-When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it.
+When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it. A component extending an imported styled component, like `styled(Card)`, can't call `withComponent`, as the styles of `Card` would be lost, call it on `Card` in its own file and extend that instead.
 
 ### Default Attributes
 
@@ -759,7 +759,7 @@ Compiles to scoped CSS variables:
 
 Scoped variables must be written directly in the template, without CSS escapes. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
 
-Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings can't use scoped names, area names are already local to their grid container. A custom property value can't continue on a line starting with `name:`, add the missing `;`.
+Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings, grid line names like `[main-start]` and the names in `grid-area`, `grid-row` and `grid-column` can't use scoped names, they are already local to their grid container. A custom property value can't continue on a line starting with `name:`, add the missing `;`.
 
 #### Dynamic Variables
 
@@ -1273,7 +1273,7 @@ Flags are read from the props written on the element and are never passed to it,
 
 Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
 
-Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error.
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. The `css` prop of a component with flags can't select them, like `` <Box css={`&.active { ... }`} /> ``, style them in the styles of the component.
 
 ## Theme Colors
 

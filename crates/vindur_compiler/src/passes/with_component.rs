@@ -45,7 +45,25 @@ pub(super) fn process_with_component(
             ),
         ));
     };
-    require_const(declaration, transform)?;
+    // The styles of an imported styled base are applied by it, replacing it drops them
+    if base.element_is_identifier
+        && !transform.styled_components.contains_key(&base.element)
+        && matches!(
+            transform.constants.get(&base.element),
+            Some(StaticValue::ClassName { .. })
+        )
+    {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            base_identifier.span,
+            format!(
+                "Cannot call withComponent on \"{}\": it extends the imported styled component \"{}\", whose styles would be lost on the new element. Call withComponent on \"{}\" in its own file and extend that instead.",
+                base_identifier.name, base.element, base.element
+            ),
+        ));
+    }
+    require_const(declaration, transform.file_path, transform.source)?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),
@@ -148,12 +166,13 @@ fn shared_flag_error(
     element: &str,
     transform: &VariableTransform<'_>,
 ) -> Option<String> {
-    let element_classes = match transform.styled_components.get(element) {
-        Some(component) => flag_classes(&component.style_flags),
-        None => match transform.constants.get(element) {
-            Some(StaticValue::ClassName { style_flags, .. }) => style_flags.clone(),
-            _ => return None,
-        },
+    // Every styled component's flag classes, with the ones it inherits from an imported base
+    let Some(StaticValue::ClassName {
+        style_flags: element_classes,
+        ..
+    }) = transform.constants.get(element)
+    else {
+        return None;
     };
     let flag = base.style_flags.iter().find(|flag| {
         element_classes.iter().any(|class| {
