@@ -38,7 +38,11 @@ test('should only apply to styled components, not regular DOM elements', async (
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <div className={"v1560qbr-1-StyledWithModifier voctcyj-active"}>
+        <div
+          className={
+            "v1560qbr-1-StyledWithModifier v1560qbr-1-StyledWithModifier-active"
+          }
+        >
           Content
         </div>
       );
@@ -50,11 +54,11 @@ test('should only apply to styled components, not regular DOM elements', async (
     ".v1560qbr-1-StyledWithModifier {
       padding: 16px;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-StyledWithModifier-active {
         background: blue;
       }
 
-      &.v1d4m6fv-muted {
+      &.v1560qbr-1-StyledWithModifier-muted {
         opacity: 0.5;
       }
     }
@@ -111,7 +115,11 @@ test('should extract boolean and string union properties from TypeScript generic
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <button className={"v1560qbr-1-Button v1puiack-primary vr4ikfs-size-large"}>
+        <button
+          className={
+            "v1560qbr-1-Button v1560qbr-1-Button-primary v1560qbr-1-Button-size-large"
+          }
+        >
           Click me
         </button>
       );
@@ -124,21 +132,21 @@ test('should extract boolean and string union properties from TypeScript generic
       padding: 8px 16px;
       border: 1px solid #ccc;
 
-      &.v1puiack-primary {
+      &.v1560qbr-1-Button-primary {
         background: blue;
         color: white;
       }
 
-      &.v1d4m6fv-muted {
+      &.v1560qbr-1-Button-muted {
         opacity: 0.5;
         cursor: not-allowed;
       }
 
-      &.vr4ikfs-size-small {
+      &.v1560qbr-1-Button-size-small {
         padding: 4px 8px;
       }
 
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-size-large {
         padding: 12px 24px;
       }
     }
@@ -201,7 +209,8 @@ test('should support extending custom components with style flags', async () => 
       return (
         <ButtonElement
           className={
-            "v1560qbr-1-CheckboxContainer" + (isChecked ? " v1kduhad-ticked" : "")
+            "v1560qbr-1-CheckboxContainer" +
+            (isChecked ? " v1560qbr-1-CheckboxContainer-ticked" : "")
           }
         ></ButtonElement>
       );
@@ -224,7 +233,7 @@ test('should support extending custom components with style flags', async () => 
         border-color: #aaa;
       }
 
-      &.v1kduhad-ticked {
+      &.v1560qbr-1-CheckboxContainer-ticked {
         background: #0066cc;
         border-color: #0066cc;
         opacity: 1;
@@ -316,7 +325,9 @@ test('reproduce bug', async () => {
       return (
         <ButtonElement
           css={css}
-          className={"v1560qbr-1-Btn" + (value ? " v3j7qq4-value-" + value : "")}
+          className={
+            "v1560qbr-1-Btn" + (value ? " v1560qbr-1-Btn-value-" + value : "")
+          }
         >
           Content
         </ButtonElement>
@@ -335,13 +346,13 @@ test('reproduce bug', async () => {
         opacity: 1;
       }
 
-      &.v3j7qq4-value-high {
+      &.v1560qbr-1-Btn-value-high {
         color: coral;
       }
-      &.v3j7qq4-value-medium {
+      &.v1560qbr-1-Btn-value-medium {
         color: yellow;
       }
-      &.v3j7qq4-value-low {
+      &.v1560qbr-1-Btn-value-low {
         color: cyan;
       }
     }
@@ -394,8 +405,8 @@ test('should work with extracted type parameters', async () => {
         <ButtonElement
           className={
             "v1560qbr-1-Btn" +
-            (value ? " v3j7qq4-value-" + value : "") +
-            (active ? " voctcyj-active" : "")
+            (value ? " v1560qbr-1-Btn-value-" + value : "") +
+            (active ? " v1560qbr-1-Btn-active" : "")
           }
         >
           Content
@@ -412,17 +423,17 @@ test('should work with extracted type parameters', async () => {
       color: white;
 
       &:hover,
-      &.voctcyj-active {
+      &.v1560qbr-1-Btn-active {
         opacity: 1;
       }
 
-      &.v3j7qq4-value-high {
+      &.v1560qbr-1-Btn-value-high {
         color: red;
       }
-      &.v3j7qq4-value-medium {
+      &.v1560qbr-1-Btn-value-medium {
         color: yellow;
       }
-      &.v3j7qq4-value-low {
+      &.v1560qbr-1-Btn-value-low {
         color: cyan;
       }
     }
@@ -515,7 +526,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
       return (
         <button
           className={
-            "v1560qbr-1-Button voctcyj-active vr4ikfs-size-large v11as9cs-variant-primary"
+            "v1560qbr-1-Button v1560qbr-1-Button-active v1560qbr-1-Button-size-large v1560qbr-1-Button-variant-primary"
           }
         >
           Click me
@@ -533,26 +544,29 @@ test('should detect and transform style flags inside pseudo-class functions', as
       color: #333;
 
       /* Test :not() with boolean flags */
-      &:not(.v1d4m6fv-muted) {
+      &:not(.v1560qbr-1-Button-muted) {
         cursor: pointer;
       }
 
-      &:not(.voctcyj-active):hover {
+      &:not(.v1560qbr-1-Button-active):hover {
         background: #f0f0f0;
       }
 
       /* Test :is() with multiple classes including flags */
-      &:is(.voctcyj-active, .other-class) {
+      &:is(.v1560qbr-1-Button-active, .other-class) {
         background: blue;
         color: white;
       }
 
-      &:is(.v11as9cs-variant-primary, .v11as9cs-variant-secondary) {
+      &:is(
+        .v1560qbr-1-Button-variant-primary,
+        .v1560qbr-1-Button-variant-secondary
+      ) {
         font-weight: bold;
       }
 
       /* Test :where() with flags */
-      &:where(.vr4ikfs-size-small) {
+      &:where(.v1560qbr-1-Button-size-small) {
         padding: 4px 8px;
       }
 
@@ -562,21 +576,24 @@ test('should detect and transform style flags inside pseudo-class functions', as
       }
 
       /* Test complex combinations */
-      &:not(.v1d4m6fv-muted):is(.vr4ikfs-size-large, .vr4ikfs-size-medium) {
+      &:not(.v1560qbr-1-Button-muted):is(
+          .v1560qbr-1-Button-size-large,
+          .v1560qbr-1-Button-size-medium
+        ) {
         min-height: 48px;
       }
 
       /* Test string union flags in different positions */
-      &:is(.other, .v11as9cs-variant-primary, .another) {
+      &:is(.other, .v1560qbr-1-Button-variant-primary, .another) {
         text-transform: uppercase;
       }
 
       /* Traditional & syntax should still work */
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         background: green;
       }
 
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-size-large {
         padding: 12px 24px;
       }
     }
@@ -619,7 +636,7 @@ test('should resolve exported type aliases of style flags', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "export type Props = { active: boolean };
     export const App = ({ on }) => (
-      <div className={"v1560qbr-1-Box" + (on ? " voctcyj-active" : "")} />
+      <div className={"v1560qbr-1-Box" + (on ? " v1560qbr-1-Box-active" : "")} />
     );
     "
   `);

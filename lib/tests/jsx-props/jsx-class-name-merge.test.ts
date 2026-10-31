@@ -351,7 +351,9 @@ test('should concat className expressions on styled components', async () => {
       <>
         <div className={"v1560qbr-2-Box " + (className || "")} />
         <button
-          className={"v1560qbr-3-Btn " + (className || "") + " voctcyj-active"}
+          className={
+            "v1560qbr-3-Btn " + (className || "") + " v1560qbr-3-Btn-active"
+          }
         />
         <div
           {...color._sp("#f00", {
@@ -445,7 +447,9 @@ test('should merge a css call in the className with the cx prop and style flags'
       <>
         <div
           className={
-            "v1560qbr-1-Box " + ("v1560qbr-4" || "") + (on ? " voctcyj-active" : "")
+            "v1560qbr-1-Box " +
+            ("v1560qbr-4" || "") +
+            (on ? " v1560qbr-1-Box-active" : "")
           }
         />
         <div

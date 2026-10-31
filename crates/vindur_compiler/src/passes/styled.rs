@@ -28,6 +28,7 @@ pub(crate) struct StyleFlag {
     pub hashed_class_name: String,
     pub kind: StyleFlagKind,
     pub prop_name: String,
+    pub span: Span,
 }
 
 /// JS identifiers can contain `$`, which is not valid in a CSS class name
@@ -57,9 +58,9 @@ pub(crate) struct StyledDefinition {
 }
 
 pub(crate) struct StyledTagContext<'a> {
+    pub class_name: &'a str,
     pub components: &'a FxHashMap<String, StyledComponent>,
     pub dev: bool,
-    pub file_hash: &'a str,
     pub file_path: &'a str,
     pub imports: &'a VindurImports<'a>,
     pub program: &'a Program<'a>,
@@ -189,7 +190,7 @@ pub(crate) fn styled_tag_component_with_attrs(
     let style_flags = || match type_arguments {
         Some(type_arguments) => extract_style_flags(
             &type_arguments.params,
-            context.file_hash,
+            context.class_name,
             context.dev,
             context.program,
             context.file_path,

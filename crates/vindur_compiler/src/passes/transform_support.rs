@@ -30,6 +30,7 @@ use super::{
         all_flag_classes, missing_style_flag_classes, other_element_flag_classes,
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
+    style_flags::{flags_without_base_styles, with_base_style_flags},
     styled::{
         StyledComponent, StyledTagContext, css_class_name_part, styled_base,
         styled_tag_component_with_attrs,
@@ -203,18 +204,25 @@ pub(super) fn process_variable_declaration(
         let Some(Expression::TaggedTemplateExpression(tagged)) = &declarator.init else {
             continue;
         };
+        let variable_name = identifier.name.as_str();
+        let component_class = generated_name(
+            transform.file_hash,
+            *transform.id_index,
+            variable_name,
+            transform.dev,
+        );
         let styled_definition = styled_tag_component_with_attrs(
             &tagged.tag,
             tagged.type_arguments.as_deref(),
             &StyledTagContext {
+                class_name: &component_class,
                 components: transform.styled_components,
                 dev: transform.dev,
-                file_hash: transform.file_hash,
                 file_path: transform.file_path,
                 imports: transform.imports,
                 program: transform.program,
                 source: transform.source,
-                variable_name: identifier.name.as_str(),
+                variable_name,
             },
         )?;
         if let Some(styled_definition) = styled_definition {
@@ -231,7 +239,6 @@ pub(super) fn process_variable_declaration(
                     "Styled components must use their own variable declaration".to_owned(),
                 ));
             }
-            let variable_name = identifier.name.as_str();
             if base_call.is_some() {
                 reserved_name_error(
                     transform.program,
@@ -241,25 +248,13 @@ pub(super) fn process_variable_declaration(
                     transform.source,
                 )?;
             }
-            let generated_name = generated_name(
-                transform.file_hash,
-                *transform.id_index,
-                variable_name,
-                transform.dev,
-            );
             *transform.id_index += 1;
-            // The flags of the base component still apply, its own flags are added to them
-            let mut style_flags = base_component
-                .style_flags
-                .iter()
-                .filter(|flag| {
-                    !own_style_flags
-                        .iter()
-                        .any(|own| own.prop_name == flag.prop_name)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            style_flags.extend(own_style_flags.iter().cloned());
+            let style_flags = with_base_style_flags(
+                &base_component.style_flags,
+                &own_style_flags,
+                transform.file_path,
+                transform.source,
+            )?;
             let base_identifier = styled_base(&tagged.tag);
             // The flags of a base imported through a re-export or an import cycle are unknown, also
             // when it is rendered by a local base, e.g. `styled(Local)` with `Local = styled(Base)`
@@ -328,9 +323,12 @@ pub(super) fn process_variable_declaration(
                 let other_element_flags =
                     other_element_flag_classes(&content, &classes.other, &flag_class_list);
                 // Inherited flags are styled by the base component
-                let missing_flags = missing_style_flag_classes(&element_classes, &own_style_flags)
-                    .into_iter()
-                    .filter(|class_name| !other_element_flags.contains(class_name));
+                let missing_flags = missing_style_flag_classes(
+                    &element_classes,
+                    &flags_without_base_styles(&base_component.style_flags, &own_style_flags),
+                )
+                .into_iter()
+                .filter(|class_name| !other_element_flags.contains(class_name));
                 transform
                     .warnings
                     .extend(missing_flags.map(|class_name| {
@@ -432,7 +430,7 @@ pub(super) fn process_variable_declaration(
             transform
                 .css_rules
                 .extend(
-                    generate_class_rules(&generated_name, &content).map_err(|error| {
+                    generate_class_rules(&component_class, &content).map_err(|error| {
                         css_error_diagnostic(
                             transform.file_path,
                             transform.source,
@@ -442,14 +440,14 @@ pub(super) fn process_variable_declaration(
                     })?,
                 );
             let complete_class_name = if base_component.class_name.is_empty() {
-                generated_name.clone()
+                component_class.clone()
             } else {
-                format!("{} {generated_name}", base_component.class_name)
+                format!("{} {component_class}", base_component.class_name)
             };
             transform.constants.insert(
                 variable_name.to_owned(),
                 StaticValue::ClassName {
-                    name: generated_name.clone(),
+                    name: component_class.clone(),
                     style_flags: flag_class_list,
                 },
             );

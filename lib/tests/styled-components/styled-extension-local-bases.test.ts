@@ -216,7 +216,9 @@ test('extend a call inline with style flags', async () => {
     import { Button } from "./Button";
     const _vStyledButtonBase = memo(Button);
     const App = () => (
-      <_vStyledButtonBase className={"v1560qbr-1-StyledButton voctcyj-active"} />
+      <_vStyledButtonBase
+        className={"v1560qbr-1-StyledButton v1560qbr-1-StyledButton-active"}
+      />
     );
     "
   `);
@@ -225,7 +227,7 @@ test('extend a call inline with style flags', async () => {
     ".v1560qbr-1-StyledButton {
       color: red;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-StyledButton-active {
         color: blue;
       }
     }

@@ -333,17 +333,17 @@ test('extending an imported styled component keeps the flags it applies', async 
   expect(result.code).toMatchInlineSnapshot(`
     "import { Item } from "./item";
     export const App = () => (
-      <Item active className={"v1560qbr-1-BigItem v1x4k6wd-big"} />
+      <Item active className={"v1560qbr-1-BigItem v1560qbr-1-BigItem-big"} />
     );
     "
   `);
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-BigItem {
-      &.v1x4k6wd-big {
+      &.v1560qbr-1-BigItem-big {
         padding: 8px;
       }
-      &.vum7ukr-active {
+      &.v1llrsih-1-Item-active {
         color: blue;
       }
     }
