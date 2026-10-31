@@ -316,7 +316,7 @@ fn has_pseudo_element(css: &str) -> bool {
 
 fn pseudo_element_nesting_message(selector: &str) -> String {
     format!(
-        "`{selector}` can't be nested in a pseudo-element rule, `&` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. `&::placeholder {{ .dark & {{}} }}` -> `.dark &::placeholder {{}}` or `&::before {{ &:hover {{}} }}` -> `&:hover::before {{}}`"
+        "`{selector}` can't be nested in a pseudo-element rule, `&` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. `&::placeholder {{ .dark & {{}} }}` -> `.dark &::placeholder {{}}` or `&::-webkit-scrollbar-thumb {{ &:hover {{}} }}` -> `&::-webkit-scrollbar-thumb:hover {{}}`"
     )
 }
 

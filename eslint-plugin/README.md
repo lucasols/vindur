@@ -69,6 +69,10 @@ The rule accepts an options object:
         '@': './src',
         'components': './src/components'
       },
+
+      // The colorSchemeClassNames option of the vite plugin, so the scheme
+      // classes used in styles are not reported as undeclared
+      colorSchemeClassNames: { light: 'lm', dark: 'dm' },
       
       // Enable dev mode behavior (default: true)
       dev: true,

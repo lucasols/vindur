@@ -30,23 +30,6 @@ export function invalidateRustTransformCache(
   }
 }
 
-// A single class name, the runtime adds it as is
-const CLASS_NAME_RE = /^-?[_a-z][\w-]*$/iu;
-
-function validateColorSchemeClassNames(
-  classNames: TransformOptions['colorSchemeClassNames'],
-): void {
-  if (!classNames) return;
-  for (const scheme of ['light', 'dark'] as const) {
-    const className = classNames[scheme];
-    if (!CLASS_NAME_RE.test(className)) {
-      throw new Error(
-        `colorSchemeClassNames.${scheme} must be a single class name, got ${JSON.stringify(className)}`,
-      );
-    }
-  }
-}
-
 export function transformWithRust({
   fileAbsPath,
   source,
@@ -59,7 +42,6 @@ export function transformWithRust({
   colorSchemeClassNames,
   onWarning,
 }: TransformOptions): VindurTransformResult {
-  validateColorSchemeClassNames(colorSchemeClassNames);
   mirrorRustFunctionCache({
     cache: transformFunctionCache,
     debug,

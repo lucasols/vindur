@@ -5,6 +5,7 @@ import {
   transform,
   invalidateTransformCache,
   mayContainVindurCode,
+  validateColorSchemeClassNames,
   VINDUR_CODE_PATTERNS,
   TransformError,
   type TransformFS,
@@ -37,6 +38,8 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     colorSchemeClassNames,
     sourcemap,
   } = options;
+  // Fails on setup, not as a transform error of the first transformed file
+  validateColorSchemeClassNames(colorSchemeClassNames);
 
   type CssVirtualModule = { code: string; map: SourceMapInput | null };
   const virtualCssModules = new Map<string, CssVirtualModule>();

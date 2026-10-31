@@ -36,6 +36,14 @@ const files = {
       }
     \`;
 
+    const SchemeText = styled.span\`
+      font-style: normal;
+
+      .lm & {
+        font-style: italic;
+      }
+    \`;
+
     const importedBox = css\`
       background: \${themeColor.value};
       outline-style: dotted;
@@ -53,7 +61,9 @@ const files = {
           <Card data-testid="none" dynamicColor={bg.set(null)}>
             <Label data-testid="none-label">none</Label>
           </Card>
-          <div data-testid="scheme" {...bg.setProps("#f1f5f9", { setColorScheme: { fallback: "dark" } })} />
+          <div data-testid="scheme" {...bg.setProps("#f1f5f9", { setColorScheme: { fallback: "dark" } })}>
+            <SchemeText data-testid="scheme-text">scheme</SchemeText>
+          </div>
           <div data-testid="imported" className={importedBox} style={{ padding: 4 }} dynamicColor={themeColor.set("#1e293b")} />
           <div data-testid="imported-none" className={importedBox} style={{ padding: 4 }} dynamicColor={themeColor.set(null)} />
         </div>
@@ -66,6 +76,11 @@ const files = {
     export const themeColor = createDynamicCssColor();
   `,
 };
+
+const envOptions = {
+  reactPlugin: 'swc',
+  colorSchemeClassNames: { light: 'lm', dark: 'dm' },
+} as const;
 
 async function expectDynamicColorSelectors(target: Page) {
   await expect(target.getByTestId('dark')).toHaveCSS(
@@ -90,6 +105,11 @@ async function expectDynamicColorSelectors(target: Page) {
   );
 
   await expect(target.getByTestId('scheme')).toHaveCSS('color-scheme', 'light');
+  // The `colorSchemeClassNames` option adds `lm` to the light color
+  await expect(target.getByTestId('scheme-text')).toHaveCSS(
+    'font-style',
+    'italic',
+  );
 
   // An imported color keeps the element's className and style
   for (const testId of ['imported', 'imported-none']) {
@@ -107,7 +127,7 @@ let page: Page;
 
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
-  env = await startEnv('dynamic-color-selectors-tests', files);
+  env = await startEnv('dynamic-color-selectors-tests', files, envOptions);
   await page.goto(env.baseUrl);
 });
 
@@ -127,6 +147,7 @@ test('should apply self and container selectors in the prod build', async ({
   const envProd = await startEnvProd(
     'dynamic-color-selectors-tests-prod',
     files,
+    envOptions,
   );
   await pageProd.goto(envProd.baseUrl);
 

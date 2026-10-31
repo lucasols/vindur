@@ -22,7 +22,7 @@ test('should throw for an ancestor selector nested in a pseudo-element rule', as
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`.dm &\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::before { &:hover {} }\` -> \`&:hover::before {}\` (found in the interpolated value)
+    [TransformError: /test.tsx: \`.dm &\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::-webkit-scrollbar-thumb { &:hover {} }\` -> \`&::-webkit-scrollbar-thumb:hover {}\` (found in the interpolated value)
     loc: 9:6]
   `);
 });
@@ -43,7 +43,7 @@ test('should throw for rules nested in legacy pseudo-elements and grouping rules
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`&:focus\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::before { &:hover {} }\` -> \`&:hover::before {}\`
+    [TransformError: /test.tsx: \`&:focus\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::-webkit-scrollbar-thumb { &:hover {} }\` -> \`&::-webkit-scrollbar-thumb:hover {}\`
     loc: 6:6]
   `);
 });
@@ -62,7 +62,7 @@ test('should throw for rules nested in pseudo-elements in createGlobalStyle', as
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`span\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::before { &:hover {} }\` -> \`&:hover::before {}\`
+    [TransformError: /test.tsx: \`span\` can't be nested in a pseudo-element rule, \`&\` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. \`&::placeholder { .dark & {} }\` -> \`.dark &::placeholder {}\` or \`&::-webkit-scrollbar-thumb { &:hover {} }\` -> \`&::-webkit-scrollbar-thumb:hover {}\`
     loc: 5:4]
   `);
 });

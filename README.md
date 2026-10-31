@@ -62,6 +62,8 @@ export default [
         {
           // import alias resolution used by the transformer
           importAliases: { '#/': '/' },
+          // the vite plugin's colorSchemeClassNames, if set
+          colorSchemeClassNames: { light: 'lm', dark: 'dm' },
         },
       ],
     },
@@ -413,7 +415,7 @@ const Navigation = styled.nav`
 
 Sass style suffix concatenation (`&--today`, `&__body`, `&-active`) is a compile error: CSS nesting doesn't concatenate, so the rule would never match. Write the full selector in its own rule instead, e.g. `.day { &--today {} }` -> `.day--today {}`, or use a separate class on the component itself, e.g. `&-active {}` -> `&.active {}`. `&div` is also an error since Sass and CSS nesting read it differently, write `div&` instead.
 
-Rules nested in a pseudo-element rule are a compile error, since `&` can't represent pseudo-elements and the rule would never match. Write the full selector in its own rule instead, e.g. `&::placeholder { .dark & {} }` -> `.dark &::placeholder {}` or `&::before { &:hover {} }` -> `&:hover::before {}`.
+Rules nested in a pseudo-element rule are a compile error, since `&` can't represent pseudo-elements and the rule would never match. Write the full selector in its own rule instead, e.g. `&::placeholder { .dark & {} }` -> `.dark &::placeholder {}` or `&::-webkit-scrollbar-thumb { &:hover {} }` -> `&::-webkit-scrollbar-thumb:hover {}`.
 
 ### Styled Component References
 
@@ -1572,6 +1574,8 @@ vindurPlugin({
   dynamicColor={bgColor.set(color, { setColorScheme: { fallback: 'dark' } })}
 />
 ```
+
+Pass the same `colorSchemeClassNames` to the `@vindur/check-transform` ESLint rule, so the scheme classes used in styles aren't reported as undeclared.
 
 A descendant selector like `.dm &` matches every ancestor with the class, not only the nearest one. So inside an element with the opposite class of an ancestor, both `.dm &` and `.lm &` rules match and the one declared last wins. To have the nearest scheme win, make the scheme classes set inherited CSS variables (e.g. `.dm { --text: white }`) and use those variables in the styles.
 
