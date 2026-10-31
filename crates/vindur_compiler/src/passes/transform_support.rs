@@ -596,7 +596,12 @@ fn validate_vindur_function_declaration(
     Ok(())
 }
 
-fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {
+pub(super) fn generated_name(
+    file_hash: &str,
+    id_index: u32,
+    variable_name: &str,
+    dev: bool,
+) -> String {
     if dev {
         format!(
             "{file_hash}-{id_index}-{}",

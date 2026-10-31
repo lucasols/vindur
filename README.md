@@ -852,6 +852,42 @@ const Component = () => {
 };
 ```
 
+### Shared CSS Variables
+
+Use `createCssVar` for custom properties shared across components and files. It must be a module level variable declaration, and the compiler replaces it with a `name` and a `var()` reference, readable in dev and short hashed in production:
+
+```tsx
+// vars.ts
+import { createCssVar } from 'vindur';
+
+export const iconColor = createCssVar();
+
+// is compiled to:
+export const iconColor = {
+  name: '--vhash-1-iconColor', // '--vhash-1' in production
+  var: 'var(--vhash-1-iconColor)',
+};
+```
+
+```tsx
+import { iconColor } from './vars';
+
+const NavBar = styled.nav`
+  ${iconColor.name}: white;
+`;
+
+const Icon = styled.svg`
+  color: ${iconColor.var};
+`;
+
+// set it at runtime with the style prop
+const Component = ({ color }: { color: string }) => (
+  <NavBar style={{ [iconColor.name]: color }}>
+    <Icon />
+  </NavBar>
+);
+```
+
 ### Global Styles
 
 Create global CSS styles that apply to the entire document using `createGlobalStyle`:

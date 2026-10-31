@@ -15,6 +15,7 @@ import {
   type CSSProperties,
 } from 'react';
 import {
+  createCssVar,
   createDynamicCssColor,
   createStaticThemeColors,
   css,
@@ -496,6 +497,15 @@ describe('style flags', () => {
     // @ts-expect-error missing required prop
     const invalid = <Styled />;
   });
+});
+
+test('createCssVar', () => {
+  const iconColor = createCssVar();
+
+  expectTypesAre<typeof iconColor.name, `--${string}`>('equal');
+  expectTypesAre<typeof iconColor.var, string>('equal');
+
+  const withStyle = <div style={{ [iconColor.name]: 'red' }} />;
 });
 
 describe('dynamic color setProps', () => {
