@@ -383,6 +383,80 @@ describe('createGlobalStyle', () => {
       "
     `);
   });
+
+  test('should error on createGlobalStyle that is not a module level statement', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          export function applyGlobalStyles() {
+            createGlobalStyle\`
+              body { margin: 0; }
+            \`;
+          }
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle can only be used at the top level of the module, as a statement or in its own \`const\` declaration
+      loc: 4:2]
+    `);
+  });
+
+  test('should error on exported createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          export const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle can't be exported, its styles are added where it is declared, remove the \`export\`
+      loc: 3:13]
+    `);
+  });
+
+  test('should error when a createGlobalStyle variable is referenced', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`;
+
+          export const App = () => <GlobalStyle />;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`GlobalStyle\` can't be referenced, createGlobalStyle returns nothing and its declaration is removed
+      loc: 3:6]
+    `);
+  });
+
+  test('should error on createGlobalStyle sharing a variable declaration', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur';
+
+          const GlobalStyle = createGlobalStyle\`
+            body { margin: 0; }
+          \`, size = 2;
+
+          export const getSize = () => size;
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: createGlobalStyle must use its own variable declaration
+      loc: 3:0]
+    `);
+  });
 });
 
 test('should throw for relative selectors in global styles', async () => {

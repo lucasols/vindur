@@ -60,7 +60,7 @@ describe('styled components - error handling', () => {
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(`
-      [TransformError: /test.tsx: Inline styled component usage is not supported. Please assign styled components to a variable first.
+      [TransformError: /test.tsx: default exported styled components only support "export default styled.tag\`...\`", declare it as a variable, e.g. "const Component = styled...", and export it with "export default Component"
       loc: 4:15]
     `);
   });

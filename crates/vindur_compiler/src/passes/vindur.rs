@@ -306,6 +306,18 @@ pub(crate) fn transform_program(
                 }
                 if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
                     &export.declaration
+                    && is_styled_tag(&tagged.tag, &imports)
+                    && styled_tag_element(&tagged.tag, &imports).is_none()
+                {
+                    return Err(CompilerDiagnostic::error(
+                        file_path,
+                        source,
+                        tagged.span,
+                        "default exported styled components only support \"export default styled.tag`...`\", declare it as a variable, e.g. \"const Component = styled...\", and export it with \"export default Component\"".to_owned(),
+                    ));
+                }
+                if let oxc_ast::ast::ExportDefaultDeclarationKind::TaggedTemplateExpression(tagged) =
+                    &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)
                 {
                     if let Some(type_arguments) = &tagged.type_arguments {

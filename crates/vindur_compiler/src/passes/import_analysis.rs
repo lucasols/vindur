@@ -265,10 +265,15 @@ pub(super) fn collect_vindur_imports(
                 replacement: String::new(),
             });
         } else {
+            let type_keyword = if declaration.import_kind.is_type() {
+                "type "
+            } else {
+                ""
+            };
             edits.push(Edit {
                 span: declaration.span,
                 replacement: format!(
-                    "import {{ {} }} from \"vindur\";",
+                    "import {type_keyword}{{ {} }} from \"vindur\";",
                     runtime_specifiers.join(", ")
                 ),
             });

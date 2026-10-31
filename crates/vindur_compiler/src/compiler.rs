@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use oxc_allocator::Allocator;
-use oxc_ast::ast::{ImportDeclarationSpecifier, Statement};
+use oxc_ast::ast::{ImportDeclarationSpecifier, Program, Statement, StringLiteral};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{SourceType, Span};
@@ -9,7 +9,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::normalize::normalize_code;
-use crate::passes::transform_program;
+use crate::passes::{re_exported_vindur_fn_error, transform_program};
 use crate::resolved_imports::{consumed_side_effect_imports, remove_resolved_imports};
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
@@ -131,6 +131,7 @@ impl Compiler {
         loader: &mut impl SourceLoader,
         traversal: &mut Traversal,
     ) -> TransformOutput {
+        let is_dependency = !traversal.visiting.is_empty();
         traversal.visiting.insert(file_path.to_owned());
         let source_type = match SourceType::from_path(file_path) {
             Ok(source_type) => source_type.with_module(true),
@@ -192,6 +193,19 @@ impl Compiler {
             }
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
+        // Dependencies are only loaded for their facts, so their re-export targets aren't
+        if !is_dependency
+            && let Err(diagnostic) = self.check_vindur_fn_re_exports(
+                &parsed.program,
+                file_path,
+                source,
+                options,
+                loader,
+                traversal,
+            )
+        {
+            return failed_output(source, diagnostic);
+        }
 
         let mut pass_output = match transform_program(
             &parsed.program,
@@ -415,12 +429,7 @@ impl Compiler {
                 && let Some(function_name) = facts
                     .exports
                     .iter()
-                    .filter(|(_, value)| {
-                        matches!(
-                            value,
-                            StaticValue::Function(_) | StaticValue::ImportedFunction(_)
-                        )
-                    })
+                    .filter(|(_, value)| matches!(value, StaticValue::Function(_)))
                     .map(|(name, _)| name)
                     .min()
             {
@@ -533,6 +542,112 @@ impl Compiler {
             side_effect_sources,
             has_side_effects,
         }))
+    }
+
+    /// vindurFn functions can only be imported from the module that declares them, so
+    /// `export { fn } from` and `export * from` of modules that declare them are rejected
+    fn check_vindur_fn_re_exports(
+        &self,
+        program: &Program<'_>,
+        file_path: &str,
+        source: &str,
+        options: &TransformOptions,
+        loader: &mut impl SourceLoader,
+        traversal: &mut Traversal,
+    ) -> Result<(), CompilerDiagnostic> {
+        for statement in &program.body {
+            match statement {
+                Statement::ExportNamedDeclaration(export) if !export.export_kind.is_type() => {
+                    let Some(export_source) = &export.source else {
+                        continue;
+                    };
+                    let Some(facts) = self.load_re_export_facts(
+                        export_source,
+                        file_path,
+                        source,
+                        options,
+                        loader,
+                        traversal,
+                    )?
+                    else {
+                        continue;
+                    };
+                    if let Some(specifier) = export.specifiers.iter().find(|specifier| {
+                        !specifier.export_kind.is_type()
+                            && matches!(
+                                facts.exports.get(specifier.local.name().as_str()),
+                                Some(StaticValue::Function(_))
+                            )
+                    }) {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            specifier.span,
+                            re_exported_vindur_fn_error(
+                                specifier.local.name().as_str(),
+                                export_source.value.as_str(),
+                            ),
+                        ));
+                    }
+                }
+                Statement::ExportAllDeclaration(export) if !export.export_kind.is_type() => {
+                    let Some(facts) = self.load_re_export_facts(
+                        &export.source,
+                        file_path,
+                        source,
+                        options,
+                        loader,
+                        traversal,
+                    )?
+                    else {
+                        continue;
+                    };
+                    if let Some(function_name) = facts
+                        .exports
+                        .iter()
+                        .filter(|(_, value)| matches!(value, StaticValue::Function(_)))
+                        .map(|(name, _)| name)
+                        .min()
+                    {
+                        return Err(CompilerDiagnostic::error(
+                            file_path,
+                            source,
+                            export.span,
+                            re_exported_vindur_fn_error(
+                                function_name,
+                                export.source.value.as_str(),
+                            ),
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn load_re_export_facts(
+        &self,
+        export_source: &StringLiteral<'_>,
+        file_path: &str,
+        source: &str,
+        options: &TransformOptions,
+        loader: &mut impl SourceLoader,
+        traversal: &mut Traversal,
+    ) -> Result<Option<Arc<ModuleFacts>>, CompilerDiagnostic> {
+        let resolved = resolve_import_path(
+            file_path,
+            export_source.value.as_str(),
+            &options.import_aliases,
+            loader,
+        )
+        .map_err(|message| {
+            CompilerDiagnostic::error(file_path, source, export_source.span, message)
+        })?;
+        let Some(resolved) = resolved else {
+            return Ok(None);
+        };
+        self.load_module_facts(&resolved, options, loader, traversal)
     }
 
     fn load_module_facts(

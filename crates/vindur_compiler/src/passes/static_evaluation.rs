@@ -2,8 +2,10 @@ use std::borrow::Cow;
 
 use oxc_ast::ast::{
     Argument, ArrayExpression, BindingPattern, Expression, IdentifierReference, ObjectExpression,
-    ObjectPropertyKind, TemplateLiteral, VariableDeclaration, VariableDeclarationKind,
+    ObjectProperty, ObjectPropertyKind, TemplateLiteral, VariableDeclaration,
+    VariableDeclarationKind,
 };
+use oxc_ast_visit::Visit;
 use oxc_ecmascript::{
     GlobalContext, ToBoolean, ToJsString, ToNumber, WithoutGlobalReferenceInformation,
     constant_evaluation::{ConstantValue, ValueType},
@@ -45,9 +47,45 @@ pub(super) fn collect_declaration_constants(
         if let Some(value) = compile_vindur_function(initializer, imports)
             .or_else(|| evaluate_expression(initializer, constants, scoping))
         {
+            if !matches!(value, StaticValue::Keyframes(_))
+                && references_keyframes(initializer, constants, scoping)
+            {
+                continue;
+            }
             constants.insert(identifier.name.to_string(), value);
         }
     }
+}
+
+/// Keyframes names can't be folded into other constants, e.g. `${spin} 1s`: the folded value
+/// loses the keyframes CSS, so an importer of the constant would not load it
+fn references_keyframes(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    struct KeyframesReferenceVisitor<'c> {
+        constants: &'c FxHashMap<String, StaticValue>,
+        scoping: &'c Scoping,
+        found: bool,
+    }
+
+    impl<'a> Visit<'a> for KeyframesReferenceVisitor<'_> {
+        fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+            self.found |= matches!(
+                resolved_constant(identifier, self.constants, self.scoping),
+                Some(StaticValue::Keyframes(_))
+            );
+        }
+    }
+
+    let mut visitor = KeyframesReferenceVisitor {
+        constants,
+        scoping,
+        found: false,
+    };
+    visitor.visit_expression(expression);
+    visitor.found
 }
 
 pub(super) fn evaluate_expression(
@@ -207,7 +245,7 @@ fn math_constant(name: &str) -> Option<f64> {
     }
 }
 
-pub(super) fn evaluate_object(
+fn evaluate_object(
     object: &ObjectExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
@@ -217,6 +255,9 @@ pub(super) fn evaluate_object(
         let ObjectPropertyKind::ObjectProperty(property) = property else {
             return None;
         };
+        if is_prototype_setter(property) {
+            return None;
+        }
         let name = property.key.static_name()?.into_owned();
         let value = evaluate_expression(&property.value, constants, scoping)?;
         properties.insert(name, value);
@@ -224,7 +265,17 @@ pub(super) fn evaluate_object(
     Some(StaticValue::Object(properties))
 }
 
-pub(super) fn evaluate_array(
+/// `{ __proto__: value }` sets the prototype instead of defining a property
+pub(super) fn is_prototype_setter(property: &ObjectProperty<'_>) -> bool {
+    !property.computed
+        && !property.shorthand
+        && property
+            .key
+            .static_name()
+            .is_some_and(|name| name == "__proto__")
+}
+
+fn evaluate_array(
     array: &ArrayExpression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,

@@ -7,7 +7,7 @@ describe('function evaluation - basic functionality', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const pixelSize = vindurFn((size: number) => '\${size}px')
+      export const pixelSize = vindurFn((size: number) => \`\${size}px\`)
     `;
 
     const result = await transformWithFormat({
@@ -213,9 +213,9 @@ describe('function evaluation - basic functionality', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const px = vindurFn((size: number) => '\${size}px')
-      export const percent = vindurFn((value: number) => '\${value}%')
-      export const color = vindurFn((name: string) => '\${name}')
+      export const px = vindurFn((size: number) => \`\${size}px\`)
+      export const percent = vindurFn((value: number) => \`\${value}%\`)
+      export const color = vindurFn((name: string) => \`\${name}\`)
     `;
 
     const result = await transformWithFormat({
@@ -250,7 +250,7 @@ describe('function evaluation - basic functionality', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const shadow = vindurFn((x: number, y: number, blur: number, color: string) => '\${x}px \${y}px \${blur}px \${color}')
+      export const shadow = vindurFn((x: number, y: number, blur: number, color: string) => \`\${x}px \${y}px \${blur}px \${color}\`)
     `;
 
     const result = await transformWithFormat({

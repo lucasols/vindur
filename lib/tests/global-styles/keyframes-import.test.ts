@@ -430,6 +430,41 @@ describe('keyframes cross-file imports', () => {
     );
   });
 
+  test('should error on imported constants built from keyframes', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { animation } from '#/derived'
+          import { styled } from 'vindur'
+
+          const Component = styled.div\`
+            animation: \${animation};
+          \`
+        `,
+        overrideDefaultFs: createFsMock({
+          'animations.ts': dedent`
+            import { keyframes } from 'vindur'
+
+            export const fadeIn = keyframes\`
+              from { opacity: 0; }
+              to { opacity: 1; }
+            \`
+          `,
+          'derived.ts': dedent`
+            import { fadeIn } from '#/animations'
+
+            export const animation = \`\${fadeIn} 1s ease\`
+          `,
+        }),
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: "animation" imported from /derived.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+      loc: 5:15]
+    `,
+    );
+  });
+
   test('should recompile when the keyframes source file changes', () => {
     const files = {
       '/animations.ts': dedent`

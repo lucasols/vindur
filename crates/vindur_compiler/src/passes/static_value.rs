@@ -11,9 +11,8 @@ use super::dynamic_color_value::{container_selector_error, invalid_color_method_
 use super::function_evaluation::{evaluate_argument, function_evaluation_error};
 use super::import_errors::unresolved_import_error;
 use super::interpolation_validation::{
-    interpolated_scoped_variable_error, invalid_array_argument_error,
-    invalid_function_argument_error, invalid_layer_error, joined_scoped_name_error,
-    open_token_end_error,
+    interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
+    joined_scoped_name_error, open_token_end_error, vindur_function_call_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
@@ -258,7 +257,7 @@ fn build_template_css(
             if let Some(diagnostic) =
                 invalid_array_argument_error(expression, constants, scoping, file_path, source)
                     .or_else(|| {
-                        invalid_function_argument_error(
+                        vindur_function_call_error(
                             expression, constants, scoping, file_path, source,
                         )
                     })

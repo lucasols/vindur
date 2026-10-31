@@ -84,6 +84,7 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             return;
         }
 
+        // Styled components and global styles are only compiled in module level declarations
         if is_styled_tag(&tagged.tag, self.output.imports) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.output.file_path,

@@ -7,6 +7,8 @@ import {
 } from 'react';
 import type { DynamicColorSet } from './runtime-colors';
 
+// Lets bundlers drop unused vindurFn exports, which are only kept for a clear runtime error
+/* @__NO_SIDE_EFFECTS__ */
 export function vindurFn<TArgs extends unknown[], TReturn extends string>(
   fn: (...args: TArgs) => TReturn,
 ): (...args: TArgs) => TReturn {

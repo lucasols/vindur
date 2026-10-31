@@ -20,12 +20,23 @@ pub(super) fn find_attribute<'a>(
     element: &'a JSXElement<'a>,
     name: &str,
 ) -> Option<&'a JSXAttribute<'a>> {
-    element.opening_element.attributes.iter().find_map(|item| {
-        let JSXAttributeItem::Attribute(attribute) = item else {
-            return None;
-        };
-        (attribute_name(attribute) == Some(name)).then_some(&**attribute)
-    })
+    find_attributes(element, name).next()
+}
+
+pub(super) fn find_attributes<'a>(
+    element: &'a JSXElement<'a>,
+    name: &str,
+) -> impl Iterator<Item = &'a JSXAttribute<'a>> {
+    element
+        .opening_element
+        .attributes
+        .iter()
+        .filter_map(move |item| {
+            let JSXAttributeItem::Attribute(attribute) = item else {
+                return None;
+            };
+            (attribute_name(attribute) == Some(name)).then_some(&**attribute)
+        })
 }
 
 pub(super) fn find_last_attribute<'a>(

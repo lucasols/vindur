@@ -53,6 +53,39 @@ fn invalidates_changed_dependency_facts_for_hmr() {
 }
 
 #[test]
+fn invalidates_modules_that_use_a_changed_file_indirectly() {
+    let compiler = Compiler::new();
+    let mut loader = MemoryLoader {
+        files: HashMap::from_iter([
+            (
+                "/constants.ts".to_owned(),
+                "export const UNIT = 4;".to_owned(),
+            ),
+            (
+                "/derived.ts".to_owned(),
+                "import { UNIT } from '#/constants'; export const GAP = UNIT * 2;".to_owned(),
+            ),
+        ]),
+    };
+    let source = "import { css } from 'vindur'; import { GAP } from '#/derived'; const style = css`gap: ${GAP}px;`;";
+
+    let first = compiler.transform_with_loader("/app.ts", source, &options(), &mut loader);
+    assert!(first.css.contains("gap: 8px;"));
+    assert_eq!(
+        first.style_dependencies,
+        vec!["/derived.ts".to_owned(), "/constants.ts".to_owned()]
+    );
+
+    loader.files.insert(
+        "/constants.ts".to_owned(),
+        "export const UNIT = 8;".to_owned(),
+    );
+    compiler.invalidate("/constants.ts");
+    let second = compiler.transform_with_loader("/app.ts", source, &options(), &mut loader);
+    assert!(second.css.contains("gap: 16px;"));
+}
+
+#[test]
 fn preserves_legacy_unexported_theme_color_extraction() {
     let compiler = Compiler::new();
     let mut loader = MemoryLoader {

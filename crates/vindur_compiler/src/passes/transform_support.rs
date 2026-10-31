@@ -231,14 +231,11 @@ pub(super) fn process_variable_declaration(
             let base_call = styled_definition.base_call;
             let own_attrs = styled_definition.attrs;
             let own_style_flags = styled_definition.style_flags;
-            if declaration.declarations.len() != 1 {
-                return Err(CompilerDiagnostic::error(
-                    transform.file_path,
-                    transform.source,
-                    declaration.span,
-                    "Styled components must use their own variable declaration".to_owned(),
-                ));
-            }
+            own_declaration(
+                declaration,
+                transform,
+                "Styled components must use their own variable declaration",
+            )?;
             if base_call.is_some() {
                 reserved_name_error(
                     transform.program,
@@ -572,14 +569,11 @@ pub(super) fn process_variable_declaration(
             }
             require_const(declaration, transform.file_path, transform.source)?;
             // The whole declaration is removed with it
-            if declaration.declarations.len() != 1 {
-                return Err(CompilerDiagnostic::error(
-                    transform.file_path,
-                    transform.source,
-                    declaration.span,
-                    "createGlobalStyle must use its own variable declaration".to_owned(),
-                ));
-            }
+            own_declaration(
+                declaration,
+                transform,
+                "createGlobalStyle must use its own variable declaration",
+            )?;
             if identifier.symbol_id.get().is_some_and(|symbol_id| {
                 !transform
                     .scoping
@@ -750,6 +744,11 @@ fn validate_vindur_function_declaration(
         };
         return error(span, validation.message);
     }
+    own_declaration(
+        declaration,
+        transform,
+        "vindurFn functions must use their own variable declaration",
+    )?;
     if !transform.is_exported {
         return error(
             identifier.span,
@@ -842,4 +841,22 @@ pub(super) fn imported_tag_name<'a>(
     imports: &'a VindurImports<'_>,
 ) -> Option<&'a str> {
     imports.get_expression(tag)
+}
+
+/// Declarations that are removed or exported as a whole can't share their declaration with
+/// other variables, `is_exported` is also only known for the first declarator
+pub(super) fn own_declaration(
+    declaration: &VariableDeclaration<'_>,
+    transform: &VariableTransform<'_>,
+    message: &str,
+) -> Result<(), CompilerDiagnostic> {
+    if declaration.declarations.len() == 1 {
+        return Ok(());
+    }
+    Err(CompilerDiagnostic::error(
+        transform.file_path,
+        transform.source,
+        declaration.span,
+        message.to_owned(),
+    ))
 }

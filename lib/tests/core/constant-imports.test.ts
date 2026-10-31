@@ -313,3 +313,213 @@ describe('constant imports', () => {
     `);
   });
 });
+
+test('should error on imported values that cannot be evaluated', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { gap } from '#/constants'
+
+        const style = css\`
+          gap: \${gap};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'constants.ts': dedent`
+          const rem = (value: number) => \`\${value}rem\`
+
+          export const gap = rem(4)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "gap" imported from /constants.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 5:9]
+  `);
+});
+
+test('should error on imported values that cannot be evaluated in vindurFn arguments', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { margin } from '#/functions'
+        import { gap } from '#/constants'
+
+        const style = css\`
+          \${margin(gap)};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'constants.ts': dedent`
+          export let gap = '4px'
+        `,
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const margin = vindurFn((value: string) => \`margin: \${value};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "gap" imported from /constants.ts is not a static value, only strings, numbers and other statically analyzable values can be interpolated
+    loc: 6:4]
+  `);
+});
+
+test('should error on vindurFn arguments that cannot be evaluated', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { margin } from '#/functions'
+        import { gap } from '#/constants'
+
+        const style = css\`
+          \${margin({ value: gap })};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'constants.ts': dedent`
+          const rem = (value: number) => \`\${value}rem\`
+
+          export const gap = rem(4)
+        `,
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const margin = vindurFn(({ value }: { value: string }) => \`margin: \${value};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 6:11]
+  `);
+});
+
+test('should error on interpolating an uncalled vindurFn', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { margin } from '#/functions'
+
+        const style = css\`
+          margin: \${margin};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'functions.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const margin = vindurFn((value: string) => \`margin: \${value};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${margin}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations or styled components are supported
+    loc: 5:12
+    ignoreInLint: true]
+  `);
+});
+
+test('should evaluate module constants computed from imported values', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { SIZE } from '#/constants'
+      import { padding } from '#/functions'
+
+      const DOUBLE = SIZE * 2
+
+      const style = css\`
+        width: \${DOUBLE}px;
+        \${padding(DOUBLE)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'constants.ts': dedent`
+        export const SIZE = 4
+      `,
+      'functions.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const padding = vindurFn((value: number) => \`padding: \${value}px;\`)
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { SIZE } from "#/constants";
+    const DOUBLE = SIZE * 2;
+    const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      width: 8px;
+      padding: 8px;
+    }
+    "
+  `);
+});
+
+test('should resolve imported constants by their exported name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { PRIMARY } from '#/colors'
+
+      const style = css\`
+        color: \${PRIMARY};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'colors.ts': dedent`
+        const COLOR = 'red'
+
+        export { COLOR as PRIMARY }
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      color: red;
+    }
+    "
+  `);
+});
+
+test('should not resolve named imports of a default exported constant', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { COLOR } from '#/colors'
+
+        const style = css\`
+          color: \${COLOR};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'colors.ts': dedent`
+          const COLOR = 'red'
+
+          export default COLOR
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "COLOR" not found in /colors.ts, export it by name, like \`export const COLOR = ...\` or \`export { COLOR }\`
+    loc: 5:11]
+  `);
+});

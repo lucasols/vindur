@@ -7,7 +7,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const pixelSize = vindurFn((size: number) => 'width: \${size}px;')
+      export const pixelSize = vindurFn((size: number) => \`width: \${size}px;\`)
     `;
 
     const result = await transformWithFormat({
@@ -81,7 +81,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const colorize = vindurFn((color: string) => 'color: \${color};')
+      export const colorize = vindurFn((color: string) => \`color: \${color};\`)
     `;
 
     const result = await transformWithFormat({
@@ -155,7 +155,7 @@ describe('variable references in function calls', () => {
     const fnFile = dedent`
       import { vindurFn } from 'vindur'
 
-      export const content = vindurFn((text: string) => 'content: "\${text}";')
+      export const content = vindurFn((text: string) => \`content: "\${text}";\`)
     `;
 
     const result = await transformWithFormat({
@@ -380,7 +380,6 @@ test('should throw for values without CSS text written by functions', async () =
       import { vindurFn } from 'vindur'
 
       export const color = vindurFn((value?: string) => \`color: \${value};\`)
-      export const quoted = vindurFn((value?: string) => 'color: \${value};')
       export const joined = vindurFn((on: boolean) => [on ? 'a' : on, 'b'].join(' '))
     `,
   });
@@ -393,23 +392,6 @@ test('should throw for values without CSS text written by functions', async () =
 
         export const style = css\`
           \${color()};
-        \`
-      `,
-      overrideDefaultFs: mixinsFs,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn interpolates 'value', which has no CSS text, undefined, booleans and objects can't be written in styles
-    loc: 5:4]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { css } from 'vindur'
-        import { quoted } from '#/mixins'
-
-        export const style = css\`
-          \${quoted()};
         \`
       `,
       overrideDefaultFs: mixinsFs,

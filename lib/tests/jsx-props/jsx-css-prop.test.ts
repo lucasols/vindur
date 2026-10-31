@@ -721,4 +721,19 @@ describe('JSX css prop', () => {
     `,
     );
   });
+
+  test('should throw error for duplicate css props', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          const App = () => <div css={\`color: red;\`} css={\`color: blue;\`} />
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(
+      `
+      [TransformError: /test.tsx: Duplicate css prop, an element can only have one css prop
+      loc: 1:43]
+    `,
+    );
+  });
 });

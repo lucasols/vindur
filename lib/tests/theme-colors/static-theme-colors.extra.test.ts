@@ -192,6 +192,90 @@ describe('createStaticThemeColors', () => {
       }
     });
   });
+
+  describe('color methods', () => {
+    test('should error on a theme color interpolated without .var', async () => {
+      await expect(
+        transformWithFormat({
+          source: dedent`
+            import { createStaticThemeColors, css } from 'vindur';
+
+            const colors = createStaticThemeColors({ primary: '#ff0000' });
+
+            const style = css\`
+              color: \${colors.primary};
+            \`;
+          `,
+        }),
+      ).rejects.toThrowErrorMatchingInlineSnapshot(`
+        [TransformError: /test.tsx: Invalid interpolation used at \`... style = css\` ... \${colors.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+        loc: 6:11]
+      `);
+    });
+
+    test('should use a constant amount in a theme color method', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { createStaticThemeColors, css } from 'vindur';
+
+          const HALF = 0.5;
+
+          const colors = createStaticThemeColors({ primary: '#ff0000' });
+
+          const style = css\`
+            color: \${colors.primary.alpha(HALF)};
+          \`;
+        `,
+      });
+
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-style {
+          color: var(--stc-primary-alpha-0\\.5, #ff000080);
+        }
+        "
+      `);
+    });
+
+    test('should error on a theme color method without a static amount', async () => {
+      await expect(
+        transformWithFormat({
+          source: dedent`
+            import { createStaticThemeColors, css } from 'vindur';
+
+            const colors = createStaticThemeColors({ primary: '#ff0000' });
+
+            const style = css\`
+              color: \${colors.primary.alpha()};
+            \`;
+          `,
+        }),
+      ).rejects.toThrowErrorMatchingInlineSnapshot(`
+        [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${colors.primary.alpha()}, function must be statically analyzable and correctly imported with the configured aliases
+        loc: 6:11]
+      `);
+    });
+
+    test('should apply the alpha option of contrast.optimal', async () => {
+      const result = await transformWithFormat({
+        source: dedent`
+          import { createStaticThemeColors, css } from 'vindur';
+
+          const colors = createStaticThemeColors({ primary: '#007bff' });
+
+          const style = css\`
+            color: \${colors.primary.contrast.optimal({ alpha: 0.5 })};
+          \`;
+        `,
+      });
+
+      expect(result.css).toMatchInlineSnapshot(`
+        ".v1560qbr-1-style {
+          color: var(--stc-primary-contrast-optimal-0\\.5, #ffffff80);
+        }
+        "
+      `);
+    });
+  });
 });
 
 test('should evaluate constant amounts of static theme color methods', async () => {

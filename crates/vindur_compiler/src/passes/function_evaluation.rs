@@ -1,4 +1,4 @@
-use oxc_ast::ast::Argument;
+use oxc_ast::ast::{Argument, Expression};
 use oxc_semantic::Scoping;
 use oxc_syntax::operator::BinaryOperator;
 use rustc_hash::FxHashMap;
@@ -8,8 +8,8 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_array, evaluate_binary, evaluate_expression, evaluate_identifier, evaluate_object,
-    has_css_text, resolved_constant, static_value_to_boolean, static_value_to_string,
+    evaluate_binary, evaluate_expression, has_css_text, resolved_constant, static_value_to_boolean,
+    static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -82,10 +82,12 @@ fn find_evaluation_error(
                     return None;
                 };
                 let separator = evaluate_function_expression(separator, bindings)?;
+                // Like in JS, undefined elements are joined as empty strings and an undefined
+                // separator joins with commas
                 values
                     .iter()
-                    .filter(|value| !matches!(value, StaticValue::Undefined))
                     .chain([&separator])
+                    .filter(|value| !matches!(value, StaticValue::Undefined))
                     .any(|value| !has_css_text(value))
                     .then(|| no_css_text_error("a joined array element"))
             }),
@@ -115,14 +117,10 @@ fn find_evaluation_error(
                     .then(|| no_css_text_error(&format!("'{}'", expression_label(value))))
             })
         }),
-        FunctionExpression::String { value } => {
-            interpolated_bindings(value, bindings).find_map(|(name, binding)| {
-                (!has_css_text(binding)).then(|| no_css_text_error(&format!("'{name}'")))
-            })
-        }
         FunctionExpression::Boolean { .. }
         | FunctionExpression::Number { .. }
         | FunctionExpression::Parameter { .. }
+        | FunctionExpression::String { .. }
         | FunctionExpression::Undefined => None,
     }
 }
@@ -163,8 +161,23 @@ fn binary_expression_error(
     {
         return Some("division by zero".to_owned());
     }
+    let is_string_concatenation = matches!(operator, FunctionOperator::Addition)
+        && (matches!(left_value, StaticValue::String(_))
+            || matches!(right_value, StaticValue::String(_)));
     if apply_operator(left_value, operator, right_value).is_none() {
-        return Some("operands must be numbers".to_owned());
+        return Some(
+            if matches!(
+                operator,
+                FunctionOperator::StrictEquality | FunctionOperator::StrictInequality
+            ) {
+                "only strings, numbers, booleans and undefined can be compared"
+            } else if is_string_concatenation {
+                "strings can only be concatenated with other strings, use a template literal instead, e.g. `${size}px`"
+            } else {
+                "operands must be numbers"
+            }
+            .to_owned(),
+        );
     }
     None
 }
@@ -173,16 +186,6 @@ fn no_css_text_error(label: &str) -> String {
     format!(
         "vindurFn interpolates {label}, which has no CSS text, undefined, booleans and objects can't be written in styles"
     )
-}
-
-/// The parameters a quoted string substitutes, like `size` in `'${size}px'`
-fn interpolated_bindings<'b>(
-    value: &'b str,
-    bindings: &'b FxHashMap<String, StaticValue>,
-) -> impl Iterator<Item = (&'b String, &'b StaticValue)> {
-    bindings
-        .iter()
-        .filter(move |(name, _)| value.contains(&format!("${{{name}}}")))
 }
 
 fn expression_label(expression: &FunctionExpression) -> &str {
@@ -261,16 +264,7 @@ fn evaluate_function_expression(
                 .collect::<Option<FxHashMap<_, _>>>()?,
         )),
         FunctionExpression::Parameter { name } => bindings.get(name).cloned(),
-        FunctionExpression::String { value } => {
-            let mut output = value.clone();
-            for (name, binding) in interpolated_bindings(value, bindings) {
-                if !has_css_text(binding) {
-                    return None;
-                }
-                output = output.replace(&format!("${{{name}}}"), &static_value_to_string(binding));
-            }
-            Some(StaticValue::String(output))
-        }
+        FunctionExpression::String { value } => Some(StaticValue::String(value.clone())),
         FunctionExpression::Undefined => Some(StaticValue::Undefined),
         FunctionExpression::Binary {
             left,
@@ -300,10 +294,12 @@ fn evaluate_function_expression(
             let StaticValue::Array(values) = evaluate_function_expression(array, bindings)? else {
                 return None;
             };
-            let separator = evaluate_function_expression(separator, bindings)?;
-            if !has_css_text(&separator) {
-                return None;
-            }
+            // Like in JS, an undefined separator joins with commas
+            let separator = match evaluate_function_expression(separator, bindings)? {
+                StaticValue::Undefined => ",".to_owned(),
+                separator if has_css_text(&separator) => static_value_to_string(&separator),
+                _ => return None,
+            };
             Some(StaticValue::String(
                 values
                     .iter()
@@ -313,7 +309,7 @@ fn evaluate_function_expression(
                         value => has_css_text(value).then(|| static_value_to_string(value)),
                     })
                     .collect::<Option<Vec<_>>>()?
-                    .join(&static_value_to_string(&separator)),
+                    .join(&separator),
             ))
         }
         FunctionExpression::Map {
@@ -364,8 +360,6 @@ fn apply_operator(
         FunctionOperator::Subtraction => BinaryOperator::Subtraction,
         FunctionOperator::Multiplication => BinaryOperator::Multiplication,
         FunctionOperator::Division => BinaryOperator::Division,
-        FunctionOperator::Equality => BinaryOperator::Equality,
-        FunctionOperator::Inequality => BinaryOperator::Inequality,
         FunctionOperator::StrictEquality => BinaryOperator::StrictEquality,
         FunctionOperator::StrictInequality => BinaryOperator::StrictInequality,
         FunctionOperator::LessThan => return compare_numbers(left, right, |l, r| l < r),
@@ -390,14 +384,16 @@ fn compare_numbers(
 }
 
 /// Colors and functions are only known by their CSS reads, a function would write placeholders like
-/// `[dynamic color]` for them
+/// `[dynamic color]` for them. A css style is a selector or its styles depending on where it's
+/// interpolated, only vindur templates can tell which
 fn is_function_argument_value(value: &StaticValue) -> bool {
     match value {
         StaticValue::ImportedValue { value, .. } => is_function_argument_value(value),
         StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
             properties.values().all(is_function_argument_value)
         }
-        StaticValue::DynamicColor { .. }
+        StaticValue::CssClass { .. }
+        | StaticValue::DynamicColor { .. }
         | StaticValue::DynamicColorPath { .. }
         | StaticValue::Function(_)
         | StaticValue::ImportedFunction(_)
@@ -425,42 +421,30 @@ pub(super) fn evaluate_argument(
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<StaticValue> {
-    match argument {
-        Argument::BooleanLiteral(literal) => Some(StaticValue::Boolean(literal.value)),
-        Argument::StringLiteral(literal) => Some(StaticValue::String(literal.value.to_string())),
-        Argument::NumericLiteral(literal) => Some(StaticValue::Number(literal.value)),
-        Argument::Identifier(identifier) if identifier.name.as_str() == "undefined" => {
-            Some(StaticValue::Undefined)
-        }
-        Argument::Identifier(identifier) => {
-            match resolved_constant(identifier, constants, scoping)? {
-                StaticValue::ImportedObject { properties, .. } => {
-                    Some(StaticValue::Object(properties.clone()))
-                }
-                _ => evaluate_identifier(identifier, constants, scoping),
-            }
-            .filter(is_function_argument_value)
-        }
-        Argument::ArrayExpression(array) => evaluate_array(array, constants, scoping),
-        Argument::ObjectExpression(object) => {
-            evaluate_object(object, constants, scoping).filter(is_function_argument_value)
-        }
-        Argument::BinaryExpression(binary) => evaluate_binary(
+    // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
+    // `SIZE as number`
+    let expression = argument.as_expression()?.get_inner_expression();
+    // Imported objects are passed by value so they can be destructured
+    if let Expression::Identifier(identifier) = expression
+        && let Some(StaticValue::ImportedObject { properties, .. }) =
+            resolved_constant(identifier, constants, scoping)
+    {
+        let value = StaticValue::Object(properties.clone());
+        return is_function_argument_value(&value).then_some(value);
+    }
+    if let Expression::BinaryExpression(binary) = expression {
+        return evaluate_binary(
             evaluate_expression(&binary.left, constants, scoping)?,
             binary.operator,
             evaluate_expression(&binary.right, constants, scoping)?,
-        ),
-        // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
-        // `SIZE as number`. Properties of constant objects, like `iconColor.var` or
-        // `theme.spacing.md`, must be primitives
-        argument => {
-            let expression = argument.as_expression()?.get_inner_expression();
-            let value = evaluate_expression(expression, constants, scoping)?;
-            if expression.is_member_expression() {
-                is_primitive(&value).then_some(value)
-            } else {
-                is_function_argument_value(&value).then_some(value)
-            }
-        }
+        );
+    }
+    let value = evaluate_expression(expression, constants, scoping)?;
+    // Properties of constant objects, like `iconColor.var` or `theme.spacing.md`, must be
+    // primitives
+    if expression.is_member_expression() {
+        is_primitive(&value).then_some(value)
+    } else {
+        is_function_argument_value(&value).then_some(value)
     }
 }

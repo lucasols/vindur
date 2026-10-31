@@ -143,6 +143,8 @@ export default function App() {
 }
 ```
 
+Import vindur functions by name, e.g. `import { css, styled } from 'vindur'`. Aliased (`import { css as c }`), namespace (`import * as v`) and default imports from `vindur` are compile errors.
+
 ## Core Features
 
 ### CSS Function
@@ -202,6 +204,8 @@ Styled components used as JSX elements compile to the plain element with its cla
 ```
 
 Styled components are matched in JSX by name, so a local binding can't reuse a styled component's name (e.g. a `Card` parameter in a file that declares a styled `Card`).
+
+Styled components must be declared in module level variables. `export default styled.tag`...`` is also supported, other default exported forms (`styled(Component)`, `.attrs()` or type arguments) must be declared as a variable first.
 
 ### Variable Interpolation
 
@@ -799,7 +803,7 @@ const Component = () => {
 };
 ```
 
-Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, also with a type cast like `{{ ... } as CSSProperties}`, keys in a conditional, a nested object or `.attrs()`, computed keys like `` [`---${name}`] `` and reads in values like `'var(---color)'` are a compile error, and keys of a separate object constant are not renamed.
+Scoped variables only exist in the file whose styles use them, a `style` prop key of a variable no style of the file uses is a compile error. They must be keys of an inline `style={{ ... }}` object, also with a type cast like `{{ ... } as CSSProperties}`, keys in a conditional, a nested object or `.attrs()`, computed keys like ``[`---${name}`]`` and reads in values like `'var(---color)'` are a compile error, and keys of a separate object constant are not renamed.
 
 ### Stable IDs
 
@@ -987,7 +991,7 @@ createGlobalStyle`
 
 `@charset`, `@import` and `@namespace` must come first, before every other rule of the template and before every other style of the file, also in order across the global styles of the file, since browsers drop them after other rules.
 
-`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration, and can't be exported or referenced. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
+`createGlobalStyle` must be used at the top level of the module, as a statement or in its own `const` declaration. It has no runtime value, so it can't be exported or referenced, e.g. as `<GlobalStyle />`. A `;` after a rule is a compile error, since browsers read it as part of the next selector.
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
@@ -1030,7 +1034,9 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants, string or number properties of constant objects and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions and runtime values can't be passed. A function can't write `undefined`, a boolean or an object into its result, e.g. an optional parameter interpolated without a default value, as they have no CSS text.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur style templates (`css`, `styled`, `keyframes`, `createGlobalStyle` and `css` prop template literals, e.g. ``css={`${spacing(16)}`}``). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants, string or number properties of constant objects and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions and runtime values can't be passed. A function can't write `undefined`, a boolean or an object into its result, e.g. an optional parameter interpolated without a default value, as they have no CSS text.
+
+`vindurFn` functions must be declared in a module level variable, e.g. `export const name = vindurFn(...)`, and imported by name from the module that declares them. Default exports, renamed exports (`export { fn as other }`), re-exports from another module (`export { fn }` of an imported `vindurFn`, `export { fn } from` and `export * from`) and namespace imports (`import * as styles`) of modules that export them are compile errors.
 
 Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension, and the components extending or rendering it, can't have style flags, call `withComponent` or select classes of its element, like `&.active` or `${Ext}.active`, import `Card` from the module that declares it instead.
 
@@ -1140,9 +1146,9 @@ const App = ({ isActive, isDisabled }) => (
 const Compiled = ({ isActive, isDisabled }) => (
   <div
     className={
-      'vhash_1 noHash' +
-      (isActive ? ' vhash_2' : '') +
-      (isDisabled ? ' vhash_3' : '')
+      'vhash_1 noHash'
+      + (isActive ? ' vhash_2' : '')
+      + (isDisabled ? ' vhash_3' : '')
     }
   >
     Content with conditional classes
@@ -1349,7 +1355,7 @@ Flags are read from the props written on the element and are never passed to it,
 
 Like `cx` classes, flag classes are only hashed where they apply to the element itself: `&.active`, `.parent &.active`, `:is(&.active)`, `:scope.active` in `@scope (&)` and inside `:not()`, `:is()`, `:where()` or `:nth-child(… of …)` of the element, e.g. `&:not(.active)`. Classes of other elements, like `& .active`, `.active &` or `&:has(.active)`, are kept as written, with a warning when they have the name of a flag. A flag class in a rule that matches both the element and other elements, like `&:hover, & .child { &.active { ... } }`, is a compile error, split it into separate rules.
 
-Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. The `css` prop of a component with flags can't select them, like `` <Box css={`&.active { ... }`} /> `` or a `css` constant that does, style them in the styles of the component.
+Flags of another styled component, defined in the same file or imported, are hashed in the same way where they apply to it through a reference, e.g. `${Item}.active &`, `${Item}:not(.active) &`, `${Item} { &.active { ... } }` or `:scope.active` in `@scope (${Item})`. A flag class in a rule that matches both the component and other elements, like `${Item}, .x { &.active { ... } }`, is a compile error. The `css` prop of a component with flags can't select them, like ``<Box css={`&.active { ... }`} />`` or a `css` constant that does, style them in the styles of the component.
 
 ## Theme Colors
 

@@ -10,7 +10,7 @@ use crate::{
 use super::import_errors::unknown_import_message;
 use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent, local_base_diagnostic};
-use super::transform_support::{VariableTransform, require_const};
+use super::transform_support::{VariableTransform, own_declaration, require_const};
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
@@ -75,6 +75,11 @@ pub(super) fn process_with_component(
         ));
     }
     require_const(declaration, transform.file_path, transform.source)?;
+    own_declaration(
+        declaration,
+        transform,
+        "withComponent() must use its own variable declaration",
+    )?;
     if let [Argument::Identifier(element)] = call.arguments.as_slice()
         && !transform
             .styled_components
@@ -94,14 +99,6 @@ pub(super) fn process_with_component(
         [argument] => (String::new(), false, argument.span()),
         _ => (String::new(), false, call.span),
     };
-    if declaration.declarations.len() != 1 {
-        return Err(CompilerDiagnostic::error(
-            transform.file_path,
-            transform.source,
-            declaration.span,
-            "withComponent() must use its own variable declaration".to_owned(),
-        ));
-    }
     if element.is_empty() {
         return Err(CompilerDiagnostic::error(
             transform.file_path,

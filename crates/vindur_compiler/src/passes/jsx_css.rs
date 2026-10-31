@@ -16,7 +16,8 @@ use super::{
     cx_modifier_selectors::{ModifierCss, rewrite_modifiers},
     id_order::ends_with_scoped_prefix,
     jsx_attributes::{
-        find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
+        find_attribute, find_attributes, find_last_attribute, jsx_name,
+        opening_attribute_insertion_offset,
     },
     jsx_class_name::{
         ClassNameMerge, ClassNameSources, class_name_merge, emit_class_concat,
@@ -97,6 +98,16 @@ impl<'a> Visit<'a> for JsxCssVisitor<'_> {
         }
         match self.pass {
             JsxCssPass::CssProps => {
+                // Only one css prop is compiled, a duplicate would be left as is
+                if let Some(duplicate) = find_attributes(element, "css").nth(1) {
+                    self.diagnostic = Some(CompilerDiagnostic::error(
+                        self.output.file_path,
+                        self.output.source,
+                        duplicate.span,
+                        "Duplicate css prop, an element can only have one css prop".to_owned(),
+                    ));
+                    return;
+                }
                 if let Some(css_attribute) = find_attribute(element, "css") {
                     self.process_css_attribute(element, css_attribute);
                 }
