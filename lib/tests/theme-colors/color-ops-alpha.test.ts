@@ -117,3 +117,25 @@ test('should validate the alpha of color methods', async () => {
     loc: 7:11]
   `);
 });
+
+test('should reject an alpha argument on other color methods', async () => {
+  await expect(
+    transformWithFormat({
+      source: colorsSource(
+        'color: ${color.contrast.optimal({ alpha: 0.5 }, 2)};',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${color.contrast.optimal({ alpha: 0.5 }, 2)}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: 7:11]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: colorsSource('color: ${color.alpha(0.5, 2)};'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Unresolved function call at \`... style = css\` ... \${color.alpha(0.5, 2)}, function must be statically analyzable and correctly imported with the configured aliases
+    loc: 7:11]
+  `);
+});

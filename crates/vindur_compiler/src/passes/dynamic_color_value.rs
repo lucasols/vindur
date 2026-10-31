@@ -5,7 +5,10 @@ use rustc_hash::FxHashMap;
 
 use crate::{CompilerDiagnostic, facts::StaticValue};
 
-use super::{static_evaluation::evaluate_expression, styled::strip_css_comments};
+use super::{
+    static_evaluation::{color_method_arguments, evaluate_expression},
+    styled::strip_css_comments,
+};
 
 // `var` is the deprecated name of `value`
 pub(super) fn is_value_property(property: &str) -> bool {
@@ -228,30 +231,10 @@ pub(super) fn invalid_color_method_error(
     ) {
         return None;
     }
-    let evaluate = |argument: &oxc_ast::ast::Argument<'_>| {
-        evaluate_expression(argument.as_expression()?, constants, scoping)
-    };
-    let values = match (method, call.arguments.as_slice()) {
-        ("optimal", [options]) => match evaluate(options)? {
-            StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
-                match properties.get("alpha") {
-                    Some(StaticValue::Number(alpha)) => vec![("optimal alpha".to_owned(), *alpha)],
-                    _ => return None,
-                }
-            }
-            _ => return None,
-        },
-        (_, [amount, rest @ ..]) if rest.len() <= 1 => {
-            [("amount", Some(amount)), ("alpha", rest.first())]
-                .into_iter()
-                .filter_map(|(name, argument)| match evaluate(argument?)? {
-                    StaticValue::Number(value) => Some((format!("{method} {name}"), value)),
-                    _ => None,
-                })
-                .collect()
-        }
-        _ => return None,
-    };
+    let arguments = color_method_arguments(method, &call.arguments, constants, scoping)?;
+    let values = [("amount", arguments.amount), ("alpha", arguments.alpha)]
+        .into_iter()
+        .filter_map(|(name, value)| Some((format!("{method} {name}"), value?)));
     let (name, amount) = values
         .into_iter()
         .find(|(_, value)| !(0.0..=1.0).contains(value))?;

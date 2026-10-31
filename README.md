@@ -808,7 +808,7 @@ export const elementClassName = {
 export const genericPurposeId = 'vhash-2';
 ```
 
-`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error. Assigned to a variable, they need a `const` declaration.
+`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error. Module level declarations of them must use `const`.
 
 You can then use it in styled components, css functions and css props:
 
@@ -1451,7 +1451,8 @@ const ChildElement = styled.div`
 `;
 
 // for dom elements and styled components, use the dynamicColor prop to set the color
-// the value is required: `dynamicColor={dynamicColor}` is a compile error
+// `dynamicColor` is a vindur prop on every element and component, its value must be
+// `color.set(...)` or an array of them: `dynamicColor={dynamicColor}` is a compile error
 const MyComponent = ({ color }: { color: string | null }) => {
   return (
     <div dynamicColor={dynamicColor.set(color)}>
@@ -1585,11 +1586,13 @@ const Card = styled.div`
 `;
 ```
 
-Compiles to:
+Compiles to, with the css of `layers.ts` loaded first:
 
 ```css
+/* layers.ts */
 @layer lower-priority, higher-priority;
 
+/* Card */
 @layer higher-priority {
   .vhash123-1-Card {
     background: white;

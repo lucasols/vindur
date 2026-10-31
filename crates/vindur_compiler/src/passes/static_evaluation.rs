@@ -520,7 +520,7 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
 /// The arguments of a color method, e.g. `darker(0.2, 0.5)` or `optimal({ alpha: 0.5 })`.
 /// `None` when an argument can't be evaluated, so the caller fails instead of using 0.
 /// An `undefined` argument or alpha is the same as omitting it
-fn color_method_arguments(
+pub(super) fn color_method_arguments(
     method: &str,
     arguments: &[Argument<'_>],
     constants: &FxHashMap<String, StaticValue>,
