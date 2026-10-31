@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     block_validation::check_global_start_order,
-    class_props::renders_without_class_props,
+    class_props::ClassPropUsages,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
@@ -66,6 +66,8 @@ pub(super) struct VariableTransform<'a> {
     pub has_side_effects: &'a mut bool,
     pub scoped_variables: &'a mut ScopedVariables,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
+    /// Collected on the first styled component that needs them
+    pub class_prop_usages: &'a mut Option<ClassPropUsages>,
 }
 
 pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`";
@@ -368,7 +370,12 @@ pub(super) fn process_variable_declaration(
                 };
                 if !undeclared.is_empty()
                     && !transform.is_exported
-                    && renders_without_class_props(transform.program, transform.scoping, identifier)
+                    && transform
+                        .class_prop_usages
+                        .get_or_insert_with(|| {
+                            ClassPropUsages::collect(transform.program, transform.scoping)
+                        })
+                        .renders_without_class_props(transform.scoping, identifier)
                 {
                     // Dynamic color selectors (`color.self.isDark`) add vindur's own classes
                     let dynamic_color_prefixes = transform

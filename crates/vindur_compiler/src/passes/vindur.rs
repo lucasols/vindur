@@ -139,6 +139,7 @@ pub(crate) fn transform_program(
     let mut cx_key_usages = CxKeyUsages::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
+    let mut class_prop_usages = None;
     let value_references =
         collect_value_referenced_names(program, scoping, &imports, file_path, source)?;
     let value_referenced_names = value_references.names;
@@ -203,6 +204,7 @@ pub(crate) fn transform_program(
                         has_side_effects: &mut has_side_effects,
                         scoped_variables: &mut scoped_variables,
                         warnings: &mut warnings,
+                        class_prop_usages: &mut class_prop_usages,
                     },
                 )?;
             }
@@ -248,6 +250,7 @@ pub(crate) fn transform_program(
                             has_side_effects: &mut has_side_effects,
                             scoped_variables: &mut scoped_variables,
                             warnings: &mut warnings,
+                            class_prop_usages: &mut class_prop_usages,
                         },
                     )?;
                 }

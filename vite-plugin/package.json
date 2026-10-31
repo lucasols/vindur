@@ -28,7 +28,7 @@
     "pre-publish": "pnpm lint && pnpm build"
   },
   "peerDependencies": {
-    "vindur": "*",
+    "vindur": ">=0.14.1",
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "devDependencies": {
