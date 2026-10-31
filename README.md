@@ -26,14 +26,14 @@ In a local Inertia production-build benchmark (three alternating warm runs), the
 
 Vindur works with your existing build tools:
 
-- **Vite** - Built-in plugin support (Vite 5 to 8)
+- **Vite** - Built-in plugin support (Vite 5 to 8). The plugin reports compiler warnings as Vite warnings and emits sourcemaps in dev and when `build.sourcemap` is enabled
 - More build tools coming soon
 
 ## ESLint Plugin
 
 Vindur ships with an ESLint plugin that runs the transform during linting and surfaces issues directly in your editor.
 
-- Purpose: catches transform errors early and reports non-fatal compiler warnings (e.g., missing modifier styles, undeclared classes in plain styled components, potential optimizations).
+- Purpose: catches transform errors early and reports non-fatal compiler warnings (e.g., missing modifier styles, classes a non-exported styled component selects with `&.class` but can never receive, potential optimizations).
 - Output: errors appear as ESLint errors; suggestions/potential issues appear as ESLint warnings.
 
 Quick setup (flat config):

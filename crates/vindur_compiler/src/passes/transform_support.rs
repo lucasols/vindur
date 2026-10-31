@@ -15,6 +15,7 @@ use crate::{
 
 use super::{
     block_validation::check_global_start_order,
+    class_props::renders_without_class_props,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
@@ -341,12 +342,17 @@ pub(super) fn process_variable_declaration(
                             ),
                         )
                     }));
-                let usage_prefix = format!("<{variable_name}");
-                let suppress_undeclared = !base_component.class_name.is_empty()
-                    || (transform.source.contains(&usage_prefix)
-                        && (transform.source.contains("cx=")
-                            || transform.source.contains("className={`")));
-                if !suppress_undeclared {
+                // Only classes nothing can add are reported, a component rendered with a
+                // `className`, `cx` or spread prop, or used in any other way, may receive them
+                let undeclared = if base_component.class_name.is_empty() {
+                    undeclared_style_classes(&element_classes, &flag_class_list)
+                } else {
+                    Vec::new()
+                };
+                if !undeclared.is_empty()
+                    && !transform.is_exported
+                    && renders_without_class_props(transform.program, transform.scoping, identifier)
+                {
                     // Dynamic color selectors (`color.self.isDark`) add vindur's own classes
                     let dynamic_color_prefixes = transform
                         .constants
@@ -357,7 +363,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&element_classes, &flag_class_list)
+                        undeclared
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
