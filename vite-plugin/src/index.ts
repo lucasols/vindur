@@ -25,7 +25,9 @@ const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
-const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=/u;
+// `dynamicColor` only counts with an expression value, the compiler validates it,
+// so a string value of an unrelated custom prop is left alone
+const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=|\bdynamicColor\s*=\s*\{/u;
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
@@ -392,8 +394,11 @@ function resolveVirtualId(id: string): string {
   return `${RESOLVED_VIRTUAL_PREFIX}${id.slice(VIRTUAL_PREFIX.length)}`;
 }
 
+// Imports run in source order, so appending loads the css of imported modules,
+// like the base of a `styled(Base)` extension, first. It also keeps the source
+// map lines aligned
 function injectCssImport(code: string, virtualId: string): string {
-  return `import "${virtualId}";\n${code}`;
+  return `${code}\nimport "${virtualId}";\n`;
 }
 
 function collectSourceAndVirtualModules(

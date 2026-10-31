@@ -10,8 +10,24 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   env = await startEnv('dynamic-colors-tests', {
+    'colors.ts': dedent`
+      import { createDynamicCssColor } from "vindur";
+
+      export const accentColor = createDynamicCssColor();
+    `,
+    // Only uses the dynamicColor prop, without importing vindur
+    'AccentSwatch.tsx': dedent`
+      import type { ReactNode } from "react";
+      import { accentColor } from "#src/colors";
+
+      export function AccentSwatch({ children }: { children: ReactNode }) {
+        return <div dynamicColor={accentColor.set('#123456')}>{children}</div>;
+      }
+    `,
     'App.tsx': dedent`
       import { styled, createDynamicCssColor } from "vindur";
+      import { accentColor } from "#src/colors";
+      import { AccentSwatch } from "#src/AccentSwatch";
 
       const primaryColor = createDynamicCssColor();
       const secondaryColor = createDynamicCssColor();
@@ -41,9 +57,18 @@ test.beforeAll(async ({ browser }) => {
         background: \${primaryColor.value};
       \`;
 
+      const AccentFill = styled.div\`
+        height: 10px;
+        background: \${accentColor.value};
+      \`;
+
       export default function App() {
         return (
           <div>
+            <AccentSwatch>
+              <AccentFill data-testid="accent-fill" />
+            </AccentSwatch>
+
             <Button 
               data-testid="primary-button"
               dynamicColor={primaryColor.set('#ff6b6b')}
@@ -95,4 +120,11 @@ test('should apply dynamic colors to different element types', async () => {
   const primaryCard = page.getByTestId('primary-card');
 
   await expect(primaryCard).toHaveCSS('background-color', 'rgb(149, 225, 211)'); // #95e1d3
+});
+
+test('should transform the dynamicColor prop in files that only import a color', async () => {
+  await expect(page.getByTestId('accent-fill')).toHaveCSS(
+    'background-color',
+    'rgb(18, 52, 86)',
+  ); // #123456
 });

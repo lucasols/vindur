@@ -53,6 +53,60 @@ describe('Dynamic Colors - Multiple Colors', () => {
     `);
   });
 
+  test('should forward set options of each color', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const color1 = createDynamicCssColor()
+        const color2 = createDynamicCssColor()
+
+        const options = { veryLightThreshold: 0.9 }
+
+        const Component = ({ color }) => {
+          return (
+            <div
+              className="box"
+              dynamicColor={[
+                color1.set(color, { veryDarkThreshold: 0.12 }),
+                color2.set('#ff6b6b', options),
+              ]}
+            />
+          );
+        }
+      `,
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { createDynamicCssColor } from "vindur";
+      const color1 = createDynamicCssColor("v1560qbr-1-color1", true);
+      const color2 = createDynamicCssColor("v1560qbr-2-color2", true);
+      const options = {
+        veryLightThreshold: 0.9,
+      };
+      const Component = ({ color }) => {
+        return (
+          <div
+            {...color1._sp(
+              color,
+              color2._sp(
+                "#ff6b6b",
+                {
+                  className: "box",
+                },
+                options,
+              ),
+              {
+                veryDarkThreshold: 0.12,
+              },
+            )}
+          />
+        );
+      };
+      "
+    `);
+  });
+
   test('should handle multiple dynamic colors with cross-color selectors', async () => {
     const source = dedent`
       import { createDynamicCssColor, styled } from 'vindur'
