@@ -31,16 +31,14 @@ test('should merge cx, className and the css prop into dynamicColor', async () =
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const dynamicColor = createDynamicCssColor("v1560qbr-1-dynamicColor", true);
     const App = ({ isActive }: { isActive: boolean }) => (
       <div
         {...dynamicColor._sp("#ff6b6b", {
           className:
-            "base-style v1560qbr-2-Container v1560qbr-3-css-prop-3 " +
-            cx({
-              "v1560qbr-4-active": isActive,
-            }),
+            "base-style v1560qbr-2-Container v1560qbr-3-css-prop-3" +
+            (isActive ? " v1560qbr-4-active" : ""),
         })}
       >
         Content
@@ -111,15 +109,13 @@ test('should keep cx classes of native elements with dynamicColor', async () => 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <>
         <div
           {...color._sp("#f00", {
-            className: cx({
-              x: on,
-            }),
+            className: on ? "x" : "",
             style: {
               width: 1,
             },
@@ -127,12 +123,7 @@ test('should keep cx classes of native elements with dynamicColor', async () => 
         />
         <div
           {...color._sp("#f00", {
-            className:
-              (className || "") +
-              " " +
-              cx({
-                x: on,
-              }),
+            className: (className || "") + (on ? " x" : ""),
           })}
         />
       </>
@@ -199,12 +190,7 @@ test('should keep dynamicColor merges after every spread and css or cx prop', as
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import {
-      createDynamicCssColor,
-      cx,
-      mergeClassNames,
-      mergeStyles,
-    } from "vindur";
+    "import { createDynamicCssColor, mergeClassNames, mergeStyles } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     export const A = ({ on, p }: { on: boolean; p: object }) => (
       <>
@@ -219,12 +205,7 @@ test('should keep dynamicColor merges after every spread and css or cx prop', as
           {...p}
           title="t"
           {...color._sp("#f00", {
-            className: mergeClassNames(
-              ["x", p],
-              cx({
-                on: on,
-              }),
-            ),
+            className: mergeClassNames(["x", p], on ? "on" : ""),
             style: mergeStyles([p]),
           })}
         />

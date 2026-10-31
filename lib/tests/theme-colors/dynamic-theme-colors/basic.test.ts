@@ -182,3 +182,55 @@ describe('Dynamic Colors - Basic Usage', () => {
     );
   });
 });
+
+test('should insert dynamicColor spreads before `/ >`', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const color = createDynamicCssColor()
+
+      const Component = () => <div dynamicColor={color.set('#fff')} / >
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const color = createDynamicCssColor("v1560qbr-1-color", true);
+    const Component = () => <div {...color._sp("#fff")} />;
+    "
+  `);
+});
+
+test('should throw for createDynamicCssColor outside a top level `const` declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        function useColor() {
+          const color = createDynamicCssColor()
+          return color
+        }
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createDynamicCssColor() must be the direct initializer of a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
+    loc: 4:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+
+        const Box = styled.div.attrs({ style: { color: createDynamicCssColor().var } })\`
+          color: red;
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createDynamicCssColor() must be the direct initializer of a top level \`const\` declaration, e.g. \`const accent = createDynamicCssColor()\`
+    loc: 3:47]
+  `);
+});

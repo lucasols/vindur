@@ -442,4 +442,27 @@ describe('CSS layers with layer() function', () => {
       loc: 4:4]
     `);
   });
+
+  test('should not emit an empty rule for a semicolon after a layer', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css, layer } from 'vindur'
+
+        export const style = css\`
+          \${layer('base')} {
+            color: red;
+          };
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      "@layer base {
+        .v1560qbr-1-style {
+          color: red;
+        }
+      }
+      "
+    `);
+  });
 });

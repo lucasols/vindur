@@ -394,25 +394,14 @@ test('should not repeat the class of a runtime styled component in css and cx pr
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { _vSC, cx } from "vindur";
+    "import { _vSC } from "vindur";
     import { MoreMenu } from "#/components";
     const Box = _vSC("div", "v1560qbr-1-Box");
     export const A = ({ active }: { active: boolean }) => (
       <>
         <Box className="v1560qbr-2-css-prop-2" />
-        <Box
-          className={cx({
-            "v1560qbr-3-active": active,
-          })}
-        />
-        <Box
-          className={
-            "extra " +
-            cx({
-              "v1560qbr-3-active": active,
-            })
-          }
-        />
+        <Box className={active ? "v1560qbr-3-active" : ""} />
+        <Box className={"extra" + (active ? " v1560qbr-3-active" : "")} />
         <MoreMenu container={Box} />
       </>
     );

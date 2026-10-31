@@ -10,6 +10,8 @@ import {
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 const FILENAME_REGEX = /^\/[^:]+:\s*/;
+// Matches the vite plugin, a `dynamicColor` prop only counts with an expression value
+const DYNAMIC_COLOR_PROP_REGEX = /\bdynamicColor\s*=\s*\{/u;
 
 function stripFilenameFromMessage(message: string): string {
   // Remove filename prefix like "/path/to/file.tsx: " from the beginning of error messages
@@ -30,6 +32,7 @@ function shouldProcessFile(filename: string, source: string): boolean {
     || source.includes('styled.')
     || source.includes('cx=')
     || source.includes('css=')
+    || DYNAMIC_COLOR_PROP_REGEX.test(source)
   );
 }
 

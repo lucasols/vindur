@@ -40,16 +40,8 @@ test('should alias the cx helper when the file calls a global cx', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx as _vCx } from "vindur";
-    const label = cx("x");
-    export const App = ({ on }) => (
-      <div
-        title={label}
-        className={_vCx({
-          on: on,
-        })}
-      />
-    );
+    "const label = cx("x");
+    export const App = ({ on }) => <div title={label} className={on ? "on" : ""} />;
     "
   `);
 });

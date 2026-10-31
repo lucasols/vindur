@@ -97,6 +97,50 @@ describe('invalid cases - should report transform errors', () => {
   });
 });
 
+describe('dynamicColor prop files', () => {
+  test('should report errors in files that only use the dynamicColor prop', async () => {
+    const { result } = await invalid(
+      dedent`
+        export const Swatch = ({ active }) => (
+          <div dynamicColor={active && accentColor.set('#fff')} />
+        );
+      `,
+    );
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformError'
+        msg: "Conditional dynamicColor is not supported. Use condition inside the set function instead: accentColor.set(active ? '#fff' : null)"
+        loc: '2:22'
+      "
+    `);
+  });
+
+  test('should report a dynamicColor prop without a set call in files without vindur', async () => {
+    const { result } = await invalid(
+      dedent`
+        const accent = accentColor.set('#fff');
+
+        export const Swatch = () => <div dynamicColor={accent} />;
+      `,
+    );
+
+    expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
+      "
+      - messageId: 'transformError'
+        msg: 'dynamicColor prop must be \`color.set(value)\` or \`color.set(value, options)\`, or an array of them, where \`color\` is a dynamic color'
+        loc: '3:48'
+      "
+    `);
+  });
+
+  test('should skip an unrelated dynamicColor prop in files without vindur', async () => {
+    await valid(dedent`
+      export const Swatch = () => <Label dynamicColor="red" />;
+    `);
+  });
+});
+
 describe('basic error handling', () => {
   test('should properly handle module not found errors - ignored in lint (redundant with TypeScript)', async () => {
     await valid(dedent`
@@ -556,7 +600,7 @@ describe('warning system - onWarning callback functionality', () => {
 
         const ComplexButton = styled.button<{
           active: boolean;
-          disabled: boolean;
+          muted: boolean;
           size: 'small' | 'large';
         }>\`
           padding: 8px 16px;
@@ -574,7 +618,7 @@ describe('warning system - onWarning callback functionality', () => {
       expect(getErrorsWithMsgFromResult(result)).toMatchInlineSnapshot(`
         "
         - messageId: 'transformWarning'
-          msg: 'Warning: Missing modifier styles for "&.disabled" in ComplexButton'
+          msg: 'Warning: Missing modifier styles for "&.muted" in ComplexButton'
           loc: '3:7'
         - messageId: 'transformWarning'
           msg: 'Warning: Missing modifier styles for "&.size-large" in ComplexButton'

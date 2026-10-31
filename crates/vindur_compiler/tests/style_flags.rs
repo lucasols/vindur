@@ -60,7 +60,7 @@ const App = ({ deadline, useToday, props }) => <>
 
     assert_eq!(
         output.code,
-        "import { cx, mergeClassNames } from 'vindur';\nconst App = ({ deadline, useToday, props }) => <>\n  <button   className={\"v1560qbr-1-Button\" + ((deadline ? isToday(deadline) : false) ? \" v1560qbr-1-Button-active\" : \"\") + ((useToday ? 'today' : 'time') ? \" v1560qbr-1-Button-variant-\" + (useToday ? 'today' : 'time') : \"\")}>Today</button>\n  <button {...props}   className={cx(mergeClassNames([props], \"v1560qbr-1-Button\"), (deadline ? isToday(deadline) : false) && \"v1560qbr-1-Button-active\", (useToday ? 'today' : 'time') && `v1560qbr-1-Button-variant-${(useToday ? 'today' : 'time')}`)}>Spread</button>\n</>;\n"
+        "import { mergeClassNames } from 'vindur';\nconst App = ({ deadline, useToday, props }) => <>\n  <button   className={\"v1560qbr-1-Button\" + ((deadline ? isToday(deadline) : false) ? \" v1560qbr-1-Button-active\" : \"\") + ((useToday) ? \" v1560qbr-1-Button-variant-today\" : \" v1560qbr-1-Button-variant-time\")}>Today</button>\n  <button {...props}   className={mergeClassNames([props], \"v1560qbr-1-Button\") + ((deadline ? isToday(deadline) : false) ? \" v1560qbr-1-Button-active\" : \"\") + ((useToday) ? \" v1560qbr-1-Button-variant-today\" : \" v1560qbr-1-Button-variant-time\")}>Spread</button>\n</>;\n"
     );
     assert!(output.diagnostics.is_empty());
 }

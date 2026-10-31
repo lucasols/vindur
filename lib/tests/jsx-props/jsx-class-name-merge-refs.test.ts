@@ -32,38 +32,13 @@ test('should share cx modifier classes between different combinations of css ref
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const a = "v1560qbr-1-a";
+    "const a = "v1560qbr-1-a";
     const b = "v1560qbr-2-b";
     export const A = ({ on }: { on: boolean }) => (
       <>
-        <div
-          className={
-            a +
-            " " +
-            cx({
-              "v1560qbr-3-active": on,
-            })
-          }
-        />
-        <div
-          className={
-            b +
-            " " +
-            cx({
-              "v1560qbr-3-active": on,
-            })
-          }
-        />
-        <div
-          className={
-            a +
-            " v1560qbr-2-b " +
-            cx({
-              "v1560qbr-3-active": on,
-            })
-          }
-        />
+        <div className={a + (on ? " v1560qbr-3-active" : "")} />
+        <div className={b + (on ? " v1560qbr-3-active" : "")} />
+        <div className={a + " v1560qbr-2-b" + (on ? " v1560qbr-3-active" : "")} />
       </>
     );
     "
@@ -116,16 +91,8 @@ test('should not warn about cx modifiers declared only in a layer of a styled co
   `);
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-on": on,
-          })
-        }
-      />
+    "export const A = ({ on }: { on: boolean }) => (
+      <div className={"v1560qbr-1-Box" + (on ? " v1560qbr-2-on" : "")} />
     );
     "
   `);
@@ -240,17 +207,9 @@ test('should allow $-prefixed cx classes with an imported css reference', async 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import "#/styles";
+    "import "#/styles";
     export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          "v1s4vg6s-1-card " +
-          cx({
-            active: on,
-          })
-        }
-      />
+      <div className={"v1s4vg6s-1-card" + (on ? " active" : "")} />
     );
     "
   `);
@@ -319,27 +278,16 @@ test('should allow cx modifiers declared outside the css references', async () =
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { base } from "#/styles";
+    "import { base } from "#/styles";
     const layout = "v1560qbr-1-layout";
     export const A = ({ on }: { on: boolean }) => (
       <>
         <div
-          className={
-            layout +
-            " v1560qbr-2-Box " +
-            cx({
-              "v1560qbr-3-active": on,
-            })
-          }
+          className={layout + " v1560qbr-2-Box" + (on ? " v1560qbr-3-active" : "")}
         />
         <div
           className={
-            base +
-            " v1560qbr-4-css-prop-4 " +
-            cx({
-              "v1560qbr-5-active": on,
-            })
+            base + " v1560qbr-4-css-prop-4" + (on ? " v1560qbr-5-active" : "")
           }
         />
       </>
@@ -458,15 +406,12 @@ test('should hash every cx modifier of a compound selector', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on }: { on: boolean }) => (
+    "export const A = ({ on }: { on: boolean }) => (
       <div
         className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-active": on,
-            "v1560qbr-3-disabled": !on,
-          })
+          "v1560qbr-1-Box" +
+          (on ? " v1560qbr-2-active" : "") +
+          (!on ? " v1560qbr-3-disabled" : "")
         }
       />
     );

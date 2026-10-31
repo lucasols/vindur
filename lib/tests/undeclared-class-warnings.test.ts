@@ -44,9 +44,9 @@ describe('Styled components', () => {
       source: dedent`
         import { styled } from 'vindur'
 
-        const CheckboxContainer = styled.button<{ checked: boolean }>\`
+        const CheckboxContainer = styled.button<{ ticked: boolean }>\`
           opacity: 0.8;
-          &.checked {
+          &.ticked {
             background: lime;
             border-color: lime;
             opacity: 1;
@@ -59,6 +59,46 @@ describe('Styled components', () => {
     expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
       "
       []
+      "
+    `);
+  });
+
+  test('should not treat classes starting with a style flag name as the flag', async () => {
+    const warnings: TransformWarning[] = [];
+
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Card = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+          &.active-look {
+            color: blue;
+          }
+        \`
+      `,
+      onWarning: (warning) => warnings.push(warning),
+    });
+
+    expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+      "
+      - TransformWarning#:
+          message: "The class 'active-look' is used in CSS but not declared in the component"
+          loc: 'current_file:3:6'
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        &.v1560qbr-1-Card-active {
+          color: red;
+        }
+        &.active-look {
+          color: blue;
+        }
+      }
       "
     `);
   });

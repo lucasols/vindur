@@ -107,11 +107,9 @@ describe('JSX cx prop transformation', () => {
           return (
             <button
               className={
-                "v1560qbr-1-Button " +
-                cx({
-                  "v1560qbr-2-primary": isPrimary,
-                  "v1560qbr-3-disabled": isDisabled,
-                })
+                "v1560qbr-1-Button" +
+                (isPrimary ? " v1560qbr-2-primary" : "") +
+                (isDisabled ? " v1560qbr-3-disabled" : "")
               }
             >
               Click me
@@ -173,11 +171,9 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "v1560qbr-1-StyledDiv " +
-                  cx({
-                    "v1560qbr-2-active": isActive,
-                    "v1560qbr-3-disabled": isDisabled,
-                  })
+                  "v1560qbr-1-StyledDiv" +
+                  (isActive ? " v1560qbr-2-active" : "") +
+                  (isDisabled ? " v1560qbr-3-disabled" : "")
                 }
               />
             );
@@ -231,11 +227,9 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "v1560qbr-1 " +
-                  cx({
-                    "v1560qbr-2": isActive,
-                    "v1560qbr-3": isDisabled,
-                  })
+                  "v1560qbr-1" +
+                  (isActive ? " v1560qbr-2" : "") +
+                  (isDisabled ? " v1560qbr-3" : "")
                 }
               />
             );
@@ -290,11 +284,9 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "v1560qbr-1-Widget " +
-                  cx({
-                    "v1560qbr-2-active": isActive,
-                    error: hasError,
-                  })
+                  "v1560qbr-1-Widget" +
+                  (isActive ? " v1560qbr-2-active" : "") +
+                  (hasError ? " error" : "")
                 }
               />
             );
@@ -340,16 +332,7 @@ describe('JSX cx prop transformation', () => {
         expect(result.code).toMatchInlineSnapshot(`
           "import { cx } from "vindur";
           function Component() {
-            return (
-              <div
-                className={
-                  "v1560qbr-1-StyledDiv " +
-                  cx({
-                    noHash: true,
-                  })
-                }
-              />
-            );
+            return <div className={"v1560qbr-1-StyledDiv noHash"} />;
           }
           "
         `);
@@ -437,45 +420,27 @@ describe('JSX cx prop transformation', () => {
               <div>
                 <button
                   className={
-                    "v1560qbr-1-Button " +
-                    cx({
-                      "v1560qbr-3-active": buttonActive,
-                      "v1560qbr-4-disabled": buttonDisabled,
-                    })
+                    "v1560qbr-1-Button" +
+                    (buttonActive ? " v1560qbr-3-active" : "") +
+                    (buttonDisabled ? " v1560qbr-4-disabled" : "")
                   }
                 >
                   Click me
                 </button>
                 <div
                   className={
-                    "v1560qbr-2-Card " +
-                    cx({
-                      "v1560qbr-5-active": cardActive,
-                      "v1560qbr-6-disabled": cardDisabled,
-                    })
+                    "v1560qbr-2-Card" +
+                    (cardActive ? " v1560qbr-5-active" : "") +
+                    (cardDisabled ? " v1560qbr-6-disabled" : "")
                   }
                 >
                   Card content
                 </div>
-                <div
-                  className={
-                    "v1560qbr-7-css-prop-7 " +
-                    cx({
-                      "v1560qbr-8-active": true,
-                    })
-                  }
-                >
+                <div className={"v1560qbr-7-css-prop-7 v1560qbr-8-active"}>
                   Card content
                 </div>
 
-                <div
-                  className={
-                    "v1560qbr-9-css-prop-9 " +
-                    cx({
-                      "v1560qbr-10-active": true,
-                    })
-                  }
-                >
+                <div className={"v1560qbr-9-css-prop-9 v1560qbr-10-active"}>
                   Card content
                 </div>
               </div>
@@ -557,10 +522,8 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "base-class v1560qbr-1-Card " +
-                  cx({
-                    "v1560qbr-2-highlighted": isHighlighted,
-                  })
+                  "base-class v1560qbr-1-Card" +
+                  (isHighlighted ? " v1560qbr-2-highlighted" : "")
                 }
               />
             );
@@ -623,11 +586,8 @@ describe('JSX cx prop transformation', () => {
               <div
                 className={
                   cardStyles +
-                  " " +
-                  cx({
-                    "v1560qbr-2-featured": isFeatured,
-                    "v1560qbr-3-compact": isCompact,
-                  })
+                  (isFeatured ? " v1560qbr-2-featured" : "") +
+                  (isCompact ? " v1560qbr-3-compact" : "")
                 }
               >
                 Card content
@@ -687,10 +647,7 @@ describe('JSX cx prop transformation', () => {
             return (
               <div
                 className={
-                  "v1560qbr-1-css-prop-1 " +
-                  cx({
-                    "v1560qbr-2-hoverable": isHoverable,
-                  })
+                  "v1560qbr-1-css-prop-1" + (isHoverable ? " v1560qbr-2-hoverable" : "")
                 }
               >
                 Content
@@ -742,10 +699,7 @@ describe('JSX cx prop transformation', () => {
                 {...props}
                 className={mergeClassNames(
                   [props],
-                  "v1560qbr-1-Button " +
-                    cx({
-                      "v1560qbr-2-active": isActive,
-                    }),
+                  "v1560qbr-1-Button" + (isActive ? " v1560qbr-2-active" : ""),
                 )}
               />
             );
@@ -777,14 +731,10 @@ describe('JSX cx prop transformation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      export const App = ({ active }) => (
+      "export const App = ({ active }) => (
         <div
           className={
-            "v1560qbr-1-css-prop-1 " +
-            cx({
-              'before:content-["hello"]': active,
-            })
+            "v1560qbr-1-css-prop-1" + (active ? ' before:content-["hello"]' : "")
           }
         />
       );

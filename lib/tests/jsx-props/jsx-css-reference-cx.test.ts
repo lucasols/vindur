@@ -27,27 +27,18 @@ test('should keep the cx prop of an element with a css reference prop', async ()
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     const styles = "v1560qbr-2-styles";
     const Component = ({ active, c }) => (
       <>
         <div
-          className={
-            "v1560qbr-2-styles " +
-            cx({
-              "v1560qbr-4-active": active,
-            })
-          }
+          className={"v1560qbr-2-styles" + (active ? " v1560qbr-4-active" : "")}
         />
         <div
           {...color._sp(c, {
             className:
-              "v1560qbr-2-styles " +
-              cx({
-                "v1560qbr-4-active": active,
-                raw: true,
-              }),
+              "v1560qbr-2-styles raw" + (active ? " v1560qbr-4-active" : ""),
           })}
         />
       </>
@@ -139,16 +130,13 @@ test('should keep $ cx keys and styled modifiers with a css reference on a style
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const cls = "v1560qbr-1-cls";
+    "const cls = "v1560qbr-1-cls";
     const Component = ({ on, active }) => (
       <div
         className={
-          "v1560qbr-2-Box v1560qbr-1-cls " +
-          cx({
-            on: on,
-            "v1560qbr-4-active": active,
-          })
+          "v1560qbr-2-Box v1560qbr-1-cls" +
+          (on ? " on" : "") +
+          (active ? " v1560qbr-4-active" : "")
         }
       />
     );
@@ -248,26 +236,11 @@ test('should allow a class hashed and with $ in cx props of different styles', a
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const styles = "v1560qbr-1-styles";
+    "const styles = "v1560qbr-1-styles";
     const Component = ({ on }) => (
       <>
-        <div
-          className={
-            "v1560qbr-1-styles " +
-            cx({
-              active: on,
-            })
-          }
-        />
-        <div
-          className={
-            "v1560qbr-2-Box " +
-            cx({
-              "v1560qbr-4-active": on,
-            })
-          }
-        />
+        <div className={"v1560qbr-1-styles" + (on ? " active" : "")} />
+        <div className={"v1560qbr-2-Box" + (on ? " v1560qbr-4-active" : "")} />
       </>
     );
     "

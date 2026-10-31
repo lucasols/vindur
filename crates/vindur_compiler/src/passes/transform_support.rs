@@ -3,6 +3,7 @@ use oxc_ast::ast::{
     VariableDeclarationKind,
 };
 use oxc_semantic::Scoping;
+use oxc_span::GetSpan;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
@@ -13,20 +14,25 @@ use crate::{
 };
 
 use super::{
+    block_validation::check_global_start_order,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_modifier_selectors::StyleBlockClasses,
+    function_evaluation::evaluate_argument,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
+    import_errors::unknown_element_message,
     scoped::{ScopedVariables, process_scoped_variables},
+    static_evaluation::evaluate_expression,
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
-        flag_classes, missing_style_flag_classes, other_element_flag_classes,
+        all_flag_classes, missing_style_flag_classes, other_element_flag_classes,
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
     style_flags::{flags_without_base_styles, with_base_style_flags},
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, styled_tag_component_with_attrs,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_base,
+        styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
     theme_color::parse_theme_colors,
@@ -60,6 +66,51 @@ pub(super) struct VariableTransform<'a> {
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
 }
 
+pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be exported, its styles are added where it is declared, remove the `export`";
+
+/// The styles of a file are joined in source order, and browsers drop `@charset`, `@import` and
+/// `@namespace` after another rule
+pub(super) fn push_global_style(
+    css_rules: &mut Vec<String>,
+    has_side_effects: &mut bool,
+    content: String,
+    file_path: &str,
+    source: &str,
+    span: oxc_span::Span,
+) -> Result<(), CompilerDiagnostic> {
+    check_global_start_order(css_rules, &content)
+        .map_err(|message| CompilerDiagnostic::error(file_path, source, span, message))?;
+    if !content.is_empty() {
+        css_rules.push(content);
+        *has_side_effects = true;
+    }
+    Ok(())
+}
+
+/// Vindur declarations are evaluated once at compile time, so a `let` or `var` reassigned later
+/// would keep the compiled value
+pub(super) fn require_const(
+    declaration: &VariableDeclaration<'_>,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    if declaration.kind == VariableDeclarationKind::Const {
+        return Ok(());
+    }
+    let keyword = declaration.kind.as_str();
+    Err(CompilerDiagnostic::error(
+        file_path,
+        source,
+        oxc_span::Span::new(
+            declaration.span.start,
+            declaration.span.start + u32::try_from(keyword.len()).unwrap_or(0),
+        ),
+        format!(
+            "Vindur declarations must use `const`, not `{keyword}`, they are evaluated at compile time"
+        ),
+    ))
+}
+
 pub(super) fn process_variable_declaration(
     declaration: &VariableDeclaration<'_>,
     transform: &mut VariableTransform<'_>,
@@ -84,6 +135,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createDynamicCssColor")
         {
+            require_const(declaration, transform.file_path, transform.source)?;
             if !call.arguments.is_empty() {
                 return Err(CompilerDiagnostic::error(
                     transform.file_path,
@@ -120,6 +172,7 @@ pub(super) fn process_variable_declaration(
                 .imports
                 .matches_import_or_global(callee, "createStaticThemeColors")
         {
+            require_const(declaration, transform.file_path, transform.source)?;
             let colors = parse_theme_colors(&call.arguments).map_err(|error| {
                 CompilerDiagnostic::error(
                     transform.file_path,
@@ -171,6 +224,7 @@ pub(super) fn process_variable_declaration(
             },
         )?;
         if let Some(styled_definition) = styled_definition {
+            require_const(declaration, transform.file_path, transform.source)?;
             let base_component = styled_definition.base_component;
             let own_attrs = styled_definition.attrs;
             let own_style_flags = styled_definition.style_flags;
@@ -189,10 +243,45 @@ pub(super) fn process_variable_declaration(
                 transform.file_path,
                 transform.source,
             )?;
+            let base_identifier = styled_base(&tagged.tag);
+            // The flags of a base imported through a re-export or an import cycle are unknown, also
+            // when it is rendered by a local base, e.g. `styled(Local)` with `Local = styled(Base)`
+            let unknown_base =
+                unknown_element_message(&base_component, transform.constants, transform.file_path)
+                    .map(|message| {
+                        CompilerDiagnostic::error(
+                            transform.file_path,
+                            transform.source,
+                            base_identifier.map_or(tagged.tag.span(), |base| base.span),
+                            message,
+                        )
+                    });
+            if let Some(error) = &unknown_base
+                && !own_style_flags.is_empty()
+            {
+                return Err(error.clone());
+            }
+            let flag_class_list = all_flag_classes(
+                base_identifier.map(|base| base.name.as_str()),
+                &base_component.style_flags,
+                &own_style_flags,
+                &style_flags,
+                transform.constants,
+            )
+            .map_err(|message| {
+                CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    tagged
+                        .type_arguments
+                        .as_ref()
+                        .map_or(tagged.tag.span(), |arguments| arguments.span),
+                    message,
+                )
+            })?;
             let template_context = TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: "styled",
-                style_flags: &style_flags,
             };
             let content = evaluate_template(
                 &tagged.quasi,
@@ -203,17 +292,24 @@ pub(super) fn process_variable_declaration(
                 &template_context,
             )?;
             let content = clean_css(&content);
-            let classes = if transform.dev || !style_flags.is_empty() {
-                style_classes(&content, &style_flags).map_err(|error| {
+            let classes = if transform.dev || !flag_class_list.is_empty() || unknown_base.is_some()
+            {
+                style_classes(&content).map_err(|error| {
                     css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
                 })?
             } else {
                 StyleBlockClasses::default()
             };
             let element_classes = classes.element;
+            // A selected class can be a flag of the base, hashed by its own module
+            if let Some(error) = unknown_base
+                && !element_classes.is_empty()
+            {
+                return Err(error);
+            }
             if transform.dev {
                 let other_element_flags =
-                    other_element_flag_classes(&content, &classes.other, &style_flags);
+                    other_element_flag_classes(&content, &classes.other, &flag_class_list);
                 // Inherited flags are styled by the base component
                 let missing_flags = missing_style_flag_classes(
                     &element_classes,
@@ -261,7 +357,7 @@ pub(super) fn process_variable_declaration(
                         })
                         .collect::<Vec<_>>();
                     transform.warnings.extend(
-                        undeclared_style_classes(&element_classes, &style_flags)
+                        undeclared_style_classes(&element_classes, &flag_class_list)
                             .into_iter()
                             .filter(|class_name| {
                                 !dynamic_color_prefixes
@@ -281,9 +377,8 @@ pub(super) fn process_variable_declaration(
                     );
                 }
             }
-            // Flag selectors like `&.$active` are not valid CSS until they are rewritten
             let content =
-                match rewrite_style_flag_selectors(&content, &element_classes, &style_flags) {
+                match rewrite_style_flag_selectors(&content, &element_classes, &flag_class_list) {
                     Ok(content) => content,
                     Err(error) => {
                         let located = locate_template_error(
@@ -294,8 +389,8 @@ pub(super) fn process_variable_declaration(
                             transform.source,
                             &template_context,
                             |css| {
-                                let classes = style_classes(css, &style_flags).ok()?.element;
-                                rewrite_style_flag_selectors(css, &classes, &style_flags).err()
+                                let classes = style_classes(css).ok()?.element;
+                                rewrite_style_flag_selectors(css, &classes, &flag_class_list).err()
                             },
                         )?;
                         return Err(located.unwrap_or_else(|| {
@@ -341,7 +436,7 @@ pub(super) fn process_variable_declaration(
                 variable_name.to_owned(),
                 StaticValue::ClassName {
                     name: component_class.clone(),
-                    style_flags: flag_classes(&style_flags),
+                    style_flags: flag_class_list,
                 },
             );
             let has_own_attrs = own_attrs.is_some();
@@ -403,6 +498,7 @@ pub(super) fn process_variable_declaration(
                         class_name: complete_class_name,
                         element: base_component.element,
                         element_is_identifier: base_component.element_is_identifier,
+                        element_is_base: base_component.element_is_base,
                         runtime: true,
                         style_flags,
                     },
@@ -416,6 +512,7 @@ pub(super) fn process_variable_declaration(
                     class_name: complete_class_name,
                     element: base_component.element,
                     element_is_identifier: base_component.element_is_identifier,
+                    element_is_base: base_component.element_is_base,
                     runtime: false,
                     style_flags,
                 },
@@ -431,6 +528,40 @@ pub(super) fn process_variable_declaration(
             continue;
         };
         if tag_name == "createGlobalStyle" {
+            if transform.is_exported {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    GLOBAL_STYLE_EXPORT_ERROR.to_owned(),
+                ));
+            }
+            require_const(declaration, transform.file_path, transform.source)?;
+            // The whole declaration is removed with it
+            if declaration.declarations.len() != 1 {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    declaration.span,
+                    "createGlobalStyle must use its own variable declaration".to_owned(),
+                ));
+            }
+            if identifier.symbol_id.get().is_some_and(|symbol_id| {
+                !transform
+                    .scoping
+                    .get_resolved_reference_ids(symbol_id)
+                    .is_empty()
+            }) {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    identifier.span,
+                    format!(
+                        "`{}` can't be referenced, createGlobalStyle returns nothing and its declaration is removed",
+                        identifier.name
+                    ),
+                ));
+            }
             let content = evaluate_template(
                 &tagged.quasi,
                 transform.constants,
@@ -440,7 +571,6 @@ pub(super) fn process_variable_declaration(
                 &TemplateContext {
                     variable_name: Some(identifier.name.as_str()),
                     tag_type: "createGlobalStyle",
-                    style_flags: &[],
                 },
             )?;
             let content = clean_css(&content);
@@ -456,10 +586,14 @@ pub(super) fn process_variable_declaration(
             .map_err(|error| {
                 css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
             })?;
-            if !content.is_empty() {
-                transform.css_rules.push(content);
-                *transform.has_side_effects = true;
-            }
+            push_global_style(
+                transform.css_rules,
+                transform.has_side_effects,
+                content,
+                transform.file_path,
+                transform.source,
+                tagged.span,
+            )?;
             transform.edits.push(Edit {
                 span: expand_removal_to_line(transform.source, declaration.span),
                 replacement: String::new(),
@@ -469,6 +603,7 @@ pub(super) fn process_variable_declaration(
         if !matches!(tag_name, "css" | "keyframes") {
             continue;
         }
+        require_const(declaration, transform.file_path, transform.source)?;
 
         let variable_name = identifier.name.as_str();
         let generated_name = generated_name(
@@ -488,7 +623,6 @@ pub(super) fn process_variable_declaration(
             &TemplateContext {
                 variable_name: Some(variable_name),
                 tag_type: tag_name,
-                style_flags: &[],
             },
         )?;
         let content = clean_css(&content);
@@ -520,6 +654,11 @@ pub(super) fn process_variable_declaration(
                 StaticValue::CssClass {
                     name: generated_name.clone(),
                     css: content,
+                    uses_keyframes: uses_keyframes(
+                        &tagged.quasi.expressions,
+                        transform.constants,
+                        transform.scoping,
+                    ),
                 }
             } else {
                 StaticValue::Keyframes(generated_name.clone())
@@ -594,7 +733,46 @@ fn validate_vindur_function_declaration(
     Ok(())
 }
 
-fn generated_name(file_hash: &str, id_index: u32, variable_name: &str, dev: bool) -> String {
+/// Whether a `css` template interpolates keyframes, directly or through another `css` class
+fn uses_keyframes(
+    expressions: &[Expression<'_>],
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+) -> bool {
+    expressions.iter().any(|expression| {
+        // Keyframes passed to a vindurFn end up in its result as plain text
+        let in_arguments = match expression {
+            Expression::CallExpression(call) => call.arguments.iter().any(|argument| {
+                evaluate_argument(argument, constants, scoping)
+                    .is_some_and(|value| value_uses_keyframes(&value))
+            }),
+            _ => false,
+        };
+        in_arguments
+            || evaluate_expression(expression, constants, scoping)
+                .is_some_and(|value| value_uses_keyframes(&value))
+    })
+}
+
+fn value_uses_keyframes(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Keyframes(_)
+        | StaticValue::CssClass {
+            uses_keyframes: true,
+            ..
+        } => true,
+        StaticValue::Array(values) => values.iter().any(value_uses_keyframes),
+        StaticValue::Object(properties) => properties.values().any(value_uses_keyframes),
+        _ => false,
+    }
+}
+
+pub(super) fn generated_name(
+    file_hash: &str,
+    id_index: u32,
+    variable_name: &str,
+    dev: bool,
+) -> String {
     if dev {
         format!(
             "{file_hash}-{id_index}-{}",

@@ -52,12 +52,10 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <div
             className={
-              "v1560qbr-1-Card " +
-              cx({
-                "v1560qbr-2-active": isActive,
-                "v1560qbr-3-disabled": isDisabled,
-                "v1560qbr-4-highlighted": isHighlighted,
-              })
+              "v1560qbr-1-Card" +
+              (isActive ? " v1560qbr-2-active" : "") +
+              (isDisabled ? " v1560qbr-3-disabled" : "") +
+              (isHighlighted ? " v1560qbr-4-highlighted" : "")
             }
           >
             Content
@@ -126,13 +124,11 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <div
             className={
-              "v1560qbr-1-Widget " +
-              cx({
-                "v1560qbr-2-active": isActive,
-                "v1560qbr-3-disabled": isDisabled,
-                "v1560qbr-4-highlighted": isHighlighted,
-                "v1560qbr-5-compact": isCompact,
-              })
+              "v1560qbr-1-Widget" +
+              (isActive ? " v1560qbr-2-active" : "") +
+              (isDisabled ? " v1560qbr-3-disabled" : "") +
+              (isHighlighted ? " v1560qbr-4-highlighted" : "") +
+              (isCompact ? " v1560qbr-5-compact" : "")
             }
           >
             Content
@@ -189,11 +185,9 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <div
             className={
-              "v1560qbr-1 " +
-              cx({
-                "v1560qbr-2": isActive,
-                "v1560qbr-3": isHighlighted,
-              })
+              "v1560qbr-1" +
+              (isActive ? " v1560qbr-2" : "") +
+              (isHighlighted ? " v1560qbr-3" : "")
             }
           >
             Content
@@ -253,11 +247,9 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <button
             className={
-              "v1560qbr-1-Button " +
-              cx({
-                "v1560qbr-2-primary": isPrimary,
-                "v1560qbr-3-disabled": isDisabled,
-              })
+              "v1560qbr-1-Button" +
+              (isPrimary ? " v1560qbr-2-primary" : "") +
+              (isDisabled ? " v1560qbr-3-disabled" : "")
             }
           >
             Click me
@@ -321,12 +313,10 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <div
             className={
-              "v1560qbr-1-Widget " +
-              cx({
-                "v1560qbr-2-active": isActive,
-                error: hasError,
-                "v1560qbr-3-warning": hasWarning,
-              })
+              "v1560qbr-1-Widget" +
+              (isActive ? " v1560qbr-2-active" : "") +
+              (hasError ? " error" : "") +
+              (hasWarning ? " v1560qbr-3-warning" : "")
             }
           />
         );
@@ -384,12 +374,10 @@ describe('Warnings for Missing CSS Classes', () => {
         return (
           <div
             className={
-              "v1560qbr-1-Widget " +
-              cx({
-                "v1560qbr-2-active": isActive,
-                error: hasError,
-                disabled: isDisabled,
-              })
+              "v1560qbr-1-Widget" +
+              (isActive ? " v1560qbr-2-active" : "") +
+              (hasError ? " error" : "") +
+              (isDisabled ? " disabled" : "")
             }
           />
         );
@@ -509,10 +497,8 @@ describe('Warnings for Missing CSS Classes', () => {
             <ButtonElement
               onClick={() => onFilterChange("blocked")}
               className={
-                "v1560qbr-1-FilterButton " +
-                cx({
-                  "v1560qbr-2-active": activeFilter === "blocked",
-                })
+                "v1560qbr-1-FilterButton" +
+                (activeFilter === "blocked" ? " v1560qbr-2-active" : "")
               }
             >
               Blocked
@@ -521,10 +507,8 @@ describe('Warnings for Missing CSS Classes', () => {
             <ButtonElement
               onClick={() => onFilterChange("blocked")}
               className={
-                "v1560qbr-1-FilterButton " +
-                cx({
-                  "v1560qbr-2-active": activeFilter === "blocked",
-                })
+                "v1560qbr-1-FilterButton" +
+                (activeFilter === "blocked" ? " v1560qbr-2-active" : "")
               }
             >
               Blocked

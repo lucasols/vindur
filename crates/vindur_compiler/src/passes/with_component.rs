@@ -7,9 +7,10 @@ use crate::{
     facts::StaticValue,
 };
 
+use super::import_errors::unknown_import_message;
 use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
-use super::transform_support::VariableTransform;
+use super::transform_support::{VariableTransform, require_const};
 
 pub(super) fn process_with_component(
     initializer: &Expression<'_>,
@@ -45,6 +46,35 @@ pub(super) fn process_with_component(
             ),
         ));
     };
+    // The styles of an imported styled base are applied by it, replacing it drops them
+    let imported_base = base
+        .element_is_base
+        .then(|| transform.constants.get(&base.element))
+        .flatten()
+        .filter(|_| !transform.styled_components.contains_key(&base.element));
+    // A base imported through a re-export or an import cycle can be a styled component
+    if let Some(message) = imported_base
+        .and_then(|value| unknown_import_message(&base.element, value, transform.file_path))
+    {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            base_identifier.span,
+            message,
+        ));
+    }
+    if matches!(imported_base, Some(StaticValue::ClassName { .. })) {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            base_identifier.span,
+            format!(
+                "Cannot call withComponent on \"{}\": it extends the imported styled component \"{}\", whose styles would be lost on the new element. Call withComponent on \"{}\" in its own file and extend that instead.",
+                base_identifier.name, base.element, base.element
+            ),
+        ));
+    }
+    require_const(declaration, transform.file_path, transform.source)?;
     let (element, element_is_identifier, argument_span) = match call.arguments.as_slice() {
         [Argument::StringLiteral(element)] => (element.value.to_string(), false, element.span),
         [Argument::Identifier(element)] => (element.name.to_string(), true, element.span),
@@ -68,6 +98,28 @@ pub(super) fn process_with_component(
                 .to_owned(),
         ));
     }
+    // JSX renders a lowercase name as an intrinsic element, not the component
+    if element_is_identifier && !element.chars().next().is_some_and(char::is_uppercase) {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            argument_span,
+            format!(
+                "Cannot use \"{element}\" in withComponent(): component names must start with an uppercase letter (CamelCase)."
+            ),
+        ));
+    }
+    if element_is_identifier
+        && let Some(message) =
+            shared_flag_error(&base, base_identifier.name.as_str(), &element, transform)
+    {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            argument_span,
+            message,
+        ));
+    }
     let runtime = transform.is_exported
         || transform.value_referenced_names.contains(variable_name)
         || base.runtime;
@@ -76,6 +128,7 @@ pub(super) fn process_with_component(
         class_name: base.class_name.clone(),
         element: element.clone(),
         element_is_identifier,
+        element_is_base: false,
         runtime,
         style_flags: base.style_flags.clone(),
     };
@@ -86,11 +139,21 @@ pub(super) fn process_with_component(
         .split_whitespace()
         .last()
         .unwrap_or_default();
+    // A styled component element applies its own flag classes, which references select too
+    let mut style_flags = flag_classes(&base.style_flags);
+    if element_is_identifier
+        && let Some(StaticValue::ClassName {
+            style_flags: element_flags,
+            ..
+        }) = transform.constants.get(&element)
+    {
+        style_flags.extend(element_flags.iter().cloned());
+    }
     transform.constants.insert(
         variable_name.to_owned(),
         StaticValue::ClassName {
             name: reference_class.to_owned(),
-            style_flags: flag_classes(&base.style_flags),
+            style_flags,
         },
     );
     transform
@@ -126,6 +189,44 @@ pub(super) fn process_with_component(
         });
     }
     Ok(true)
+}
+
+/// The flags of `base` are never passed to the element, so a styled component element with a flag
+/// of the same prop would never get it
+fn shared_flag_error(
+    base: &StyledComponent,
+    base_name: &str,
+    element: &str,
+    transform: &VariableTransform<'_>,
+) -> Option<String> {
+    let element_value = transform.constants.get(element)?;
+    // An element imported through a re-export or an import cycle can be a styled component with
+    // the same flags
+    if !base.style_flags.is_empty()
+        && let Some(message) = unknown_import_message(element, element_value, transform.file_path)
+    {
+        return Some(message);
+    }
+    // Every styled component's flag classes, with the ones it inherits from an imported base
+    let StaticValue::ClassName {
+        style_flags: element_classes,
+        ..
+    } = element_value
+    else {
+        return None;
+    };
+    let flag = base.style_flags.iter().find(|flag| {
+        element_classes.iter().any(|class| {
+            class
+                .original
+                .strip_prefix(flag.prop_name.as_str())
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+        })
+    })?;
+    Some(format!(
+        "Style flag `{}` of `{base_name}` is also a style flag of `{element}`, which would no longer get the prop, rename one of them",
+        flag.prop_name
+    ))
 }
 
 pub(super) fn style_flags_runtime_call(

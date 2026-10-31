@@ -9,7 +9,7 @@ test('should only apply to styled components, not regular DOM elements', async (
 
       const StyledWithModifier = styled.div<{
         active: boolean;
-        disabled: boolean;
+        muted: boolean;
       }>\`
         padding: 16px;
 
@@ -17,7 +17,7 @@ test('should only apply to styled components, not regular DOM elements', async (
           background: blue;
         }
 
-        &.disabled {
+        &.muted {
           opacity: 0.5;
         }
       \`;
@@ -26,7 +26,7 @@ test('should only apply to styled components, not regular DOM elements', async (
         return (
           <StyledWithModifier
             active={true}
-            disabled={false}
+            muted={false}
           >
             Content
           </StyledWithModifier>
@@ -58,7 +58,7 @@ test('should only apply to styled components, not regular DOM elements', async (
         background: blue;
       }
 
-      &.v1560qbr-1-StyledWithModifier-disabled {
+      &.v1560qbr-1-StyledWithModifier-muted {
         opacity: 0.5;
       }
     }
@@ -74,7 +74,7 @@ test('should extract boolean and string union properties from TypeScript generic
       const Button = styled.button<{
         primary: boolean;
         size: 'small' | 'large';
-        disabled: boolean;
+        muted: boolean;
       }>\`
         padding: 8px 16px;
         border: 1px solid #ccc;
@@ -84,7 +84,7 @@ test('should extract boolean and string union properties from TypeScript generic
           color: white;
         }
 
-        &.disabled {
+        &.muted {
           opacity: 0.5;
           cursor: not-allowed;
         }
@@ -103,7 +103,7 @@ test('should extract boolean and string union properties from TypeScript generic
           <Button
             primary={true}
             size="large"
-            disabled={false}
+            muted={false}
           >
             Click me
           </Button>
@@ -137,7 +137,7 @@ test('should extract boolean and string union properties from TypeScript generic
         color: white;
       }
 
-      &.v1560qbr-1-Button-disabled {
+      &.v1560qbr-1-Button-muted {
         opacity: 0.5;
         cursor: not-allowed;
       }
@@ -162,7 +162,7 @@ test('should support extending custom components with style flags', async () => 
       const ButtonElement = ({ children, ...props }) => <button {...props}>{children}</button>;
 
       const CheckboxContainer = styled(ButtonElement)<{
-        checked: boolean;
+        ticked: boolean;
       }>\`
         width: 14px;
         height: 14px;
@@ -177,7 +177,7 @@ test('should support extending custom components with style flags', async () => 
           border-color: #aaa;
         }
 
-        &.checked {
+        &.ticked {
           background: #0066cc;
           border-color: #0066cc;
           opacity: 1;
@@ -194,7 +194,7 @@ test('should support extending custom components with style flags', async () => 
 
       function Component({ isChecked }) {
         return (
-          <CheckboxContainer checked={isChecked}>
+          <CheckboxContainer ticked={isChecked}>
           </CheckboxContainer>
         );
       }
@@ -210,7 +210,7 @@ test('should support extending custom components with style flags', async () => 
         <ButtonElement
           className={
             "v1560qbr-1-CheckboxContainer" +
-            (isChecked ? " v1560qbr-1-CheckboxContainer-checked" : "")
+            (isChecked ? " v1560qbr-1-CheckboxContainer-ticked" : "")
           }
         ></ButtonElement>
       );
@@ -233,7 +233,7 @@ test('should support extending custom components with style flags', async () => 
         border-color: #aaa;
       }
 
-      &.v1560qbr-1-CheckboxContainer-checked {
+      &.v1560qbr-1-CheckboxContainer-ticked {
         background: #0066cc;
         border-color: #0066cc;
         opacity: 1;
@@ -448,7 +448,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
 
       const Button = styled.button<{
         active: boolean;
-        disabled: boolean;
+        muted: boolean;
         size: 'small' | 'medium' | 'large';
         variant: 'primary' | 'secondary';
       }>\`
@@ -458,7 +458,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
         color: #333;
 
         /* Test :not() with boolean flags */
-        &:not(.disabled) {
+        &:not(.muted) {
           cursor: pointer;
         }
 
@@ -487,7 +487,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
         }
 
         /* Test complex combinations */
-        &:not(.disabled):is(.size-large, .size-medium) {
+        &:not(.muted):is(.size-large, .size-medium) {
           min-height: 48px;
         }
 
@@ -510,7 +510,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
         return (
           <Button
             active={true}
-            disabled={false}
+            muted={false}
             size="large"
             variant="primary"
           >
@@ -544,7 +544,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
       color: #333;
 
       /* Test :not() with boolean flags */
-      &:not(.v1560qbr-1-Button-disabled) {
+      &:not(.v1560qbr-1-Button-muted) {
         cursor: pointer;
       }
 
@@ -576,7 +576,7 @@ test('should detect and transform style flags inside pseudo-class functions', as
       }
 
       /* Test complex combinations */
-      &:not(.v1560qbr-1-Button-disabled):is(
+      &:not(.v1560qbr-1-Button-muted):is(
           .v1560qbr-1-Button-size-large,
           .v1560qbr-1-Button-size-medium
         ) {
@@ -601,49 +601,43 @@ test('should detect and transform style flags inside pseudo-class functions', as
   `);
 });
 
-test('should resolve exported type aliases used as style flags', async () => {
+test('should not read type arguments of other tags as style flags', async () => {
   const result = await transformWithFormat({
     source: dedent`
-      import { styled } from 'vindur';
+      import { css } from 'vindur'
+      import { html } from 'lit'
 
-      export type ButtonFlags = {
-        active: boolean;
-      };
-
-      const Button = styled.button<ButtonFlags>\`
-        &.active {
-          color: red;
-        }
-      \`;
-
-      function Component({ active }: ButtonFlags) {
-        return <Button active={active} />;
-      }
+      export const tpl = html<{ disabled: boolean }>\`<b></b>\`
+      export const style = css\`color: red;\`
     `,
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "export type ButtonFlags = {
-      active: boolean;
-    };
-    function Component({ active }: ButtonFlags) {
-      return (
-        <button
-          className={
-            "v1560qbr-1-Button" + (active ? " v1560qbr-1-Button-active" : "")
-          }
-        />
-      );
-    }
+    "import { html } from "lit";
+    export const tpl = html<{ disabled: boolean }>\`<b></b>\`;
+    export const style = "v1560qbr-1-style";
     "
   `);
+});
 
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Button {
-      &.v1560qbr-1-Button-active {
-        color: red;
-      }
-    }
+test('should resolve exported type aliases of style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      export type Props = { active: boolean }
+
+      const Box = styled.div<Props>\`&.active { color: red; }\`
+
+      export const App = ({ on }) => <Box active={on} />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export type Props = { active: boolean };
+    export const App = ({ on }) => (
+      <div className={"v1560qbr-1-Box" + (on ? " v1560qbr-1-Box-active" : "")} />
+    );
     "
   `);
 });

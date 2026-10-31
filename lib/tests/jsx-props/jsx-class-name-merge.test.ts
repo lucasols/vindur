@@ -20,15 +20,12 @@ test('should skip an undefined className prop when merging with the cx prop on s
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on, className }: { on: boolean; className?: string }) => (
+    "export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
         className={
           (className || "") +
-          " v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-disabled": !on,
-          })
+          " v1560qbr-1-Box" +
+          (!on ? " v1560qbr-2-disabled" : "")
         }
       />
     );
@@ -46,17 +43,8 @@ test('should skip an undefined className prop when merging with the cx prop on n
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on, className }: { on: boolean; className?: string }) => (
-      <div
-        className={
-          (className || "") +
-          " " +
-          cx({
-            disabled: !on,
-          })
-        }
-      />
+    "export const A = ({ on, className }: { on: boolean; className?: string }) => (
+      <div className={(className || "") + (!on ? " disabled" : "")} />
     );
     "
   `);
@@ -72,15 +60,10 @@ test('should keep the cx prop when merging the css prop with a className express
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on, className }: { on: boolean; className?: string }) => (
+    "export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
         className={
-          (className || "") +
-          " v1560qbr-1-css-prop-1 " +
-          cx({
-            disabled: !on,
-          })
+          (className || "") + " v1560qbr-1-css-prop-1" + (!on ? " disabled" : "")
         }
       />
     );
@@ -105,16 +88,8 @@ test('should keep the cx prop when merging the css prop with a className string'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          "base v1560qbr-1-css-prop-1 " +
-          cx({
-            disabled: !on,
-          })
-        }
-      />
+    "export const A = ({ on }: { on: boolean }) => (
+      <div className={"base v1560qbr-1-css-prop-1" + (!on ? " disabled" : "")} />
     );
     "
   `);
@@ -133,27 +108,10 @@ test('should guard the whole className expression when merging with the cx prop'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on, c }: { on: boolean; c?: string }) => (
+    "export const A = ({ on, c }: { on: boolean; c?: string }) => (
       <>
-        <div
-          className={
-            ((on ? c : undefined) || "") +
-            " " +
-            cx({
-              d: on,
-            })
-          }
-        />
-        <div
-          className={
-            ((c ?? "x") || "") +
-            " " +
-            cx({
-              d: on,
-            })
-          }
-        />
+        <div className={((on ? c : undefined) || "") + (on ? " d" : "")} />
+        <div className={((c ?? "x") || "") + (on ? " d" : "")} />
       </>
     );
     "
@@ -191,16 +149,10 @@ test('should keep the string value of a className literal when merging', async (
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on }: { on: boolean }) => (
+    "export const A = ({ on }: { on: boolean }) => (
       <>
         <div
-          className={
-            'a"b & c\\n      d v1560qbr-1-css-prop-1 ' +
-            cx({
-              d: on,
-            })
-          }
+          className={'a"b & c\\n      d v1560qbr-1-css-prop-1' + (on ? " d" : "")}
         />
         <div className='a"b v1560qbr-2-css-prop-2' />
       </>
@@ -227,16 +179,11 @@ test('should merge the cx prop and className with a css prop reference', async (
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const card = "v1560qbr-1-card";
+    "const card = "v1560qbr-1-card";
     export const A = ({ on, className }: { on: boolean; className?: string }) => (
       <div
         className={
-          (className || "") +
-          " v1560qbr-1-card " +
-          cx({
-            "v1560qbr-3-active": on,
-          })
+          (className || "") + " v1560qbr-1-card" + (on ? " v1560qbr-3-active" : "")
         }
       />
     );
@@ -266,18 +213,10 @@ test('should merge spread props with explicit className and import mergeClassNam
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx, mergeClassNames } from "vindur";
+    "import { mergeClassNames } from "vindur";
     export const A = (props: { className?: string }) => (
       <>
-        <div
-          {...props}
-          className={mergeClassNames(
-            [props],
-            cx({
-              active: true,
-            }),
-          )}
-        />
+        <div {...props} className={mergeClassNames([props], "active")} />
         <div {...props} className="explicit v1560qbr-1-css-prop-1" />
       </>
     );
@@ -309,28 +248,17 @@ test('should share cx modifier classes between elements using the same css refer
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const card = "v1560qbr-1-card";
+    "const card = "v1560qbr-1-card";
     export const A = ({ on, extra }: { on: boolean; extra: boolean }) => (
       <>
         <div
           className={
-            "v1560qbr-1-card " +
-            cx({
-              "v1560qbr-3-active": on,
-              "v1560qbr-4-active-extra": extra,
-            })
+            "v1560qbr-1-card" +
+            (on ? " v1560qbr-3-active" : "") +
+            (extra ? " v1560qbr-4-active-extra" : "")
           }
         />
-        <div
-          className={
-            card +
-            " " +
-            cx({
-              "v1560qbr-3-active": !on,
-            })
-          }
-        />
+        <div className={card + (!on ? " v1560qbr-3-active" : "")} />
       </>
     );
     "
@@ -369,18 +297,9 @@ test('should rewrite cx modifiers inside layered css references', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const card = "v1560qbr-1-card";
+    "const card = "v1560qbr-1-card";
     export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          card +
-          " " +
-          cx({
-            "v1560qbr-2-active": on,
-          })
-        }
-      />
+      <div className={card + (on ? " v1560qbr-2-active" : "")} />
     );
     "
   `);
@@ -524,8 +443,7 @@ test('should merge a css call in the className with the cx prop and style flags'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const A = ({ on }: { on: boolean }) => (
+    "export const A = ({ on }: { on: boolean }) => (
       <>
         <div
           className={
@@ -537,10 +455,8 @@ test('should merge a css call in the className with the cx prop and style flags'
         <div
           className={
             ("v1560qbr-5" || "") +
-            " v1560qbr-2-Item " +
-            cx({
-              "v1560qbr-3-selected": on,
-            })
+            " v1560qbr-2-Item" +
+            (on ? " v1560qbr-3-selected" : "")
           }
         />
       </>

@@ -6,7 +6,27 @@ use oxc_span::{GetSpan, Span};
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
+use super::styled::{StyleFlag, StyleFlagKind};
+
+/// Props that would stop working as style flags, which are removed and turned into classes
+const RESERVED_PROP_NAMES: [&str; 16] = [
+    "className",
+    "style",
+    "css",
+    "cx",
+    "dynamicColor",
+    "key",
+    "ref",
+    "children",
+    "disabled",
+    "hidden",
+    "checked",
+    "required",
+    "readOnly",
+    "selected",
+    "multiple",
+    "open",
+];
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -70,55 +90,24 @@ pub(super) fn extract_style_flags(
             ));
         }
     };
-    let properties = type_literal
+    type_literal
         .members
         .iter()
         .filter_map(|member| match member {
-            TSSignature::TSPropertySignature(property) => Some(property.as_ref()),
+            TSSignature::TSPropertySignature(property) => Some(style_flag_from_property(
+                property,
+                component_class,
+                dev,
+                program,
+                file_path,
+                source,
+            )),
             _ => None,
-        })
-        .collect::<Vec<_>>();
-    colliding_class_name_error(&properties, file_path, source)?;
-    properties
-        .into_iter()
-        .map(|property| {
-            style_flag_from_property(property, component_class, dev, program, file_path, source)
         })
         .collect()
 }
 
-/// `$` becomes `_` in class names, so `$active` and `_active` would share a class
-fn colliding_class_name_error(
-    properties: &[&TSPropertySignature<'_>],
-    file_path: &str,
-    source: &str,
-) -> Result<(), CompilerDiagnostic> {
-    let names = properties
-        .iter()
-        .filter_map(|property| match &property.key {
-            PropertyKey::StaticIdentifier(key) => Some((key.name.as_str(), property.span)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    for (index, (name, span)) in names.iter().enumerate() {
-        let class_name = css_class_name_part(name);
-        if let Some((other, _)) = names[..index]
-            .iter()
-            .find(|(other, _)| other != name && css_class_name_part(other) == class_name)
-        {
-            return Err(CompilerDiagnostic::error(
-                file_path,
-                source,
-                *span,
-                format!(
-                    "Style flags \"{other}\" and \"{name}\" would use the same class name \"{class_name}\", rename one of them"
-                ),
-            ));
-        }
-    }
-    Ok(())
-}
-
+/// A type alias declared at the top level, also with `export type`
 fn find_type_alias<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a TSType<'a>> {
     program.body.iter().find_map(|statement| {
         let alias = match statement {
@@ -189,6 +178,49 @@ fn style_flag_from_property(
             "Style flag properties must use identifier names".to_owned(),
         ));
     };
+    if key.name.starts_with('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't start with `$`, style flags are never passed to the DOM, so use `{}`",
+                key.name,
+                key.name.trim_start_matches('$')
+            ),
+        ));
+    }
+    if key.name.contains('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't contain `$`, as it becomes part of a class name",
+                key.name
+            ),
+        ));
+    }
+    if RESERVED_PROP_NAMES.contains(&key.name.as_str()) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name",
+                key.name
+            ),
+        ));
+    }
+    // The runtime stores the flag props in an object, where `__proto__` sets its prototype
+    if key.name == "__proto__" {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            "Style flag `__proto__` is not supported, use another name".to_owned(),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -284,7 +316,7 @@ fn style_flag_from_property(
     };
     // Modifier classes are scoped to the component, dev names read like `v1560qbr-1-Button-active`
     let hashed_class_name = if dev {
-        format!("{component_class}-{}", css_class_name_part(&prop_name))
+        format!("{component_class}-{prop_name}")
     } else {
         format!("v{}", murmur2(&format!("{component_class}-{prop_name}")))
     };

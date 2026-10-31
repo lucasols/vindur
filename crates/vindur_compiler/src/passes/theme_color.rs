@@ -9,7 +9,7 @@ use super::{
         OPTIMAL_CONTRAST_SATURATED_DARKER, compress_hex, mix, parse_hex, prefers_black_text,
         saturated_darker,
     },
-    dynamic_color_value::{is_color_method, is_value_property},
+    dynamic_color_value::{ColorMethodArguments, is_color_method, is_value_property},
 };
 
 pub(super) struct ThemeColorParseError {
@@ -105,7 +105,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
 pub(super) fn theme_method(
     receiver: &StaticValue,
     method: &str,
-    amount: Option<f64>,
+    arguments: ColorMethodArguments,
 ) -> Option<StaticValue> {
     let (name, hex, dev, prefix) = match receiver {
         StaticValue::ThemeColor { name, hex, dev, .. } => (name, hex, *dev, ""),
@@ -121,31 +121,32 @@ pub(super) fn theme_method(
             let StaticValue::ThemeColorContrast { base_hex, .. } = receiver else {
                 return None;
             };
-            let optimal = optimal_contrast_hex(base_hex)?;
-            match amount {
-                Some(alpha) => (alpha_hex(parse_hex(&optimal)?, alpha), Some(alpha)),
-                None => (optimal, None),
-            }
+            let optimal = parse_hex(&optimal_contrast_hex(base_hex)?)?;
+            (with_alpha_hex(optimal, arguments.alpha), arguments.alpha)
         }
         _ => {
-            let amount = amount?;
+            let amount = arguments.amount?;
             let result = match method {
                 "alpha" => alpha_hex(rgb, amount),
-                "darker" => compress_hex(mix(rgb, 0.0, amount), None),
-                "lighter" => compress_hex(mix(rgb, 255.0, amount), None),
-                "saturatedDarker" => compress_hex(saturated_darker(rgb, amount), None),
+                "darker" => with_alpha_hex(mix(rgb, 0.0, amount), arguments.alpha),
+                "lighter" => with_alpha_hex(mix(rgb, 255.0, amount), arguments.alpha),
+                "saturatedDarker" => with_alpha_hex(saturated_darker(rgb, amount), arguments.alpha),
                 _ => return None,
             };
             (result, Some(amount))
         }
     };
-    let operation = amount.map_or_else(
-        || format!("{prefix}{method}"),
-        |amount| {
-            let escaped_amount = amount.to_string().replace('.', "\\.");
-            format!("{prefix}{method}-{escaped_amount}")
-        },
-    );
+    let escape = |value: f64| value.to_string().replace('.', "\\.");
+    let mut operation = format!("{prefix}{method}");
+    if let Some(amount) = amount {
+        operation.push_str(&format!("-{}", escape(amount)));
+    }
+    // `optimal` uses its alpha as the amount
+    if method != "optimal"
+        && let Some(alpha) = arguments.alpha
+    {
+        operation.push_str(&format!("-alpha-{}", escape(alpha)));
+    }
     Some(color_value(name, &operation, &result, dev))
 }
 
@@ -187,6 +188,11 @@ fn optimal_contrast_hex(base_hex: &str) -> Option<String> {
     } else {
         "#fff".to_owned()
     })
+}
+
+/// Matches `withAlphaHex` in lib/src/runtime-colors.ts
+fn with_alpha_hex(rgb: (u8, u8, u8), alpha: Option<f64>) -> String {
+    alpha.map_or_else(|| compress_hex(rgb, None), |alpha| alpha_hex(rgb, alpha))
 }
 
 fn alpha_hex(rgb: (u8, u8, u8), amount: f64) -> String {

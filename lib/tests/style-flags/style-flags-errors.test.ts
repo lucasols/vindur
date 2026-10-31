@@ -253,27 +253,113 @@ test('should warn about missing modifier styles', async () => {
   `);
 });
 
-test('should throw error for style flags with the same class name', async () => {
+test('should throw for style flag values that are not valid class names', async () => {
   await expect(
     transformWithFormat({
       source: dedent`
         import { styled } from 'vindur';
 
-        const Box = styled.div<{
-          $active: boolean;
-          _active: boolean;
-        }>\`
-          &.$active { color: red; }
-          &._active { color: green; }
+        const Button = styled.div<{ size: 'extra large' | 'small' }>\`
+          &.size-small { padding: 4px; }
         \`;
       `,
     }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(
-    `
-    [TransformError: /test.tsx: Style flags "$active" and "_active" would use the same class name "_active", rename one of them
-    loc: 5:2]
-  `,
-  );
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "size" value "extra large" must only contain letters, digits, - and _, as it becomes part of a class name
+    loc: 3:34]
+  `);
+});
+
+test('should throw for style flag names containing `$`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div<{ is$on: boolean }>\`
+          &.is$on { color: red; }
+        \`;
+
+        export const App = () => <Box is$on />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`is$on\` can't contain \`$\`, as it becomes part of a class name
+    loc: 3:25]
+  `);
+});
+
+test('should throw for style flags named like props React, vindur or the element handle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Item = styled.div<{ key: boolean }>\`
+          &.key { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`key\` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name
+    loc: 3:26]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Button = styled.button<{ disabled: boolean }>\`
+          &.disabled { opacity: 0.5; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`disabled\` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name
+    loc: 3:31]
+  `);
+});
+
+test('should throw for string union style flag values with side effects', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ size: 'small' | 'large' }>\`
+          &.size-small { width: 1px; }
+          &.size-large { width: 2px; }
+        \`
+
+        export const App = ({ getSize }) => <Box size={getSize()} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\`, \`yield\`, \`import()\` or tagged templates, as it's read twice, assign it to a variable first
+    loc: 8:47]
+  `);
+});
+
+test('should throw for style flag classes in rules matching other elements too', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &:hover, & .child {
+            &.active { color: red; }
+          }
+        \`
+
+        export const App = () => <Box active />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    loc: 5:6]
+  `);
 });
 
 test('should throw error for style flags on a default exported styled component', async () => {
@@ -291,6 +377,90 @@ test('should throw error for style flags on a default exported styled component'
     [TransformError: /test.tsx: Style flags are not supported on \`export default styled.*\`, declare the component first, like \`const Button = styled.button<{ active: boolean }>\`, then \`export default Button\`
     loc: 3:28]
   `);
+});
+
+test('should throw for delete in string union style flag values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Box = styled.div<{ size: 'small' | 'large' }>\`
+          &.size-small { width: 1px; }
+          &.size-large { width: 2px; }
+        \`
+        export const App = ({ obj }) => <Box size={'pending' in obj ? (delete obj.pending, 'small') : 'large'} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`size\` value can't contain calls, \`new\`, assignments, \`++\`, \`--\`, \`delete\`, \`await\`, \`yield\`, \`import()\` or tagged templates, as it's read twice, assign it to a variable first
+    loc: 6:63]
+  `);
+});
+
+test('should throw for JSX in style flag values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Icon = styled.span\`color: red;\`
+        const Box = styled.div<{ active: boolean }>\`&.active { color: red; }\`
+        export const App = ({ on }) => <Box active={on && <Icon />} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`active\` value can't contain JSX, style flags are booleans or strings
+    loc: 4:50]
+  `);
+});
+
+test('should throw for JSX in cx values', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        const Icon = styled.span\`color: red;\`
+        const Box = styled.div\`&.active { color: red; }\`
+        export const App = ({ on }) => <Box cx={{ active: on && <Icon /> }} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" value can't contain JSX, cx values are conditions
+    loc: 4:56]
+  `);
+});
+
+test('should throw for a style flag named `__proto__`', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Item = styled.div<{ __proto__: boolean }>\`
+          &.__proto__ { color: red; }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag \`__proto__\` is not supported, use another name
+    loc: 3:26]
+  `);
+});
+
+test('should not warn about classes of descendants in :has()', async () => {
+  const warnings: TransformWarning[] = [];
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      const Box = styled.div<{ active: boolean }>\`
+        &.active { color: red; }
+        &:has(.icon) { color: blue; }
+      \`
+      export const App = () => <Box active />
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(warnings).toHaveLength(0);
 });
 
 test('should throw error for a flag redeclared with another type by an extension', async () => {
