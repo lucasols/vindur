@@ -22,6 +22,7 @@ use super::{
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
     import_errors::unknown_element_message,
+    runtime_helpers::reserved_name_error,
     scoped::{ScopedVariables, process_scoped_variables},
     static_evaluation::evaluate_expression,
     static_value::{TemplateContext, evaluate_template, locate_template_error},
@@ -213,11 +214,13 @@ pub(super) fn process_variable_declaration(
                 imports: transform.imports,
                 program: transform.program,
                 source: transform.source,
+                variable_name: identifier.name.as_str(),
             },
         )?;
         if let Some(styled_definition) = styled_definition {
             require_const(declaration, transform.file_path, transform.source)?;
             let base_component = styled_definition.base_component;
+            let base_call = styled_definition.base_call;
             let own_attrs = styled_definition.attrs;
             let own_style_flags = styled_definition.style_flags;
             if declaration.declarations.len() != 1 {
@@ -229,6 +232,15 @@ pub(super) fn process_variable_declaration(
                 ));
             }
             let variable_name = identifier.name.as_str();
+            if base_call.is_some() {
+                reserved_name_error(
+                    transform.program,
+                    transform.scoping,
+                    &base_component.element,
+                    transform.file_path,
+                    transform.source,
+                )?;
+            }
             let generated_name = generated_name(
                 transform.file_hash,
                 *transform.id_index,
@@ -489,10 +501,23 @@ pub(super) fn process_variable_declaration(
                         attrs.as_deref(),
                     )
                 };
-                transform.edits.push(Edit {
-                    span: tagged.span,
-                    replacement,
-                });
+                match base_call {
+                    Some(call) => {
+                        let declaration_prefix = &transform.source
+                            [transform.statement_start as usize..tagged.span.start as usize];
+                        push_base_call_edits(
+                            transform,
+                            &base_component.element,
+                            call,
+                            tagged.span,
+                            format!(";\n{declaration_prefix}{replacement}"),
+                        );
+                    }
+                    None => transform.edits.push(Edit {
+                        span: tagged.span,
+                        replacement,
+                    }),
+                }
                 transform.styled_components.insert(
                     variable_name.to_owned(),
                     StyledComponent {
@@ -507,6 +532,19 @@ pub(super) fn process_variable_declaration(
                 );
                 continue;
             }
+            match base_call {
+                Some(call) => push_base_call_edits(
+                    transform,
+                    &base_component.element,
+                    call,
+                    tagged.span,
+                    String::new(),
+                ),
+                None => transform.edits.push(Edit {
+                    span: expand_removal_to_line(transform.source, declaration.span),
+                    replacement: String::new(),
+                }),
+            }
             transform.styled_components.insert(
                 variable_name.to_owned(),
                 StyledComponent {
@@ -519,10 +557,6 @@ pub(super) fn process_variable_declaration(
                     style_flags,
                 },
             );
-            transform.edits.push(Edit {
-                span: expand_removal_to_line(transform.source, declaration.span),
-                replacement: String::new(),
-            });
             continue;
         }
 
@@ -672,6 +706,26 @@ pub(super) fn process_variable_declaration(
         });
     }
     Ok(())
+}
+
+/// Assigns the call a styled component extends inline to a constant, keeping the call in place so
+/// the edits other passes make inside it still apply: `const S = styled(wrap(B))` + `rest` becomes
+/// `const _vSBase = wrap(B)` + `replacement`
+fn push_base_call_edits(
+    transform: &mut VariableTransform<'_>,
+    base_name: &str,
+    call: oxc_span::Span,
+    tagged: oxc_span::Span,
+    replacement: String,
+) {
+    transform.edits.push(Edit {
+        span: oxc_span::Span::new(transform.statement_start, call.start),
+        replacement: format!("const {base_name} = "),
+    });
+    transform.edits.push(Edit {
+        span: oxc_span::Span::new(call.end, tagged.end),
+        replacement,
+    });
 }
 
 fn validate_vindur_function_declaration(

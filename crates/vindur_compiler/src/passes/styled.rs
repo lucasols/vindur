@@ -50,6 +50,8 @@ pub(crate) struct StyledComponent {
 
 pub(crate) struct StyledDefinition {
     pub attrs: Option<String>,
+    /// The call a styled component extends inline, like `memo(Button)` in `styled(memo(Button))`
+    pub base_call: Option<Span>,
     pub base_component: StyledComponent,
     pub style_flags: Vec<StyleFlag>,
 }
@@ -62,6 +64,12 @@ pub(crate) struct StyledTagContext<'a> {
     pub imports: &'a VindurImports<'a>,
     pub program: &'a Program<'a>,
     pub source: &'a str,
+    pub variable_name: &'a str,
+}
+
+/// The constant a call extended inline, like `styled(memo(Button))`, is assigned to
+fn styled_call_base_name(variable_name: &str) -> String {
+    format!("_v{variable_name}Base")
 }
 
 pub(crate) fn styled_tag_element(
@@ -84,6 +92,7 @@ pub(crate) fn styled_tag_component(
     tag: &Expression<'_>,
     imports: &VindurImports<'_>,
     components: &FxHashMap<String, StyledComponent>,
+    variable_name: &str,
 ) -> Option<StyledComponent> {
     if let Some(element) = styled_tag_element(tag, imports) {
         return Some(StyledComponent {
@@ -137,6 +146,36 @@ pub(crate) fn styled_tag_component(
                 style_flags: Vec::new(),
             })
         }
+        argument if is_call_argument(argument) => Some(StyledComponent {
+            attrs: None,
+            class_name: String::new(),
+            element: styled_call_base_name(variable_name),
+            element_is_identifier: true,
+            element_is_base: true,
+            runtime: false,
+            style_flags: Vec::new(),
+        }),
+        _ => None,
+    }
+}
+
+/// A call, also parenthesized or with a type cast, e.g. `memo(Button) as typeof Button`
+pub(crate) fn is_call_argument(argument: &Argument<'_>) -> bool {
+    matches!(
+        argument
+            .as_expression()
+            .map(Expression::get_inner_expression),
+        Some(Expression::CallExpression(_))
+    )
+}
+
+/// The span of the call a styled component extends, e.g. `memo(Button)` in `styled(memo(Button))`
+fn styled_base_call(tag: &Expression<'_>) -> Option<Span> {
+    let Expression::CallExpression(call) = attrs_base(tag) else {
+        return None;
+    };
+    match call.arguments.as_slice() {
+        [argument] if is_call_argument(argument) => Some(argument.span()),
         _ => None,
     }
 }
@@ -161,8 +200,12 @@ pub(crate) fn styled_tag_component_with_attrs(
     if let Expression::CallExpression(call) = tag
         && let Expression::StaticMemberExpression(member) = &call.callee
         && member.property.name.as_str() == "attrs"
-        && let Some(component) =
-            styled_tag_component(&member.object, context.imports, context.components)
+        && let Some(component) = styled_tag_component(
+            &member.object,
+            context.imports,
+            context.components,
+            context.variable_name,
+        )
     {
         let [Argument::ObjectExpression(object)] = call.arguments.as_slice() else {
             return Err(CompilerDiagnostic::error(
@@ -184,12 +227,18 @@ pub(crate) fn styled_tag_component_with_attrs(
         }
         let span = object.span;
         return Ok(Some(StyledDefinition {
+            base_call: styled_base_call(&member.object),
             base_component: component,
             attrs: Some(context.source[span.start as usize..span.end as usize].to_owned()),
             style_flags: style_flags()?,
         }));
     }
-    let component = styled_tag_component(tag, context.imports, context.components);
+    let component = styled_tag_component(
+        tag,
+        context.imports,
+        context.components,
+        context.variable_name,
+    );
     if let Expression::CallExpression(call) = tag
         && let Expression::Identifier(callee) = &call.callee
         && context.imports.matches_import_or_global(callee, "styled")
@@ -226,6 +275,7 @@ pub(crate) fn styled_tag_component_with_attrs(
     };
     Ok(Some(StyledDefinition {
         attrs: None,
+        base_call: styled_base_call(tag),
         base_component: component,
         style_flags: style_flags()?,
     }))
@@ -239,18 +289,6 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
         && matches!(&inner.callee, Expression::StaticMemberExpression(inner_member) if inner_member.property.name.as_str() == "attrs")
     {
         return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
-    }
-    if let Expression::CallExpression(call) = attrs_base(tag)
-        && matches!(call.callee, Expression::Identifier(_))
-        && let [argument] = call.arguments.as_slice()
-        && matches!(
-            argument
-                .as_expression()
-                .map(Expression::get_inner_expression),
-            Some(Expression::CallExpression(_))
-        )
-    {
-        return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
     }
     "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
 }

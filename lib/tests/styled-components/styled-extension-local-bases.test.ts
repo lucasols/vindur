@@ -72,29 +72,254 @@ test('extend local components created by a call', async () => {
   `);
 });
 
-test('should throw error when extending a call expression inline', async () => {
-  await expect(async () => {
-    await transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur'
-        import { Button } from './Button'
+test('extend a call inline', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Button } from './Button'
 
-        const wrapWithTooltip = <T,>(component: T): T => component
+      const wrapWithTooltip = <T,>(component: T): T => component
 
-        const StyledButton = styled(wrapWithTooltip(Button))\`
-          color: red;
-        \`
-      `,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
-  }).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: styled() cannot extend a call expression, assign it to a const first, e.g. \`const Base = wrap(Component)\` and then \`styled(Base)\`
-    loc: 6:21]
+      const StyledButton = styled(wrapWithTooltip(Button))\`
+        color: red;
+      \`
+
+      const App = () => <StyledButton />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Button } from "./Button";
+    const wrapWithTooltip = <T,>(component: T): T => component;
+    const _vStyledButtonBase = wrapWithTooltip(Button);
+    const App = () => <_vStyledButtonBase className="v1560qbr-1-StyledButton" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledButton {
+      color: red;
+    }
+    "
   `);
 });
 
-test('should throw error when extending a call expression inline with attrs', async () => {
+test('extend a call inline with attrs', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { memo } from 'react'
+      import { Button } from './Button'
+
+      const StyledButton = styled(memo(Button)).attrs({ type: 'button' })\`
+        color: red;
+      \`
+
+      const App = () => <StyledButton />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { memo } from "react";
+    import { Button } from "./Button";
+    const _vStyledButtonBase = memo(Button);
+    const StyledButton = _vSC(_vStyledButtonBase, "v1560qbr-1-StyledButton", {
+      type: "button",
+    });
+    const App = () => <StyledButton />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledButton {
+      color: red;
+    }
+    "
+  `);
+});
+
+test('extend an exported call inline that other styled components extend', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { memo } from 'react'
+      import { Button } from './Button'
+
+      export const StyledButton = styled(memo(Button))\`
+        color: red;
+      \`
+
+      const PrimaryButton = styled(StyledButton)\`
+        color: blue;
+      \`
+
+      const App = () => <PrimaryButton />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { memo } from "react";
+    import { Button } from "./Button";
+    const _vStyledButtonBase = memo(Button);
+    export const StyledButton = _vSC(_vStyledButtonBase, "v1560qbr-1-StyledButton");
+    const PrimaryButton = _vSC(
+      _vStyledButtonBase,
+      "v1560qbr-1-StyledButton v1560qbr-2-PrimaryButton",
+    );
+    const App = () => <PrimaryButton />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledButton {
+      color: red;
+    }
+
+    .v1560qbr-2-PrimaryButton {
+      color: blue;
+    }
+    "
+  `);
+});
+
+test('extend a call inline with style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { memo } from 'react'
+      import { Button } from './Button'
+
+      const StyledButton = styled(memo(Button))<{ active: boolean }>\`
+        color: red;
+
+        &.active {
+          color: blue;
+        }
+      \`
+
+      const App = () => <StyledButton active />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { memo } from "react";
+    import { Button } from "./Button";
+    const _vStyledButtonBase = memo(Button);
+    const App = () => (
+      <_vStyledButtonBase className={"v1560qbr-1-StyledButton voctcyj-active"} />
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledButton {
+      color: red;
+
+      &.voctcyj-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});
+
+test('extend a call inline with JSX in its arguments', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { Button } from './Button'
+
+      const withIcon = <T,>(component: T, _icon: unknown): T => component
+
+      const Icon = styled.span\`
+        color: red;
+      \`
+
+      const StyledButton = styled(withIcon(Button, <Icon />))\`
+        color: blue;
+      \`
+
+      const App = () => <StyledButton />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Button } from "./Button";
+    const withIcon = <T,>(component: T, _icon: unknown): T => component;
+    const _vStyledButtonBase = withIcon(
+      Button,
+      <span className="v1560qbr-1-Icon" />,
+    );
+    const App = () => <_vStyledButtonBase className="v1560qbr-2-StyledButton" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Icon {
+      color: red;
+    }
+
+    .v1560qbr-2-StyledButton {
+      color: blue;
+    }
+    "
+  `);
+});
+
+test('a styled component passed to a call extended inline stays a runtime component', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { memo } from 'react'
+
+      const Card = styled.div\`
+        color: red;
+      \`
+
+      const MemoCard = styled(memo(Card))\`
+        color: blue;
+      \`
+
+      const App = () => <MemoCard />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    import { memo } from "react";
+    const Card = _vSC("div", "v1560qbr-1-Card");
+    const _vMemoCardBase = memo(Card);
+    const App = () => <_vMemoCardBase className="v1560qbr-2-MemoCard" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-Card {
+      color: red;
+    }
+
+    .v1560qbr-2-MemoCard {
+      color: blue;
+    }
+    "
+  `);
+});
+
+test('should throw error when the generated base name of a call extended inline is taken', async () => {
   await expect(async () => {
     await transformWithFormat({
       source: dedent`
@@ -102,7 +327,9 @@ test('should throw error when extending a call expression inline with attrs', as
         import { memo } from 'react'
         import { Button } from './Button'
 
-        const StyledButton = styled(memo(Button)).attrs({ type: 'button' })\`
+        const _vStyledButtonBase = 1
+
+        const StyledButton = styled(memo(Button))\`
           color: red;
         \`
       `,
@@ -110,8 +337,8 @@ test('should throw error when extending a call expression inline with attrs', as
       overrideDefaultImportAliases: importAliases,
     });
   }).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: styled() cannot extend a call expression, assign it to a const first, e.g. \`const Base = wrap(Component)\` and then \`styled(Base)\`
-    loc: 5:21]
+    [TransformError: /test.tsx: "_vStyledButtonBase" is reserved by vindur for generated code, rename this binding. Names starting with _v are reserved
+    loc: 5:6]
   `);
 });
 
@@ -279,24 +506,36 @@ test('type bindings with the extended component name do not shadow it', async ()
   `);
 });
 
-test('should suggest a const for a cast call passed to styled', async () => {
-  await expect(async () => {
-    await transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur'
-        import { memo } from 'react'
-        import { Button } from './Button'
+test('extend a call with a type cast inline', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+      import { memo } from 'react'
+      import { Button } from './Button'
 
-        const StyledButton = styled(memo(Button) as typeof Button)\`
-          color: red;
-        \`
-      `,
-      overrideDefaultFs: emptyFs,
-      overrideDefaultImportAliases: importAliases,
-    });
-  }).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: styled() cannot extend a call expression, assign it to a const first, e.g. \`const Base = wrap(Component)\` and then \`styled(Base)\`
-    loc: 5:21]
+      const StyledButton = styled(memo(Button) as typeof Button)\`
+        color: red;
+      \`
+
+      const App = () => <StyledButton />
+    `,
+    overrideDefaultFs: emptyFs,
+    overrideDefaultImportAliases: importAliases,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { memo } from "react";
+    import { Button } from "./Button";
+    const _vStyledButtonBase = memo(Button) as typeof Button;
+    const App = () => <_vStyledButtonBase className="v1560qbr-1-StyledButton" />;
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-StyledButton {
+      color: red;
+    }
+    "
   `);
 });
 

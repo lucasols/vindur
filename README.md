@@ -273,15 +273,15 @@ const SecondaryButton = styled(BaseButton)`
 `;
 ```
 
-`styled()` also extends custom components, imported or declared as a top-level `const` before the `styled()` call and initialized with a function, a class or a call. To extend the result of a call, like a HOC or `memo`, assign it to a const first, `styled(wrap(Button))` is a compile error:
+`styled()` also extends custom components, imported or declared as a top-level `const` before the `styled()` call and initialized with a function, a class or a call. The result of a call, like a HOC or `memo`, can also be extended inline, the call runs once where the styled component is declared:
 
 ```tsx
-const ButtonWithTooltip = wrapWithTooltip(Button);
-
-const StyledButton = styled(ButtonWithTooltip)`
+const StyledButton = styled(wrapWithTooltip(Button))`
   color: red;
 `;
 ```
+
+Names starting with `_v` are reserved: the call is assigned to a generated `_v<Name>Base` const, e.g. `_vStyledButtonBase`.
 
 ### Element Type Changes
 
