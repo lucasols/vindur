@@ -50,6 +50,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const depToSources = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
   const sourceToDeps = new Map<string, Set<string>>(); // sourceFile -> Set<externalFile>
   let devServer: ViteDevServer | undefined;
+  let emitSourcemaps = false;
 
   const fs: TransformFS = {
     readFile: (fileAbsPath: string) => readFileSync(fileAbsPath, 'utf-8'),
@@ -59,6 +60,11 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   return {
     name: 'vindur',
     enforce: 'pre',
+    configResolved(config) {
+      // Dev always serves sourcemaps, builds follow `build.sourcemap`
+      emitSourcemaps =
+        sourcemap ?? (config.command === 'serve' || !!config.build.sourcemap);
+    },
     configureServer(server) {
       devServer = server;
     },
@@ -136,7 +142,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
         } catch (error) {
           if (error instanceof TransformError) {
@@ -182,7 +188,11 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             injectCssImport(result.code, virtualId)
           : result.code;
 
-        return { code: codeWithCssImport, map: result.map };
+        // Without a map Rollup reports the sourcemap as broken, `null` would claim the code
+        // didn't move
+        return result.map ?
+            { code: codeWithCssImport, map: result.map }
+          : codeWithCssImport;
       },
     },
 
@@ -210,7 +220,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           transformFunctionCache: functionCache,
           transformDynamicColorCache: dynamicColorCache,
           importAliases,
-          sourcemap: sourcemap ?? !!devServer,
+          sourcemap: emitSourcemaps,
         });
 
         const vid = makeVirtualId(changed);
@@ -247,7 +257,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
 
           const dependentVid = makeVirtualId(srcId);
@@ -298,7 +308,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformFunctionCache: functionCache,
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
-            sourcemap: sourcemap ?? !!devServer,
+            sourcemap: emitSourcemaps,
           });
 
           const vid = makeVirtualId(srcId);

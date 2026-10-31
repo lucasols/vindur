@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import nativeBinding, {
   type Compiler as CompilerInstance,
 } from '@vindur-css/native';
@@ -133,7 +134,16 @@ export function transformWithRust({
         sourceOffsets: result.cssSourceOffsets,
       })
     : null,
-    map: null,
+    map: sourcemap ?
+      {
+        version: 3,
+        file: basename(fileAbsPath),
+        sources: [fileAbsPath],
+        sourcesContent: [source],
+        names: [],
+        mappings: result.jsMappings,
+      }
+    : null,
     changed: result.changed,
   };
 }

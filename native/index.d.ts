@@ -39,4 +39,5 @@ export interface TransformOutput {
   diagnostics: Array<Diagnostic>
   cssSourceOffsets: Array<number>
   changed: boolean
+  jsMappings: string
 }

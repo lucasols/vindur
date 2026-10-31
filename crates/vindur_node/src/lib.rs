@@ -46,6 +46,7 @@ pub struct TransformOutput {
     pub diagnostics: Vec<Diagnostic>,
     pub css_source_offsets: Vec<u32>,
     pub changed: bool,
+    pub js_mappings: String,
 }
 
 #[napi]
@@ -105,6 +106,7 @@ impl Compiler {
                 .collect(),
             css_source_offsets: result.css_source_offsets,
             changed: result.changed,
+            js_mappings: result.js_mappings,
         }
     }
 
