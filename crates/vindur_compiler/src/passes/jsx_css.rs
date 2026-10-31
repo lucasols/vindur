@@ -202,7 +202,7 @@ impl JsxCssVisitor<'_> {
         let cx_transform = self.output.cx_elements.get(&element.span.start);
         let (class_name, css_rules) = match &container.expression {
             JSXExpression::Identifier(identifier) => {
-                let Some(StaticValue::CssClass { name, css }) =
+                let Some(StaticValue::CssClass { name, css, .. }) =
                     resolved_constant(identifier, self.output.constants, self.output.scoping)
                 else {
                     self.invalid_value(identifier.span);

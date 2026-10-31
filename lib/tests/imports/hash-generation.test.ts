@@ -320,7 +320,8 @@ describe('imported file hash generation', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "const appStyles = "v1560qbr-1-appStyles";
+      "import "#/layouts";
+      const appStyles = "v1560qbr-1-appStyles";
       "
     `);
 

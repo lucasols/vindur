@@ -534,6 +534,23 @@ describe('styled components - attrs functionality', () => {
     `);
   });
 
+  test('should throw error for compile-time vindur functions in attrs', async () => {
+    await expect(async () => {
+      await transformWithFormat({
+        source: dedent`
+          import { styled, layer } from 'vindur'
+
+          export const Input = styled.input.attrs({ title: layer('base') })\`
+            color: blue;
+          \`
+        `,
+      });
+    }).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: styled.*.attrs() values cannot use vindur functions that are compiled away, eg. layer() or createClassName(), define the value in a module level constant and reference it
+      loc: 3:49]
+    `);
+  });
+
   test('should merge the attrs of a styled extension with the attrs of its base', async () => {
     const result = await transformWithFormat({
       source: dedent`

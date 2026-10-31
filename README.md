@@ -1629,6 +1629,8 @@ Compiles to, with the css of `layers.ts` loaded first:
 }
 ```
 
+`layer` can only be used inside vindur styles, using it elsewhere is a compile error.
+
 ## License
 
 MIT

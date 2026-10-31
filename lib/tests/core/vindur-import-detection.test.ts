@@ -178,6 +178,40 @@ test('should keep type only vindur imports when merging vindur imports', async (
   `);
 });
 
+test('should error on createGlobalStyle outside a top-level statement', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur';
+
+        export default createGlobalStyle\`
+          body {
+            margin: 0;
+          }
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle can't be exported, its styles are added where it is declared, remove the \`export\`
+    loc: 3:15]
+  `);
+});
+
+test('should error on layer outside a vindur style', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { layer } from 'vindur';
+
+        export const baseLayer = layer('base');
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindur's "layer" is compiled away and can't be used here, use it inside a vindur style, eg. \${layer('base')} { color: red; }
+    loc: 3:25]
+  `);
+});
+
 test('should compile css templates inside assigned templates of other tags', async () => {
   const result = await transformWithFormat({
     source: dedent`

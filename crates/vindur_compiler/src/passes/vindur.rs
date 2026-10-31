@@ -14,6 +14,7 @@ use crate::{
 };
 
 use super::{
+    compile_time_references::uncompiled_reference_error,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
@@ -502,6 +503,11 @@ pub(crate) fn transform_program(
     ));
 
     optimize_cx_calls(program, scoping, source, &mut edits);
+    if let Some(diagnostic) =
+        uncompiled_reference_error(program, scoping, &imports, &edits, file_path, source)
+    {
+        return Err(diagnostic);
+    }
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);
