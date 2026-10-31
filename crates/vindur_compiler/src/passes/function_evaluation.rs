@@ -8,9 +8,8 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    contains_local_object_member, evaluate_array, evaluate_binary, evaluate_expression,
-    evaluate_identifier, evaluate_object, has_css_text, resolved_constant, static_value_to_boolean,
-    static_value_to_string,
+    evaluate_array, evaluate_binary, evaluate_expression, evaluate_identifier, evaluate_object,
+    has_css_text, resolved_constant, static_value_to_boolean, static_value_to_string,
 };
 
 pub(super) fn evaluate_function(
@@ -410,17 +409,22 @@ fn is_function_argument_value(value: &StaticValue) -> bool {
     }
 }
 
+fn is_primitive(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Boolean(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => true,
+        StaticValue::ImportedValue { value, .. } => is_primitive(value),
+        _ => false,
+    }
+}
+
 pub(super) fn evaluate_argument(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<StaticValue> {
-    if argument
-        .as_expression()
-        .is_some_and(|expression| contains_local_object_member(expression, constants, scoping))
-    {
-        return None;
-    }
     match argument {
         Argument::BooleanLiteral(literal) => Some(StaticValue::Boolean(literal.value)),
         Argument::StringLiteral(literal) => Some(StaticValue::String(literal.value.to_string())),
@@ -447,12 +451,16 @@ pub(super) fn evaluate_argument(
             evaluate_expression(&binary.right, constants, scoping)?,
         ),
         // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
-        // `SIZE as number`
-        argument => evaluate_expression(
-            argument.as_expression()?.get_inner_expression(),
-            constants,
-            scoping,
-        )
-        .filter(is_function_argument_value),
+        // `SIZE as number`. Properties of constant objects, like `iconColor.var` or
+        // `theme.spacing.md`, must be primitives
+        argument => {
+            let expression = argument.as_expression()?.get_inner_expression();
+            let value = evaluate_expression(expression, constants, scoping)?;
+            if expression.is_member_expression() {
+                is_primitive(&value).then_some(value)
+            } else {
+                is_function_argument_value(&value).then_some(value)
+            }
+        }
     }
 }

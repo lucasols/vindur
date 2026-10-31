@@ -232,6 +232,24 @@ const Ring = styled.svg`
 `;
 ```
 
+Properties of constant objects, local or imported, can be interpolated at any depth. The interpolated value must be a string or number; objects, booleans and `undefined` are rejected:
+
+```tsx
+// colorScheme.ts
+export const colorScheme = {
+  container: { isDark: '.dm &', isLight: '.lm &' },
+};
+
+// Card.tsx
+import { colorScheme } from './colorScheme';
+
+const Card = styled.div`
+  ${colorScheme.container.isDark} {
+    color: white;
+  }
+`;
+```
+
 ### Style Extension
 
 Extend existing styled components using `styled()`:
@@ -388,6 +406,8 @@ const Navigation = styled.nav`
   }
 }
 ```
+
+Sass style suffix concatenation (`&--today`, `&__body`, `&-active`) is a compile error: CSS nesting doesn't concatenate, so the rule would never match. Write the full selector in its own rule instead, e.g. `.day { &--today {} }` -> `.day--today {}`, or use a separate class on the component itself, e.g. `&-active {}` -> `&.active {}`. `&div` is also an error since Sass and CSS nesting read it differently, write `div&` instead.
 
 ### Styled Component References
 
@@ -793,9 +813,14 @@ export const elementClassName = createClassName();
 export const genericPurposeId = stableId();
 
 // is compiled to:
-export const elementClassName = createClassName('vhash-1');
+export const elementClassName = {
+  selector: '.vhash-1',
+  value: 'vhash-1',
+};
 export const genericPurposeId = 'vhash-2';
 ```
+
+`stableId`, `createClassName` and `createCssVar` can only be called directly, other references to them are a compile error. Module level declarations of them must use `const`.
 
 You can then use it in styled components, css functions and css props:
 
@@ -843,6 +868,44 @@ const Component = () => {
   );
 };
 ```
+
+### Shared CSS Variables
+
+Use `createCssVar` for custom properties shared across components and files. It must be a module level `const` declaration, and the compiler replaces it with a `name` and a `var()` reference, readable in dev and short hashed in production:
+
+```tsx
+// vars.ts
+import { createCssVar } from 'vindur';
+
+export const iconColor = createCssVar();
+
+// is compiled to:
+export const iconColor = {
+  name: '--vhash-1-iconColor', // '--vhash-1' in production
+  var: 'var(--vhash-1-iconColor)',
+};
+```
+
+```tsx
+import { iconColor } from './vars';
+
+const NavBar = styled.nav`
+  ${iconColor.name}: white;
+`;
+
+const Icon = styled.svg`
+  color: ${iconColor.var};
+`;
+
+// set it at runtime with the style prop
+const Component = ({ color }: { color: string }) => (
+  <NavBar style={{ [iconColor.name]: color }}>
+    <Icon />
+  </NavBar>
+);
+```
+
+Reference `iconColor.name` and `iconColor.var` directly in styles: constants derived from them, like `const iconVar = iconColor.var`, can't be interpolated.
 
 ### Global Styles
 
@@ -928,7 +991,7 @@ createGlobalStyle`
 
 `:global(...)` is not supported and is a compile error. Class names written in templates are not hashed (except `&.name` selectors for style flags of a styled component and classes of the element itself used in a `cx` prop), so use them directly, e.g. `.dark & { ... }` instead of `:global(.dark) & { ... }`. For styles that should apply outside the component, use `createGlobalStyle`.
 
-Sass selectors are compile errors: `&` can't be joined with a name, like `&-icon`, which CSS reads as `&` followed by an `-icon` element (use a class like `&.icon` or a style flag), and `%placeholder` selectors are not supported.
+Sass `%placeholder` selectors are a compile error, use a class or a `css` style instead. `&` joined with a name, like `&-icon`, is an error too, also inside pseudo-classes like `:is(&-icon)`, see [Nesting Styles](#nesting-styles).
 
 ### Mixins and Functions
 
@@ -967,7 +1030,7 @@ const Button = styled.button`
 `;
 ```
 
-`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions, members of local objects and runtime values can't be passed. A function can't write `undefined`, a boolean or an object into its result, e.g. an optional parameter interpolated without a default value, as they have no CSS text.
+`vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error. Their arguments must be static values, like literals, module level constants, string or number properties of constant objects and arithmetic of them, e.g. `SIZE * 2`, or arrays and objects of them, colors, functions and runtime values can't be passed. A function can't write `undefined`, a boolean or an object into its result, e.g. an optional parameter interpolated without a default value, as they have no CSS text.
 
 Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension, and the components extending or rendering it, can't have style flags, call `withComponent` or select classes of its element, like `&.active` or `${Ext}.active`, import `Card` from the module that declares it instead.
 
@@ -1359,14 +1422,16 @@ Each color in your theme provides:
 - **`value`**: CSS variable reference for the color. `var` (and `contrast.var`) still works as a deprecated alias
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
-- **`darker(amount)`**: Mixes the color with black in sRGB (0-1 scale)
-- **`lighter(amount)`**: Mixes the color with white in sRGB (0-1 scale)
-- **`saturatedDarker(amount)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
+- **`darker(amount, alpha?)`**: Mixes the color with black in sRGB (0-1 scale)
+- **`lighter(amount, alpha?)`**: Mixes the color with white in sRGB (0-1 scale)
+- **`saturatedDarker(amount, alpha?)`**: Moves the lightness toward 0%, with the saturation forced to 0% for near gray colors and 100% otherwise (0-1 scale)
 - **`contrast.value`**: Black or white, picked with APCA
 - **`contrast.optimal(options?)`**: Generates optimal contrast in which light colors use a saturated dark color instead of black as contrast
 - **`contrast.alpha(amount)`**: Creates an alpha variant of the contrast color
 
-Amounts, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
+The optional `alpha` of `darker`, `lighter` and `saturatedDarker` applies an alpha to the result, e.g. `saturatedDarker(0.86, 0.08)`.
+
+Amounts and alphas, including the `alpha` option of `contrast.optimal`, must be between 0 and 1. Inside styles other values are a compile error; calls outside styles, like in a `style` prop, aren't checked.
 
 ## Dynamic Theme Colors
 
@@ -1407,10 +1472,20 @@ const ChildElement = styled.div`
 `;
 
 // for dom elements and styled components, use the dynamicColor prop to set the color
-// the value is required: `dynamicColor={dynamicColor}` is a compile error
+// `dynamicColor` is a vindur prop on every element and component, its value must be
+// `color.set(...)` or an array of them: `dynamicColor={dynamicColor}` is a compile error
 const MyComponent = ({ color }: { color: string | null }) => {
   return (
     <div dynamicColor={dynamicColor.set(color)}>
+      <Card>This card adapts to the dynamic color</Card>
+    </div>
+  );
+};
+
+// set accepts the setColorScheme and threshold options of setProps
+const Banner = ({ color }: { color: string | null }) => {
+  return (
+    <div dynamicColor={dynamicColor.set(color, { veryDarkThreshold: 0.12 })}>
       <Card>This card adapts to the dynamic color</Card>
     </div>
   );
@@ -1449,6 +1524,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
   - `options.className?`: Additional class names to merge
   - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
   - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
+- **`set(hexColor, options?)`**: Sets the color through the `dynamicColor` prop, which merges the element's `className` and `style`. `options` accepts `setColorScheme`, `veryDarkThreshold` and `veryLightThreshold`, the same as in `setProps`
 
 Black or white contrast is picked with [APCA](https://github.com/Myndex/apca-w3), and `isDark`/`isLight` follow it: a color is light when black text has more contrast. `contrast.optimal()` uses `saturatedDarker(0.86)` of the color on light colors instead of black. `saturatedDarker(amount)` moves the lightness toward 0% while forcing the saturation to 0% for near gray colors and 100% otherwise.
 
@@ -1503,13 +1579,19 @@ const AdaptiveButton = styled.button`
 
 [CSS layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) can be used to avoid conflicts with other styles.
 
-```tsx
-import { styled, layer, createGlobalStyle } from 'vindur';
+A module's styles load after the styles of the modules it imports, and the first appearance of a layer sets its order. So declare the layer order in its own module, imported before any component, e.g. as the first import of the app entry.
 
-// optionally create global style to set the layers order
-const GlobalStyle = createGlobalStyle`
+```tsx
+// layers.ts, imported first: `import './layers';`
+import { createGlobalStyle } from 'vindur';
+
+createGlobalStyle`
   @layer lower-priority, higher-priority;
 `;
+```
+
+```tsx
+import { styled, layer } from 'vindur';
 
 // then use the `layer` function extend the layers in the components;
 const Card = styled.div`
@@ -1525,11 +1607,13 @@ const Card = styled.div`
 `;
 ```
 
-Compiles to:
+Compiles to, with the css of `layers.ts` loaded first:
 
 ```css
+/* layers.ts */
 @layer lower-priority, higher-priority;
 
+/* Card */
 @layer higher-priority {
   .vhash123-1-Card {
     background: white;

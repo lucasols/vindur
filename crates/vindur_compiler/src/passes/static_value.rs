@@ -9,17 +9,15 @@ use super::css_syntax::CssError;
 use super::css_tokens::{OpenToken, OpenTokenScanner};
 use super::dynamic_color_value::{container_selector_error, invalid_color_method_error};
 use super::function_evaluation::{evaluate_argument, function_evaluation_error};
-use super::import_errors::{
-    member_root_identifier, not_static_import_message, unresolved_import_error,
-};
+use super::import_errors::unresolved_import_error;
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error,
     invalid_function_argument_error, invalid_layer_error, joined_scoped_name_error,
     open_token_end_error,
 };
 use super::static_evaluation::{
-    collect_declaration_constants, contains_local_object_member, evaluate_expression, has_css_text,
-    is_unresolved_import, resolved_constant, static_value_to_string,
+    collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
+    resolved_constant, static_value_to_string,
 };
 use super::styled::styled_ref_placeholder;
 use super::template_css::{EvaluatedTemplate, validate_template_css};
@@ -164,11 +162,6 @@ fn build_template_css(
         {
             return Err(diagnostic);
         }
-        if let Some(diagnostic) =
-            invalid_object_access_error(expression, constants, scoping, file_path, source, context)
-        {
-            return Err(diagnostic);
-        }
         if matches!(expression, Expression::ArrowFunctionExpression(_))
             && forward_styled_reference(expression).is_none()
         {
@@ -272,8 +265,17 @@ fn build_template_css(
             {
                 return Err(diagnostic);
             }
-            return Err(interpolation_error(expression, file_path, source, context));
+            let diagnostic = interpolation_error(expression, file_path, source, context);
+            // The imported file may have unsaved edits that lint can't see
+            return Err(
+                if is_imported_object_member(expression, constants, scoping) {
+                    diagnostic.ignored_in_lint()
+                } else {
+                    diagnostic
+                },
+            );
         };
+        // Colors and palettes are objects, only their `.value` and methods are CSS values
         if matches!(value, StaticValue::LayerFunction)
             || !has_css_text(&value)
             || is_unresolved_import(&value)
@@ -404,79 +406,22 @@ fn function_call_error(
     function_evaluation_error(function, &arguments)
 }
 
-fn invalid_object_access_error(
+/// A member chain rooted at an imported object, e.g. `theme.colors.primary`. When it can't be
+/// evaluated a property is missing, which TypeScript already reports in the editor
+fn is_imported_object_member(
     expression: &Expression<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-    file_path: &str,
-    source: &str,
-    context: &TemplateContext<'_>,
-) -> Option<CompilerDiagnostic> {
-    if contains_local_object_member(expression, constants, scoping) {
-        return Some(interpolation_error(expression, file_path, source, context));
+) -> bool {
+    let mut current = expression;
+    while let Expression::StaticMemberExpression(member) = current {
+        current = &member.object;
     }
-    let Expression::StaticMemberExpression(member) = expression else {
-        return None;
-    };
-    if let Expression::Identifier(root) = &member.object {
-        return match resolved_constant(root, constants, scoping)? {
-            StaticValue::ImportedObject {
-                properties,
-                source_path,
-            } if !properties.contains_key(member.property.name.as_str()) => Some(
-                CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    expression.span(),
-                    format!(
-                        "Property \"{}\" not found on imported object \"{}\" from {source_path}",
-                        member.property.name, root.name
-                    ),
-                )
-                .ignored_in_lint(),
-            ),
-            StaticValue::MissingImport {
-                imported_name,
-                source_path,
-            } => Some(CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                format!("Object \"{imported_name}\" not found in {source_path}"),
-            )),
-            StaticValue::InvalidObject {
-                source_path,
-                cyclic_imports,
-            } => Some(CompilerDiagnostic::error(
-                file_path,
-                source,
-                expression.span(),
-                not_static_import_message(&root.name, source_path, cyclic_imports),
-            )),
-            _ => None,
-        };
-    }
-    let root = member_root_identifier(&member.object)?;
-    if !matches!(
-        resolved_constant(root, constants, scoping),
-        Some(StaticValue::ImportedObject { .. })
-    ) {
-        return None;
-    }
-    let expression_source =
-        &source[expression.span().start as usize..expression.span().end as usize];
-    let variable_context = context.variable_name.map_or_else(
-        || context.tag_type.to_owned(),
-        |name| format!("... {name} = {}", context.tag_type),
-    );
-    Some(CompilerDiagnostic::error(
-        file_path,
-        source,
-        expression.span(),
-        format!(
-            "Nested property access is not supported, only one level property access is allowed at `{variable_context}` ... ${{{expression_source}}}"
-        ),
-    ))
+    matches!(expression, Expression::StaticMemberExpression(_))
+        && matches!(current, Expression::Identifier(root) if matches!(
+            resolved_constant(root, constants, scoping),
+            Some(StaticValue::ImportedObject { .. })
+        ))
 }
 
 fn imported_function_preserves_boundary(

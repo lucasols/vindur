@@ -6,30 +6,6 @@ const importAliases = { '#/': '/' };
 const emptyFs = createFsMock({});
 
 describe('styled components - error handling', () => {
-  test('should throw error for object property access', async () => {
-    const source = dedent`
-      import { styled } from 'vindur'
-
-      const theme = { primary: 'blue' }
-      const StyledDiv = styled.div\`
-        color: \${theme.primary};
-      \`
-    `;
-
-    await expect(async () => {
-      await transformWithFormat({
-        source,
-        overrideDefaultFs: emptyFs,
-        overrideDefaultImportAliases: importAliases,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `
-      [TransformError: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: 5:11]
-    `,
-    );
-  });
-
   test('should throw error for undefined variable references', async () => {
     const source = dedent`
       import { styled } from 'vindur'

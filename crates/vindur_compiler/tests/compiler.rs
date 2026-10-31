@@ -143,11 +143,11 @@ fn shares_indices_between_stable_ids_and_jsx_css_props() {
     );
 
     assert!(output.diagnostics.is_empty());
-    assert!(output.code.contains("\"v1560qbr-id-1\""));
+    assert!(output.code.contains("\"v1560qbr-1-id\""));
     assert!(output.code.contains("className=\"v1560qbr-2-css-prop-2\""));
     assert_eq!(
         output.css,
-        ".v1560qbr-2-css-prop-2 {\n  #v1560qbr-id-1 { color: red; }\n}"
+        ".v1560qbr-2-css-prop-2 {\n  #v1560qbr-1-id { color: red; }\n}"
     );
 }
 

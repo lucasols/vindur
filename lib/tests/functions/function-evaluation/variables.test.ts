@@ -252,7 +252,7 @@ test('should throw for dynamic colors passed to functions', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
     loc: 7:10]
   `);
 });
@@ -279,7 +279,7 @@ test('should throw for dynamic colors in object arguments of functions', async (
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
     loc: 7:10]
   `);
 });
@@ -336,62 +336,41 @@ test('should throw for runtime values passed to functions', async () => {
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
     loc: 3:50]
   `);
 });
 
-test('should throw for local object members passed to functions', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { css } from 'vindur'
-        import { bg } from '#/mixins'
+test('should pass members of local objects to functions', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { bg, pad } from '#/mixins'
 
-        const COLORS = { primary: 'red' }
+      const COLORS = { primary: 'red' }
+      const SPACING = { nested: { base: 4 } }
 
-        export const style = css\`
-          \${bg(COLORS.primary)};
-        \`
+      export const style = css\`
+        \${bg(COLORS.primary)};
+        \${pad(SPACING.nested.base * 2)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'mixins.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const bg = vindurFn((color: string) => \`background: \${color};\`)
+        export const pad = vindurFn((size: number) => \`padding: \${size}px;\`)
       `,
-      overrideDefaultFs: createFsMock({
-        'mixins.ts': dedent`
-          import { vindurFn } from 'vindur'
-
-          export const bg = vindurFn((color: string) => \`background: \${color};\`)
-        `,
-      }),
     }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
-    loc: 7:7]
-  `);
-});
+  });
 
-test('should throw for local object members in expression arguments of functions', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { css } from 'vindur'
-        import { pad } from '#/mixins'
-
-        const SPACING = { base: 4 }
-
-        export const style = css\`
-          \${pad(SPACING.base * 2)};
-        \`
-      `,
-      overrideDefaultFs: createFsMock({
-        'mixins.ts': dedent`
-          import { vindurFn } from 'vindur'
-
-          export const pad = vindurFn((size: number) => \`padding: \${size}px;\`)
-        `,
-      }),
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, or arrays and objects of them. Colors, functions, members of local objects and runtime values can't be passed
-    loc: 7:8]
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      background: red;
+      padding: 8px;
+    }
+    "
   `);
 });
 
