@@ -472,3 +472,23 @@ test('should insert the helper import after directives', async () => {
     "
   `);
 });
+
+test('should mark a file without vindur code as unchanged', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const Progress = () => <circle cx="50" cy="50" r="20" />
+    `,
+  });
+
+  expect(result.changed).toBe(false);
+});
+
+test('should mark a file with vindur code as changed', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      export const Box = () => <div cx={{ $active: true }} />
+    `,
+  });
+
+  expect(result.changed).toBe(true);
+});

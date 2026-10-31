@@ -134,5 +134,6 @@ export function transformWithRust({
       })
     : null,
     map: null,
+    changed: result.changed,
   };
 }

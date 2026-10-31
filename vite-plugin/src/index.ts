@@ -173,6 +173,10 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         // Cache the transform result for HMR and virtual load()
         sourceCache.set(id, result);
 
+        // Files the pre-filter matched without vindur code, like a native SVG `cx`
+        // attribute, are left to the next plugins untouched
+        if (!result.changed && !result.css) return null;
+
         const codeWithCssImport =
           result.css && result.css.length > 0 ?
             injectCssImport(result.code, virtualId)

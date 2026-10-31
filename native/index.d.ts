@@ -38,4 +38,5 @@ export interface TransformOutput {
   styleDependencies: Array<string>
   diagnostics: Array<Diagnostic>
   cssSourceOffsets: Array<number>
+  changed: boolean
 }
