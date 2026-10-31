@@ -12,7 +12,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
-use super::styled::{StyledComponent, styled_base_root_name};
+use super::styled::{StyledComponent, is_call_argument, styled_base_root_name};
 use super::vindur_fn_references::{
     is_css_template_attribute, is_styled_tag, is_vindur_template_tag,
 };
@@ -158,7 +158,7 @@ impl<'a> Visit<'a> for ValueReferenceVisitor<'_, '_> {
 
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
         if is_vindur_template_tag(&tagged.tag, self.imports) {
-            self.visit_attrs_arguments(&tagged.tag);
+            self.visit_kept_arguments(&tagged.tag);
         } else {
             walk::walk_tagged_template_expression(self, tagged);
         }
@@ -277,21 +277,24 @@ impl ValueReferenceVisitor<'_, '_> {
         }
     }
 
-    /// `.attrs()` objects are kept in the runtime output, the rest of the tag is compiled away
-    fn visit_attrs_arguments(&mut self, tag: &Expression<'_>) {
+    /// `.attrs()` objects and calls extended inline, like `memo(Card)` in `styled(memo(Card))`,
+    /// are kept in the runtime output, the rest of the tag is compiled away
+    fn visit_kept_arguments(&mut self, tag: &Expression<'_>) {
         match tag {
             Expression::CallExpression(call) => {
-                if let Expression::StaticMemberExpression(member) = &call.callee
-                    && member.property.name.as_str() == "attrs"
-                {
-                    for argument in &call.arguments {
+                let is_attrs_call = matches!(
+                    &call.callee,
+                    Expression::StaticMemberExpression(member) if member.property.name.as_str() == "attrs"
+                );
+                for argument in &call.arguments {
+                    if is_attrs_call || is_call_argument(argument) {
                         self.visit_argument(argument);
                     }
                 }
-                self.visit_attrs_arguments(&call.callee);
+                self.visit_kept_arguments(&call.callee);
             }
             Expression::StaticMemberExpression(member) => {
-                self.visit_attrs_arguments(&member.object);
+                self.visit_kept_arguments(&member.object);
             }
             _ => {}
         }
