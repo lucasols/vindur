@@ -10,6 +10,7 @@ import {
   type TransformFS,
   type TransformFunctionCache,
   type TransformDynamicColorCache,
+  type TransformOptions,
   type VindurTransformResult,
 } from 'vindur/transform';
 import { type ModuleNode, type Plugin, type ViteDevServer } from 'vite';
@@ -18,7 +19,7 @@ export type VindurPluginOptions = {
   debugLogs?: boolean;
   importAliases: Record<string, string>;
   /** Classes `setColorScheme` adds for the scheme of a dynamic color, e.g. `{ light: 'lm', dark: 'dm' }` */
-  colorSchemeClassNames?: { light: string; dark: string };
+  colorSchemeClassNames?: TransformOptions['colorSchemeClassNames'];
   sourcemap?: boolean;
 };
 

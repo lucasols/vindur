@@ -1,5 +1,6 @@
 import { dedent } from '@ls-stack/utils/dedent';
 import { describe, expect, test } from 'vitest';
+import type { TransformWarning } from '../../../src/transform';
 import { transformWithFormat } from '../../testUtils';
 
 describe('Dynamic Colors - Basic Usage', () => {
@@ -236,35 +237,63 @@ test('should throw for createDynamicCssColor outside a top level `const` declara
 });
 
 test('should pass the colorSchemeClassNames option to the runtime', async () => {
+  const warnings: TransformWarning[] = [];
   const result = await transformWithFormat({
     source: dedent`
-      import { createDynamicCssColor } from 'vindur'
+      import { createDynamicCssColor, styled } from 'vindur'
 
       const dynamicColor = createDynamicCssColor()
 
+      const Card = styled.div\`
+        &.dm { border: 1px solid white; }
+      \`
+
       const Component = ({ color }) => (
-        <div dynamicColor={dynamicColor.set(color, { setColorScheme: { fallback: 'dark' } })} />
+        <Card dynamicColor={dynamicColor.set(color, { setColorScheme: { fallback: 'dark' } })} />
       )
     `,
-    production: true,
-    colorSchemeClassNames: { light: 'lm', dark: 'd"m' },
+    colorSchemeClassNames: { light: 'lm', dark: 'dm' },
+    onWarning: (warning) => warnings.push(warning),
   });
 
   expect(result.code).toMatchInlineSnapshot(`
     "import { createDynamicCssColor } from "vindur";
-    const dynamicColor = createDynamicCssColor("v1560qbr-1", false, {
+    const dynamicColor = createDynamicCssColor("v1560qbr-1-dynamicColor", true, {
       light: "lm",
-      dark: 'd"m',
+      dark: "dm",
     });
     const Component = ({ color }) => (
       <div
-        {...dynamicColor._sp(color, undefined, {
-          setColorScheme: {
-            fallback: "dark",
+        {...dynamicColor._sp(
+          color,
+          {
+            className: "v1560qbr-2-Card",
           },
-        })}
+          {
+            setColorScheme: {
+              fallback: "dark",
+            },
+          },
+        )}
       />
     );
     "
   `);
+  // The configured scheme classes are not undeclared classes
+  expect(warnings).toEqual([]);
+});
+
+test('should reject colorSchemeClassNames that are not a single class name', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const dynamicColor = createDynamicCssColor()
+      `,
+      colorSchemeClassNames: { light: 'lm', dark: 'dm dark' },
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(
+    `[Error: colorSchemeClassNames.dark must be a single class name, got "dm dark"]`,
+  );
 });

@@ -410,13 +410,20 @@ pub(super) fn process_variable_declaration(
                             _ => None,
                         })
                         .collect::<Vec<_>>();
+                    // `setColorScheme` adds the configured scheme classes
+                    let is_scheme_class = |class_name: &str| {
+                        transform.color_scheme_class_names.is_some_and(|names| {
+                            class_name == names.light || class_name == names.dark
+                        })
+                    };
                     transform.warnings.extend(
                         undeclared
                             .into_iter()
                             .filter(|class_name| {
-                                !dynamic_color_prefixes
-                                    .iter()
-                                    .any(|prefix| class_name.starts_with(prefix))
+                                !is_scheme_class(class_name)
+                                    && !dynamic_color_prefixes
+                                        .iter()
+                                        .any(|prefix| class_name.starts_with(prefix))
                             })
                             .map(|class_name| {
                                 CompilerDiagnostic::warning(
