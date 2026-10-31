@@ -453,7 +453,9 @@ describe('Style Flags Warning System', () => {
       expect(warnings.length).toBe(0);
       expect(result.code).toMatchInlineSnapshot(`
         "export const App = () => (
-          <div className={"v1560qbr-1-Base v1560qbr-2-Extended voctcyj-active"} />
+          <div
+            className={"v1560qbr-1-Base v1560qbr-2-Extended v1560qbr-1-Base-active"}
+          />
         );
         "
       `);

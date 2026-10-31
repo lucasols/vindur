@@ -55,7 +55,8 @@ test('should hash style flags in every selector of the element', async () => {
     "export const App = ({ active }: { active: boolean }) => (
       <button
         className={
-          "v1560qbr-1-Button vr4ikfs-size-small" + (active ? " voctcyj-active" : "")
+          "v1560qbr-1-Button v1560qbr-1-Button-size-small" +
+          (active ? " v1560qbr-1-Button-active" : "")
         }
       />
     );
@@ -64,34 +65,34 @@ test('should hash style flags in every selector of the element', async () => {
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.voctcyj-active.vr4ikfs-size-small {
+      &.v1560qbr-1-Button-active.v1560qbr-1-Button-size-small {
         color: red;
       }
-      .parent &.voctcyj-active,
-      &:focus-visible.vr4ikfs-size-large {
+      .parent &.v1560qbr-1-Button-active,
+      &:focus-visible.v1560qbr-1-Button-size-large {
         color: blue;
       }
-      &:not(.voctcyj-active) {
+      &:not(.v1560qbr-1-Button-active) {
         opacity: 0.5;
       }
-      :is(&.voctcyj-active, &.vr4ikfs-size-large) {
+      :is(&.v1560qbr-1-Button-active, &.v1560qbr-1-Button-size-large) {
         outline: none;
       }
-      &:nth-child(1 of .vr4ikfs-size-small) {
+      &:nth-child(1 of .v1560qbr-1-Button-size-small) {
         color: green;
       }
       &:hover {
-        &.voctcyj-active {
+        &.v1560qbr-1-Button-active {
           color: orange;
         }
       }
       @media (min-width: 600px) {
-        &.vr4ikfs-size-small {
+        &.v1560qbr-1-Button-size-small {
           color: purple;
         }
       }
-      @scope (&.voctcyj-active) {
-        :scope.vr4ikfs-size-large {
+      @scope (&.v1560qbr-1-Button-active) {
+        :scope.v1560qbr-1-Button-size-large {
           color: pink;
         }
       }
@@ -143,9 +144,9 @@ test('should keep style flag names used by other elements', async () => {
       --label: &.active;
       content: ".size-small";
       /* &.active */
-      &.voctcyj-active,
-      &.vr4ikfs-size-small,
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-active,
+      &.v1560qbr-1-Button-size-small,
+      &.v1560qbr-1-Button-size-large {
         color: red;
       }
       & .active,
@@ -336,7 +337,7 @@ test('should not confuse $ prefixed style flags with _ prefixed classes', async 
     source: dedent`
       import { styled } from 'vindur';
 
-      const Button = styled.button<{ $active: boolean; _active: boolean; é$on: boolean }>\`
+      const Button = styled.button<{ $active: boolean; é$on: boolean }>\`
         &.$active {
           color: red;
         }
@@ -359,7 +360,7 @@ test('should not confuse $ prefixed style flags with _ prefixed classes', async 
 
       export const App = () => (
         <>
-          <Button $active _active é$on />
+          <Button $active className="_active" é$on />
           <Link $active className="_active" />
         </>
       );
@@ -371,10 +372,10 @@ test('should not confuse $ prefixed style flags with _ prefixed classes', async 
       <>
         <button
           className={
-            "v1560qbr-1-Button v1ytfoaf-_active v1ef058r-_active v1m54fvi-é_on"
+            "v1560qbr-1-Button _active v1560qbr-1-Button-_active v1560qbr-1-Button-é_on"
           }
         />
-        <a className={"v1560qbr-2-Link _active v1ytfoaf-_active"} />
+        <a className={"v1560qbr-2-Link _active v1560qbr-2-Link-_active"} />
       </>
     );
     "
@@ -382,19 +383,19 @@ test('should not confuse $ prefixed style flags with _ prefixed classes', async 
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.v1ytfoaf-_active {
+      &.v1560qbr-1-Button-_active {
         color: red;
       }
-      &.v1ef058r-_active {
+      &._active {
         color: blue;
       }
-      &.v1m54fvi-é_on {
+      &.v1560qbr-1-Button-é_on {
         color: green;
       }
     }
 
     .v1560qbr-2-Link {
-      &.v1ytfoaf-_active {
+      &.v1560qbr-2-Link-_active {
         color: red;
       }
       &._active {

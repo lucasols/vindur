@@ -459,7 +459,7 @@ test('should not let a cx prop variable shadow the cx helper', async () => {
           cy={cy}
           className={_vCx(
             mergeClassNames([p], "v1560qbr-1-Dot"),
-            active && "voctcyj-active",
+            active && "v1560qbr-1-Dot-active",
           )}
         />
       );

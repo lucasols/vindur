@@ -32,7 +32,7 @@ test('should merge static style flags into the css prop className', async () => 
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <div className="v1560qbr-1-Box voctcyj-active vr4ikfs-size-small v1560qbr-2-css-prop-2">
+        <div className="v1560qbr-1-Box v1560qbr-1-Box-active v1560qbr-1-Box-size-small v1560qbr-2-css-prop-2">
           Content
         </div>
       );
@@ -44,11 +44,11 @@ test('should merge static style flags into the css prop className', async () => 
     ".v1560qbr-1-Box {
       padding: 8px;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-Box-active {
         background: blue;
       }
 
-      &.vr4ikfs-size-small {
+      &.v1560qbr-1-Box-size-small {
         padding: 4px;
       }
     }
@@ -93,8 +93,8 @@ test('should merge dynamic style flags into the css prop className', async () =>
         <div
           className={
             "v1560qbr-1-Box v1560qbr-2-css-prop-2" +
-            (isActive ? " voctcyj-active" : "") +
-            (size ? " vr4ikfs-size-" + size : "")
+            (isActive ? " v1560qbr-1-Box-active" : "") +
+            (size ? " v1560qbr-1-Box-size-" + size : "")
           }
         >
           Content
@@ -138,8 +138,8 @@ test('should merge style flags into the cx prop className', async () => {
       return (
         <div
           className={
-            "v1560qbr-1-Box vr4ikfs-size-large" +
-            (isActive ? " voctcyj-active" : "") +
+            "v1560qbr-1-Box v1560qbr-1-Box-size-large" +
+            (isActive ? " v1560qbr-1-Box-active" : "") +
             " " +
             cx({
               "v1560qbr-2-highlighted": isHighlighted,
@@ -189,18 +189,18 @@ test('should merge style flags into the css and cx prop className with a classNa
     function Component({ isActive, isOpen, className }) {
       return (
         <>
-          <div className="extra v1560qbr-1-Box voctcyj-active v1560qbr-2-css-prop-2" />
+          <div className="extra v1560qbr-1-Box v1560qbr-1-Box-active v1560qbr-2-css-prop-2" />
           <div
             className={
               (className || "") +
               " v1560qbr-1-Box v1560qbr-3-css-prop-3" +
-              (isActive ? " voctcyj-active" : "")
+              (isActive ? " v1560qbr-1-Box-active" : "")
             }
           />
           <div
             className={
               "extra v1560qbr-1-Box v1560qbr-4-css-prop-4" +
-              (isActive ? " voctcyj-active" : "") +
+              (isActive ? " v1560qbr-1-Box-active" : "") +
               " " +
               cx({
                 "v1560qbr-5-open": isOpen,

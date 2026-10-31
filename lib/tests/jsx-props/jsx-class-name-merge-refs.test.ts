@@ -399,7 +399,10 @@ test('should keep explicit className on style flag components with spreads', asy
 
   expect(result.code).toMatchInlineSnapshot(`
     "export const A = (props: { className?: string }) => (
-      <button {...props} className={"v1560qbr-1-Btn explicit voctcyj-active"} />
+      <button
+        {...props}
+        className={"v1560qbr-1-Btn explicit v1560qbr-1-Btn-active"}
+      />
     );
     "
   `);

@@ -35,7 +35,9 @@ test('should work with existing className', async () => {
   expect(result.code).toMatchInlineSnapshot(`
     "function Component() {
       return (
-        <button className={"v1560qbr-1-Button extra-class v1puiack-primary"}>
+        <button
+          className={"v1560qbr-1-Button extra-class v1560qbr-1-Button-primary"}
+        >
           Click me
         </button>
       );
@@ -48,7 +50,7 @@ test('should work with existing className', async () => {
       padding: 8px 16px;
       border: 1px solid #ccc;
 
-      &.v1puiack-primary {
+      &.v1560qbr-1-Button-primary {
         background: blue;
         color: white;
       }
@@ -93,7 +95,7 @@ test('should work with spread props', async () => {
           {...props}
           className={cx(
             mergeClassNames([props], "v1560qbr-1-Button"),
-            "voctcyj-active",
+            "v1560qbr-1-Button-active",
           )}
         >
           Content
@@ -107,7 +109,7 @@ test('should work with spread props', async () => {
     ".v1560qbr-1-Button {
       padding: 8px;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         background: blue;
       }
     }
@@ -158,8 +160,8 @@ test('should work with dynamic values', async () => {
         <button
           className={
             "v1560qbr-1-Button" +
-            (isActive ? " voctcyj-active" : "") +
-            (buttonSize ? " vr4ikfs-size-" + buttonSize : "")
+            (isActive ? " v1560qbr-1-Button-active" : "") +
+            (buttonSize ? " v1560qbr-1-Button-size-" + buttonSize : "")
           }
         >
           Content
@@ -173,15 +175,15 @@ test('should work with dynamic values', async () => {
     ".v1560qbr-1-Button {
       padding: 8px;
 
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         background: blue;
       }
 
-      &.vr4ikfs-size-small {
+      &.v1560qbr-1-Button-size-small {
         padding: 4px;
       }
 
-      &.vr4ikfs-size-large {
+      &.v1560qbr-1-Button-size-large {
         padding: 12px;
       }
     }
@@ -241,9 +243,11 @@ test('should preserve conditional expression precedence in dynamic flags', async
           <button
             className={
               "v1560qbr-1-Button" +
-              ((deadline ? isToday(deadline) : false) ? " voctcyj-active" : "") +
+              ((deadline ? isToday(deadline) : false)
+                ? " v1560qbr-1-Button-active"
+                : "") +
               ((useToday ? "today" : "time")
-                ? " v11as9cs-variant-" + (useToday ? "today" : "time")
+                ? " v1560qbr-1-Button-variant-" + (useToday ? "today" : "time")
                 : "")
             }
           >
@@ -253,9 +257,9 @@ test('should preserve conditional expression precedence in dynamic flags', async
             {...props}
             className={cx(
               mergeClassNames([props], "v1560qbr-1-Button"),
-              (deadline ? isToday(deadline) : false) && "voctcyj-active",
+              (deadline ? isToday(deadline) : false) && "v1560qbr-1-Button-active",
               (useToday ? "today" : "time") &&
-                \`v11as9cs-variant-\${useToday ? "today" : "time"}\`,
+                \`v1560qbr-1-Button-variant-\${useToday ? "today" : "time"}\`,
             )}
           >
             Spread
@@ -268,15 +272,15 @@ test('should preserve conditional expression precedence in dynamic flags', async
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Button {
-      &.voctcyj-active {
+      &.v1560qbr-1-Button-active {
         opacity: 1;
       }
 
-      &.v11as9cs-variant-today {
+      &.v1560qbr-1-Button-variant-today {
         color: white;
       }
 
-      &.v11as9cs-variant-time {
+      &.v1560qbr-1-Button-variant-time {
         color: green;
       }
     }
@@ -314,12 +318,12 @@ test('should merge explicit className with spread props on style flag components
             {...p}
             className={cx(
               mergeClassNames(["a", p], "v1560qbr-1-Flag"),
-              x && "voctcyj-active",
+              x && "v1560qbr-1-Flag-active",
             )}
           />
           <div
             {...p}
-            className={"v1560qbr-1-Flag a" + (x ? " voctcyj-active" : "")}
+            className={"v1560qbr-1-Flag a" + (x ? " v1560qbr-1-Flag-active" : "")}
           />
         </>
       );
@@ -352,7 +356,7 @@ test('should keep css nested in className of style flag components with spread p
           className={
             "v1560qbr-1-Box " +
             ("v1560qbr-2" || "") +
-            (active ? " voctcyj-active" : "")
+            (active ? " v1560qbr-1-Box-active" : "")
           }
         />
       );
@@ -363,7 +367,7 @@ test('should keep css nested in className of style flag components with spread p
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
       color: red;
-      &.voctcyj-active {
+      &.v1560qbr-1-Box-active {
         color: blue;
       }
     }
