@@ -1,32 +1,40 @@
-use std::ops::Range;
-
 use oxc_span::Span;
 
+use super::css_tokens::{
+    block_end, decode_ident, ident_end, is_ident_char, skipped_token_end, unprefixed_at_rule_name,
+};
+use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 use crate::CompilerDiagnostic;
 
 const GLOBAL_SELECTOR: &str = ":global";
-const KEYFRAMES_AT_RULE: &str = "keyframes";
-// At-rules whose blocks can contain other rules like `@keyframes`
-const GROUPING_AT_RULES: [&str; 7] = [
+// At-rules browsers only accept at the top level of a stylesheet or in grouping rules, they are
+// dropped inside style rules
+const TOP_LEVEL_AT_RULES: [&str; 13] = [
+    "keyframes",
+    "font-face",
+    "import",
+    "property",
+    "charset",
+    "namespace",
+    "counter-style",
+    "font-palette-values",
+    "font-feature-values",
+    "page",
+    "position-try",
+    "view-transition",
+    "color-profile",
+];
+const STYLESHEET_START_AT_RULES: [&str; 3] = ["import", "charset", "namespace"];
+// At-rules whose blocks can contain other rules like `@keyframes`. `@scope` is not included, its
+// rules are scoped style rules, where browsers drop stylesheet at-rules
+const GROUPING_AT_RULES: [&str; 6] = [
     "media",
     "supports",
     "layer",
     "container",
     "document",
-    "scope",
     "starting-style",
 ];
-
-pub(super) enum SegmentOrigin {
-    Quasi(Span),
-    Interpolation(Span),
-}
-
-// Maps a range of the evaluated template CSS back to the code that produced it
-pub(super) struct TemplateSegment {
-    pub range: Range<usize>,
-    pub origin: SegmentOrigin,
-}
 
 struct UnsupportedSyntax {
     offset: usize,
@@ -76,84 +84,6 @@ pub(super) fn unsupported_syntax_error(
     Some(CompilerDiagnostic::error(file_path, source, span, message))
 }
 
-// Maps a non empty range of the evaluated template CSS to the source code that
-// produced it, along with the segment where the range starts
-pub(super) fn template_source_span<'a>(
-    css: &str,
-    source: &str,
-    segments: &'a [TemplateSegment],
-    range: Range<usize>,
-) -> Option<(Span, &'a TemplateSegment)> {
-    let segment_at = |offset: usize| {
-        segments
-            .iter()
-            .find(|segment| segment.range.contains(&offset))
-    };
-    if range.is_empty() {
-        return None;
-    }
-    let (Some(start_segment), Some(end_segment)) =
-        (segment_at(range.start), segment_at(range.end - 1))
-    else {
-        return None;
-    };
-    let first = segment_source_span(
-        css,
-        source,
-        start_segment,
-        range.start..range.end.min(start_segment.range.end),
-    );
-    let span = if std::ptr::eq(start_segment, end_segment) {
-        first
-    } else {
-        let last =
-            segment_source_span(css, source, end_segment, end_segment.range.start..range.end);
-        Span::new(first.start, last.end)
-    };
-    Some((span, start_segment))
-}
-
-// The evaluated quasi text can differ from the source (escapes are cooked and
-// CRLF is normalized), so the matched text is looked up in the original source,
-// falling back to the whole quasi when it can't be found there or escapes make
-// the occurrence ambiguous
-fn segment_source_span(
-    css: &str,
-    source: &str,
-    segment: &TemplateSegment,
-    range: Range<usize>,
-) -> Span {
-    let span = match segment.origin {
-        SegmentOrigin::Quasi(span) => span,
-        SegmentOrigin::Interpolation(span) => return span,
-    };
-    let evaluated = &css[segment.range.clone()];
-    let local = range.start - segment.range.start..range.end - segment.range.start;
-    let raw_start = source
-        .get(span.start as usize..span.end as usize)
-        .and_then(|raw| {
-            if evaluated == raw {
-                return Some(local.start);
-            }
-            let matched = &evaluated[local.clone()];
-            if evaluated.matches(matched).count() != raw.matches(matched).count() {
-                return None;
-            }
-            let occurrence = evaluated[..local.start].matches(matched).count();
-            raw.match_indices(matched)
-                .nth(occurrence)
-                .map(|(index, _)| index)
-        })
-        .and_then(|raw_start| u32::try_from(raw_start).ok());
-    let len = u32::try_from(local.len()).ok();
-    match (raw_start, len) {
-        (Some(raw_start), Some(len)) => {
-            Span::new(span.start + raw_start, span.start + raw_start + len)
-        }
-        _ => span,
-    }
-}
-
 fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSyntax> {
     let bytes = css.as_bytes();
     let mut blocks: Vec<Block<'_>> = Vec::new();
@@ -161,6 +91,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
     let mut paren_depth = 0_usize;
     let mut index = 0;
     while index < bytes.len() {
+        // A statement can start with an escape, like the custom property `\2d -x: value`
+        if bytes[index] == b'\\' && prelude_start.is_none() {
+            prelude_start = Some(index);
+        }
         if let Some(end) = skipped_token_end(css, index) {
             index = end;
             continue;
@@ -178,22 +112,35 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                 message: global_selector_message(rest, tag_type).to_owned(),
             });
         }
+        if byte == b'&'
+            && let Some(suffix_len) = selector_suffix_len(rest)
+            && !is_custom_property_value(css, prelude_start)
+            && !is_at_rule_prelude(css, prelude_start)
+            && starts_rule_block(css, index)
+        {
+            return Some(UnsupportedSyntax {
+                offset: index,
+                len: suffix_len,
+                message: selector_suffix_message(&rest[..suffix_len], tag_type, &blocks),
+            });
+        }
         // At-rules only start a statement, otherwise `@keyframes` is part of a
         // declaration value like `--x: @keyframes;`
         if byte == b'@'
             && prelude_start.is_none()
             && let Some((at_rule, name)) = at_rule_name(rest)
-            && name == KEYFRAMES_AT_RULE
+            && TOP_LEVEL_AT_RULES.contains(&name.as_str())
         {
-            let enclosing_block = blocks
-                .iter()
-                .rev()
-                .find(|block| !matches!(block, Block::Grouping));
+            // `@import`, `@charset` and `@namespace` are only valid before every rule
+            let enclosing_block = blocks.iter().rev().find(|block| {
+                !matches!(block, Block::Grouping)
+                    || STYLESHEET_START_AT_RULES.contains(&name.as_str())
+            });
             if tag_type != "createGlobalStyle" || enclosing_block.is_some() {
                 return Some(UnsupportedSyntax {
                     offset: index,
                     len: at_rule.len(),
-                    message: keyframes_message(at_rule, tag_type, enclosing_block),
+                    message: top_level_at_rule_message(at_rule, &name, tag_type, enclosing_block),
                 });
             }
         }
@@ -203,8 +150,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
             // Braces and semicolons inside parentheses are part of the prelude or
             // value, e.g. `@supports (--x: {a:b})`
             _ if paren_depth > 0 => {}
+            // Braces in custom property values are part of the value, so the whole balanced
+            // block is skipped, e.g. `--x: { @keyframes y {} };`
             b'{' if is_custom_property_value(css, prelude_start) => {
-                index = custom_property_block_end(css, index);
+                index = block_end(css, index).unwrap_or(css.len());
                 continue;
             }
             b'{' => {
@@ -226,26 +175,15 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
     None
 }
 
-// Comments, strings, escapes and unquoted urls can't contain unsupported syntax
-pub(super) fn skipped_token_end(css: &str, index: usize) -> Option<usize> {
-    let rest = &css[index..];
-    if let Some(comment) = rest.strip_prefix("/*") {
-        return Some(
-            comment
-                .find("*/")
-                .map_or(css.len(), |end| index + 2 + end + 2),
-        );
-    }
-    match rest.as_bytes().first() {
-        Some(b'"' | b'\'') => Some(string_end(css, index)),
-        Some(b'\\') => Some(escape_end(css, index)),
-        _ if is_url_function(css, index) => Some(url_end(css, index)),
-        _ => None,
-    }
-}
-
-fn escape_end(css: &str, start: usize) -> usize {
-    start + 1 + css[start + 1..].chars().next().map_or(0, char::len_utf8)
+// Sass and stylis concatenate `&--x`, `&__x` and `&-x` to the parent selector,
+// but native CSS nesting reads the suffix as an element selector, so the rule
+// never matches
+fn selector_suffix_len(from_ampersand: &str) -> Option<usize> {
+    let suffix = &from_ampersand[1..];
+    let len = suffix
+        .find(|character: char| !is_ident_char(character))
+        .unwrap_or(suffix.len());
+    (len > 0).then_some(len + 1)
 }
 
 // Pseudo-class names are case-insensitive
@@ -283,35 +221,13 @@ fn starts_rule_block(css: &str, start: usize) -> bool {
 }
 
 // Custom property values can contain any tokens, including braces, e.g.
-// `--tokens: :global { a: b };`
+// `--tokens: :global { a: b };`. The name can be escaped, like `\2d -tokens`
 fn is_custom_property_value(css: &str, prelude_start: Option<usize>) -> bool {
-    prelude_start.is_some_and(|start| css[start..].starts_with("--"))
-}
-
-// Braces in custom property values are part of the value, so the whole
-// balanced block is skipped, e.g. `--x: { @keyframes y {} };`
-fn custom_property_block_end(css: &str, start: usize) -> usize {
-    let bytes = css.as_bytes();
-    let mut depth = 0_usize;
-    let mut index = start;
-    while index < bytes.len() {
-        if let Some(end) = skipped_token_end(css, index) {
-            index = end;
-            continue;
-        }
-        match bytes[index] {
-            b'{' => depth += 1,
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    return index + 1;
-                }
-            }
-            _ => {}
-        }
-        index += css[index..].chars().next().map_or(1, char::len_utf8);
-    }
-    css.len()
+    prelude_start.is_some_and(|start| {
+        css[start..].starts_with("--")
+            || (css[start..].starts_with('\\')
+                && decode_ident(&css[start..ident_end(css, start)]).starts_with("--"))
+    })
 }
 
 fn prelude_at_rule(css: &str, prelude_start: Option<usize>) -> Option<(&str, String)> {
@@ -337,84 +253,64 @@ fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
     }
 }
 
-fn string_end(css: &str, start: usize) -> usize {
-    let bytes = css.as_bytes();
-    let quote = bytes[start];
-    let mut index = start + 1;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index += 2,
-            b'\n' => return index,
-            byte if byte == quote => return index + 1,
-            _ => index += 1,
-        }
-    }
-    bytes.len()
-}
-
-pub(super) fn is_url_function(css: &str, index: usize) -> bool {
-    css.get(index..index + 4)
-        .is_some_and(|name| name.eq_ignore_ascii_case("url("))
-        && !css[..index].chars().next_back().is_some_and(is_ident_char)
-}
-
-// Quoted urls are skipped as strings, so only the `url` name is skipped and
-// its parentheses are tracked as usual, unquoted ones are skipped entirely
-fn url_end(css: &str, start: usize) -> usize {
-    let arguments_start = start + 4;
-    let arguments = &css[arguments_start..];
-    if arguments.trim_start().starts_with(['"', '\'']) {
-        return start + 3;
-    }
-    let mut index = arguments_start;
-    while index < css.len() {
-        match css.as_bytes()[index] {
-            b'\\' => index = escape_end(css, index),
-            b')' => return index + 1,
-            _ => index += 1,
-        }
-    }
-    css.len()
-}
-
 // Returns the at-rule and its lowercase name without vendor prefix, e.g.
 // `@-webkit-Keyframes` -> `keyframes`, at-rule names are case-insensitive
 fn at_rule_name(rest: &str) -> Option<(&str, String)> {
-    let name_len = rest[1..]
-        .find(|character: char| !is_ident_char(character))
-        .map_or(rest.len(), |end| end + 1);
-    let at_rule = &rest[..name_len];
-    let name = at_rule[1..].to_ascii_lowercase();
-    let unprefixed = match name.strip_prefix('-') {
-        Some(prefixed) => prefixed.split_once('-')?.1.to_owned(),
-        None => name,
-    };
-    Some((at_rule, unprefixed))
+    let at_rule = &rest[..ident_end(rest, 1)];
+    // The name can be escaped, like `@\6d edia`
+    Some((
+        at_rule,
+        unprefixed_at_rule_name(&decode_ident(&at_rule[1..]))?,
+    ))
 }
 
-pub(super) fn is_ident_char(character: char) -> bool {
-    character.is_ascii_alphanumeric()
-        || character == '-'
-        || character == '_'
-        || character == '\\'
-        || !character.is_ascii()
-}
-
-fn keyframes_message(at_rule: &str, tag_type: &str, enclosing_block: Option<&Block<'_>>) -> String {
+fn top_level_at_rule_message(
+    at_rule: &str,
+    name: &str,
+    tag_type: &str,
+    enclosing_block: Option<&Block<'_>>,
+) -> String {
+    let at_rule = at_rule.trim_end();
     match (tag_type, enclosing_block) {
+        ("createGlobalStyle", Some(Block::Grouping)) => format!(
+            "`{at_rule}` must come before every rule, move it to the top level of `createGlobalStyle`"
+        ),
         ("createGlobalStyle", Some(Block::OtherAtRule(enclosing_at_rule))) => format!(
             "`{at_rule}` is not supported inside `{enclosing_at_rule}` rules, move it to the top level of `createGlobalStyle`"
         ),
         ("createGlobalStyle", _) => format!(
             "`{at_rule}` is not supported inside style rules, move it to the top level of `createGlobalStyle`"
         ),
-        ("keyframes", _) => format!(
+        ("keyframes", _) if name == "keyframes" => format!(
             "`{at_rule}` is not supported inside `keyframes` templates, they already generate the `@keyframes` rule so write only the frames, e.g. `from {{ ... }} to {{ ... }}`"
+        ),
+        _ if name != "keyframes" => format!(
+            "`{at_rule}` is not supported inside `{tag_type}` templates, move it to the top level of `createGlobalStyle`"
         ),
         _ => format!(
             "`{at_rule}` is not supported inside `{tag_type}` templates, use the `keyframes` function instead"
         ),
     }
+}
+
+// At the root of a scoped template `&` is the generated class name, which
+// can't be written out, so the suffix has to become a separate class
+fn selector_suffix_message(selector: &str, tag_type: &str, blocks: &[Block<'_>]) -> String {
+    if !selector[1..].starts_with(['-', '_']) {
+        let element = &selector[1..];
+        return format!(
+            "`{selector}` is ambiguous, Sass concatenates it to the parent selector but CSS nesting reads it as an element selector, write `{element}&` to match `{element}` elements or the full selector for a suffix"
+        );
+    }
+    let in_style_rule = blocks.iter().any(|block| matches!(block, Block::Style));
+    if !in_style_rule && tag_type != "createGlobalStyle" {
+        return format!(
+            "`{selector}` is not supported, CSS nesting can't concatenate a suffix to the generated class name, use a separate class instead, e.g. `&-active {{}}` -> `&.active {{}}`"
+        );
+    }
+    format!(
+        "`{selector}` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. `.day {{ &--today {{}} }}` -> `.day--today {{}}`"
+    )
 }
 
 // The suggested fix depends on which `:global` form was used and whether the
@@ -443,9 +339,7 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use oxc_span::Span;
-
-    use super::{SegmentOrigin, TemplateSegment, find_unsupported_syntax, segment_source_span};
+    use super::find_unsupported_syntax;
 
     #[test]
     fn handles_non_ascii_characters_after_global() {
@@ -462,6 +356,7 @@ mod tests {
         assert!(find_unsupported_syntax("--tokens: :global { color:red };", "css").is_none());
         assert!(find_unsupported_syntax("--tokens: { :global { color:red; } };", "css").is_none());
         assert!(find_unsupported_syntax("--x: { @keyframes y {} };", "css").is_none());
+        assert!(find_unsupported_syntax("\\2d -tokens: :global { a: b };", "css").is_none());
         let css = "--x: { a: b }; :global(.a) & {}";
         assert_eq!(
             find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
@@ -497,6 +392,38 @@ mod tests {
     }
 
     #[test]
+    fn rejects_top_level_at_rules_in_style_rules() {
+        let offset = |css: &str, tag_type: &str| {
+            find_unsupported_syntax(css, tag_type).map(|syntax| (syntax.offset, syntax.message))
+        };
+        assert_eq!(
+            offset("@font-face { font-family: x; }", "css"),
+            Some((
+                0,
+                "`@font-face` is not supported inside `css` templates, move it to the top level of `createGlobalStyle`".to_owned()
+            ))
+        );
+        assert_eq!(
+            offset("body { @import \"x.css\"; }", "createGlobalStyle").map(|(offset, _)| offset),
+            Some(7)
+        );
+        assert!(
+            offset(
+                "@font-face { font-family: x; } @media print { @font-face { font-family: y; } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
+        assert!(
+            offset(
+                "@\\6d edia print { @keyframes a { from { opacity: 0; } } }",
+                "createGlobalStyle"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
     fn tracks_parentheses_of_quoted_urls() {
         assert!(
             find_unsupported_syntax(
@@ -516,22 +443,6 @@ mod tests {
         assert_eq!(
             find_unsupported_syntax(css, "css").map(|syntax| syntax.offset),
             css.find(":global")
-        );
-    }
-
-    #[test]
-    fn falls_back_to_the_quasi_when_escapes_make_the_location_ambiguous() {
-        let source = r#"content: "\u003aglobal"; :global(.a) & {} content: ":global";"#;
-        let css = r#"content: ":global"; :global(.a) & {} content: ":global";"#;
-        let quasi_span = Span::new(0, u32::try_from(source.len()).unwrap_or(0));
-        let segment = TemplateSegment {
-            range: 0..css.len(),
-            origin: SegmentOrigin::Quasi(quasi_span),
-        };
-        let start = css.find(":global(").unwrap_or(0);
-        assert_eq!(
-            segment_source_span(css, source, &segment, start..start + 7),
-            quasi_span
         );
     }
 }

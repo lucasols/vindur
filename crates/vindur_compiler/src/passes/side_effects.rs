@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     ArrayExpressionElement, BindingPattern, Declaration, ExportDefaultDeclarationKind, Expression,
-    ObjectPropertyKind, Program, Statement, UnaryOperator, VariableDeclaration,
+    ObjectPropertyKind, Program, PropertyKind, Statement, UnaryOperator, VariableDeclaration,
     VariableDeclarationKind,
 };
 use rustc_hash::FxHashMap;
@@ -121,10 +121,10 @@ impl PurityCheck<'_> {
             | Expression::Identifier(_)
             | Expression::ArrowFunctionExpression(_)
             | Expression::FunctionExpression(_) => true,
-            Expression::TemplateLiteral(template) => template
-                .expressions
-                .iter()
-                .all(|expression| self.is_pure_expression(expression)),
+            // Converting other values to strings can call a user-defined `toString`
+            Expression::TemplateLiteral(template) => {
+                template.expressions.iter().all(is_primitive_literal)
+            }
             Expression::UnaryExpression(unary) => {
                 unary.operator == UnaryOperator::UnaryNegation
                     && matches!(
@@ -134,12 +134,14 @@ impl PurityCheck<'_> {
             }
             Expression::ObjectExpression(object) => {
                 object.properties.iter().all(|property| match property {
+                    // Vindur calls read their arguments, e.g. `attrs`, which runs getters
                     ObjectPropertyKind::ObjectProperty(property) => {
-                        (!property.computed
-                            || property
-                                .key
-                                .as_expression()
-                                .is_some_and(|key| self.is_pure_expression(key)))
+                        property.kind == PropertyKind::Init
+                            && (!property.computed
+                                || property
+                                    .key
+                                    .as_expression()
+                                    .is_some_and(is_primitive_literal))
                             && self.is_pure_expression(&property.value)
                     }
                     ObjectPropertyKind::SpreadProperty(_) => false,
@@ -171,12 +173,33 @@ impl PurityCheck<'_> {
     /// vindur imports and their chains, e.g. `styled.button.attrs({ type: 'button' })`
     fn is_vindur_callee(&self, expression: &Expression<'_>) -> bool {
         match expression.get_inner_expression() {
-            identifier @ Expression::Identifier(_) => {
-                self.imports.get_expression(identifier).is_some()
+            // Runtime helpers read their arguments, which can run getters
+            identifier @ Expression::Identifier(_) => self
+                .imports
+                .get_expression(identifier)
+                .is_some_and(|name| !matches!(name, "cx" | "mergeClassNames" | "mergeStyles")),
+            // Only `styled.tag` and `.attrs()` chains, others like `fn.call` can run any code
+            Expression::StaticMemberExpression(member) => {
+                match member.object.get_inner_expression() {
+                    identifier @ Expression::Identifier(_) => {
+                        self.imports.get_expression(identifier) == Some("styled")
+                    }
+                    object => member.property.name == "attrs" && self.is_vindur_callee(object),
+                }
             }
-            Expression::StaticMemberExpression(member) => self.is_vindur_callee(&member.object),
             call @ Expression::CallExpression(_) => self.is_pure_expression(call),
             _ => false,
         }
     }
+}
+
+fn is_primitive_literal(expression: &Expression<'_>) -> bool {
+    matches!(
+        expression.get_inner_expression(),
+        Expression::BooleanLiteral(_)
+            | Expression::NullLiteral(_)
+            | Expression::NumericLiteral(_)
+            | Expression::BigIntLiteral(_)
+            | Expression::StringLiteral(_)
+    )
 }

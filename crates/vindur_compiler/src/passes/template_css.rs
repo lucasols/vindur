@@ -3,11 +3,11 @@ use oxc_span::{GetSpan, Span};
 
 use crate::CompilerDiagnostic;
 
+use super::css::layer_markers_in_text;
 use super::css_syntax::{BlockKind, CssError, validate_style_block};
+use super::css_tokens::is_inside_block;
 use super::static_value::TemplateContext;
-use super::style_flag_selectors::{flag_validation_css, referenced_dollar_class};
-use super::styled::is_styled_ref_placeholder;
-use super::unsupported_css_syntax::{SegmentOrigin, TemplateSegment, template_source_span};
+use super::template_location::{SegmentOrigin, TemplateSegment, template_source_span};
 
 /// The CSS produced by a style template, with the mapping from CSS offsets back to the source
 #[derive(Default)]
@@ -83,36 +83,21 @@ impl EvaluatedTemplate {
         self.mapped(error, source).map(|(span, _)| span.start)
     }
 
+    /// Whether the interpolation is inside the block opened by a `{` at `brace`, the parser reports
+    /// some errors in a rule at the `{` that opens it
+    fn is_in_block_opened_at(&self, brace: usize, expression: Span) -> bool {
+        let Some(interpolation_start) = self.segments.iter().find_map(|segment| {
+            matches!(segment.origin, SegmentOrigin::Interpolation(span) if span == expression)
+                .then_some(segment.range.start)
+        }) else {
+            return false;
+        };
+        is_inside_block(&self.css, brace, interpolation_start)
+    }
+
     fn mapped(&self, error: &CssError, source: &str) -> Option<(Span, &TemplateSegment)> {
         let end = error.end.max(error.start + 1).min(self.css.len());
         template_source_span(&self.css, source, &self.segments, error.start..end)
-    }
-
-    /// An error for a `$` style flag selected through a component reference, e.g.
-    /// `${Item}.$active &`, which would otherwise fail as invalid CSS
-    fn referenced_dollar_flag_error(&self, source: &str) -> Option<CssError> {
-        self.segments.iter().find_map(|segment| {
-            let SegmentOrigin::Interpolation(span) = segment.origin else {
-                return None;
-            };
-            let value = self.css.get(segment.range.clone())?;
-            let (classes, placeholders) = if is_styled_ref_placeholder(value) {
-                (Vec::new(), vec![value.to_owned()])
-            } else {
-                let class_name = value.strip_prefix('.')?;
-                (vec![class_name.to_owned()], Vec::new())
-            };
-            let range = referenced_dollar_class(&self.css, &classes, &placeholders)?;
-            let reference = source.get(span.start as usize..span.end as usize)?;
-            let flag = &self.css[range.clone()];
-            Some(CssError::new(
-                format!(
-                    "Style flag \"{flag}\" can't be selected through a component reference like \"${{{reference}}}.{flag}\", use a flag without \"$\""
-                ),
-                range.start,
-                range.end,
-            ))
-        })
     }
 }
 
@@ -128,24 +113,20 @@ pub(crate) fn validate_template_css(
     rebuild_with_extensions: impl Fn(&[usize]) -> Result<EvaluatedTemplate, CompilerDiagnostic>,
 ) -> Result<(), CompilerDiagnostic> {
     let kind = BlockKind::from_tag_type(context.tag_type);
-    let validate =
-        |css: &str| validate_style_block(&flag_validation_css(css, context.style_flags)?, kind);
-    let located = |error| evaluated.error_diagnostic(error, template, file_path, source);
-    let validation_css =
-        flag_validation_css(&evaluated.css, context.style_flags).map_err(|error| {
-            located(
-                evaluated
-                    .referenced_dollar_flag_error(source)
-                    .unwrap_or(error),
-            )
-        })?;
-    let Err(error) = validate_style_block(&validation_css, kind) else {
-        return Ok(());
+    let validate = |css: &str| validate_style_block(css, kind);
+    let Err(error) = validate(&evaluated.css) else {
+        return reject_layers_in_text(evaluated, file_path, source);
     };
-    if let Some(error) = evaluated.referenced_dollar_flag_error(source) {
-        return Err(located(error));
-    }
     let position = evaluated.error_position(&error, source, template);
+    // Forcing a selector interpolation always moves an error found before it, so moving the error
+    // only counts when the error is about the interpolation
+    let is_related = |index: usize| {
+        template.expressions.get(index).is_some_and(|expression| {
+            let span = expression.span();
+            position.is_some_and(|position| position >= span.start)
+                || evaluated.is_in_block_opened_at(error.start, span)
+        })
+    };
     let fixes_error = |forced: &[usize]| -> Result<bool, CompilerDiagnostic> {
         let rebuilt = rebuild_with_extensions(forced)?;
         Ok(match validate(&rebuilt.css) {
@@ -156,15 +137,14 @@ pub(crate) fn validate_template_css(
                 .is_some_and(|(position, rebuilt_position)| rebuilt_position > position),
         })
     };
+    // Each candidate rebuilds and validates the template, so ones that can't be the cause, after
+    // an error outside their rule, are skipped. The parser can report the error before the
+    // interpolation, at the `{` of the rule holding it, which `is_related` keeps
     let candidates = evaluated
         .selector_classes
         .iter()
         .copied()
-        .filter(|&index| {
-            template.expressions.get(index).is_some_and(|expression| {
-                position.is_none_or(|position| expression.span().start < position)
-            })
-        })
+        .filter(|&index| position.is_none() || is_related(index))
         .collect::<Vec<_>>();
     if let Some(index) = missing_extension(&candidates, fixes_error)?
         && let Some(expression) = template.expressions.get(index)
@@ -182,20 +162,11 @@ pub(crate) fn validate_template_css(
     }
     let (span, in_interpolation) = evaluated.source_span(&error, source, template);
     let is_syntax_error = error.syntax_error.is_some();
-    let is_line_comment = evaluated
-        .css
-        .get(error.start..)
-        .is_some_and(|rest| rest.starts_with("//"));
     let message = error.syntax_error.map_or(error.message, |description| {
         let variable_context = context.variable_name.map_or_else(
             || context.tag_type.to_owned(),
             |name| format!("... {name} = {}", context.tag_type),
         );
-        let description = if is_line_comment {
-            "`//` comments are not supported in CSS, use `/* ... */`".to_owned()
-        } else {
-            description
-        };
         format!("Invalid CSS at `{variable_context}`: {description}")
     });
     // Syntax errors found in a static value point to the interpolation, not to the CSS token
@@ -205,6 +176,33 @@ pub(crate) fn validate_template_css(
         message
     };
     Err(CompilerDiagnostic::error(file_path, source, span, message))
+}
+
+/// The parser accepts a `layer()` inside a string or comment, where it is not a rule selector
+fn reject_layers_in_text(
+    evaluated: &EvaluatedTemplate,
+    file_path: &str,
+    source: &str,
+) -> Result<(), CompilerDiagnostic> {
+    for start in layer_markers_in_text(&evaluated.css) {
+        if let Some(TemplateSegment {
+            origin: SegmentOrigin::Interpolation(span),
+            ..
+        }) = evaluated
+            .segments
+            .iter()
+            .find(|segment| segment.range.contains(&start))
+        {
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                *span,
+                "layer() can only be used as the selector of a rule, e.g. `${layer('name')} { ... }`"
+                    .to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Finds the first CSS class interpolation missing its `;`. Consecutive missing `;` only fix the

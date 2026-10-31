@@ -20,7 +20,9 @@ use crate::{facts::StaticValue, semantic::VindurImports};
 
 use super::css::layer_marker;
 use super::css_syntax::is_layer_name;
-use super::dynamic_color_value::{dynamic_color_member, dynamic_color_method};
+use super::dynamic_color_value::{
+    ColorMethodArguments, dynamic_color_member, dynamic_color_method,
+};
 use super::function_evaluation::{evaluate_argument, evaluate_function};
 use super::function_value::compile_vindur_function;
 use super::theme_color::{theme_member, theme_method};
@@ -144,17 +146,18 @@ pub(super) fn evaluate_expression(
             } else if let Expression::StaticMemberExpression(callee) = &call.callee {
                 let receiver = evaluate_expression(&callee.object, constants, scoping)?;
                 let method = callee.property.name.as_str();
-                let amount = match call.arguments.as_slice() {
-                    [argument] => color_method_amount(method, argument, constants, scoping)?,
-                    [] => None,
-                    _ => return None,
-                };
+                let arguments =
+                    color_method_arguments(method, &call.arguments, constants, scoping)?;
                 // Out of range amounts make invalid CSS, see `invalid_color_method_error`
-                if amount.is_some_and(|amount| !(0.0..=1.0).contains(&amount)) {
+                if [arguments.amount, arguments.alpha]
+                    .into_iter()
+                    .flatten()
+                    .any(|value| !(0.0..=1.0).contains(&value))
+                {
                     return None;
                 }
-                dynamic_color_method(&receiver, method, amount)
-                    .or_else(|| theme_method(&receiver, method, amount))
+                dynamic_color_method(&receiver, method, arguments)
+                    .or_else(|| theme_method(&receiver, method, arguments))
             } else {
                 None
             }
@@ -193,6 +196,13 @@ pub(super) fn evaluate_expression(
         }
         Expression::ParenthesizedExpression(parenthesized) => {
             evaluate_expression(&parenthesized.expression, constants, scoping)
+        }
+        // Type annotations have no effect on the evaluated value, e.g. `{ ... } as const`
+        Expression::TSAsExpression(expression) => {
+            evaluate_expression(&expression.expression, constants, scoping)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            evaluate_expression(&expression.expression, constants, scoping)
         }
         _ => None,
     }
@@ -307,10 +317,12 @@ fn evaluate_template_value(
             // Compiler values, e.g. keyframes or dynamic colors, stringify differently at
             // runtime and an imported module's styles are only loaded while it's imported,
             // so they can only be interpolated directly in vindur styles
-            if !matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none() {
+            if !has_css_text(&value)
+                || (!matches!(value, StaticValue::Array(_)) && oxc_constant_value(&value).is_none())
+            {
                 return None;
             }
-            output.push_str(&static_value_to_string(&value)?);
+            output.push_str(&static_value_to_string(&value));
         }
     }
     Some(output)
@@ -383,42 +395,16 @@ fn static_values_equal(left: &StaticValue, right: &StaticValue) -> bool {
     }
 }
 
-/// The CSS text of a value, `None` for values without a CSS representation, e.g. functions,
-/// objects or colors without `.var`
-pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
-    // `undefined` is never a valid CSS value, e.g. an optional vindurFn parameter without a default
-    if matches!(value, StaticValue::Undefined) {
-        return None;
-    }
-    if let Some(value) = oxc_constant_value(value)
-        && let Some(value) = value.to_js_string(&WithoutGlobalReferenceInformation)
-    {
-        return Some(value.into_owned());
-    }
+/// Objects, colors and functions have no CSS text, they would be written as `[object Object]`,
+/// and booleans and `undefined` would be written as `true` or `undefined`
+pub(super) fn has_css_text(value: &StaticValue) -> bool {
     match value {
-        StaticValue::Array(values) => Some(
-            values
-                .iter()
-                .map(static_value_to_string)
-                .collect::<Option<Vec<_>>>()?
-                .join(","),
-        ),
-        StaticValue::ClassName { name, .. } => Some(format!(".{name}")),
-        StaticValue::Keyframes(value) => Some(value.clone()),
-        StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
+        StaticValue::Array(values) => values.iter().all(has_css_text),
+        StaticValue::ImportedValue { value, .. } => has_css_text(value),
         StaticValue::Boolean(_)
-        | StaticValue::Number(_)
-        | StaticValue::String(_)
-        | StaticValue::Undefined => unreachable!(),
-        // A css class is a selector or its styles depending on where it's interpolated, only
-        // css templates can tell which
-        StaticValue::CssClass { .. }
+        | StaticValue::Undefined
         | StaticValue::DynamicColor { .. }
         | StaticValue::DynamicColorPath { .. }
-        | StaticValue::LayerFunction
-        | StaticValue::MissingImport { .. }
-        | StaticValue::InvalidFunction { .. }
-        | StaticValue::InvalidObject { .. }
         | StaticValue::Function(_)
         | StaticValue::ImportedFunction(_)
         | StaticValue::Object(_)
@@ -426,9 +412,46 @@ pub(super) fn static_value_to_string(value: &StaticValue) -> Option<String> {
         | StaticValue::ThemeColor { .. }
         | StaticValue::ThemeColorContrast { .. }
         | StaticValue::ThemeColors { .. }
-        | StaticValue::UnexportedThemeColors { .. }
-        | StaticValue::CyclicImport { .. }
-        | StaticValue::UnsupportedReExport { .. } => None,
+        | StaticValue::UnexportedThemeColors { .. } => false,
+        _ => true,
+    }
+}
+
+pub(super) fn static_value_to_string(value: &StaticValue) -> String {
+    if let Some(value) = oxc_constant_value(value)
+        && let Some(value) = value.to_js_string(&WithoutGlobalReferenceInformation)
+    {
+        return value.into_owned();
+    }
+    match value {
+        StaticValue::Array(values) => values
+            .iter()
+            .map(static_value_to_string)
+            .collect::<Vec<_>>()
+            .join(","),
+        StaticValue::Boolean(_) => unreachable!(),
+        StaticValue::ClassName { name, .. } => format!(".{name}"),
+        StaticValue::CssClass { css, .. } => css.clone(),
+        StaticValue::DynamicColor { .. } | StaticValue::DynamicColorPath { .. } => {
+            "[dynamic color]".to_owned()
+        }
+        StaticValue::Keyframes(value) => value.clone(),
+        StaticValue::LayerFunction => String::new(),
+        StaticValue::CyclicImport { .. }
+        | StaticValue::MissingImport { .. }
+        | StaticValue::UnsupportedReExport { .. } => String::new(),
+        StaticValue::InvalidFunction { .. } => String::new(),
+        StaticValue::InvalidObject { .. } => String::new(),
+        StaticValue::ImportedValue { value, .. } => static_value_to_string(value),
+        StaticValue::Function(_) | StaticValue::ImportedFunction(_) => "[vindurFn]".to_owned(),
+        StaticValue::Number(_) => unreachable!(),
+        StaticValue::Object(_) | StaticValue::ImportedObject { .. } => "[object Object]".to_owned(),
+        StaticValue::String(_) => unreachable!(),
+        StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. }
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. } => "[theme color]".to_owned(),
+        StaticValue::Undefined => unreachable!(),
     }
 }
 
@@ -569,27 +592,51 @@ impl<'a> MayHaveSideEffectsContext<'a> for StaticAnalysisContext<'_> {
     }
 }
 
-/// The amount of a color method, e.g. `darker(0.2)` or `optimal({ alpha: 0.5 })`.
-/// `None` when the argument can't be evaluated, so the caller fails instead of using 0.
+/// The arguments of a color method, e.g. `darker(0.2, 0.5)` or `optimal({ alpha: 0.5 })`.
+/// `None` when an argument can't be evaluated, so the caller fails instead of using 0.
 /// An `undefined` argument or alpha is the same as omitting it
-fn color_method_amount(
+pub(super) fn color_method_arguments(
     method: &str,
-    argument: &Argument<'_>,
+    arguments: &[Argument<'_>],
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
-) -> Option<Option<f64>> {
-    match evaluate_expression(argument.as_expression()?, constants, scoping)? {
-        StaticValue::Number(value) if method != "optimal" => Some(Some(value)),
+) -> Option<ColorMethodArguments> {
+    let number = |argument: &Argument<'_>| match evaluate_expression(
+        argument.as_expression()?,
+        constants,
+        scoping,
+    )? {
+        StaticValue::Number(value) => Some(Some(value)),
         StaticValue::Undefined => Some(None),
-        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. }
-            if method == "optimal" =>
-        {
-            match properties.get("alpha") {
-                Some(StaticValue::Number(value)) => Some(Some(*value)),
-                Some(StaticValue::Undefined) | None => Some(None),
-                Some(_) => None,
-            }
+        _ => None,
+    };
+    match (method, arguments) {
+        (_, []) => Some(ColorMethodArguments::default()),
+        ("optimal", [options]) => {
+            let alpha = match evaluate_expression(options.as_expression()?, constants, scoping)? {
+                StaticValue::Undefined => None,
+                StaticValue::Object(properties)
+                | StaticValue::ImportedObject { properties, .. } => match properties.get("alpha") {
+                    Some(StaticValue::Number(value)) => Some(*value),
+                    Some(StaticValue::Undefined) | None => None,
+                    Some(_) => return None,
+                },
+                _ => return None,
+            };
+            Some(ColorMethodArguments {
+                amount: None,
+                alpha,
+            })
         }
+        ("optimal", _) => None,
+        (_, [amount]) => Some(ColorMethodArguments {
+            amount: number(amount)?,
+            alpha: None,
+        }),
+        ("darker" | "lighter" | "saturatedDarker", [amount, alpha]) => Some(ColorMethodArguments {
+            amount: number(amount)?,
+            alpha: number(alpha)?,
+        }),
         _ => None,
     }
 }

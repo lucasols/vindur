@@ -8,7 +8,7 @@ use crate::facts::{
 };
 
 use super::static_evaluation::{
-    evaluate_binary, evaluate_expression, resolved_constant, static_value_to_boolean,
+    evaluate_binary, evaluate_expression, has_css_text, resolved_constant, static_value_to_boolean,
     static_value_to_string,
 };
 
@@ -26,7 +26,9 @@ pub(super) fn evaluate_function(
     evaluate_function_expression(&function.body, &bindings)
 }
 
-pub(super) fn function_binary_expression_error(
+/// Why a vindurFn call can't be evaluated, like an undefined operand or an interpolated value
+/// without CSS text
+pub(super) fn function_evaluation_error(
     function: &CompiledFunction,
     arguments: &[StaticValue],
 ) -> Option<String> {
@@ -37,48 +39,64 @@ pub(super) fn function_binary_expression_error(
     for (index, parameter) in function.parameters.iter().enumerate() {
         bind_parameter(parameter, arguments.get(index), &mut bindings)?;
     }
-    find_binary_expression_error(&function.body, &bindings)
+    find_evaluation_error(&function.body, &bindings)
 }
 
-fn find_binary_expression_error(
+fn find_evaluation_error(
     expression: &FunctionExpression,
     bindings: &FxHashMap<String, StaticValue>,
 ) -> Option<String> {
     match expression {
         FunctionExpression::Array { elements } => elements
             .iter()
-            .find_map(|element| find_binary_expression_error(element, bindings)),
+            .find_map(|element| find_evaluation_error(element, bindings)),
         FunctionExpression::Binary {
             left,
             operator,
             right,
-        } => find_binary_expression_error(left, bindings)
-            .or_else(|| find_binary_expression_error(right, bindings))
-            .or_else(|| binary_expression_error(left, *operator, right, bindings)),
+        } => find_evaluation_error(left, bindings)
+            .or_else(|| find_evaluation_error(right, bindings))
+            .or_else(|| {
+                binary_expression_error(left, *operator, right, bindings)
+                    .map(|message| format!("Binary expression evaluation failed: {message}"))
+            }),
         FunctionExpression::Conditional {
             test,
             consequent,
             alternate,
-        } => find_binary_expression_error(test, bindings).or_else(|| {
+        } => find_evaluation_error(test, bindings).or_else(|| {
             let branch = if static_value_to_boolean(&evaluate_function_expression(test, bindings)?)
             {
                 consequent
             } else {
                 alternate
             };
-            find_binary_expression_error(branch, bindings)
+            find_evaluation_error(branch, bindings)
         }),
-        FunctionExpression::IsArray { value } => find_binary_expression_error(value, bindings),
-        FunctionExpression::Join { array, separator } => {
-            find_binary_expression_error(array, bindings)
-                .or_else(|| find_binary_expression_error(separator, bindings))
-        }
+        FunctionExpression::IsArray { value } => find_evaluation_error(value, bindings),
+        FunctionExpression::Join { array, separator } => find_evaluation_error(array, bindings)
+            .or_else(|| find_evaluation_error(separator, bindings))
+            .or_else(|| {
+                let StaticValue::Array(values) = evaluate_function_expression(array, bindings)?
+                else {
+                    return None;
+                };
+                let separator = evaluate_function_expression(separator, bindings)?;
+                // Like in JS, undefined elements are joined as empty strings and an undefined
+                // separator joins with commas
+                values
+                    .iter()
+                    .chain([&separator])
+                    .filter(|value| !matches!(value, StaticValue::Undefined))
+                    .any(|value| !has_css_text(value))
+                    .then(|| no_css_text_error("a joined array element"))
+            }),
         FunctionExpression::Map {
             array,
             parameter,
             body,
         } => {
-            if let Some(error) = find_binary_expression_error(array, bindings) {
+            if let Some(error) = find_evaluation_error(array, bindings) {
                 return Some(error);
             }
             let StaticValue::Array(values) = evaluate_function_expression(array, bindings)? else {
@@ -87,15 +105,18 @@ fn find_binary_expression_error(
             values.into_iter().find_map(|value| {
                 let mut scoped = bindings.clone();
                 scoped.insert(parameter.clone(), value);
-                find_binary_expression_error(body, &scoped)
+                find_evaluation_error(body, &scoped)
             })
         }
         FunctionExpression::Object { properties } => properties
             .iter()
-            .find_map(|property| find_binary_expression_error(&property.value, bindings)),
-        FunctionExpression::Template { expressions, .. } => expressions
-            .iter()
-            .find_map(|value| find_binary_expression_error(value, bindings)),
+            .find_map(|property| find_evaluation_error(&property.value, bindings)),
+        FunctionExpression::Template { expressions, .. } => expressions.iter().find_map(|value| {
+            find_evaluation_error(value, bindings).or_else(|| {
+                (!has_css_text(&evaluate_function_expression(value, bindings)?))
+                    .then(|| no_css_text_error(&format!("'{}'", expression_label(value))))
+            })
+        }),
         FunctionExpression::Boolean { .. }
         | FunctionExpression::Number { .. }
         | FunctionExpression::Parameter { .. }
@@ -159,6 +180,12 @@ fn binary_expression_error(
         );
     }
     None
+}
+
+fn no_css_text_error(label: &str) -> String {
+    format!(
+        "vindurFn interpolates {label}, which has no CSS text, undefined, booleans and objects can't be written in styles"
+    )
 }
 
 fn expression_label(expression: &FunctionExpression) -> &str {
@@ -270,7 +297,8 @@ fn evaluate_function_expression(
             // Like in JS, an undefined separator joins with commas
             let separator = match evaluate_function_expression(separator, bindings)? {
                 StaticValue::Undefined => ",".to_owned(),
-                separator => static_value_to_string(&separator)?,
+                separator if has_css_text(&separator) => static_value_to_string(&separator),
+                _ => return None,
             };
             Some(StaticValue::String(
                 values
@@ -278,7 +306,7 @@ fn evaluate_function_expression(
                     // Like in JS, undefined elements are joined as empty strings
                     .map(|value| match value {
                         StaticValue::Undefined => Some(String::new()),
-                        value => static_value_to_string(value),
+                        value => has_css_text(value).then(|| static_value_to_string(value)),
                     })
                     .collect::<Option<Vec<_>>>()?
                     .join(&separator),
@@ -310,9 +338,11 @@ fn evaluate_function_expression(
             for (index, quasi) in quasis.iter().enumerate() {
                 output.push_str(quasi);
                 if let Some(expression) = expressions.get(index) {
-                    output.push_str(&static_value_to_string(&evaluate_function_expression(
-                        expression, bindings,
-                    )?)?);
+                    let value = evaluate_function_expression(expression, bindings)?;
+                    if !has_css_text(&value) {
+                        return None;
+                    }
+                    output.push_str(&static_value_to_string(&value));
                 }
             }
             Some(StaticValue::String(output))
@@ -353,18 +383,68 @@ fn compare_numbers(
     Some(StaticValue::Boolean(compare(left, right)))
 }
 
+/// Colors and functions are only known by their CSS reads, a function would write placeholders like
+/// `[dynamic color]` for them. A css style is a selector or its styles depending on where it's
+/// interpolated, only vindur templates can tell which
+fn is_function_argument_value(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::ImportedValue { value, .. } => is_function_argument_value(value),
+        StaticValue::Object(properties) | StaticValue::ImportedObject { properties, .. } => {
+            properties.values().all(is_function_argument_value)
+        }
+        StaticValue::CssClass { .. }
+        | StaticValue::DynamicColor { .. }
+        | StaticValue::DynamicColorPath { .. }
+        | StaticValue::Function(_)
+        | StaticValue::ImportedFunction(_)
+        | StaticValue::ThemeColor { .. }
+        | StaticValue::ThemeColorContrast { .. }
+        | StaticValue::ThemeColors { .. }
+        | StaticValue::UnexportedThemeColors { .. } => false,
+        _ => true,
+    }
+}
+
+fn is_primitive(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Boolean(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => true,
+        StaticValue::ImportedValue { value, .. } => is_primitive(value),
+        _ => false,
+    }
+}
+
 pub(super) fn evaluate_argument(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
     scoping: &Scoping,
 ) -> Option<StaticValue> {
-    let expression = argument.as_expression()?;
+    // Like other interpolated values, e.g. `-4`, `COLORS.primary`, `` `${SIZE}px` `` or
+    // `SIZE as number`
+    let expression = argument.as_expression()?.get_inner_expression();
     // Imported objects are passed by value so they can be destructured
     if let Expression::Identifier(identifier) = expression
         && let Some(StaticValue::ImportedObject { properties, .. }) =
             resolved_constant(identifier, constants, scoping)
     {
-        return Some(StaticValue::Object(properties.clone()));
+        let value = StaticValue::Object(properties.clone());
+        return is_function_argument_value(&value).then_some(value);
     }
-    evaluate_expression(expression, constants, scoping)
+    if let Expression::BinaryExpression(binary) = expression {
+        return evaluate_binary(
+            evaluate_expression(&binary.left, constants, scoping)?,
+            binary.operator,
+            evaluate_expression(&binary.right, constants, scoping)?,
+        );
+    }
+    let value = evaluate_expression(expression, constants, scoping)?;
+    // Properties of constant objects, like `iconColor.var` or `theme.spacing.md`, must be
+    // primitives
+    if expression.is_member_expression() {
+        is_primitive(&value).then_some(value)
+    } else {
+        is_function_argument_value(&value).then_some(value)
+    }
 }

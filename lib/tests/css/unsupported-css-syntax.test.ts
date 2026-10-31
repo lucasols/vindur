@@ -528,10 +528,6 @@ describe('@keyframes inside templates', () => {
           @supports (--theme: {color:red}) {
             @keyframes slide { from { opacity: 0; } }
           }
-
-          @scope (.box) {
-            @keyframes pop { from { opacity: 0; } }
-          }
         \`
       `,
     });
@@ -554,12 +550,132 @@ describe('@keyframes inside templates', () => {
           }
         }
       }
+      "
+    `);
+  });
+});
 
-      @scope (.box) {
-        @keyframes pop {
-          from {
-            opacity: 0;
-          }
+describe('& suffix concatenation', () => {
+  test('should throw for &-- suffixes in createGlobalStyle', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createGlobalStyle } from 'vindur'
+
+          createGlobalStyle\`
+            .react-datepicker__day {
+              &--today { font-weight: bold; }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&--today\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 5:4]
+    `);
+  });
+
+  test('should throw for &__ suffixes in styled components', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Card = styled.div\`
+            .card {
+              &:hover { color: red; }
+              & > .title, &__body { padding: 4px; }
+            }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&__body\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 6:16]
+    `);
+  });
+
+  test('should throw for &- suffixes on the root selector', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const style = css\`
+            &-active { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&-active\` is not supported, CSS nesting can't concatenate a suffix to the generated class name, use a separate class instead, e.g. \`&-active {}\` -> \`&.active {}\`
+      loc: 4:2]
+    `);
+  });
+
+  test('should throw for suffixes from interpolated values', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { css } from 'vindur'
+
+          const SUFFIX = '--today'
+
+          const style = css\`
+            .day { &\${SUFFIX} { color: red; } }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&--today\` is not supported, CSS nesting can't concatenate a suffix to the parent selector, write the full selector in its own rule instead, e.g. \`.day { &--today {} }\` -> \`.day--today {}\`
+      loc: 6:9]
+    `);
+  });
+
+  test('should throw for & followed by an element name', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { styled } from 'vindur'
+
+          const Card = styled.div\`
+            &input { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: \`&input\` is ambiguous, Sass concatenates it to the parent selector but CSS nesting reads it as an element selector, write \`input&\` to match \`input\` elements or the full selector for a suffix
+      loc: 4:2]
+    `);
+  });
+
+  test('should allow & followed by other selectors and & in values', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+
+        const style = css\`
+          --x: a&b;
+          content: "&--x";
+          &.active, &:hover, &[data-x], && { color: red; }
+          & > .title, & .body, div& { color: blue; }
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-style {
+        --x: a&b;
+        content: "&--x";
+        &.active,
+        &:hover,
+        &[data-x],
+        && {
+          color: red;
+        }
+        & > .title,
+        & .body,
+        div& {
+          color: blue;
         }
       }
       "

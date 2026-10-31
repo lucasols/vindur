@@ -6,30 +6,6 @@ const importAliases = { '#/': '/' };
 const emptyFs = createFsMock({});
 
 describe('styled components - error handling', () => {
-  test('should throw error for object property access', async () => {
-    const source = dedent`
-      import { styled } from 'vindur'
-
-      const theme = { primary: 'blue' }
-      const StyledDiv = styled.div\`
-        color: \${theme.primary};
-      \`
-    `;
-
-    await expect(async () => {
-      await transformWithFormat({
-        source,
-        overrideDefaultFs: emptyFs,
-        overrideDefaultImportAliases: importAliases,
-      });
-    }).rejects.toThrowErrorMatchingInlineSnapshot(
-      `
-      [TransformError: /test.tsx: Invalid interpolation used at \`... StyledDiv = styled\` ... \${theme.primary}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
-      loc: 5:11]
-    `,
-    );
-  });
-
   test('should throw error for undefined variable references', async () => {
     const source = dedent`
       import { styled } from 'vindur'
@@ -107,4 +83,57 @@ describe('styled components - error handling', () => {
       loc: 3:22]
     `);
   });
+});
+
+test('should throw for vindur declarations not using const', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        let base = css\`color: red;\`
+
+        export const Box = styled.div\`\${base};\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+    loc: 3:0]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        export var Box = styled.div\`color: red;\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`var\`, they are evaluated at compile time
+    loc: 3:7]
+  `);
+});
+
+test('should throw for withComponent with a lowercase component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const card = (props: { className?: string }) => <div {...props} />;
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        const StyledCard = Box.withComponent(card);
+
+        export const App = () => <StyledCard />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Cannot use "card" in withComponent(): component names must start with an uppercase letter (CamelCase).
+    loc: 9:37]
+  `);
 });

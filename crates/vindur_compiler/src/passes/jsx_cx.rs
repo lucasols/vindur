@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression, ObjectPropertyKind,
-    Program, PropertyKind,
+    Expression, JSXAttribute, JSXAttributeValue, JSXElement, JSXElementName, JSXExpression,
+    ObjectPropertyKind, Program, PropertyKind,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -18,6 +18,7 @@ use super::{
     css_syntax::CssError,
     cx_key_warnings::CxKeyUsages,
     cx_modifier_selectors::{ModifierCss, element_class_names, rewrites_any},
+    cx_optimize::condition_text,
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
@@ -35,17 +36,18 @@ use super::{
     },
     runtime_helpers::RuntimeHelperNames,
     static_value::{TemplateContext, evaluate_template},
+    style_flag_selectors::flag_classes,
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
-        ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
-        inlined_component_classes, is_class_rule, js_string_literal, unsupported_spread_message,
+        ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name, find_jsx,
+        inlined_component_classes, is_class_rule, unsupported_spread_message,
         validate_styled_spreads,
     },
 };
 
 #[derive(Clone, Debug)]
 pub(crate) struct CxElementTransform {
-    pub call: String,
+    pub classes: CxClasses,
     pub mappings: Vec<(String, String, bool)>,
     pub css_index: u32,
     /// The id after the hashed cx classes, where the css prop's scoped variables start
@@ -69,7 +71,6 @@ pub(crate) struct JsxCxTransform<'a> {
     pub hashed_styled_modifiers: &'a mut Vec<HashedStyledModifier>,
     pub class_expressions: &'a mut FxHashMap<u32, String>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
-    pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
     pub helper_names: &'a RuntimeHelperNames,
     pub key_usages: &'a mut CxKeyUsages,
@@ -207,7 +208,7 @@ impl JsxCxVisitor<'_> {
         } else {
             None
         };
-        let mut properties = Vec::new();
+        let mut classes = CxClasses::default();
         let mut mappings = Vec::new();
         let mut key_spans = Vec::new();
         for property in &object.properties {
@@ -302,11 +303,32 @@ impl JsxCxVisitor<'_> {
                     }
                     (self.hashed_class_name(index, &class_name), true)
                 };
-            let value_span = property.value.span();
-            // The value is copied into the generated call, with the edits of other passes inside
-            // it, like a `stableId()` call
-            let value = take_edited_source(self.output.source, value_span, self.output.edits);
-            properties.push(format!("{}: {value}", js_string_literal(&output_name)));
+            match &property.value {
+                Expression::BooleanLiteral(value) if value.value => {
+                    classes.static_classes.push(output_name.clone());
+                }
+                Expression::BooleanLiteral(_) => {}
+                expression => {
+                    // The edits of JSX in the value, like a styled component, would overlap the copied value
+                    if let Some(span) = find_jsx(expression) {
+                        self.set_error(
+                            span,
+                            format!("cx prop class \"{class_name}\" value can't contain JSX, cx values are conditions"),
+                        );
+                        return;
+                    }
+                    // The value is copied into the condition, with the edits of other passes
+                    // inside it, like a `stableId()` call
+                    let value = take_edited_source(
+                        self.output.source,
+                        expression.span(),
+                        self.output.edits,
+                    );
+                    classes
+                        .conditional
+                        .push((condition_text(expression, &value), output_name.clone()));
+                }
+            }
             mappings.push((class_name, output_name, should_rewrite_css));
             key_spans.push(property.key.span());
         }
@@ -333,38 +355,67 @@ impl JsxCxVisitor<'_> {
         }
 
         if let Some(styled) = &styled {
-            let conflicts = styled
+            // The flag props with the cx keys that select their classes
+            let mut conflicts = styled
                 .style_flags
                 .iter()
-                .filter(|flag| {
-                    mappings.iter().any(|(class_name, _, _)| {
-                        !class_name.starts_with('$')
+                .filter_map(|flag| {
+                    mappings.iter().find_map(|(class_name, _, _)| {
+                        (!class_name.starts_with('$')
                             && (class_name == &flag.prop_name
                                 || class_name
                                     .strip_prefix(&flag.prop_name)
-                                    .is_some_and(|suffix| suffix.starts_with('-')))
+                                    .is_some_and(|suffix| suffix.starts_with('-'))))
+                        .then_some((flag.prop_name.as_str(), class_name.as_str()))
                     })
                 })
-                .map(|flag| flag.prop_name.as_str())
                 .collect::<Vec<_>>();
+            // Flags of an imported base, which the base applies, are only known by their classes,
+            // the prop is the part before the value, like `size` in `size-small`
+            if let Some(StaticValue::ClassName { style_flags, .. }) =
+                jsx_name(name).and_then(|name| self.output.constants.get(name))
+            {
+                let own_classes = flag_classes(&styled.style_flags);
+                let inherited = style_flags
+                    .iter()
+                    .filter(|flag| !own_classes.iter().any(|own| own.original == flag.original));
+                for flag in inherited {
+                    let prop = flag
+                        .original
+                        .split_once('-')
+                        .map_or(flag.original.as_str(), |(prop, _)| prop);
+                    if mappings
+                        .iter()
+                        .any(|(class_name, _, _)| class_name == &flag.original)
+                        && !conflicts.iter().any(|(conflict, _)| *conflict == prop)
+                    {
+                        conflicts.push((prop, &flag.original));
+                    }
+                }
+            }
+            if let [(prop, key)] = conflicts.as_slice() {
+                self.set_error(
+                    element.opening_element.span,
+                    format!(
+                        "Style flag prop '{prop}' conflicts with cx prop key '{key}' on {element_name}. Use different names to avoid conflicts."
+                    ),
+                );
+                return;
+            }
             if !conflicts.is_empty() {
-                let message = if conflicts.len() == 1 {
-                    format!(
-                        "Style flag prop '{}' conflicts with cx prop key '{}' on {element_name}. Use different names to avoid conflicts.",
-                        conflicts[0], conflicts[0]
-                    )
-                } else {
-                    format!(
-                        "Style flag props [{}] conflict with cx prop keys on {element_name}. Use different names to avoid conflicts.",
-                        conflicts.join(", ")
-                    )
-                };
+                let props = conflicts
+                    .iter()
+                    .map(|(prop, _)| *prop)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let message = format!(
+                    "Style flag props [{props}] conflict with cx prop keys on {element_name}. Use different names to avoid conflicts."
+                );
                 self.set_error(element.opening_element.span, message);
                 return;
             }
         }
 
-        *self.output.needs_cx_helper = true;
         if self.output.dev
             && let Some(styled) = &styled
         {
@@ -413,16 +464,11 @@ impl JsxCxVisitor<'_> {
             self.set_error(span, error.message);
             return;
         }
-        let cx_call = format!(
-            "{}({{\n{},\n}})",
-            self.output.helper_names.cx,
-            properties.join(",\n")
-        );
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
                 CxElementTransform {
-                    call: cx_call,
+                    classes,
                     mappings,
                     css_index,
                     next_index: *self.output.id_index,
@@ -440,11 +486,11 @@ impl JsxCxVisitor<'_> {
             .filter(|component| !component.runtime)
             .map(|component| inlined_component_classes(element, component, self.output.source));
         let inlined_class = |prefix: &str| {
-            inlined.as_ref().map(|classes| {
+            inlined.as_ref().map(|inlined_classes| {
                 class_concat(
-                    &format!("{prefix}{}", classes.literal),
-                    &classes.flag_suffix,
-                    Some(&cx_call),
+                    &format!("{prefix}{}", inlined_classes.literal),
+                    &inlined_classes.flag_suffix,
+                    Some(&classes),
                 )
             })
         };
@@ -457,7 +503,8 @@ impl JsxCxVisitor<'_> {
                 );
                 return;
             }
-            let complete = inlined_class("").unwrap_or_else(|| cx_call.clone());
+            let complete =
+                inlined_class("").unwrap_or_else(|| class_concat("", "", Some(&classes)));
             let (inputs, replaced_attributes) = merge_class_name_inputs(
                 element,
                 &class_name_sources(&self.output),
@@ -489,7 +536,8 @@ impl JsxCxVisitor<'_> {
             replacement: String::new(),
         });
         let Some(class_attribute) = find_last_attribute(element, "className") else {
-            let class_name = inlined_class("").unwrap_or_else(|| cx_call.clone());
+            let class_name =
+                inlined_class("").unwrap_or_else(|| class_concat("", "", Some(&classes)));
             let offset = opening_attribute_insertion_offset(element, self.output.source);
             emit_class_name(
                 self.output.edits,
@@ -503,7 +551,7 @@ impl JsxCxVisitor<'_> {
         if let Some(JSXAttributeValue::StringLiteral(value)) = &class_attribute.value {
             let existing = decode_jsx_entities(&value.value);
             let class_name = inlined_class(&format!("{existing} "))
-                .unwrap_or_else(|| class_concat(&existing, "", Some(&cx_call)));
+                .unwrap_or_else(|| class_concat(&existing, "", Some(&classes)));
             emit_class_name(
                 self.output.edits,
                 self.output.class_expressions,
@@ -513,10 +561,8 @@ impl JsxCxVisitor<'_> {
             );
             return;
         }
-        let after = inlined_class(" ").map_or_else(
-            || format!(" + \" \" + {cx_call}"),
-            |class_name| format!(" + {class_name}"),
-        );
+        let after = inlined_class(" ")
+            .map_or_else(|| classes.suffix(), |class_name| format!(" + {class_name}"));
         let sources = class_name_sources(&self.output);
         emit_class_concat(
             self.output.edits,
@@ -672,7 +718,6 @@ impl JsxCxVisitor<'_> {
             &TemplateContext {
                 variable_name: None,
                 tag_type: "css",
-                style_flags: &[],
             },
         ) else {
             return Vec::new();

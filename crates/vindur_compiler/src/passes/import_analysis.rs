@@ -11,6 +11,8 @@ use crate::{
 
 const COMPILE_TIME_IMPORTS: &[&str] = &[
     "css",
+    "createClassName",
+    "createCssVar",
     "createGlobalStyle",
     "keyframes",
     "layer",
@@ -150,7 +152,12 @@ pub(super) fn collect_exported_object_names(program: &Program<'_>) -> FxHashSet<
         .collect()
 }
 
-pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
+/// The assigned templates of vindur tags, which the declarations pass compiles. Templates of other
+/// tags, like `html`, can still hold vindur templates
+pub(super) fn assigned_tag_spans(
+    program: &Program<'_>,
+    is_vindur_tag: impl Fn(&Expression<'_>) -> bool,
+) -> Vec<oxc_span::Span> {
     let mut spans = Vec::new();
     for statement in &program.body {
         let declaration = match statement {
@@ -174,7 +181,7 @@ pub(super) fn assigned_tag_spans(program: &Program<'_>) -> Vec<oxc_span::Span> {
             let Some(Expression::TaggedTemplateExpression(tagged)) = &declarator.init else {
                 return None;
             };
-            Some(tagged.span)
+            is_vindur_tag(&tagged.tag).then_some(tagged.span)
         }));
     }
     spans

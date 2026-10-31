@@ -260,7 +260,7 @@ describe('constant imports', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "unknownConstant" not found in /constants.ts
+      [TransformError: /test.tsx: "unknownConstant" not found in /constants.ts, export it by name, like \`export const unknownConstant = ...\` or \`export { unknownConstant }\`
       loc: 5:11]
     `,
     );
@@ -394,7 +394,7 @@ test('should error on vindurFn arguments that cannot be evaluated', async () => 
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Argument of vindurFn "margin" can't be evaluated at compile time, only literals, module constants, and arrays or objects of them are supported
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
     loc: 6:11]
   `);
 });
@@ -519,7 +519,7 @@ test('should not resolve named imports of a default exported constant', async ()
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: "COLOR" not found in /colors.ts
+    [TransformError: /test.tsx: "COLOR" not found in /colors.ts, export it by name, like \`export const COLOR = ...\` or \`export { COLOR }\`
     loc: 5:11]
   `);
 });

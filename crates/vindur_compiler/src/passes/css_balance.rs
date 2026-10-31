@@ -1,11 +1,15 @@
 use super::css_syntax::CssError;
-use super::unsupported_css_syntax::{is_url_function, skipped_token_end};
+use super::css_tokens::{
+    decode_ident, escape_end, ident_end, is_css_whitespace, is_ident_char, scan_string,
+    skipped_token_end,
+};
 
-const URL_START: &str = "url(";
+const LINE_COMMENT_ERROR: &str = "`//` comments are not supported in CSS, use `/* ... */`";
 
 /// Fails on an unclosed comment, an unclosed `(`, `[` or `url(`, or an unexpected `)` or `]`.
 /// oxc-css-parser 0.0.17 does not report these inside nested blocks, where they swallow the rules
-/// after them, remove this check once the parser reports them
+/// after them, remove this check once the parser reports them. Also fails on a `//` comment,
+/// whose text could otherwise be reported as an unclosed string or bracket
 pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
     let mut open: Vec<(u8, usize)> = Vec::new();
     let mut index = 0;
@@ -17,14 +21,43 @@ pub(super) fn check_balance(css: &str) -> Result<(), CssError> {
                 index + 2,
             ));
         }
-        if is_unquoted_url(css, index) {
-            index = unquoted_url_end(css, index).ok_or_else(|| {
-                CssError::syntax(
-                    "unclosed `url(`, add `)`".to_owned(),
+        if css[index..].starts_with("//") {
+            return Err(CssError::syntax(
+                LINE_COMMENT_ERROR.to_owned(),
+                index,
+                index + 2,
+            ));
+        }
+        // A hash or at-keyword like `#url` is one token, not a `url(` function
+        if css[index..].starts_with(['#', '@'])
+            && css[index + 1..].chars().next().is_some_and(is_ident_char)
+        {
+            index = ident_end(css, index + 1);
+            continue;
+        }
+        // Identifiers are skipped whole, so the text after an escape like `\66 url(` is not read
+        // as a new identifier
+        if css[index..].chars().next().is_some_and(is_ident_char) {
+            let name_end = ident_end(css, index);
+            index = match unquoted_url_arguments_start(css, index, name_end) {
+                Some(arguments_start) => unquoted_url_end(css, arguments_start)
+                    .map_err(|invalid| url_error(css, index, arguments_start, invalid))?,
+                None => name_end,
+            };
+            continue;
+        }
+        // A string ended by a line break swallows the rest of the line, like a `}`
+        if css[index..].starts_with(['"', '\'']) {
+            let (end, closed) = scan_string(css, index);
+            if !closed {
+                let quote = &css[index..index + 1];
+                return Err(CssError::syntax(
+                    format!("unclosed string, add `{quote}`"),
                     index,
-                    index + URL_START.len(),
-                )
-            })?;
+                    index + 1,
+                ));
+            }
+            index = end;
             continue;
         }
         if let Some(end) = skipped_token_end(css, index) {
@@ -76,42 +109,76 @@ fn unclosed(opener: u8, start: usize) -> CssError {
     )
 }
 
-fn is_unquoted_url(css: &str, index: usize) -> bool {
-    is_url_function(css, index)
-        && !css[index + URL_START.len()..]
-            .trim_start()
-            .starts_with(['"', '\''])
+/// Where the arguments of an unquoted `url(` start, the function name can be escaped like
+/// `u\72l(`
+fn unquoted_url_arguments_start(css: &str, start: usize, name_end: usize) -> Option<usize> {
+    if css.as_bytes().get(name_end) != Some(&b'(')
+        || !decode_ident(&css[start..name_end]).eq_ignore_ascii_case("url")
+    {
+        return None;
+    }
+    let arguments_start = name_end + 1;
+    (!css[arguments_start..]
+        .trim_start_matches(is_css_whitespace)
+        .starts_with(['"', '\'']))
+    .then_some(arguments_start)
 }
 
-/// The end of an unquoted `url(...)`, `None` when it is not closed before a quote, a `(`, or
-/// whitespace that is not followed by `)`
-fn unquoted_url_end(css: &str, start: usize) -> Option<usize> {
-    let arguments_start = start + URL_START.len();
-    let arguments = &css[arguments_start..];
+/// The end of an unquoted `url(...)`. Fails with the index of a quote, a `(` or whitespace that is
+/// not followed by `)`, or `None` when it is not closed
+fn unquoted_url_end(css: &str, arguments_start: usize) -> Result<usize, Option<usize>> {
     let mut seen_value = false;
-    let mut characters = arguments.char_indices();
-    while let Some((offset, character)) = characters.next() {
+    let mut index = arguments_start;
+    while let Some(character) = css[index..].chars().next() {
         match character {
-            ')' => return Some(arguments_start + offset + 1),
+            ')' => return Ok(index + 1),
             '\\' => {
-                characters.next();
+                index = escape_end(css, index);
                 seen_value = true;
+                continue;
             }
-            '"' | '\'' | '(' => return None,
-            character if character.is_whitespace() => {
-                if !seen_value {
-                    continue;
+            '"' | '\'' | '(' => return Err(Some(index)),
+            character if is_css_whitespace(character) => {
+                if seen_value {
+                    let rest = &css[index..];
+                    let trimmed = rest.trim_start_matches(is_css_whitespace);
+                    return if trimmed.starts_with(')') {
+                        Ok(index + rest.len() - trimmed.len() + 1)
+                    } else {
+                        Err(Some(index))
+                    };
                 }
-                let rest = &arguments[offset..];
-                let trimmed = rest.trim_start();
-                return trimmed
-                    .starts_with(')')
-                    .then(|| arguments_start + offset + rest.len() - trimmed.len() + 1);
             }
             _ => seen_value = true,
         }
+        index += character.len_utf8();
     }
-    None
+    Err(None)
+}
+
+/// A `url(` closed in the same declaration but with a character an unquoted url can't have, like
+/// `url(a b.png)`, is reported at that character
+fn url_error(css: &str, start: usize, arguments_start: usize, invalid: Option<usize>) -> CssError {
+    let closed_later = |invalid: usize| {
+        css[invalid..]
+            .find([')', ';', '{', '}'])
+            .is_some_and(|end| css[invalid + end..].starts_with(')'))
+    };
+    match invalid {
+        Some(invalid) if closed_later(invalid) => {
+            let width = css[invalid..].chars().next().map_or(1, char::len_utf8);
+            CssError::syntax(
+                "unquoted `url()` can't contain spaces, quotes or `(`, quote the url".to_owned(),
+                invalid,
+                invalid + width,
+            )
+        }
+        _ => CssError::syntax(
+            "unclosed `url(`, add `)`".to_owned(),
+            start,
+            arguments_start,
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -134,9 +201,25 @@ mod tests {
             "background: url(a.png); mask: url( b.svg ); cursor: url(\"c.cur\"), auto;",
             "background: url(a\\).png); content: 'é(';",
             "--x: { a: [b] }; } stray: brace;",
+            "background: url(foo\\20 bar.png); mask: url(a\u{a0}b.png);",
+            "background: u\\72l(a[b.png);",
+            "--a: u\\ rl(foo bar); --b: \\66 url(foo bar);",
+            "content: \"a\\\r\n)\";",
+            "--x: #url(a b); --y: @url(a b);",
         ] {
             assert_eq!(check(css), "ok", "{css}");
         }
+    }
+
+    #[test]
+    fn rejects_unclosed_strings() {
+        assert_eq!(
+            [
+                check("&:hover { content: \"abc; }\n color: red;"),
+                check("content: 'a\\\nb';")
+            ],
+            ["Invalid CSS: unclosed string, add `\"` at 19..20", "ok"]
+        );
     }
 
     #[test]
@@ -163,6 +246,20 @@ mod tests {
                 "Invalid CSS: unclosed `url(`, add `)` at 22..26",
                 "Invalid CSS: unclosed `url(`, add `)` at 22..26",
                 "Invalid CSS: unclosed `(`, add `)` at 21..22",
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_unquoted_urls() {
+        assert_eq!(
+            [
+                check("background: url(a b.png);"),
+                check("background: url(a(1).png);"),
+            ],
+            [
+                "Invalid CSS: unquoted `url()` can't contain spaces, quotes or `(`, quote the url at 17..18",
+                "Invalid CSS: unquoted `url()` can't contain spaces, quotes or `(`, quote the url at 17..18",
             ]
         );
     }

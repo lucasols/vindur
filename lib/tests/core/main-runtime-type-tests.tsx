@@ -15,6 +15,7 @@ import {
   type CSSProperties,
 } from 'react';
 import {
+  createCssVar,
   createDynamicCssColor,
   createStaticThemeColors,
   css,
@@ -67,6 +68,16 @@ test('styled components', () => {
       css="test"
       cx={{ test: true }}
       dynamicColor={dynamicColor.set('red')}
+    />
+  );
+
+  const imgWithColorOptions = (
+    <StyledComponent
+      dynamicColor={dynamicColor.set('red', {
+        veryDarkThreshold: 0.12,
+        veryLightThreshold: 0.9,
+        setColorScheme: { fallback: 'light' },
+      })}
     />
   );
 
@@ -488,6 +499,28 @@ describe('style flags', () => {
   });
 });
 
+test('color ops accept an alpha', () => {
+  const colors = createStaticThemeColors({ primary: '#007bff' });
+
+  const values: string[] = [
+    colors.primary.darker(0.1, 0.5),
+    colors.primary.lighter(0.1, 0.5),
+    colors.primary.saturatedDarker(0.86, 0.08),
+    dynamicColor.darker(0.1, 0.5),
+    dynamicColor.lighter(0.1, 0.5),
+    dynamicColor.saturatedDarker(0.86, 0.08),
+  ];
+});
+
+test('createCssVar', () => {
+  const iconColor = createCssVar();
+
+  expectTypesAre<typeof iconColor.name, `--${string}`>('equal');
+  expectTypesAre<typeof iconColor.var, string>('equal');
+
+  const withStyle = <div style={{ [iconColor.name]: 'red' }} />;
+});
+
 describe('dynamic color setProps', () => {
   test('setProps result can be spread on native elements and styled components', () => {
     const otherColor = createDynamicCssColor();
@@ -496,7 +529,9 @@ describe('dynamic color setProps', () => {
       color: red;
     `;
 
-    const native = <div {...dynamicColor.setProps('#fff', { className: 'a' })} />;
+    const native = (
+      <div {...dynamicColor.setProps('#fff', { className: 'a' })} />
+    );
     const styledBox = <Box {...dynamicColor.setProps('#fff')} />;
     const nested = (
       <div

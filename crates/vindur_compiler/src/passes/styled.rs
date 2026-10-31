@@ -1,6 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXElement, JSXFragment, ObjectExpression, Program,
-    Statement, TSTypeParameterInstantiation, TaggedTemplateExpression,
+    Argument, CallExpression, Expression, IdentifierReference, JSXAttribute, JSXAttributeName,
+    JSXElement, JSXFragment, ObjectExpression, ObjectProperty, Program, Statement,
+    TSTypeParameterInstantiation, TSTypeQuery, TaggedTemplateExpression, TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -9,6 +10,9 @@ use rustc_hash::FxHashMap;
 use crate::{CompilerDiagnostic, semantic::VindurImports};
 
 use super::css::{hex_decode, hex_encode};
+use super::import_analysis::is_compile_time_import;
+use super::jsx_css::{scoped_name_value, starts_with_scoped_prefix};
+use super::static_value::forward_styled_reference;
 use super::style_flags::extract_style_flags;
 use super::vindur_fn_references::{is_styled_tag, is_vindur_template_tag};
 
@@ -36,6 +40,9 @@ pub(crate) struct StyledComponent {
     pub class_name: String,
     pub element: String,
     pub element_is_identifier: bool,
+    /// The element is the component it extends, like `Card` in `styled(Card)`, which applies its
+    /// own styles, not a replacement from `withComponent`
+    pub element_is_base: bool,
     pub runtime: bool,
     pub style_flags: Vec<StyleFlag>,
 }
@@ -83,6 +90,7 @@ pub(crate) fn styled_tag_component(
             class_name: String::new(),
             element,
             element_is_identifier: false,
+            element_is_base: false,
             runtime: false,
             style_flags: Vec::new(),
         });
@@ -109,6 +117,7 @@ pub(crate) fn styled_tag_component(
                     class_name: String::new(),
                     element: base.name.to_string(),
                     element_is_identifier: true,
+                    element_is_base: true,
                     runtime: false,
                     style_flags: Vec::new(),
                 }),
@@ -122,6 +131,7 @@ pub(crate) fn styled_tag_component(
                 class_name: String::new(),
                 element: format!("{}.{}", object.name, member.property.name),
                 element_is_identifier: true,
+                element_is_base: true,
                 runtime: false,
                 style_flags: Vec::new(),
             })
@@ -135,7 +145,8 @@ pub(crate) fn styled_tag_component_with_attrs(
     type_arguments: Option<&TSTypeParameterInstantiation<'_>>,
     context: &StyledTagContext<'_>,
 ) -> Result<Option<StyledDefinition>, CompilerDiagnostic> {
-    let style_flags = match type_arguments {
+    // Only the type arguments of styled tags are style flags, other tags like `html<...>` are kept
+    let style_flags = || match type_arguments {
         Some(type_arguments) => extract_style_flags(
             &type_arguments.params,
             context.file_hash,
@@ -143,8 +154,8 @@ pub(crate) fn styled_tag_component_with_attrs(
             context.program,
             context.file_path,
             context.source,
-        )?,
-        None => Vec::new(),
+        ),
+        None => Ok(Vec::new()),
     };
     if let Expression::CallExpression(call) = tag
         && let Expression::StaticMemberExpression(member) = &call.callee
@@ -174,7 +185,7 @@ pub(crate) fn styled_tag_component_with_attrs(
         return Ok(Some(StyledDefinition {
             base_component: component,
             attrs: Some(context.source[span.start as usize..span.end as usize].to_owned()),
-            style_flags,
+            style_flags: style_flags()?,
         }));
     }
     let component = styled_tag_component(tag, context.imports, context.components);
@@ -220,7 +231,7 @@ pub(crate) fn styled_tag_component_with_attrs(
     Ok(Some(StyledDefinition {
         attrs: None,
         base_component: component,
-        style_flags,
+        style_flags: style_flags()?,
     }))
 }
 
@@ -233,7 +244,49 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
     {
         return "Chained .attrs() calls are not supported, combine them into a single .attrs({...}) object";
     }
+    if let Expression::CallExpression(call) = attrs_base(tag)
+        && let [Argument::CallExpression(_)] = call.arguments.as_slice()
+    {
+        return "styled() cannot extend a call expression, assign it to a const first, e.g. `const Base = wrap(Component)` and then `styled(Base)`";
+    }
     "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
+}
+
+/// The identifier a styled component extends, e.g. `Base` in `styled(Base).attrs({ ... })`
+pub(crate) fn styled_base<'a, 'b>(tag: &'a Expression<'b>) -> Option<&'a IdentifierReference<'b>> {
+    let Expression::CallExpression(call) = attrs_base(tag) else {
+        return None;
+    };
+    let [Argument::Identifier(base)] = call.arguments.as_slice() else {
+        return None;
+    };
+    Some(base)
+}
+
+/// The binding of the component a styled component extends, e.g. `Icons` in `styled(Icons.Star)`
+pub(crate) fn styled_base_root_name<'a>(tag: &'a Expression<'_>) -> Option<&'a str> {
+    let Expression::CallExpression(call) = attrs_base(tag) else {
+        return None;
+    };
+    match call.arguments.as_slice() {
+        [Argument::Identifier(base)] => Some(base.name.as_str()),
+        [Argument::StaticMemberExpression(member)] => match &member.object {
+            Expression::Identifier(object) => Some(object.name.as_str()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
+fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
+    if let Expression::CallExpression(call) = tag
+        && let Expression::StaticMemberExpression(member) = &call.callee
+        && member.property.name.as_str() == "attrs"
+    {
+        return &member.object;
+    }
+    tag
 }
 
 fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
@@ -252,6 +305,7 @@ fn local_non_component_binding(program: &Program<'_>, expected: &str) -> bool {
                         Expression::ArrowFunctionExpression(_)
                             | Expression::FunctionExpression(_)
                             | Expression::ClassExpression(_)
+                            | Expression::CallExpression(_)
                     )
                 })
         })
@@ -277,6 +331,66 @@ pub(crate) fn resolve_styled_references(
     })
 }
 
+/// The `${() => name}` interpolation of a forward reference, used to locate errors about it.
+/// References in vindur templates and css props come first, other templates can have the same
+/// function
+pub(crate) fn forward_reference_span(
+    program: &Program<'_>,
+    imports: &VindurImports<'_>,
+    name: &str,
+) -> Option<Span> {
+    struct Finder<'n, 'i> {
+        name: &'n str,
+        imports: &'i VindurImports<'i>,
+        in_vindur_template: bool,
+        vindur_span: Option<Span>,
+        span: Option<Span>,
+    }
+    impl<'a> Visit<'a> for Finder<'_, '_> {
+        fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = is_vindur_template_tag(&tagged.tag, self.imports);
+            walk::walk_tagged_template_expression(self, tagged);
+            self.in_vindur_template = in_vindur_template;
+        }
+
+        fn visit_jsx_attribute(&mut self, attribute: &JSXAttribute<'a>) {
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = matches!(
+                &attribute.name,
+                JSXAttributeName::Identifier(name) if name.name == "css"
+            );
+            walk::walk_jsx_attribute(self, attribute);
+            self.in_vindur_template = in_vindur_template;
+        }
+
+        fn visit_template_literal(&mut self, template: &TemplateLiteral<'a>) {
+            let span = template
+                .expressions
+                .iter()
+                .find(|expression| forward_styled_reference(expression) == Some(self.name))
+                .map(GetSpan::span);
+            if self.in_vindur_template {
+                self.vindur_span = self.vindur_span.or(span);
+            }
+            self.span = self.span.or(span);
+            let in_vindur_template = self.in_vindur_template;
+            self.in_vindur_template = false;
+            walk::walk_template_literal(self, template);
+            self.in_vindur_template = in_vindur_template;
+        }
+    }
+    let mut finder = Finder {
+        name,
+        imports,
+        in_vindur_template: false,
+        vindur_span: None,
+        span: None,
+    };
+    finder.visit_program(program);
+    finder.vindur_span.or(finder.span)
+}
+
 const STYLED_REF_PREFIX: &str = "__VINDUR_STYLED_REF_";
 const STYLED_REF_SUFFIX: &str = "__";
 
@@ -284,10 +398,6 @@ const STYLED_REF_SUFFIX: &str = "__";
 /// known, the name is hex encoded because JS identifiers can contain `$`, which CSS rejects
 pub(crate) fn styled_ref_placeholder(name: &str) -> String {
     format!("{STYLED_REF_PREFIX}{}{STYLED_REF_SUFFIX}", hex_encode(name))
-}
-
-pub(crate) fn is_styled_ref_placeholder(text: &str) -> bool {
-    text.starts_with(STYLED_REF_PREFIX)
 }
 
 pub(super) fn strip_css_comments(css: &str) -> String {
@@ -307,6 +417,9 @@ pub(super) fn strip_css_comments(css: &str) -> String {
 const ATTRS_JSX_ERROR: &str = "styled.*.attrs() values cannot contain JSX, pass the element as a prop where the component is rendered";
 const ATTRS_TEMPLATE_ERROR: &str = "styled.*.attrs() values cannot contain vindur templates, define the template in a module level constant and reference it";
 const ATTRS_STABLE_ID_ERROR: &str = "styled.*.attrs() values cannot call stableId(), define the id in a module level constant and reference it";
+const ATTRS_COMPILE_TIME_ERROR: &str = "styled.*.attrs() values cannot use vindur functions that are compiled away, eg. layer() or createClassName(), define the value in a module level constant and reference it";
+const ATTRS_SCOPED_VARIABLE_ERROR: &str = "styled.*.attrs() cannot set scoped variables, set them in the `style` prop where the component is rendered";
+const ATTRS_SCOPED_READ_ERROR: &str = "styled.*.attrs() values cannot read scoped variables, they are not renamed there, read them in the styles of the component";
 
 fn first_unsupported_attrs_value(
     object: &ObjectExpression<'_>,
@@ -343,6 +456,25 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
         }
     }
 
+    // Only scoped variable keys of the `style` prop are renamed, not keys or values in attrs
+    fn visit_object_property(&mut self, property: &ObjectProperty<'a>) {
+        let is_scoped_key = match property.key.static_name() {
+            Some(name) => name.starts_with("---"),
+            None => property
+                .key
+                .as_expression()
+                .is_some_and(starts_with_scoped_prefix),
+        };
+        if is_scoped_key {
+            self.found
+                .get_or_insert((property.key.span(), ATTRS_SCOPED_VARIABLE_ERROR));
+        } else if let Some(span) = scoped_name_value(&property.value) {
+            self.found.get_or_insert((span, ATTRS_SCOPED_READ_ERROR));
+        } else {
+            walk::walk_object_property(self, property);
+        }
+    }
+
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
         if let Expression::Identifier(callee) = &call.callee
             && self.imports.get_identifier(callee) == Some("stableId")
@@ -352,4 +484,19 @@ impl<'a> Visit<'a> for UnsupportedAttrsValueFinder<'_> {
             walk::walk_call_expression(self, call);
         }
     }
+
+    // The import of a compile-time function is removed, so it can't stay in the copied object
+    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
+        if self
+            .imports
+            .get_identifier(identifier)
+            .is_some_and(is_compile_time_import)
+        {
+            self.found
+                .get_or_insert((identifier.span, ATTRS_COMPILE_TIME_ERROR));
+        }
+    }
+
+    // `typeof css` in types has no runtime reference
+    fn visit_ts_type_query(&mut self, _query: &TSTypeQuery<'a>) {}
 }

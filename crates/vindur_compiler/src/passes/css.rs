@@ -4,7 +4,7 @@ use oxc_css_parser::{
 };
 
 use super::css_syntax::{BlockKind, CssError, parse_style_block};
-use super::unsupported_css_syntax::skipped_token_end;
+use super::css_tokens::skipped_token_end;
 
 pub(crate) fn clean_css(css: &str) -> String {
     let trimmed = css.trim();
@@ -30,6 +30,28 @@ fn decode_layer_marker(selector: &str) -> Option<String> {
             .strip_prefix(LAYER_MARKER_PREFIX)?
             .strip_suffix(LAYER_MARKER_SUFFIX)?,
     )
+}
+
+/// Shows the layer markers in a CSS excerpt as the `layer()` calls that produced them
+pub(crate) fn with_layer_calls(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find(LAYER_MARKER_PREFIX) {
+        output.push_str(&rest[..start]);
+        let after = &rest[start + LAYER_MARKER_PREFIX.len()..];
+        let decoded = after
+            .find(LAYER_MARKER_SUFFIX)
+            .and_then(|end| Some((end, hex_decode(&after[..end])?)));
+        if let Some((end, name)) = decoded {
+            output.push_str(&format!("${{layer('{name}')}}"));
+            rest = &after[end + LAYER_MARKER_SUFFIX.len()..];
+        } else {
+            output.push_str(LAYER_MARKER_PREFIX);
+            rest = after;
+        }
+    }
+    output.push_str(rest);
+    output
 }
 
 /// Encodes a name as hex so it can be embedded in a CSS identifier
@@ -121,7 +143,11 @@ pub(super) fn top_level_layer(css: &str, rule: &QualifiedRule<'_>) -> Option<Str
 
 fn push_plain_section<'a>(sections: &mut Vec<LayerSection<'a>>, css: &'a str) {
     let css = css.trim();
-    if !css.is_empty() {
+    // Like the `;` after a layer rule in `${layer('base')} { ... };`
+    if !css
+        .trim_matches(|character: char| character == ';' || character.is_whitespace())
+        .is_empty()
+    {
         sections.push(LayerSection { layer: None, css });
     }
 }
@@ -145,7 +171,14 @@ pub(crate) fn reject_misplaced_layers(
     else {
         return Ok(());
     };
+    let in_top_level_selector = statements.iter().any(|statement| {
+        matches!(statement, Statement::QualifiedRule(rule)
+            if (rule.selector.span.start..rule.selector.span.end).contains(&start))
+    });
     let message = match kind {
+        BlockKind::Style if in_top_level_selector => {
+            "layer() must be the only selector of its rule, e.g. `${layer('name')} { ... }`"
+        }
         BlockKind::Style => "layer() can only be used at the top level of a style block",
         BlockKind::Global => {
             "layer() is not supported in createGlobalStyle, use `@layer name { ... }` instead"
@@ -157,6 +190,15 @@ pub(crate) fn reject_misplaced_layers(
         start,
         start + LAYER_MARKER_PREFIX.len(),
     ))
+}
+
+/// The positions of the layer markers inside comments, strings and urls
+pub(crate) fn layer_markers_in_text(css: &str) -> Vec<usize> {
+    let visible = layer_marker_starts(css).collect::<Vec<_>>();
+    css.match_indices(LAYER_MARKER_PREFIX)
+        .map(|(start, _)| start)
+        .filter(|start| !visible.contains(start))
+        .collect()
 }
 
 /// The positions of the layer markers, text inside comments, strings and urls is ignored
@@ -179,10 +221,12 @@ fn layer_marker_starts(css: &str) -> impl Iterator<Item = usize> + '_ {
     })
 }
 
-/// Collapses repeated `;` separators, comments, strings and urls are kept as is
+/// Collapses repeated `;` separators, comments, strings, urls and `;` inside parentheses or
+/// brackets, which are part of a custom property value, are kept as is
 fn collapse_double_semicolons(css: &str) -> String {
     let mut output = String::with_capacity(css.len());
     let mut previous_was_semicolon = false;
+    let mut bracket_depth = 0_usize;
     let mut index = 0;
     while let Some(character) = css[index..].chars().next() {
         if let Some(end) = skipped_token_end(css, index) {
@@ -192,7 +236,12 @@ fn collapse_double_semicolons(css: &str) -> String {
             continue;
         }
         index += character.len_utf8();
-        if character == ';' {
+        match character {
+            '(' | '[' => bracket_depth += 1,
+            ')' | ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        if character == ';' && bracket_depth == 0 {
             if previous_was_semicolon {
                 continue;
             }
@@ -283,6 +332,15 @@ mod tests {
             clean_css("/* don't */ margin: 0;; padding: 0;;"),
             "/* don't */ margin: 0; padding: 0;"
         );
+        assert_eq!(
+            clean_css("background: u\\72l(a;;b.png);;"),
+            "background: u\\72l(a;;b.png);"
+        );
+        assert_eq!(
+            clean_css("background: \\75 rl(a;;b.png);;"),
+            "background: \\75 rl(a;;b.png);"
+        );
+        assert_eq!(clean_css("--x: (a;;b) [c;;d];;"), "--x: (a;;b) [c;;d];");
     }
 
     #[test]

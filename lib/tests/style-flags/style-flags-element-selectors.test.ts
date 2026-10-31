@@ -171,30 +171,6 @@ test('should keep style flag names used by other elements', async () => {
   `);
 });
 
-test('should throw for $ prefixed style flags used by other elements', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur';
-
-        const Button = styled.button<{ $active: boolean }>\`
-          &.$active {
-            color: red;
-          }
-          & .$active {
-            color: blue;
-          }
-        \`;
-
-        export const App = () => <Button $active />;
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
-    loc: 7:5]
-  `);
-});
-
 test('should reject style flags in rules that match both the element and other elements', async () => {
   const styled = (selector: string, flag: string) => dedent`
     import { styled } from 'vindur';
@@ -214,194 +190,10 @@ test('should reject style flags in rules that match both the element and other e
   `);
 
   await expect(
-    transformWithFormat({ source: styled(':where(&, .x)', '$active') }),
+    transformWithFormat({ source: styled(':where(&, .x)', 'active') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can't be used in a rule that matches both the element and other elements, like "&.$active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
     loc: 4:20]
-  `);
-});
-
-test('should throw for $ prefixed style flags used inside selectors of other elements', async () => {
-  const styled = (flag: string, selector: string) => dedent`
-    import { styled } from 'vindur';
-
-    const Button = styled.button<{ ${flag}: boolean }>\`
-      &.${flag} { color: red; }
-      ${selector} { color: blue; }
-    \`;
-
-    export const App = () => <Button ${flag} />;
-  `;
-
-  await expect(
-    transformWithFormat({ source: styled('$active', '&:has(.$active)') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
-    loc: 5:9]
-  `);
-
-  await expect(transformWithFormat({ source: styled('is$on', '& .is$on') }))
-    .rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "is$on" can only be used in selectors of the element itself, e.g. "&.is$on"
-    loc: 5:5]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur';
-
-        const Button = styled.button<{ $active: boolean }>\`
-          div {
-            & .$active {
-              color: blue;
-            }
-          }
-        \`;
-
-        export const App = () => <Button $active />;
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
-    loc: 5:7]
-  `);
-
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled, layer } from 'vindur';
-
-        const Button = styled.button<{ $active: boolean }>\`
-          \${layer('base')} {
-            & .$active {
-              color: blue;
-            }
-          }
-        \`;
-
-        export const App = () => <Button $active />;
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can only be used in selectors of the element itself, e.g. "&.$active"
-    loc: 5:7]
-  `);
-});
-
-test('should throw for escaped style flag selectors', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur';
-
-        const Button = styled.button<{ $active: boolean }>\`
-          &.\\\\$active {
-            color: red;
-          }
-        \`;
-
-        export const App = () => <Button $active />;
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can't be escaped, write it as "&.$active"
-    loc: 4:6]
-  `);
-});
-
-test('should throw for style flag selectors escaped with a code point', async () => {
-  await expect(
-    transformWithFormat({
-      source: dedent`
-        import { styled } from 'vindur';
-
-        const Button = styled.button<{ $active: boolean }>\`
-          &.\\24 active {
-            color: red;
-          }
-        \`;
-
-        export const App = () => <Button $active />;
-      `,
-    }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "$active" can't be escaped, write it as "&.$active"
-    loc: 4:5]
-  `);
-});
-
-test('should not confuse $ prefixed style flags with _ prefixed classes', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur';
-
-      const Button = styled.button<{ $active: boolean; _active: boolean; é$on: boolean }>\`
-        &.$active {
-          color: red;
-        }
-        &._active {
-          color: blue;
-        }
-        &.é$on {
-          color: green;
-        }
-      \`;
-
-      const Link = styled.a<{ $active: boolean }>\`
-        &.$active {
-          color: red;
-        }
-        &._active {
-          color: blue;
-        }
-      \`;
-
-      export const App = () => (
-        <>
-          <Button $active _active é$on />
-          <Link $active className="_active" />
-        </>
-      );
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "export const App = () => (
-      <>
-        <button
-          className={
-            "v1560qbr-1-Button v1ytfoaf-_active v1ef058r-_active v1m54fvi-é_on"
-          }
-        />
-        <a className={"v1560qbr-2-Link _active v1ytfoaf-_active"} />
-      </>
-    );
-    "
-  `);
-
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-1-Button {
-      &.v1ytfoaf-_active {
-        color: red;
-      }
-      &.v1ef058r-_active {
-        color: blue;
-      }
-      &.v1m54fvi-é_on {
-        color: green;
-      }
-    }
-
-    .v1560qbr-2-Link {
-      &.v1ytfoaf-_active {
-        color: red;
-      }
-      &._active {
-        color: blue;
-      }
-    }
-    "
   `);
 });
 
@@ -415,7 +207,7 @@ test('should warn about style flags only used by other elements', async () => {
       const Card = styled.div<{
         active: boolean;
         size: 'small' | 'large';
-        selected: boolean;
+        current: boolean;
       }>\`
         & .active {
           color: red;
@@ -427,7 +219,7 @@ test('should warn about style flags only used by other elements', async () => {
         &:has(.size-large) {
           color: green;
         }
-        :is(&.selected) {
+        :is(&.current) {
           color: orange;
         }
       \`;

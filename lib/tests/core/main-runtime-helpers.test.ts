@@ -371,6 +371,12 @@ describe('mergeClassNames', () => {
     expect(result).toBe('vindur-class');
   });
 
+  test('should ignore null and undefined items', () => {
+    expect(
+      mergeClassNames([null, { className: 'obj-class' }, undefined], 'v'),
+    ).toBe('obj-class v');
+  });
+
   test('should ignore non-string className properties', () => {
     const result = mergeClassNames(
       [{ className: 123 }, { className: null }, { className: 'valid-class' }],
@@ -435,6 +441,12 @@ describe('mergeClassNames', () => {
 });
 
 describe('mergeStyles', () => {
+  test('should ignore null and undefined items', () => {
+    expect(mergeStyles([null, { style: { color: 'red' } }, undefined])).toEqual(
+      { color: 'red' },
+    );
+  });
+
   test('should use the style of the last spread prop with a style, like JSX', () => {
     const result = mergeStyles([
       { style: { color: 'red', margin: '10px' } },
@@ -498,16 +510,7 @@ describe('mergeStyles', () => {
 });
 
 describe('createClassName', () => {
-  test('should create className object with id', () => {
-    const result = createClassName('test-class');
-
-    expect(result).toEqual({
-      selector: '.test-class',
-      value: 'test-class',
-    });
-  });
-
-  test('should throw error without id', () => {
+  test('should throw when called at runtime', () => {
     expect(() => createClassName()).toThrowErrorMatchingInlineSnapshot(
       `[Error: createClassName cannot be called at runtime]`,
     );

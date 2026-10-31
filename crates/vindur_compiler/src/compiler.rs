@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::normalize::normalize_code;
 use crate::passes::{re_exported_vindur_fn_error, transform_program};
-use crate::resolved_imports::remove_resolved_imports;
+use crate::resolved_imports::{consumed_side_effect_imports, remove_resolved_imports};
 use crate::{
     CompilerDiagnostic, DiagnosticSeverity, ModuleFacts, ModuleId, SourceLoader, TransformOptions,
     edit::apply_edits,
@@ -220,22 +220,29 @@ impl Compiler {
             Err(diagnostic) => return failed_output(source, diagnostic),
         };
         pass_output.facts.has_side_effects |= imports.has_side_effects;
-        let mut style_dependencies = imports.style_dependencies;
-        // Importers drop a module without side effects, which stays correct only while its
-        // imports have none either, so changing them has to update the importers
-        if !pass_output.facts.has_side_effects {
-            for dependency in &imports.fact_dependencies {
-                if !style_dependencies.contains(dependency) {
-                    style_dependencies.push(dependency.clone());
-                }
-            }
-        }
+        let style_dependencies = imports.style_dependencies;
         pass_output
             .facts
             .dependencies
             .clone_from(&style_dependencies);
+        // Importers drop a module without side effects, which stays correct only while its
+        // imports have none either, so changing them has to update the importers
+        if !pass_output.facts.has_side_effects {
+            for dependency in &imports.fact_dependencies {
+                if !pass_output.facts.dependencies.contains(dependency) {
+                    pass_output.facts.dependencies.push(dependency.clone());
+                }
+            }
+        }
         pass_output.facts.fact_dependencies = imports.fact_dependencies;
         pass_output.facts.cyclic_dependencies = imports.cyclic_dependencies;
+        let consumed_imports = consumed_side_effect_imports(
+            &parsed.program,
+            semantic.scoping(),
+            &pass_output.edits,
+            &imports.values,
+            &imports.side_effect_sources,
+        );
         let edited_code = match apply_edits(file_path, source, &mut pass_output.edits) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -246,6 +253,7 @@ impl Compiler {
             source_type,
             &imports.values,
             &imports.side_effect_sources,
+            &consumed_imports,
         ) {
             Ok(code) => code,
             Err(diagnostic) => return failed_output(source, diagnostic),
@@ -379,16 +387,20 @@ impl Compiler {
                 has_side_effects = true;
                 // Values imported back into the cycle are reported where they're used
                 for specifier in import.specifiers.iter().flatten() {
-                    if !is_type_only_specifier(specifier, scoping)
-                        && let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier
+                    if is_type_only_specifier(specifier, scoping)
+                        || matches!(
+                            specifier,
+                            ImportDeclarationSpecifier::ImportNamespaceSpecifier(_)
+                        )
                     {
-                        values.insert(
-                            specifier.local.name.to_string(),
-                            StaticValue::CyclicImport {
-                                source_path: resolved.clone(),
-                            },
-                        );
+                        continue;
                     }
+                    values.insert(
+                        specifier.local().name.to_string(),
+                        StaticValue::CyclicImport {
+                            source_path: resolved.clone(),
+                        },
+                    );
                 }
                 continue;
             };
@@ -436,30 +448,39 @@ impl Compiler {
                 if is_type_only_specifier(specifier, scoping) {
                     continue;
                 }
+                // `import X from` is `import { default as X } from`, a default export without a
+                // static value is a runtime value
+                if let ImportDeclarationSpecifier::ImportDefaultSpecifier(default) = specifier {
+                    if let Some(value) = facts.exports.get("default") {
+                        needs_dependency = true;
+                        if has_cycle {
+                            cyclic_values.insert(default.local.name.to_string());
+                        }
+                        values.insert(
+                            default.local.name.to_string(),
+                            imported_value(value, &resolved),
+                        );
+                    } else if let Some(re_export) = facts.re_exports.get("default") {
+                        values.insert(
+                            default.local.name.to_string(),
+                            re_export_value("default", re_export, &resolved, file_path, options),
+                        );
+                    }
+                    continue;
+                }
                 let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
                     continue;
                 };
                 if let Some(value) = facts.exports.get(specifier.imported.name().as_str()) {
                     // Keyframes names include the source file's style index
                     needs_dependency = true;
-                    let value = match value {
-                        StaticValue::Object(properties) => StaticValue::ImportedObject {
-                            properties: properties.clone(),
-                            source_path: resolved.clone(),
-                        },
-                        StaticValue::String(_)
-                        | StaticValue::Number(_)
-                        | StaticValue::Boolean(_)
-                        | StaticValue::Array(_) => StaticValue::ImportedValue {
-                            source_path: resolved.clone(),
-                            value: Box::new(value.clone()),
-                        },
-                        value => value.clone(),
-                    };
                     if has_cycle {
                         cyclic_values.insert(specifier.local.name.to_string());
                     }
-                    values.insert(specifier.local.name.to_string(), value);
+                    values.insert(
+                        specifier.local.name.to_string(),
+                        imported_value(value, &resolved),
+                    );
                 } else if let Some(StaticValue::ThemeColors { colors, dev }) =
                     facts.constants.get(specifier.imported.name().as_str())
                 {
@@ -492,26 +513,7 @@ impl Compiler {
                             cyclic_imports: facts.cyclic_dependencies.clone(),
                         }
                     } else if let Some(re_export) = facts.re_exports.get(imported_name) {
-                        StaticValue::UnsupportedReExport {
-                            imported_name: imported_name.to_owned(),
-                            source_path: resolved.clone(),
-                            // Relative sources are relative to the re-exporting module,
-                            // the error suggests importing it from this one
-                            re_export: Some(ReExport {
-                                source: if re_export.source.starts_with('.') {
-                                    unresolved_import_path(
-                                        &resolved,
-                                        &re_export.source,
-                                        &options.import_aliases,
-                                    )
-                                    .map(|target| relative_import_specifier(file_path, &target))
-                                } else {
-                                    None
-                                }
-                                .unwrap_or_else(|| re_export.source.clone()),
-                                imported_name: re_export.imported_name.clone(),
-                            }),
-                        }
+                        re_export_value(imported_name, re_export, &resolved, file_path, options)
                     } else if !facts.star_re_exports.is_empty() {
                         StaticValue::UnsupportedReExport {
                             imported_name: imported_name.to_owned(),
@@ -733,5 +735,49 @@ fn failed_output(source: &str, diagnostic: CompilerDiagnostic) -> TransformOutpu
         style_dependencies: Vec::new(),
         diagnostics: vec![diagnostic],
         css_source_offsets: Vec::new(),
+    }
+}
+
+/// The value of an import, literals and objects remember the module they come from
+/// An import of a name the module re-exports with `export { X } from`, which isn't followed
+fn re_export_value(
+    imported_name: &str,
+    re_export: &ReExport,
+    source_path: &str,
+    file_path: &str,
+    options: &TransformOptions,
+) -> StaticValue {
+    StaticValue::UnsupportedReExport {
+        imported_name: imported_name.to_owned(),
+        source_path: source_path.to_owned(),
+        // Relative sources are relative to the re-exporting module, the error suggests importing it
+        // from this one
+        re_export: Some(ReExport {
+            source: if re_export.source.starts_with('.') {
+                unresolved_import_path(source_path, &re_export.source, &options.import_aliases)
+                    .map(|target| relative_import_specifier(file_path, &target))
+            } else {
+                None
+            }
+            .unwrap_or_else(|| re_export.source.clone()),
+            imported_name: re_export.imported_name.clone(),
+        }),
+    }
+}
+
+fn imported_value(value: &StaticValue, source_path: &str) -> StaticValue {
+    match value {
+        StaticValue::Object(properties) => StaticValue::ImportedObject {
+            properties: properties.clone(),
+            source_path: source_path.to_owned(),
+        },
+        StaticValue::String(_)
+        | StaticValue::Number(_)
+        | StaticValue::Boolean(_)
+        | StaticValue::Array(_) => StaticValue::ImportedValue {
+            source_path: source_path.to_owned(),
+            value: Box::new(value.clone()),
+        },
+        value => value.clone(),
     }
 }

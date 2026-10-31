@@ -162,4 +162,27 @@ mod tests {
             }]
         );
     }
+
+    #[test]
+    fn keeps_overlapping_inner_edits_so_they_are_reported() {
+        let source = "a({ x: 1 }) b";
+        let overlapping = vec![
+            Edit {
+                span: Span::new(4, 7),
+                replacement: "y".to_owned(),
+            },
+            Edit {
+                span: Span::new(5, 8),
+                replacement: "z".to_owned(),
+            },
+        ];
+        let mut edits = overlapping.clone();
+
+        assert_eq!(
+            take_edited_source(source, Span::new(2, 10), &mut edits),
+            "{ x: 1 }"
+        );
+        assert_eq!(edits, overlapping);
+        assert!(apply_edits("test.tsx", source, &mut edits).is_err());
+    }
 }

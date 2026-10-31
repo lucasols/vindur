@@ -24,7 +24,7 @@ test('should error when a theme color without .value is passed to a vindurFn', a
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Argument of vindurFn "border" has no CSS value, only literals, module constants, and arrays or objects of them are supported, use \`.value\` to pass a color
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
     loc: 7:11]
   `);
 });
@@ -220,8 +220,8 @@ test('should error when a missing vindurFn argument is used in CSS', async () =>
       }),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: vindurFn "margin" was called with 1 of its 2 argument(s), a missing argument is undefined and can't be used in CSS, pass it or give its parameter a default
-    loc: /test.tsx|5:4]
+    [TransformError: /test.tsx: vindurFn interpolates 'bottom', which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:4]
   `);
 });
 

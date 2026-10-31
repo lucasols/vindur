@@ -25,7 +25,18 @@ const VIRTUAL_PREFIX = 'virtual:vindur-';
 const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
-const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=/u;
+// `dynamicColor` only counts with an expression value, the compiler validates it,
+// so a string value of an unrelated custom prop is left alone
+const VINDUR_JSX_PROP_RE = /\b(?:css|cx)\s*=|\bdynamicColor\s*=\s*\{/u;
+// Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name`,
+// `` `---${name}` `` or `'var(---color)'` (CSS functions are case insensitive and allow spaces,
+// like `VAR( ---color)`), which are renamed or rejected
+const SCOPED_STYLE_KEY_RE = /['"`]---|var\(\s*---/iu;
+const VINDUR_CODE_RES = [
+  VINDUR_MODULE_IMPORT_RE,
+  VINDUR_JSX_PROP_RE,
+  SCOPED_STYLE_KEY_RE,
+];
 
 export function vindurPlugin(options: VindurPluginOptions): Plugin {
   const { debugLogs = false, importAliases = {}, sourcemap } = options;
@@ -84,7 +95,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       // older versions ignore it and rely on the `hasVindurStyles` check below
       filter: {
         id: { include: JS_FILE_RE, exclude: NODE_MODULES_RE },
-        code: [VINDUR_MODULE_IMPORT_RE, VINDUR_JSX_PROP_RE],
+        code: VINDUR_CODE_RES,
       },
       handler(code, id) {
         // eslint-disable-next-line @ls-stack/prefer-named-functions -- we need to access the context
@@ -177,13 +188,12 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
 
     async handleHotUpdate(ctx) {
       const changed = ctx.file;
+      // Invalidate the cached facts of the file, also when it is only read for the facts of
+      // another file, like its side effects, so re-importers get fresh compiled values
+      invalidateTransformCache(functionCache, changed);
 
       // If the changed file is a source, recompile it and return both modules
       if (sourceCache.has(changed)) {
-        // Invalidate cached exported functions/colors from this file
-        // so re-importers get fresh compiled values
-        invalidateTransformCache(functionCache, changed);
-
         const code = await ctx.read();
         const result = transform({
           fileAbsPath: changed,
@@ -265,7 +275,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       const affected = depToSources.get(changed);
       if (affected && affected.size > 0) {
         const mods: ModuleNode[] = [];
-        invalidateTransformCache(functionCache, changed);
         // Include the changed module(s) so non-vindur updates (like JSX text) still HMR
         for (const m of ctx.modules) mods.push(m);
         for (const srcId of collectAffectedSources(changed)) {
@@ -370,7 +379,7 @@ function shouldTransform(id: string): boolean {
 function hasVindurStyles(code: string, id: string): boolean {
   return (
     shouldTransform(id)
-    && (VINDUR_MODULE_IMPORT_RE.test(code) || VINDUR_JSX_PROP_RE.test(code))
+    && VINDUR_CODE_RES.some((pattern) => pattern.test(code))
   );
 }
 
@@ -396,8 +405,11 @@ function resolveVirtualId(id: string): string {
   return `${RESOLVED_VIRTUAL_PREFIX}${id.slice(VIRTUAL_PREFIX.length)}`;
 }
 
+// Imports run in source order, so appending loads the css of imported modules,
+// like the base of a `styled(Base)` extension, first. It also keeps the source
+// map lines aligned
 function injectCssImport(code: string, virtualId: string): string {
-  return `import "${virtualId}";\n${code}`;
+  return `${code}\nimport "${virtualId}";\n`;
 }
 
 function collectSourceAndVirtualModules(
