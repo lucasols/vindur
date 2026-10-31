@@ -91,7 +91,7 @@ test('extending a default imported styled component keeps its flags', async () =
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Ext {
-      &.v1318azr-on {
+      &.vtb4b1n-1-Card-on {
         color: green;
       }
     }

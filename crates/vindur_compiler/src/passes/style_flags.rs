@@ -1,7 +1,8 @@
 use oxc_ast::ast::{
-    Declaration, Program, PropertyKey, Statement, TSLiteral, TSSignature, TSType, TSTypeName,
+    Declaration, Program, PropertyKey, Statement, TSLiteral, TSPropertySignature, TSSignature,
+    TSType, TSTypeName,
 };
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
@@ -29,7 +30,7 @@ const RESERVED_PROP_NAMES: [&str; 16] = [
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
-    file_hash: &str,
+    component_class: &str,
     dev: bool,
     program: &Program<'_>,
     file_path: &str,
@@ -50,15 +51,20 @@ pub(super) fn extract_style_flags(
                 ));
             };
             let Some(resolved) = find_type_alias(program, type_name) else {
-                return Err(CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    reference.span,
-                    format!(
-                        "Type \"{type_name}\" not found. Only locally defined types are supported for style flags"
-                    ),
-                )
-                .ignored_in_lint());
+                return Err(
+                    interface_flags_error(program, type_name, reference.span, file_path, source)
+                        .unwrap_or_else(|| {
+                            CompilerDiagnostic::error(
+                                file_path,
+                                source,
+                                reference.span,
+                                format!(
+                                    "Type \"{type_name}\" not found. Only locally defined types are supported for style flags"
+                                ),
+                            )
+                            .ignored_in_lint()
+                        }),
+                );
             };
             let TSType::TSTypeLiteral(type_literal) = resolved else {
                 return Err(CompilerDiagnostic::error(
@@ -89,7 +95,12 @@ pub(super) fn extract_style_flags(
         .iter()
         .filter_map(|member| match member {
             TSSignature::TSPropertySignature(property) => Some(style_flag_from_property(
-                property, file_hash, dev, program, file_path, source,
+                property,
+                component_class,
+                dev,
+                program,
+                file_path,
+                source,
             )),
             _ => None,
         })
@@ -111,6 +122,37 @@ fn find_type_alias<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a TSTyp
     })
 }
 
+/// Interfaces get their own error, as "not found" would be misleading for a local type
+fn interface_flags_error(
+    program: &Program<'_>,
+    type_name: &str,
+    span: Span,
+    file_path: &str,
+    source: &str,
+) -> Option<CompilerDiagnostic> {
+    let is_interface = program.body.iter().any(|statement| {
+        let interface = match statement {
+            Statement::TSInterfaceDeclaration(interface) => interface,
+            Statement::ExportNamedDeclaration(export) => match &export.declaration {
+                Some(Declaration::TSInterfaceDeclaration(interface)) => interface,
+                _ => return false,
+            },
+            _ => return false,
+        };
+        interface.id.name.as_str() == type_name
+    });
+    is_interface.then(|| {
+        CompilerDiagnostic::error(
+            file_path,
+            source,
+            span,
+            format!(
+                "Style flags must use a type alias, like \"type {type_name} = {{ active: boolean }}\", interfaces are not supported"
+            ),
+        )
+    })
+}
+
 fn simple_type_reference_name<'r>(
     reference: &'r oxc_ast::ast::TSTypeReference<'_>,
 ) -> Option<&'r str> {
@@ -121,8 +163,8 @@ fn simple_type_reference_name<'r>(
 }
 
 fn style_flag_from_property(
-    property: &oxc_ast::ast::TSPropertySignature<'_>,
-    file_hash: &str,
+    property: &TSPropertySignature<'_>,
+    component_class: &str,
     dev: bool,
     program: &Program<'_>,
     file_path: &str,
@@ -216,14 +258,19 @@ fn style_flag_from_property(
                 ));
             };
             let Some(resolved) = find_type_alias(program, type_name) else {
-                return Err(CompilerDiagnostic::error(
-                    file_path,
-                    source,
-                    property.span,
-                    format!(
-                        "Type \"{type_name}\" not found. Only locally defined types are supported for style flags"
-                    ),
-                ));
+                return Err(
+                    interface_flags_error(program, type_name, property.span, file_path, source)
+                        .unwrap_or_else(|| {
+                            CompilerDiagnostic::error(
+                                file_path,
+                                source,
+                                property.span,
+                                format!(
+                                    "Type \"{type_name}\" not found. Only locally defined types are supported for style flags"
+                                ),
+                            )
+                        }),
+                );
             };
             match resolved {
                 TSType::TSBooleanKeyword(_) => StyleFlagKind::Boolean,
@@ -267,17 +314,97 @@ fn style_flag_from_property(
             ));
         }
     };
-    let hash = murmur2(&format!("{file_hash}-{prop_name}"));
+    // Modifier classes are scoped to the component, dev names read like `v1560qbr-1-Button-active`
     let hashed_class_name = if dev {
-        format!("v{hash}-{prop_name}")
+        format!("{component_class}-{prop_name}")
     } else {
-        format!("v{hash}")
+        format!("v{}", murmur2(&format!("{component_class}-{prop_name}")))
     };
     Ok(StyleFlag {
         hashed_class_name,
         kind,
         prop_name,
+        span: property.span,
     })
+}
+
+/// The flags of an extended component: the base flags still apply, and a flag redeclared from
+/// the base keeps its modifier class, so the base modifier styles still match
+pub(super) fn with_base_style_flags(
+    base_flags: &[StyleFlag],
+    own_flags: &[StyleFlag],
+    file_path: &str,
+    source: &str,
+) -> Result<Vec<StyleFlag>, CompilerDiagnostic> {
+    let mut flags = base_flags
+        .iter()
+        .filter(|flag| !own_flags.iter().any(|own| own.prop_name == flag.prop_name))
+        .cloned()
+        .collect::<Vec<_>>();
+    for own in own_flags {
+        let Some(base) = base_flags
+            .iter()
+            .find(|base| base.prop_name == own.prop_name)
+        else {
+            flags.push(own.clone());
+            continue;
+        };
+        if let (StyleFlagKind::Boolean, StyleFlagKind::StringUnion(_))
+        | (StyleFlagKind::StringUnion(_), StyleFlagKind::Boolean) = (&base.kind, &own.kind)
+        {
+            let base_kind = match base.kind {
+                StyleFlagKind::Boolean => "a boolean",
+                StyleFlagKind::StringUnion(_) => "a string union",
+            };
+            return Err(CompilerDiagnostic::error(
+                file_path,
+                source,
+                own.span,
+                format!(
+                    "Style flag \"{}\" is {base_kind} in the extended component, redeclare it with the same type",
+                    own.prop_name
+                ),
+            ));
+        }
+        flags.push(StyleFlag {
+            hashed_class_name: base.hashed_class_name.clone(),
+            ..own.clone()
+        });
+    }
+    Ok(flags)
+}
+
+/// The own flags of an extended component that its base doesn't style: new flags, and the new
+/// values of a redeclared string union
+pub(super) fn flags_without_base_styles(
+    base_flags: &[StyleFlag],
+    own_flags: &[StyleFlag],
+) -> Vec<StyleFlag> {
+    own_flags
+        .iter()
+        .filter_map(|own| {
+            let Some(base) = base_flags
+                .iter()
+                .find(|base| base.prop_name == own.prop_name)
+            else {
+                return Some(own.clone());
+            };
+            let (StyleFlagKind::StringUnion(own_values), StyleFlagKind::StringUnion(base_values)) =
+                (&own.kind, &base.kind)
+            else {
+                return None;
+            };
+            let new_values = own_values
+                .iter()
+                .filter(|value| !base_values.contains(value))
+                .cloned()
+                .collect::<Vec<_>>();
+            (!new_values.is_empty()).then(|| StyleFlag {
+                kind: StyleFlagKind::StringUnion(new_values),
+                ..own.clone()
+            })
+        })
+        .collect()
 }
 
 fn type_string(type_node: &TSType<'_>) -> String {

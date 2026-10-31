@@ -22,11 +22,11 @@ const App = ({ active }) => <Button active={active} size="large">Save</Button>;
 
     assert_eq!(
         output.code,
-        "const App = ({ active }) => <button   className={\"v1560qbr-1-Button vr4ikfs-size-large\" + ((active) ? \" voctcyj-active\" : \"\")}>Save</button>;\n"
+        "const App = ({ active }) => <button   className={\"v1560qbr-1-Button v1560qbr-1-Button-size-large\" + ((active) ? \" v1560qbr-1-Button-active\" : \"\")}>Save</button>;\n"
     );
     assert_eq!(
         output.css,
-        ".v1560qbr-1-Button {\n  color: blue;\n  &.voctcyj-active { color: red; }\n  &.vr4ikfs-size-small { padding: 4px; }\n}"
+        ".v1560qbr-1-Button {\n  color: blue;\n  &.v1560qbr-1-Button-active { color: red; }\n  &.v1560qbr-1-Button-size-small { padding: 4px; }\n}"
     );
     assert_eq!(output.diagnostics.len(), 1);
     assert_eq!(output.diagnostics[0].severity, DiagnosticSeverity::Warning);
@@ -60,7 +60,7 @@ const App = ({ deadline, useToday, props }) => <>
 
     assert_eq!(
         output.code,
-        "import { mergeClassNames } from 'vindur';\nconst App = ({ deadline, useToday, props }) => <>\n  <button   className={\"v1560qbr-1-Button\" + ((deadline ? isToday(deadline) : false) ? \" voctcyj-active\" : \"\") + ((useToday) ? \" v11as9cs-variant-today\" : \" v11as9cs-variant-time\")}>Today</button>\n  <button {...props}   className={mergeClassNames([props], \"v1560qbr-1-Button\") + ((deadline ? isToday(deadline) : false) ? \" voctcyj-active\" : \"\") + ((useToday) ? \" v11as9cs-variant-today\" : \" v11as9cs-variant-time\")}>Spread</button>\n</>;\n"
+        "import { mergeClassNames } from 'vindur';\nconst App = ({ deadline, useToday, props }) => <>\n  <button   className={\"v1560qbr-1-Button\" + ((deadline ? isToday(deadline) : false) ? \" v1560qbr-1-Button-active\" : \"\") + ((useToday) ? \" v1560qbr-1-Button-variant-today\" : \" v1560qbr-1-Button-variant-time\")}>Today</button>\n  <button {...props}   className={mergeClassNames([props], \"v1560qbr-1-Button\") + ((deadline ? isToday(deadline) : false) ? \" v1560qbr-1-Button-active\" : \"\") + ((useToday) ? \" v1560qbr-1-Button-variant-today\" : \" v1560qbr-1-Button-variant-time\")}>Spread</button>\n</>;\n"
     );
     assert!(output.diagnostics.is_empty());
 }

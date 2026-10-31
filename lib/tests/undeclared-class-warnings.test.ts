@@ -92,7 +92,7 @@ describe('Styled components', () => {
 
     expect(result.css).toMatchInlineSnapshot(`
       ".v1560qbr-1-Card {
-        &.voctcyj-active {
+        &.v1560qbr-1-Card-active {
           color: red;
         }
         &.active-look {

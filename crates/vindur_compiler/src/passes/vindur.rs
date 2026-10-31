@@ -52,6 +52,8 @@ use super::{
     vindur_fn_references::{is_styled_tag, runtime_vindur_fn_reference_error},
 };
 
+const DEFAULT_EXPORT_STYLE_FLAGS_ERROR: &str = "Style flags are not supported on `export default styled.*`, declare the component first, like `const Button = styled.button<{ active: boolean }>`, then `export default Button`";
+
 pub(crate) struct PassOutput {
     pub edits: Vec<Edit>,
     pub css: String,
@@ -318,13 +320,12 @@ pub(crate) fn transform_program(
                     &export.declaration
                     && let Some(element) = styled_tag_element(&tagged.tag, &imports)
                 {
-                    // Style flags need a component name to rewrite its JSX
                     if let Some(type_arguments) = &tagged.type_arguments {
                         return Err(CompilerDiagnostic::error(
                             file_path,
                             source,
                             type_arguments.span,
-                            "Style flags are not supported on a default exported styled component, assign it to a `const` and export that".to_owned(),
+                            DEFAULT_EXPORT_STYLE_FLAGS_ERROR.to_owned(),
                         ));
                     }
                     let generated_name = format!("{file_hash}-{id_index}");

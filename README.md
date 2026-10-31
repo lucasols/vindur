@@ -1328,13 +1328,16 @@ The CSS classes are automatically applied based on prop values:
 
 - **Boolean props**: Apply the hashed class when `true` (e.g., `primary={true}` → `classHash-1`)
 - **String union props**: Apply the hashed class with the value suffix (e.g., `size="large"` → `classHash-2-large`)
+- **Dev class names**: In development the modifier class starts with the component class (e.g., `v1560qbr-1-Button-primary` and `v1560qbr-1-Button-size-large`). Production uses short hashes, also scoped to the component
+- **Extended components**: `styled(Base)` keeps the flags of `Base`, a flag it redeclares keeps the base modifier class, so the base styles still apply, and must keep the same type
+- **Default exports**: Style flags can't be declared on `export default styled.*`, declare the component first and export it with `export default Button`
 
 #### Supported Prop Types
 
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
-Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. A runtime component (exported, referenced as a value or using `.attrs()`) reads its flags from all props, spreads included. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. A value picking between strings, like `isLarge ? 'large' : 'small'`, is read once, so its condition can have them. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it, for an imported `Base` that is a compile error. A default exported styled component can't have flags, assign it to a `const` first. Flag values can't call `stableId()` or `createClassName()`, assign the result to a module level constant first.
+Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. A runtime component (exported, referenced as a value or using `.attrs()`) reads its flags from all props, spreads included. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. A value picking between strings, like `isLarge ? 'large' : 'small'`, is read once, so its condition can have them. A `styled(Base)` extension can't redeclare a flag of an imported `Base`. Flag values can't call `stableId()` or `createClassName()`, assign the result to a module level constant first.
 
 #### CSS Selector Patterns
 

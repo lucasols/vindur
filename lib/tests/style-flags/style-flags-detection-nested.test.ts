@@ -54,8 +54,8 @@ test('should work with nested type references', async () => {
         <ButtonElement
           className={
             "v1560qbr-1-Btn" +
-            (levels ? " v1dm245a-levels-" + levels : "") +
-            (active ? " voctcyj-active" : "")
+            (levels ? " v1560qbr-1-Btn-levels-" + levels : "") +
+            (active ? " v1560qbr-1-Btn-active" : "")
           }
         >
           Content
@@ -72,17 +72,17 @@ test('should work with nested type references', async () => {
       color: white;
 
       &:hover,
-      &.voctcyj-active {
+      &.v1560qbr-1-Btn-active {
         opacity: 1;
       }
 
-      &.v1dm245a-levels-a {
+      &.v1560qbr-1-Btn-levels-a {
         color: red;
       }
-      &.v1dm245a-levels-b {
+      &.v1560qbr-1-Btn-levels-b {
         color: yellow;
       }
-      &.v1dm245a-levels-c {
+      &.v1560qbr-1-Btn-levels-c {
         color: cyan;
       }
     }
