@@ -1,6 +1,4 @@
-use oxc_ast::ast::{
-    JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement, JSXElementName,
-};
+use oxc_ast::ast::{JSXAttributeItem, JSXAttributeName, JSXAttributeValue, JSXElement};
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
@@ -26,7 +24,6 @@ pub(crate) struct StyledJsxTransform<'a> {
     pub edits: &'a mut Vec<Edit>,
     pub file_path: &'a str,
     pub source: &'a str,
-    pub needs_cx_helper: &'a mut bool,
     pub needs_merge_helper: &'a mut bool,
     pub helper_names: &'a RuntimeHelperNames,
 }
@@ -42,7 +39,6 @@ pub(crate) fn rewrite_styled_jsx(
         edits: output.edits,
         file_path: output.file_path,
         source: output.source,
-        needs_cx_helper: output.needs_cx_helper,
         needs_merge_helper: output.needs_merge_helper,
         helper_names: output.helper_names,
         diagnostic: None,
@@ -58,48 +54,9 @@ struct StyledJsxVisitor<'c, 'e, 's> {
     edits: &'e mut Vec<Edit>,
     file_path: &'s str,
     source: &'s str,
-    needs_cx_helper: &'e mut bool,
     needs_merge_helper: &'e mut bool,
     helper_names: &'c RuntimeHelperNames,
     diagnostic: Option<CompilerDiagnostic>,
-}
-
-impl StyledJsxVisitor<'_, '_, '_> {
-    /// The element is replaced by the base component's name, which must resolve to the same
-    /// module level binding where the styled component is rendered
-    fn shadowed_base<'n>(
-        &self,
-        element: &JSXElement<'_>,
-        component: &'n StyledComponent,
-    ) -> Option<(oxc_span::Span, &'n str)> {
-        if !component.element_is_identifier {
-            return None;
-        }
-        let JSXElementName::IdentifierReference(name) = &element.opening_element.name else {
-            return None;
-        };
-        let base_name = component.element.split('.').next()?;
-        let scope_id = self.scoping.get_reference(name.reference_id()).scope_id();
-        let symbol_id = self.value_binding(scope_id, base_name)?;
-        (self.scoping.symbol_scope_id(symbol_id) != self.scoping.root_scope_id())
-            .then(|| (self.scoping.symbol_span(symbol_id), base_name))
-    }
-
-    /// Types and type parameters don't shadow the value a JSX tag refers to
-    fn value_binding(
-        &self,
-        scope_id: oxc_semantic::ScopeId,
-        name: &str,
-    ) -> Option<oxc_semantic::SymbolId> {
-        let symbol_id = self.scoping.find_binding(scope_id, name.into())?;
-        if self.scoping.symbol_flags(symbol_id).is_value() {
-            return Some(symbol_id);
-        }
-        let parent = self
-            .scoping
-            .scope_parent_id(self.scoping.symbol_scope_id(symbol_id))?;
-        self.value_binding(parent, name)
-    }
 }
 
 impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
@@ -119,6 +76,39 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             walk::walk_jsx_element(self, element);
             return;
         }
+        if let Some((flag_name, span)) = side_effect_in_string_flag_value(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't contain calls, `new`, assignments, `++`, `--`, `delete`, `await`, `yield`, `import()` or tagged templates, as it's read twice, assign it to a variable first"
+                ),
+            ));
+            return;
+        }
+        if let Some((flag_name, span)) = jsx_in_flag_value(element, component) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't contain JSX, style flags are booleans or strings"
+                ),
+            ));
+            return;
+        }
+        if let Some((flag_name, span)) = rewritten_flag_value(element, component, self.edits) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't call `stableId()` or `createClassName()`, as the value is moved into the className, assign the result to a module level constant first"
+                ),
+            ));
+            return;
+        }
         let has_dynamic_color = element.opening_element.attributes.iter().any(|item| {
             let JSXAttributeItem::Attribute(attribute) = item else {
                 return false;
@@ -128,18 +118,6 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             };
             name.name.as_str() == "dynamicColor"
         });
-        // The dynamic color pass also renames the element to the base component
-        if let Some((span, base_name)) = self.shadowed_base(element, component) {
-            self.diagnostic = Some(CompilerDiagnostic::error(
-                self.file_path,
-                self.source,
-                span,
-                format!(
-                    "\"{base_name}\" shadows the component \"{base_name}\" extended by \"{component_name}\", rename this binding"
-                ),
-            ));
-            return;
-        }
         if has_dynamic_color {
             walk::walk_jsx_element(self, element);
             return;
@@ -333,19 +311,9 @@ impl StyledJsxVisitor<'_, '_, '_> {
             .collect::<String>();
         let class_attribute = match class_name_merge(element) {
             ClassNameMerge::Runtime => {
-                *self.needs_cx_helper = true;
-                let merged = self.runtime_class_name(element, &component.class_name);
-                let cx_arguments = std::iter::once(merged)
-                    .chain(
-                        static_classes
-                            .iter()
-                            .map(String::as_str)
-                            .map(js_string_literal),
-                    )
-                    .chain(dynamic_classes.iter().map(|class| class.cx.clone()))
-                    .collect::<Vec<_>>();
-                let call = format!("{}({})", self.helper_names.cx, cx_arguments.join(", "));
-                self.insert_class_name(element, &call);
+                // The spread classes are read before the flag values, like JSX reads the props
+                let merged = self.runtime_class_name(element, &static_class_name);
+                self.insert_class_name(element, &format!("{merged}{suffix}"));
                 return;
             }
             ClassNameMerge::InPlace(attribute) => Some(attribute),
@@ -397,3 +365,35 @@ impl StyledJsxVisitor<'_, '_, '_> {
 }
 
 use super::styled_jsx_helpers::*;
+
+/// A style flag value code other passes rewrite, like an inline `stableId()`, as the value is
+/// moved into the className
+fn rewritten_flag_value<'e>(
+    element: &'e JSXElement<'_>,
+    component: &StyledComponent,
+    edits: &[Edit],
+) -> Option<(&'e str, oxc_span::Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        if !component
+            .style_flags
+            .iter()
+            .any(|flag| flag.prop_name == name.name.as_str())
+        {
+            return None;
+        }
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let value = container.expression.span();
+        edits
+            .iter()
+            .find(|edit| edit.span.start >= value.start && edit.span.end <= value.end)
+            .map(|edit| (name.name.as_str(), edit.span))
+    })
+}

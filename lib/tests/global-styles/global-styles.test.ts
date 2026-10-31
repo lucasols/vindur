@@ -384,3 +384,111 @@ describe('createGlobalStyle', () => {
     `);
   });
 });
+
+test('should throw for relative selectors in global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @media (width > 600px) {
+            > .a { color: red; }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: selectors in createGlobalStyle can't start with a combinator, they are not nested in a rule, write the full selector
+    loc: 5:4]
+  `);
+});
+
+test('should allow @import after global styles with only @layer and @import statements', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`@layer base, components;\`
+      createGlobalStyle\`@import url("reset.css") layer(base);\`
+      createGlobalStyle\`@import url("theme.css");\`
+      createGlobalStyle\`body { margin: 0; }\`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@layer base, components;
+
+    @import url("reset.css") layer(base);
+
+    @import url("theme.css");
+
+    body {
+      margin: 0;
+    }
+    "
+  `);
+});
+
+test('should throw for createGlobalStyle inside templates of other tags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        import { html } from 'lit'
+
+        export const tpl = html\`\${createGlobalStyle\`body { margin: 0; }\`}\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: createGlobalStyle can only be used at the top level of the module, as a statement or in its own \`const\` declaration
+    loc: 4:26]
+  `);
+});
+
+test('should throw for stylesheet start rules out of order across global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`@namespace svg url(http://www.w3.org/2000/svg);\`
+        createGlobalStyle\`@import url(a.css);\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@import\` must come before \`@namespace\` of an earlier \`createGlobalStyle\`, browsers ignore it after it, move it into that \`createGlobalStyle\`
+    loc: 4:0]
+  `);
+});
+
+test('should throw for start rules after the leading rules that follow an earlier global style', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`@import url(a.css);\`
+        createGlobalStyle\`@layer base; @import url(b.css);\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@import\` must come before \`@layer\`, which follows the start rules of an earlier \`createGlobalStyle\`, browsers ignore it after it, move both into that \`createGlobalStyle\`
+    loc: 4:0]
+  `);
+});
+
+test('should throw for createGlobalStyle in a `let` declaration', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        let GlobalStyles = createGlobalStyle\`body { margin: 0; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Vindur declarations must use \`const\`, not \`let\`, they are evaluated at compile time
+    loc: 3:0]
+  `);
+});

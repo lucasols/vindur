@@ -1,9 +1,31 @@
-use oxc_ast::ast::{Program, PropertyKey, Statement, TSLiteral, TSSignature, TSType, TSTypeName};
+use oxc_ast::ast::{
+    Declaration, Program, PropertyKey, Statement, TSLiteral, TSSignature, TSType, TSTypeName,
+};
 use oxc_span::GetSpan;
 
 use crate::{CompilerDiagnostic, hash::murmur2};
 
-use super::styled::{StyleFlag, StyleFlagKind, css_class_name_part};
+use super::styled::{StyleFlag, StyleFlagKind};
+
+/// Props that would stop working as style flags, which are removed and turned into classes
+const RESERVED_PROP_NAMES: [&str; 16] = [
+    "className",
+    "style",
+    "css",
+    "cx",
+    "dynamicColor",
+    "key",
+    "ref",
+    "children",
+    "disabled",
+    "hidden",
+    "checked",
+    "required",
+    "readOnly",
+    "selected",
+    "multiple",
+    "open",
+];
 
 pub(super) fn extract_style_flags(
     params: &[TSType<'_>],
@@ -74,10 +96,16 @@ pub(super) fn extract_style_flags(
         .collect()
 }
 
+/// A type alias declared at the top level, also with `export type`
 fn find_type_alias<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a TSType<'a>> {
     program.body.iter().find_map(|statement| {
-        let Statement::TSTypeAliasDeclaration(alias) = statement else {
-            return None;
+        let alias = match statement {
+            Statement::TSTypeAliasDeclaration(alias) => alias,
+            Statement::ExportNamedDeclaration(export) => match &export.declaration {
+                Some(Declaration::TSTypeAliasDeclaration(alias)) => alias,
+                _ => return None,
+            },
+            _ => return None,
         };
         (alias.id.name.as_str() == name).then_some(&alias.type_annotation)
     })
@@ -108,6 +136,49 @@ fn style_flag_from_property(
             "Style flag properties must use identifier names".to_owned(),
         ));
     };
+    if key.name.starts_with('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't start with `$`, style flags are never passed to the DOM, so use `{}`",
+                key.name,
+                key.name.trim_start_matches('$')
+            ),
+        ));
+    }
+    if key.name.contains('$') {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` can't contain `$`, as it becomes part of a class name",
+                key.name
+            ),
+        ));
+    }
+    if RESERVED_PROP_NAMES.contains(&key.name.as_str()) {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            format!(
+                "Style flag `{}` is a prop React, vindur or the element handles, style flags are turned into classes and never passed to the element, so use another name",
+                key.name
+            ),
+        ));
+    }
+    // The runtime stores the flag props in an object, where `__proto__` sets its prototype
+    if key.name == "__proto__" {
+        return Err(CompilerDiagnostic::error(
+            file_path,
+            source,
+            key.span,
+            "Style flag `__proto__` is not supported, use another name".to_owned(),
+        ));
+    }
     let Some(annotation) = &property.type_annotation else {
         return Err(CompilerDiagnostic::error(
             file_path,
@@ -198,7 +269,7 @@ fn style_flag_from_property(
     };
     let hash = murmur2(&format!("{file_hash}-{prop_name}"));
     let hashed_class_name = if dev {
-        format!("v{hash}-{}", css_class_name_part(&prop_name))
+        format!("v{hash}-{prop_name}")
     } else {
         format!("v{hash}")
     };

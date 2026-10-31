@@ -212,21 +212,21 @@ describe('keyframes error handling', () => {
         source: dedent`
           import { keyframes } from 'vindur'
 
-          const obj = { start: 0, end: 100 }
+          const arr = [0, 100]
 
           const animation = keyframes\`
             from {
-              left: \${obj.start}px;
+              left: \${arr[0]}px;
             }
             to {
-              left: \${obj.end}px;
+              left: \${arr[1]}px;
             }
           \`
         `,
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = keyframes\` ... \${obj.start}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+      [TransformError: /test.tsx: Invalid interpolation used at \`... animation = keyframes\` ... \${arr[0]}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
       loc: 7:12]
     `,
     );
@@ -414,4 +414,47 @@ describe('keyframes corner cases', () => {
       loc: 4:23]
     `);
   });
+
+  test('should throw for extra `}` that close the keyframes wrapper', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { keyframes } from 'vindur'
+
+          const fade = keyframes\`
+            from { opacity: 0; } } }
+            .other { color: red; }
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Invalid CSS at \`... fade = keyframes\`: unexpected \`}\`
+      loc: 4:23]
+    `);
+  });
+});
+
+test('should remove a leading `;` of keyframes', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { keyframes } from 'vindur'
+
+      export const fadeIn = keyframes\`;
+        from { opacity: 0; }
+        to { opacity: 1; }
+      \`
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    "@keyframes v1560qbr-1-fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    "
+  `);
 });

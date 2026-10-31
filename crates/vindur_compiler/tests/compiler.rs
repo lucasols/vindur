@@ -143,11 +143,11 @@ fn shares_indices_between_stable_ids_and_jsx_css_props() {
     );
 
     assert!(output.diagnostics.is_empty());
-    assert!(output.code.contains("\"v1560qbr-id-1\""));
+    assert!(output.code.contains("\"v1560qbr-1-id\""));
     assert!(output.code.contains("className=\"v1560qbr-2-css-prop-2\""));
     assert_eq!(
         output.css,
-        ".v1560qbr-2-css-prop-2 {\n  #v1560qbr-id-1 { color: red; }\n}"
+        ".v1560qbr-2-css-prop-2 {\n  #v1560qbr-1-id { color: red; }\n}"
     );
 }
 
@@ -179,12 +179,8 @@ const AttachmentImage = styled.img`border: 1px solid cyan;`;
     assert!(output.diagnostics.is_empty());
     assert_eq!(
         output.code,
-        r#"import { cx } from 'vindur';
-const App = ({ hasSubtasks, isExpanded }) => (
-  <div  className={"v146u5j0-1 " + cx({
-"v146u5j0-2": hasSubtasks,
-"v146u5j0-3": isExpanded,
-})}><span className="icon" /></div>
+        r#"const App = ({ hasSubtasks, isExpanded }) => (
+  <div  className={"v146u5j0-1" + (hasSubtasks ? " v146u5j0-2" : "") + (isExpanded ? " v146u5j0-3" : "")}><span className="icon" /></div>
 );
 "#
     );

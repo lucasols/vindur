@@ -248,6 +248,158 @@ describe('keyframes cross-file imports', () => {
     `);
   });
 
+  test('should keep the module of an inlined css mixin that uses keyframes', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { fadeMixin } from '#/mixins'
+
+        export const Card = styled.div\`
+          \${fadeMixin};
+          color: red;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { css, keyframes } from 'vindur'
+
+          const fade = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
+
+          export const fadeMixin = css\`
+            animation: \${fade} 1s;
+          \`
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import "#/mixins";
+      export const Card = _vSC("div", "v1560qbr-1-Card");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        animation: v1pkdo29-1-fade 1s;
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should keep the module of a chained css mixin that uses keyframes', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { cardMixin } from '#/card'
+
+        export const Card = styled.div\`
+          \${cardMixin};
+          color: red;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'card.ts': dedent`
+          import { css } from 'vindur'
+          import { fadeMixin } from './mixins'
+
+          export const cardMixin = css\`
+            \${fadeMixin};
+            padding: 8px;
+          \`
+        `,
+        'mixins.ts': dedent`
+          import { css } from 'vindur'
+          import { fade } from './animations'
+
+          export const fadeMixin = css\`
+            animation: \${fade} 1s;
+          \`
+        `,
+        'animations.ts': dedent`
+          import { keyframes } from 'vindur'
+
+          export const fade = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import "#/card";
+      export const Card = _vSC("div", "v1560qbr-1-Card");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        animation: v1gz5uqy-1-fade 1s;
+        padding: 8px;
+        color: red;
+      }
+      "
+    `);
+  });
+
+  test('should keep the module of a css mixin passing keyframes to a vindurFn', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        import { fadeMixin } from '#/mixins'
+
+        export const Card = styled.div\`
+          \${fadeMixin};
+          color: red;
+        \`
+      `,
+
+      overrideDefaultFs: createFsMock({
+        'animate.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const animate = vindurFn((name: string) => \`animation: \${name} 1s;\`)
+        `,
+        'mixins.ts': dedent`
+          import { css, keyframes } from 'vindur'
+          import { animate } from '#/animate'
+
+          const fade = keyframes\`
+            from { opacity: 0; }
+            to { opacity: 1; }
+          \`
+
+          export const fadeMixin = css\`
+            \${animate(fade)};
+          \`
+        `,
+      }),
+    });
+
+    expect(result.code).toMatchInlineSnapshot(`
+      "import { _vSC } from "vindur";
+      import "#/mixins";
+      export const Card = _vSC("div", "v1560qbr-1-Card");
+      "
+    `);
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-Card {
+        animation: v1pkdo29-1-fade 1s;
+        color: red;
+      }
+      "
+    `);
+  });
+
   test('should throw error when imported keyframes is not found', async () => {
     await expect(async () => {
       await transformWithFormat({
@@ -272,7 +424,7 @@ describe('keyframes cross-file imports', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "unknownAnimation" not found in /animations.ts
+      [TransformError: /test.tsx: "unknownAnimation" not found in /animations.ts, export it by name, like \`export const unknownAnimation = ...\` or \`export { unknownAnimation }\`
       loc: 5:15]
     `,
     );

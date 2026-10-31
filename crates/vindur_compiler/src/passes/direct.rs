@@ -1,4 +1,4 @@
-use oxc_ast::ast::{Expression, Program, TaggedTemplateExpression};
+use oxc_ast::ast::{CallExpression, Expression, Program, TaggedTemplateExpression};
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_span::Span;
@@ -50,8 +50,37 @@ struct DirectTagVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for DirectTagVisitor<'_> {
+    // Top level declarations get their ids, another call would throw at runtime. Their calls are
+    // replaced by an edit of the call itself, a call inside another edit, like in `.attrs()`, isn't
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        if self.diagnostic.is_some() {
+            return;
+        }
+        if let Expression::Identifier(callee) = &call.callee
+            && self
+                .output
+                .imports
+                .matches_import_or_global(callee, "createDynamicCssColor")
+            && !self.output.handled_spans.contains(&call.span)
+        {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                call.span,
+                "createDynamicCssColor() must be the direct initializer of a top level `const` declaration, e.g. `const accent = createDynamicCssColor()`".to_owned(),
+            ));
+            return;
+        }
+        walk::walk_call_expression(self, call);
+    }
+
     fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
-        if self.diagnostic.is_some() || self.is_handled(tagged.span) {
+        if self.diagnostic.is_some() {
+            return;
+        }
+        // The runtime arguments of a handled tag, like `.attrs({ ... })`, are still checked
+        if self.is_handled(tagged.span) {
+            self.visit_expression(&tagged.tag);
             return;
         }
 
@@ -70,6 +99,16 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             walk::walk_tagged_template_expression(self, tagged);
             return;
         };
+        // Top level global styles are handled before, their styles can't be added anywhere else
+        if tag_name == "createGlobalStyle" {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.output.file_path,
+                self.output.source,
+                tagged.span,
+                "createGlobalStyle can only be used at the top level of the module, as a statement or in its own `const` declaration".to_owned(),
+            ));
+            return;
+        }
         if !matches!(tag_name, "css" | "keyframes") {
             walk::walk_tagged_template_expression(self, tagged);
             return;
@@ -84,7 +123,6 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             &TemplateContext {
                 variable_name: None,
                 tag_type: tag_name,
-                style_flags: &[],
             },
         ) {
             Ok(content) => clean_css(&content),

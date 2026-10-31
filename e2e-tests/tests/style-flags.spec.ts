@@ -16,7 +16,7 @@ test.beforeAll(async ({ browser }) => {
       const Button = styled.button<{ 
         variant: 'primary' | 'secondary' | 'danger';
         size: 'small' | 'large';
-        disabled: boolean;
+        muted: boolean;
         loading: boolean;
       }>\`
         padding: 8px 16px;
@@ -49,7 +49,7 @@ test.beforeAll(async ({ browser }) => {
           font-size: 18px;
         }
 
-        &.disabled {
+        &.muted {
           opacity: 0.6;
           cursor: not-allowed;
         }
@@ -67,27 +67,27 @@ test.beforeAll(async ({ browser }) => {
               data-testid="primary-button"
               variant="primary"
               size="large"
-              disabled={false}
+              muted={false}
               loading={false}
             >
               Primary Large
             </Button>
 
             <Button 
-              data-testid="disabled-button"
+              data-testid="muted-button"
               variant="secondary"
               size="small"
-              disabled={true}
+              muted={true}
               loading={false}
             >
-              Disabled Small
+              Muted Small
             </Button>
 
             <Button 
               data-testid="loading-button"
               variant="danger"
               size="large"
-              disabled={false}
+              muted={false}
               loading={true}
             >
               Loading
@@ -115,12 +115,12 @@ test('should apply string union style flags', async () => {
 });
 
 test('should apply boolean style flags', async () => {
-  const disabledButton = page.getByTestId('disabled-button');
+  const mutedButton = page.getByTestId('muted-button');
 
-  await expect(disabledButton).toHaveClass(/disabled/);
-  await expect(disabledButton).toHaveClass(/variant-secondary/);
-  await expect(disabledButton).toHaveClass(/size-small/);
-  await expect(disabledButton).toHaveCSS('opacity', '0.6');
+  await expect(mutedButton).toHaveClass(/muted/);
+  await expect(mutedButton).toHaveClass(/variant-secondary/);
+  await expect(mutedButton).toHaveClass(/size-small/);
+  await expect(mutedButton).toHaveCSS('opacity', '0.6');
 });
 
 test('should handle multiple flags together', async () => {

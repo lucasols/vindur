@@ -133,17 +133,13 @@ test('should merge style flags into the cx prop className', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ isActive, isHighlighted }) {
+    "function Component({ isActive, isHighlighted }) {
       return (
         <div
           className={
             "v1560qbr-1-Box vr4ikfs-size-large" +
             (isActive ? " voctcyj-active" : "") +
-            " " +
-            cx({
-              "v1560qbr-2-highlighted": isHighlighted,
-            })
+            (isHighlighted ? " v1560qbr-2-highlighted" : "")
           }
         >
           Content
@@ -185,8 +181,7 @@ test('should merge style flags into the css and cx prop className with a classNa
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    function Component({ isActive, isOpen, className }) {
+    "function Component({ isActive, isOpen, className }) {
       return (
         <>
           <div className="extra v1560qbr-1-Box voctcyj-active v1560qbr-2-css-prop-2" />
@@ -201,15 +196,54 @@ test('should merge style flags into the css and cx prop className with a classNa
             className={
               "extra v1560qbr-1-Box v1560qbr-4-css-prop-4" +
               (isActive ? " voctcyj-active" : "") +
-              " " +
-              cx({
-                "v1560qbr-5-open": isOpen,
-              })
+              (isOpen ? " v1560qbr-5-open" : "")
             }
           />
         </>
       );
     }
     "
+  `);
+});
+
+test('should throw for style flag classes selected in the css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &.active { color: red; }
+        \`
+
+        export const App = ({ on }) => <Box active={on} css={\`&.active { color: blue; }\`} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag class \`active\` of \`Box\` can't be selected in its css prop, the element gets the hashed flag class, style it in the styles of \`Box\`
+    loc: 7:53]
+  `);
+});
+
+test('should throw for style flag classes selected by a css reference in the css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur'
+
+        const Box = styled.div<{ active: boolean }>\`
+          &.active { color: red; }
+        \`
+
+        const extra = css\`
+          &.active { color: blue; }
+        \`
+
+        export const App = ({ on }) => <Box active={on} css={extra} />
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag class \`active\` of \`Box\` can't be selected in its css prop, the element gets the hashed flag class, style it in the styles of \`Box\`
+    loc: 11:53]
   `);
 });

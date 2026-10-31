@@ -1,10 +1,15 @@
 use oxc_css_parser::{
-    ast::{ComponentValue, Declaration, InterpolableIdent, Statement, TokenSeq},
+    ast::{
+        AtRulePrelude, ComplexSelector, ComplexSelectorChild, ComponentValue, CompoundSelector,
+        Declaration, InterpolableIdent, PseudoClassSelectorArgKind, PseudoElementSelectorArgKind,
+        ScopePrelude, SelectorList, SimpleSelector, Statement, TokenSeq,
+    },
     token::TokenData,
 };
 
-use super::css_syntax::{BlockKind, CssError};
-use super::unsupported_css_syntax::is_ident_char;
+use super::css::with_layer_calls;
+use super::css_syntax::CssError;
+use super::css_tokens::is_ident_char;
 
 /// The CSS dialect also accepts postcss-only syntax like `$var: value;`, `*zoom: 1` or rules
 /// without a selector, reject them
@@ -23,6 +28,9 @@ pub(super) fn validate_statements(
                         rule.block.span.start + 1,
                     ));
                 }
+                for selector in &rule.selector.selectors {
+                    validate_complex_selector(selector)?;
+                }
                 validate_statements(&rule.block.statements, source)?;
             }
             Statement::UnknownQualifiedRule(rule) => {
@@ -32,6 +40,9 @@ pub(super) fn validate_statements(
                 validate_statements(&block.block.statements, source)?;
             }
             Statement::AtRule(rule) => {
+                if let Some(prelude) = &rule.prelude {
+                    validate_at_rule_selectors(prelude)?;
+                }
                 if let Some(block) = &rule.block {
                     validate_statements(&block.statements, source)?;
                 }
@@ -57,13 +68,112 @@ pub(super) fn validate_statements(
     Ok(())
 }
 
+/// The selectors of `@scope (.a) to (.b)` and `@nest .a`
+fn validate_at_rule_selectors(prelude: &AtRulePrelude<'_>) -> Result<(), CssError> {
+    let selector_lists = match prelude {
+        AtRulePrelude::Scope(scope) => match &**scope {
+            ScopePrelude::StartOnly(start) => [start.selector.as_ref(), None],
+            ScopePrelude::EndOnly(end) => [end.selector.as_ref(), None],
+            ScopePrelude::Both(both) => [both.start.selector.as_ref(), both.end.selector.as_ref()],
+        },
+        AtRulePrelude::Nest(list) => [Some(list), None],
+        _ => [None, None],
+    };
+    for list in selector_lists.into_iter().flatten() {
+        validate_selector_list(list)?;
+    }
+    Ok(())
+}
+
+fn validate_selector_list(list: &SelectorList<'_>) -> Result<(), CssError> {
+    for selector in &list.selectors {
+        validate_complex_selector(selector)?;
+    }
+    Ok(())
+}
+
+fn validate_complex_selector(selector: &ComplexSelector<'_>) -> Result<(), CssError> {
+    for child in &selector.children {
+        if let ComplexSelectorChild::CompoundSelector(compound) = child {
+            validate_compound_selector(compound)?;
+        }
+    }
+    Ok(())
+}
+
+/// The CSS dialect also accepts Sass selectors, like `&-suffix` or `%placeholder`, which browsers
+/// read as other selectors or drop
+fn validate_compound_selector(compound: &CompoundSelector<'_>) -> Result<(), CssError> {
+    for simple in &compound.children {
+        match simple {
+            SimpleSelector::Nesting(nesting) if nesting.suffix.is_some() => {
+                return Err(CssError::new(
+                    "`&` can't be joined with a name like `&-suffix`, CSS reads it as `&` followed by an element selector, use a class like `&.suffix` or a style flag".to_owned(),
+                    nesting.span.start,
+                    nesting.span.end,
+                ));
+            }
+            SimpleSelector::SassPlaceholder(placeholder) => {
+                return Err(CssError::new(
+                    "`%placeholder` selectors are not supported, use a class or a `css` style"
+                        .to_owned(),
+                    placeholder.span.start,
+                    placeholder.span.end,
+                ));
+            }
+            SimpleSelector::PseudoClass(pseudo) => match pseudo.arg.as_ref().map(|arg| &arg.kind) {
+                Some(PseudoClassSelectorArgKind::SelectorList(list)) => {
+                    validate_selector_list(list)?;
+                }
+                // The `of S` selectors of `:nth-child(2n of S)`
+                Some(PseudoClassSelectorArgKind::Nth(nth)) => {
+                    if let Some(list) = nth
+                        .matcher
+                        .as_ref()
+                        .and_then(|matcher| matcher.selector.as_ref())
+                    {
+                        validate_selector_list(list)?;
+                    }
+                }
+                Some(PseudoClassSelectorArgKind::RelativeSelectorList(list)) => {
+                    for selector in &list.selectors {
+                        validate_complex_selector(&selector.complex_selector)?;
+                    }
+                }
+                Some(PseudoClassSelectorArgKind::CompoundSelectorList(list)) => {
+                    for compound in &list.selectors {
+                        validate_compound_selector(compound)?;
+                    }
+                }
+                _ => {}
+            },
+            SimpleSelector::PseudoElement(pseudo) => match pseudo.arg.as_ref().map(|arg| &arg.kind)
+            {
+                Some(PseudoElementSelectorArgKind::CompoundSelector(compound)) => {
+                    validate_compound_selector(compound)?;
+                }
+                Some(PseudoElementSelectorArgKind::CompoundSelectorList(list)) => {
+                    for compound in &list.selectors {
+                        validate_compound_selector(compound)?;
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// The CSS dialect keeps rules whose prelude is not a selector, like `color: red &:hover { ... }`
 /// (a declaration missing its `;` before a nested rule) or `50% { ... }` outside keyframes
 fn unknown_rule_error(prelude: &TokenSeq<'_>, source: &str) -> CssError {
-    let text = source[prelude.span.start..prelude.span.end]
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let text = with_layer_calls(
+        &source[prelude.span.start..prelude.span.end]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
     // A declaration starts with a property name followed by `:` and a space, a selector like
     // `&:hover:` has no space after its `:`
     let is_declaration_shaped = text.split_once(':').is_some_and(|(property, rest)| {
@@ -92,94 +202,127 @@ fn validate_declaration(declaration: &Declaration<'_>, source: &str) -> Result<(
         ));
     }
     // `color: red\n width: 1px;` is parsed as a single `color` declaration. Custom property values
-    // can contain `name:` on any line, so they are not checked
-    if name.raw.starts_with("--") {
+    // can contain `name:` anywhere, so they are only checked for a `name:` starting a line outside
+    // brackets
+    let next_property = if name.name.starts_with("--") {
+        nested_block_in_custom_value(&declaration.value, source)?;
+        next_property_on_new_line(&declaration.value, source)
+    } else {
+        declaration
+            .value
+            .windows(2)
+            .position(|pair| is_property_start(pair))
+    };
+    let Some(index) = next_property else {
         return Ok(());
-    }
-    let next_property = declaration.value.windows(2).find_map(|pair| match pair {
-        [
-            ComponentValue::TokenWithSpan(ident),
-            ComponentValue::TokenWithSpan(colon),
-        ] if matches!(ident.token, TokenData::Ident(_))
-            && matches!(colon.token, TokenData::Colon(_)) =>
-        {
-            Some(ident)
+    };
+    // The `;` is missing after the value before the next property name, the error points at that
+    // value so it is located where the `;` goes, even when the property comes from an interpolation
+    match index
+        .checked_sub(1)
+        .and_then(|previous| declaration.value.get(previous))
+    {
+        Some(previous) => {
+            let span = previous.span();
+            let text = &source[span.start..span.end];
+            let message = if text.len() <= 30 && !text.contains('\n') {
+                format!("missing `;` after `{text}`")
+            } else {
+                "missing `;` after this value".to_owned()
+            };
+            Err(CssError::syntax(message, span.start, span.end))
         }
-        _ => None,
-    });
-    match next_property {
-        Some(ident) => Err(CssError::syntax(
-            format!("missing `;` before `{}`", ident.raw(source)),
-            ident.span.start,
-            ident.span.end,
-        )),
-        None => Ok(()),
+        None => {
+            let span = declaration.value[index].span();
+            Err(CssError::syntax(
+                format!("missing `;` before `{}`", &source[span.start..span.end]),
+                span.start,
+                span.end,
+            ))
+        }
     }
 }
 
-/// Global styles are a stylesheet, so declarations need a rule. Keyframes contain only keyframe
-/// blocks of declarations
-pub(super) fn validate_block_kind(
-    statements: &[Statement<'_>],
-    kind: BlockKind,
+fn is_property_start(pair: &[ComponentValue<'_>]) -> bool {
+    match pair {
+        [
+            ComponentValue::TokenWithSpan(ident),
+            ComponentValue::TokenWithSpan(colon),
+        ] => {
+            matches!(ident.token, TokenData::Ident(_)) && matches!(colon.token, TokenData::Colon(_))
+        }
+        _ => false,
+    }
+}
+
+/// A custom property value can only be a `{ ... }` block as a whole, e.g. `--x: { a: b }`. A
+/// block after other values is a nested rule swallowed by a declaration missing its `;`, like
+/// `--x: red` followed by `&:hover { ... }`
+fn nested_block_in_custom_value(
+    values: &[ComponentValue<'_>],
+    source: &str,
 ) -> Result<(), CssError> {
-    for statement in statements {
-        let message = match (kind, statement) {
-            (BlockKind::Style, _) | (BlockKind::Global, Statement::QualifiedRule(_)) => continue,
-            (BlockKind::Global, Statement::AtRule(rule)) => {
-                if let Some(block) = &rule.block
-                    && is_grouping_at_rule(rule.name.raw)
-                {
-                    validate_block_kind(&block.statements, kind)?;
-                }
-                continue;
-            }
-            (BlockKind::Global, _) => {
-                "declarations in createGlobalStyle need a rule, e.g. `body { ... }`"
-            }
-            (BlockKind::Keyframes, Statement::KeyframeBlock(block)) => {
-                match block
-                    .block
-                    .statements
-                    .iter()
-                    .find(|statement| !matches!(statement, Statement::Declaration(_)))
-                {
-                    Some(nested) => {
-                        let span = statement_span(nested);
-                        return Err(CssError::syntax(
-                            "keyframes can only contain declarations".to_owned(),
-                            span.start,
-                            span.end,
-                        ));
-                    }
-                    None => continue,
-                }
-            }
-            (BlockKind::Keyframes, _) => {
-                "keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }`"
-            }
+    let mut depth = 0usize;
+    let mut line_start = None;
+    for (index, value) in values.iter().enumerate() {
+        let ComponentValue::TokenWithSpan(token) = value else {
+            continue;
         };
-        let span = statement_span(statement);
-        return Err(CssError::syntax(message.to_owned(), span.start, span.end));
+        if depth == 0
+            && index > 0
+            && source[values[index - 1].span().end..value.span().start].contains('\n')
+        {
+            line_start = Some(index);
+        }
+        match token.token {
+            TokenData::LBrace(_) if depth == 0 && index > 0 => {
+                // The `;` goes before the line holding the nested rule's selector
+                let span = match line_start {
+                    Some(start) => values[start - 1].span(),
+                    None => &token.span,
+                };
+                return Err(CssError::syntax(
+                    "missing `;` before a nested rule, a `{ ... }` block in a custom property must be its whole value"
+                        .to_owned(),
+                    span.start,
+                    span.end,
+                ));
+            }
+            TokenData::LParen(_) | TokenData::LBracket(_) | TokenData::LBrace(_) => depth += 1,
+            TokenData::RParen(_) | TokenData::RBracket(_) | TokenData::RBrace(_) => {
+                depth = depth.saturating_sub(1);
+            }
+            _ => {}
+        }
     }
     Ok(())
 }
 
-/// Conditional and layer at-rules hold rules at the top level of a stylesheet. `@scope` is not
-/// included because its declarations apply to the scoping root
-fn is_grouping_at_rule(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    let name = name
-        .strip_prefix("-webkit-")
-        .or_else(|| name.strip_prefix("-moz-"))
-        .unwrap_or(&name);
-    matches!(
-        name,
-        "media" | "supports" | "container" | "layer" | "document" | "starting-style"
-    )
+/// A `name:` at the top level of a custom property value that starts a new line
+fn next_property_on_new_line(values: &[ComponentValue<'_>], source: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, value) in values.iter().enumerate() {
+        if let ComponentValue::TokenWithSpan(token) = value {
+            match token.token {
+                TokenData::LParen(_) | TokenData::LBracket(_) | TokenData::LBrace(_) => depth += 1,
+                TokenData::RParen(_) | TokenData::RBracket(_) | TokenData::RBrace(_) => {
+                    depth = depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+        }
+        let starts_line = index.checked_sub(1).is_some_and(|previous| {
+            source[values[previous].span().end..value.span().start].contains('\n')
+        });
+        if depth == 0 && starts_line && values.get(index..index + 2).is_some_and(is_property_start)
+        {
+            return Some(index);
+        }
+    }
+    None
 }
 
-fn statement_span(statement: &Statement<'_>) -> oxc_css_parser::Span {
+pub(super) fn statement_span(statement: &Statement<'_>) -> oxc_css_parser::Span {
     match statement {
         Statement::AtRule(rule) => rule.span,
         Statement::Declaration(declaration) => declaration.span,
@@ -272,13 +415,6 @@ mod tests {
         );
     }
 
-    fn kind_error(css: &str, kind: BlockKind) -> String {
-        match validate_style_block(css, kind) {
-            Ok(()) => "ok".to_owned(),
-            Err(error) => format!("{} at {}..{}", error.message, error.start, error.end),
-        }
-    }
-
     #[test]
     fn rejects_missing_semicolons_between_declarations() {
         assert_eq!(
@@ -287,38 +423,14 @@ mod tests {
                 error("filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);"),
                 error("--x: a: b;"),
                 error("grid-template-areas: \"a:b\";"),
+                error("width: calc(1px + 2px + 3px + 4px + 5px)\n  color: red;"),
             ],
             [
-                "Invalid CSS: missing `;` before `width` at 13..18",
+                "Invalid CSS: missing `;` after `red` at 7..10",
                 "ok",
                 "ok",
                 "ok",
-            ]
-        );
-    }
-
-    #[test]
-    fn validates_global_and_keyframes_structure() {
-        assert_eq!(
-            [
-                kind_error("color: red;", BlockKind::Global),
-                kind_error(
-                    "& { color: red; } @media (width > 1px) { body { color: red; } }",
-                    BlockKind::Global
-                ),
-                kind_error("opacity: 0;", BlockKind::Keyframes),
-                kind_error("from { &:hover { color: red; } }", BlockKind::Keyframes),
-                kind_error(
-                    "entry 0% { opacity: 0; } to { opacity: 1; }",
-                    BlockKind::Keyframes
-                ),
-            ],
-            [
-                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 0..10",
-                "ok",
-                "Invalid CSS: keyframes templates can only contain keyframe blocks, e.g. `from { ... } to { ... }` at 0..10",
-                "Invalid CSS: keyframes can only contain declarations at 7..30",
-                "ok",
+                "Invalid CSS: missing `;` after `)` at 39..40",
             ]
         );
     }
@@ -360,32 +472,14 @@ mod tests {
     }
 
     #[test]
-    fn rejects_declarations_in_global_grouping_rules() {
-        assert_eq!(
-            [
-                kind_error("@media print { color: red; }", BlockKind::Global),
-                kind_error(
-                    "@supports (display: grid) { @layer base { color: red; } }",
-                    BlockKind::Global
-                ),
-                kind_error(
-                    "@media print { body { color: red; } } @scope (.a) { color: red; } @font-face { font-family: x; } @page { margin: 0; }",
-                    BlockKind::Global
-                ),
-            ],
-            [
-                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 15..25",
-                "Invalid CSS: declarations in createGlobalStyle need a rule, e.g. `body { ... }` at 42..52",
-                "ok",
-            ]
-        );
-    }
-
-    #[test]
     fn accepts_colons_in_custom_property_values() {
         assert_eq!(
-            [error("--config:\n    theme: dark;"), error("--x: a: b;"),],
-            ["ok", "ok"]
+            [
+                error("--config:\n    theme: dark;"),
+                error("--x: a: b;"),
+                error("\\2d -config: theme: dark;"),
+            ],
+            ["ok", "ok", "ok"]
         );
     }
 }

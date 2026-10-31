@@ -229,3 +229,210 @@ test('should compare imported constants passed to vindurFn', async () => {
     "
   `);
 });
+
+test('should throw for dynamic colors passed to functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+        import { paint } from '#/mixins'
+
+        const accent = createDynamicCssColor()
+
+        export const Box = styled.div\`
+          \${paint(accent)};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const paint = vindurFn((color: string) => \`color: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 7:10]
+  `);
+});
+
+test('should throw for dynamic colors in object arguments of functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createDynamicCssColor } from 'vindur'
+        import { paint } from '#/mixins'
+
+        const accent = createDynamicCssColor()
+
+        export const Box = styled.div\`
+          \${paint({ color: accent })};
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const paint = vindurFn(({ color }: { color: string }) => \`color: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 7:10]
+  `);
+});
+
+test('should evaluate expression arguments of functions', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { space, bg } from '#/mixins'
+
+      const SIZE = 4
+      const PRIMARY = 'red'
+
+      export const style = css\`
+        \${space(-SIZE)};
+        \${bg((PRIMARY) as string)};
+        \${bg(\`\${SIZE}px\`)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'mixins.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const space = vindurFn((size: number) => \`margin: \${size}px;\`)
+        export const bg = vindurFn((color: string) => \`background: \${color};\`)
+      `,
+    }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      margin: -4px;
+      background: red;
+      background: 4px;
+    }
+    "
+  `);
+});
+
+test('should throw for runtime values passed to functions', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { bg } from '#/mixins'
+
+        export const App = ({ theme }) => <div css={\`\${bg(theme.color)}\`} />
+      `,
+      overrideDefaultFs: createFsMock({
+        'mixins.ts': dedent`
+          import { vindurFn } from 'vindur'
+
+          export const bg = vindurFn((color: string) => \`background: \${color};\`)
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn arguments must be static values: literals, module level constants, string or number properties of constant objects, or arrays and objects of them. Colors, functions and runtime values can't be passed
+    loc: 3:50]
+  `);
+});
+
+test('should pass members of local objects to functions', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur'
+      import { bg, pad } from '#/mixins'
+
+      const COLORS = { primary: 'red' }
+      const SPACING = { nested: { base: 4 } }
+
+      export const style = css\`
+        \${bg(COLORS.primary)};
+        \${pad(SPACING.nested.base * 2)};
+      \`
+    `,
+    overrideDefaultFs: createFsMock({
+      'mixins.ts': dedent`
+        import { vindurFn } from 'vindur'
+
+        export const bg = vindurFn((color: string) => \`background: \${color};\`)
+        export const pad = vindurFn((size: number) => \`padding: \${size}px;\`)
+      `,
+    }),
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      background: red;
+      padding: 8px;
+    }
+    "
+  `);
+});
+
+test('should throw for values without CSS text written by functions', async () => {
+  const mixinsFs = createFsMock({
+    'mixins.ts': dedent`
+      import { vindurFn } from 'vindur'
+
+      export const color = vindurFn((value?: string) => \`color: \${value};\`)
+      export const quoted = vindurFn((value?: string) => 'color: \${value};')
+      export const joined = vindurFn((on: boolean) => [on ? 'a' : on, 'b'].join(' '))
+    `,
+  });
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { color } from '#/mixins'
+
+        export const style = css\`
+          \${color()};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates 'value', which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { quoted } from '#/mixins'
+
+        export const style = css\`
+          \${quoted()};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates 'value', which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { joined } from '#/mixins'
+
+        export const style = css\`
+          font-family: \${joined(false)};
+        \`
+      `,
+      overrideDefaultFs: mixinsFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: vindurFn interpolates a joined array element, which has no CSS text, undefined, booleans and objects can't be written in styles
+    loc: 5:17]
+  `);
+});

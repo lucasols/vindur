@@ -407,3 +407,45 @@ test('should error on values derived from imported theme colors', async () => {
     ignoreInLint: true]
   `);
 });
+
+test('should error on default imports of values in an import cycle', async () => {
+  await expect(async () => {
+    await transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        import { styleA } from '#/fileA'
+
+        export const mainStyles = css\`
+          \${styleA};
+          color: red;
+        \`
+      `,
+      overrideDefaultFs: createFsMock({
+        'fileA.ts': dedent`
+          import { css } from 'vindur'
+          import styleB from '#/fileB'
+
+          export const styleA = css\`
+            \${styleB};
+            margin: 8px;
+          \`
+        `,
+        'fileB.ts': dedent`
+          import { css } from 'vindur'
+          import { styleA } from '#/fileA'
+
+          const styleB = css\`
+            \${styleA};
+            padding: 12px;
+          \`
+
+          export default styleB
+        `,
+      }),
+    });
+  }).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: /fileA.ts: "styleB" imported from /fileB.ts can't be evaluated, /fileB.ts is in an import cycle with /fileA.ts, move the value to a module outside the cycle
+    loc: /fileA.ts|5:4
+    ignoreInLint: true]
+  `);
+});

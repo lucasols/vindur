@@ -6,11 +6,9 @@ use oxc_span::Span;
 use crate::{CompilerDiagnostic, edit::Edit};
 
 // The names generated code calls the runtime helpers by. A helper keeps its own name unless
-// another binding in the file uses it, like `import cx from 'classnames'` or a `cx` parameter of
-// an SVG component, which would shadow it, then it's imported under its `_v` alias. Names
+// another binding in the file uses it, like a `mergeClassNames` parameter, which would shadow it, then it's imported under its `_v` alias. Names
 // starting with `_v` are reserved by vindur, so a binding using the alias is an error
 pub(crate) struct RuntimeHelperNames {
-    pub cx: String,
     pub merge_class_names: String,
     pub merge_styles: String,
 }
@@ -27,7 +25,6 @@ impl RuntimeHelperNames {
                 .map_err(|span| reserved_name_diagnostic(alias, span, file_path, source))
         };
         Ok(Self {
-            cx: name("cx", "_vCx")?,
             merge_class_names: name("mergeClassNames", "_vMergeClassNames")?,
             merge_styles: name("mergeStyles", "_vMergeStyles")?,
         })
@@ -128,7 +125,6 @@ pub(super) fn runtime_helper_import(
         .iter()
         .filter_map(|helper| {
             let name = match *helper {
-                "cx" => names.cx.as_str(),
                 "mergeClassNames" => names.merge_class_names.as_str(),
                 "mergeStyles" => names.merge_styles.as_str(),
                 _ => helper,

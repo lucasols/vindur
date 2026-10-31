@@ -260,7 +260,7 @@ describe('constant imports', () => {
       });
     }).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: "unknownConstant" not found in /constants.ts
+      [TransformError: /test.tsx: "unknownConstant" not found in /constants.ts, export it by name, like \`export const unknownConstant = ...\` or \`export { unknownConstant }\`
       loc: 5:11]
     `,
     );

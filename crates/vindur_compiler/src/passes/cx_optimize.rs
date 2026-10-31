@@ -16,7 +16,6 @@ pub(crate) fn optimize_cx_calls(
     scoping: &Scoping,
     source: &str,
     edits: &mut Vec<Edit>,
-    calls_user_cx: bool,
 ) {
     let cx_symbols = vindur_cx_symbols(program);
     let mut visitor = CxCallVisitor {
@@ -28,14 +27,13 @@ pub(crate) fn optimize_cx_calls(
         inside_spread: false,
     };
     visitor.visit_program(program);
-    // Generated code may still call the user's `cx` import, which suppressed
-    // injecting the runtime helper. Other references are rejected before, so
-    // only calls that weren't optimized (and `typeof cx`) keep the import
+    // Other references are rejected before, so only calls that weren't optimized (and
+    // `typeof cx`) keep the import
     let references = cx_symbols
         .iter()
         .map(|symbol| scoping.get_resolved_reference_ids(*symbol).len())
         .sum::<usize>();
-    if !calls_user_cx && references > 0 && references == visitor.optimized_calls {
+    if references > 0 && references == visitor.optimized_calls {
         remove_cx_import(program, source, visitor.edits);
     }
 }
@@ -333,11 +331,15 @@ fn collect_object_tokens(
     Some(())
 }
 
-// The condition of a generated `condition ? class : ""`, parenthesized when its own operator
-// binds looser than `?:` or would nest into it
+// The condition of a generated `condition ? class : ""`
 fn condition_source(expression: &Expression<'_>, source: &str) -> String {
     let span = expression.span();
-    let text = &source[span.start as usize..span.end as usize];
+    condition_text(expression, &source[span.start as usize..span.end as usize])
+}
+
+/// The `text` of `expression` as the condition of a generated `condition ? class : ""`,
+/// parenthesized when its own operator binds looser than `?:` or would nest into it
+pub(super) fn condition_text(expression: &Expression<'_>, text: &str) -> String {
     if matches!(
         expression,
         Expression::ConditionalExpression(_)
