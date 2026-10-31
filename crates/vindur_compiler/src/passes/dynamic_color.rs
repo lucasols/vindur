@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
     Argument, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName, JSXAttributeValue,
-    JSXElement, JSXExpression, Program,
+    JSXElement, JSXExpression, ObjectPropertyKind, Program,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
@@ -81,6 +81,13 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
+        if let Some(span) = second_color_scheme_setter(&container.expression) {
+            self.error(
+                span,
+                "Only one color in a dynamicColor array can use setColorScheme, the element can only have one color scheme. Remove setColorScheme from the other colors".to_owned(),
+            );
+            return;
+        }
         let Some(colors) = self.color_expressions(&container.expression) else {
             if let Some(message) = self.conditional_error_message(&container.expression) {
                 self.error(container.expression.span(), message);
@@ -340,6 +347,37 @@ impl DynamicColorVisitor<'_> {
             message,
         ));
     }
+}
+
+/// The options of the second `set` in a `dynamicColor` array whose options object literal has
+/// a `setColorScheme` key, options passed as a variable aren't checked
+fn second_color_scheme_setter(expression: &JSXExpression<'_>) -> Option<oxc_span::Span> {
+    let JSXExpression::ArrayExpression(array) = expression else {
+        return None;
+    };
+    array
+        .elements
+        .iter()
+        .filter_map(|element| {
+            let Expression::CallExpression(call) = element.as_expression()? else {
+                return None;
+            };
+            let Some(Argument::ObjectExpression(options)) = call.arguments.get(1) else {
+                return None;
+            };
+            options
+                .properties
+                .iter()
+                .any(|property| {
+                    matches!(
+                        property,
+                        ObjectPropertyKind::ObjectProperty(property)
+                            if property.key.static_name().as_deref() == Some("setColorScheme")
+                    )
+                })
+                .then_some(options.span)
+        })
+        .nth(1)
 }
 
 struct SetCallParts<'a> {

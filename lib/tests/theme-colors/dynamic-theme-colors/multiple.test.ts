@@ -240,3 +240,70 @@ describe('Dynamic Colors - Multiple Colors', () => {
     `);
   });
 });
+
+test('should throw for more than one setColorScheme in a dynamicColor array', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const bg = createDynamicCssColor()
+        const border = createDynamicCssColor()
+
+        const Component = ({ color }) => (
+          <div
+            dynamicColor={[
+              bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+              border.set('#000', { setColorScheme: { fallback: 'light' } }),
+            ]}
+          />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Only one color in a dynamicColor array can use setColorScheme, the element can only have one color scheme. Remove setColorScheme from the other colors
+    loc: 10:25]
+  `);
+});
+
+test('should allow setColorScheme on one color of a dynamicColor array', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const bg = createDynamicCssColor()
+      const border = createDynamicCssColor()
+
+      const Component = ({ color }) => (
+        <div
+          dynamicColor={[
+            bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+            border.set('#000', { veryDarkThreshold: 0.1 }),
+          ]}
+        />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const bg = createDynamicCssColor("v1560qbr-1-bg", true);
+    const border = createDynamicCssColor("v1560qbr-2-border", true);
+    const Component = ({ color }) => (
+      <div
+        {...bg._sp(
+          color,
+          border._sp("#000", undefined, {
+            veryDarkThreshold: 0.1,
+          }),
+          {
+            setColorScheme: {
+              fallback: "dark",
+            },
+          },
+        )}
+      />
+    );
+    "
+  `);
+});
