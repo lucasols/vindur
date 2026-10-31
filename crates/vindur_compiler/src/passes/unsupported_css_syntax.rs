@@ -25,14 +25,14 @@ const TOP_LEVEL_AT_RULES: [&str; 13] = [
     "color-profile",
 ];
 const STYLESHEET_START_AT_RULES: [&str; 3] = ["import", "charset", "namespace"];
-// At-rules whose blocks can contain other rules like `@keyframes`
-const GROUPING_AT_RULES: [&str; 7] = [
+// At-rules whose blocks can contain other rules like `@keyframes`. `@scope` is not included, its
+// rules are scoped style rules, where browsers drop stylesheet at-rules
+const GROUPING_AT_RULES: [&str; 6] = [
     "media",
     "supports",
     "layer",
     "container",
     "document",
-    "scope",
     "starting-style",
 ];
 

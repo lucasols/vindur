@@ -702,7 +702,7 @@ const slideAnimation = keyframes`
 `;
 ```
 
-Stylesheet at-rules, like `@keyframes`, `@font-face`, `@import`, `@property`, `@counter-style`, `@page` or `@view-transition`, inside `css`, `styled` or `css` prop templates are a compile error, for animations use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated. `!important` in keyframes is a compile error, browsers ignore it there.
+Stylesheet at-rules, like `@keyframes`, `@font-face`, `@import`, `@property`, `@counter-style`, `@page` or `@view-transition`, inside `css`, `styled` or `css` prop templates are a compile error, for animations use `keyframes` instead. They are only allowed in `createGlobalStyle`, outside of style rules and `@scope`. Inside `keyframes` templates write only the frames, the `@keyframes` rule is generated. `!important` in keyframes is a compile error, browsers ignore it there.
 
 ### Scoped CSS Variables
 
@@ -1067,13 +1067,15 @@ const App = ({ isActive, isDisabled }) => (
 
 // is compiled to:
 const Compiled = ({ isActive, isDisabled }) => (
-  <Container
+  <div
     className={
-      'noHash' + (isActive ? ' vhash_3' : '') + (isDisabled ? ' vhash_4' : '')
+      'vhash_1 noHash' +
+      (isActive ? ' vhash_2' : '') +
+      (isDisabled ? ' vhash_3' : '')
     }
   >
     Content with conditional classes
-  </Container>
+  </div>
 );
 ```
 

@@ -123,14 +123,12 @@ test('should merge the cx prop class into dynamicColor', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ active }: { active: boolean }) => (
       <div
         {...color._sp("#fff", {
-          className: cx({
-            active: active,
-          }),
+          className: active ? "active" : "",
         })}
       />
     );
@@ -160,16 +158,14 @@ test('should merge styled component, css and cx prop classes into dynamicColor',
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     const App = ({ active }: { active: boolean }) => (
       <div
         {...color._sp("#fff", {
           className:
-            "v1560qbr-2-Card v1560qbr-3-css-prop-3 " +
-            cx({
-              "v1560qbr-4-active": active,
-            }),
+            "v1560qbr-2-Card v1560qbr-3-css-prop-3" +
+            (active ? " v1560qbr-4-active" : ""),
         })}
       />
     );

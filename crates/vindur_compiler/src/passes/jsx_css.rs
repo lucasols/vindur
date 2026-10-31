@@ -30,7 +30,7 @@ use super::{
     style_flag_selectors::style_classes,
     styled::StyledComponent,
     styled_jsx_helpers::{
-        ClassNameTarget, class_concat, decode_jsx_entities, emit_class_name,
+        ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name,
         has_dynamic_color_attribute, has_spread_attribute, inlined_component_classes,
         js_string_literal, unsupported_spread_message, validate_styled_spreads, wrap_jsx_string,
     },
@@ -333,9 +333,9 @@ impl JsxCssVisitor<'_> {
         let flag_suffix = inlined
             .as_ref()
             .map_or("", |classes| classes.flag_suffix.as_str());
-        let cx_call = cx_transform.map(|cx| cx.call.as_str());
-        let complete_expression = (cx_call.is_some() || !flag_suffix.is_empty())
-            .then(|| class_concat(&complete_class, flag_suffix, cx_call));
+        let cx_classes = cx_transform.map(|cx| &cx.classes);
+        let complete_expression = (cx_classes.is_some() || !flag_suffix.is_empty())
+            .then(|| class_concat(&complete_class, flag_suffix, cx_classes));
         // A className after every spread overrides them, so it's merged in place
         if matches!(class_name_merge(element), ClassNameMerge::Runtime) {
             if let Err(spread) = validate_styled_spreads(element, self.output.source) {
@@ -384,7 +384,7 @@ impl JsxCssVisitor<'_> {
                 class_attribute,
                 &complete_class,
                 flag_suffix,
-                cx_call,
+                cx_classes,
             );
         } else if complete_expression.is_none() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
@@ -408,12 +408,12 @@ impl JsxCssVisitor<'_> {
         attribute: &JSXAttribute<'_>,
         class_name: &str,
         flag_suffix: &str,
-        cx_call: Option<&str>,
+        cx_classes: Option<&CxClasses>,
     ) {
         let Some(JSXAttributeValue::StringLiteral(value)) = &attribute.value else {
             let after = format!(
                 " + {}",
-                class_concat(&format!(" {class_name}"), flag_suffix, cx_call)
+                class_concat(&format!(" {class_name}"), flag_suffix, cx_classes)
             );
             let sources = class_name_sources(&self.output);
             emit_class_concat(
@@ -427,7 +427,7 @@ impl JsxCssVisitor<'_> {
             );
             return;
         };
-        if cx_call.is_none() && flag_suffix.is_empty() && !has_dynamic_color_attribute(element) {
+        if cx_classes.is_none() && flag_suffix.is_empty() && !has_dynamic_color_attribute(element) {
             self.output.edits.push(Edit {
                 span: value.span,
                 replacement: wrap_jsx_string(
@@ -440,7 +440,7 @@ impl JsxCssVisitor<'_> {
             return;
         }
         let existing = decode_jsx_entities(&value.value);
-        let expression = class_concat(&format!("{existing} {class_name}"), flag_suffix, cx_call);
+        let expression = class_concat(&format!("{existing} {class_name}"), flag_suffix, cx_classes);
         emit_class_name(
             self.output.edits,
             self.output.class_expressions,

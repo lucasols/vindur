@@ -309,21 +309,78 @@ pub(super) fn inlined_component_classes(
     }
 }
 
-/// `literal` followed by the classes of dynamic style flags and a cx call
-pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx_call: Option<&str>) -> String {
-    match (flag_suffix.is_empty(), cx_call) {
-        (true, None) => js_string_literal(literal),
-        (true, Some(cx_call)) => {
-            format!("{} + {cx_call}", js_string_literal(&format!("{literal} ")))
-        }
-        (false, None) => format!("{}{flag_suffix}", js_string_literal(literal)),
-        (false, Some(cx_call)) => {
-            format!(
-                "{}{flag_suffix} + \" \" + {cx_call}",
-                js_string_literal(literal)
-            )
-        }
+/// The classes of a cx prop, compiled to string concatenation instead of a runtime call
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CxClasses {
+    /// The classes of `true` values
+    pub static_classes: Vec<String>,
+    /// The `(condition, class)` of the other values, in the order of the object
+    pub conditional: Vec<(String, String)>,
+}
+
+impl CxClasses {
+    /// The conditional classes appended to a non-empty class name, e.g. ` + (on ? " active" : "")`
+    fn conditional_suffix(&self) -> String {
+        self.conditional
+            .iter()
+            .map(|(condition, class)| {
+                format!(
+                    " + ({condition} ? {} : \"\")",
+                    js_string_literal(&format!(" {class}"))
+                )
+            })
+            .collect()
     }
+
+    /// The classes appended to a non-empty class name expression, e.g.
+    /// ` + " static" + (on ? " active" : "")`
+    pub(super) fn suffix(&self) -> String {
+        let static_part = if self.static_classes.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " + {}",
+                js_string_literal(&format!(" {}", self.static_classes.join(" ")))
+            )
+        };
+        format!("{static_part}{}", self.conditional_suffix())
+    }
+}
+
+/// `literal` followed by the classes of dynamic style flags and of a cx prop
+pub(super) fn class_concat(literal: &str, flag_suffix: &str, cx: Option<&CxClasses>) -> String {
+    let Some(cx) = cx else {
+        return format!("{}{flag_suffix}", js_string_literal(literal));
+    };
+    let literal = std::iter::once(literal)
+        .chain(cx.static_classes.iter().map(String::as_str))
+        .filter(|class| !class.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !literal.is_empty() {
+        return format!(
+            "{}{flag_suffix}{}",
+            js_string_literal(&literal),
+            cx.conditional_suffix()
+        );
+    }
+    if cx.conditional.is_empty() {
+        return js_string_literal("");
+    }
+    // Without a class before them, the first class has no leading space
+    cx.conditional
+        .iter()
+        .enumerate()
+        .map(|(index, (condition, class))| {
+            let class = if index == 0 {
+                class.clone()
+            } else {
+                format!(" {class}")
+            };
+            format!("({condition} ? {} : \"\")", js_string_literal(&class))
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
 }
 
 pub(super) fn class_name_expression(

@@ -27,18 +27,9 @@ test('should keep an imported css constant used as a className value', async () 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { shared } from "#/constants";
+    "import { shared } from "#/constants";
     export const A = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          shared +
-          " " +
-          cx({
-            active: on,
-          })
-        }
-      />
+      <div className={shared + (on ? " active" : "")} />
     );
     "
   `);
@@ -204,19 +195,14 @@ test('should keep imports of plain constants used in non-vindur templates', asyn
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    import { centerContent } from "./consts";
+    "import { centerContent } from "./consts";
     import { styled } from "@linaria/react";
     const Box = styled.div\`
       \${centerContent};
     \`;
     export const X = () => (
       <Box>
-        <span
-          className={cx({
-            a: true,
-          })}
-        />
+        <span className={"a"} />
       </Box>
     );
     "

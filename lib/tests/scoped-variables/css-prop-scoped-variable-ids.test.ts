@@ -21,16 +21,9 @@ test('should give css prop scoped variables ids after the cx classes of the elem
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     export const Box = ({ on }) => (
-      <div
-        className={
-          "v1560qbr-1 " +
-          cx({
-            "v1560qbr-2": on,
-          })
-        }
-      />
+      <div className={"v1560qbr-1" + (on ? " v1560qbr-2" : "")} />
     );
     const color = createDynamicCssColor("v1560qbr-4", false);
     export const Badge = ({ c }) => (

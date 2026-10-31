@@ -70,18 +70,13 @@ test('should merge cx classes, css className and scoped style into the dynamic c
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, cx } from "vindur";
+    "import { createDynamicCssColor } from "vindur";
     const color = createDynamicCssColor("v1560qbr-1-color", true);
     const cls = "v1560qbr-2-cls";
     const Component = ({ active, size }) => (
       <div
         {...color._sp(null, {
-          className:
-            cls +
-            " " +
-            cx({
-              active: active,
-            }),
+          className: cls + (active ? " active" : ""),
           style: {
             "--v1560qbr-3-size": size,
           },

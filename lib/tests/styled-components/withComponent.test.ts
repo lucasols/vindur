@@ -697,27 +697,12 @@ describe('withComponent', () => {
     });
 
     expect(result.code).toMatchInlineSnapshot(`
-      "import { cx } from "vindur";
-      const App = ({ on }) => (
+      "const App = ({ on }) => (
         <div>
-          <button
-            className={
-              "v1560qbr-1-Button " +
-              cx({
-                "v1560qbr-2-active": on,
-              })
-            }
-          >
+          <button className={"v1560qbr-1-Button" + (on ? " v1560qbr-2-active" : "")}>
             Button
           </button>
-          <a
-            className={
-              "v1560qbr-1-Button " +
-              cx({
-                "v1560qbr-2-active": on,
-              })
-            }
-          >
+          <a className={"v1560qbr-1-Button" + (on ? " v1560qbr-2-active" : "")}>
             Link
           </a>
         </div>

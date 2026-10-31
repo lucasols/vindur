@@ -127,7 +127,6 @@ pub(crate) fn transform_program(
     let mut needs_styled_helper = false;
     let mut needs_style_flags_helper = false;
     let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
-    let mut needs_cx_helper = false;
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
@@ -414,7 +413,6 @@ pub(crate) fn transform_program(
             hashed_styled_modifiers: &mut hashed_styled_modifiers,
             class_expressions: &mut class_expressions,
             warnings: &mut warnings,
-            needs_cx_helper: &mut needs_cx_helper,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
             key_usages: &mut cx_key_usages,
@@ -482,7 +480,6 @@ pub(crate) fn transform_program(
     let needed_helpers = [
         (needs_styled_helper, "_vSC"),
         (needs_style_flags_helper, "_vCWM"),
-        (needs_cx_helper, "cx"),
         (needs_merge_helper, "mergeClassNames"),
         (needs_merge_styles_helper, "mergeStyles"),
     ]
@@ -496,10 +493,7 @@ pub(crate) fn transform_program(
         &needed_helpers,
     ));
 
-    // The user's `cx` import is kept while generated code calls it under its own name
-    let calls_user_cx = needs_cx_helper && helper_names.cx == "cx";
-
-    optimize_cx_calls(program, scoping, source, &mut edits, calls_user_cx);
+    optimize_cx_calls(program, scoping, source, &mut edits);
 
     let mut hasher = FxHasher::default();
     source.hash(&mut hasher);

@@ -218,6 +218,27 @@ test('should throw for `@import` inside a grouping rule in createGlobalStyle', a
   `);
 });
 
+test('should throw for stylesheet at-rules inside `@scope` in createGlobalStyle', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+
+        createGlobalStyle\`
+          @scope (.card) {
+            @media (width > 400px) {
+              @keyframes spin { to { rotate: 1turn; } }
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`@keyframes\` is not supported inside \`@scope\` rules, move it to the top level of \`createGlobalStyle\`
+    loc: 6:6]
+  `);
+});
+
 test('should throw for `@import` in createGlobalStyle after other styles of the file', async () => {
   await expect(
     transformWithFormat({
@@ -463,16 +484,16 @@ test('should validate at-rules nested in @scope of global styles', async () => {
         createGlobalStyle\`
           @scope (.a) {
             color: red;
-            @keyframes fade {
-              from { opacity: 0 !important; }
+            @media print {
+              color: blue;
             }
           }
         \`
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: \`!important\` is ignored in keyframes, remove it
-    loc: 7:13]
+    [TransformError: /test.tsx: Invalid CSS at \`createGlobalStyle\`: declarations in createGlobalStyle need a rule, e.g. \`body { ... }\`
+    loc: 7:6]
   `);
 });
 

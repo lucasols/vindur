@@ -528,10 +528,6 @@ describe('@keyframes inside templates', () => {
           @supports (--theme: {color:red}) {
             @keyframes slide { from { opacity: 0; } }
           }
-
-          @scope (.box) {
-            @keyframes pop { from { opacity: 0; } }
-          }
         \`
       `,
     });
@@ -549,14 +545,6 @@ describe('@keyframes inside templates', () => {
 
       @supports (--theme: {color: red}) {
         @keyframes slide {
-          from {
-            opacity: 0;
-          }
-        }
-      }
-
-      @scope (.box) {
-        @keyframes pop {
           from {
             opacity: 0;
           }

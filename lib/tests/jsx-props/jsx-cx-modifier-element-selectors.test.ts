@@ -42,15 +42,12 @@ test('should rewrite cx modifiers in every selector of the element', async () =>
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ on }: { on: boolean }) => (
+    "export const App = ({ on }: { on: boolean }) => (
       <div
         className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-active": on,
-            "v1560qbr-3-disabled": !on,
-          })
+          "v1560qbr-1-Box" +
+          (on ? " v1560qbr-2-active" : "") +
+          (!on ? " v1560qbr-3-disabled" : "")
         }
       />
     );
@@ -123,15 +120,12 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ on }: { on: boolean }) => (
+    "export const App = ({ on }: { on: boolean }) => (
       <div
         className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-active": on,
-            "v1560qbr-3-disabled": !on,
-          })
+          "v1560qbr-1-Box" +
+          (on ? " v1560qbr-2-active" : "") +
+          (!on ? " v1560qbr-3-disabled" : "")
         }
       />
     );
@@ -239,16 +233,8 @@ test('should rewrite cx modifiers in layers of the css prop', async () => {
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          "v1560qbr-1-css-prop-1 " +
-          cx({
-            "v1560qbr-2-active": on,
-          })
-        }
-      />
+    "export const App = ({ on }: { on: boolean }) => (
+      <div className={"v1560qbr-1-css-prop-1" + (on ? " v1560qbr-2-active" : "")} />
     );
     "
   `);
@@ -292,18 +278,9 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    const card = "v1560qbr-1-card";
+    "const card = "v1560qbr-1-card";
     export const App = ({ on }: { on: boolean }) => (
-      <div
-        className={
-          card +
-          " " +
-          cx({
-            "v1560qbr-2-selected": on,
-          })
-        }
-      />
+      <div className={card + (on ? " v1560qbr-2-selected" : "")} />
     );
     "
   `);
@@ -347,15 +324,12 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ on }: { on: boolean }) => (
+    "export const App = ({ on }: { on: boolean }) => (
       <div
         className={
-          "v1560qbr-1-Box " +
-          cx({
-            "v1560qbr-2-active": on,
-            "v1560qbr-3-disabled": !on,
-          })
+          "v1560qbr-1-Box" +
+          (on ? " v1560qbr-2-active" : "") +
+          (!on ? " v1560qbr-3-disabled" : "")
         }
       />
     );
@@ -527,17 +501,9 @@ test('should keep classes of other elements selected with a component reference'
   });
 
   expect(result.code).toMatchInlineSnapshot(`
-    "import { cx } from "vindur";
-    export const App = ({ on }: { on: boolean }) => (
+    "export const App = ({ on }: { on: boolean }) => (
       <ul className="v1560qbr-2-List">
-        <li
-          className={
-            "v1560qbr-1-Item " +
-            cx({
-              "v1560qbr-3-active": on,
-            })
-          }
-        />
+        <li className={"v1560qbr-1-Item" + (on ? " v1560qbr-3-active" : "")} />
       </ul>
     );
     "

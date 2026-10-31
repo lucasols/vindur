@@ -179,12 +179,8 @@ const AttachmentImage = styled.img`border: 1px solid cyan;`;
     assert!(output.diagnostics.is_empty());
     assert_eq!(
         output.code,
-        r#"import { cx } from 'vindur';
-const App = ({ hasSubtasks, isExpanded }) => (
-  <div  className={"v146u5j0-1 " + cx({
-"v146u5j0-2": hasSubtasks,
-"v146u5j0-3": isExpanded,
-})}><span className="icon" /></div>
+        r#"const App = ({ hasSubtasks, isExpanded }) => (
+  <div  className={"v146u5j0-1" + (hasSubtasks ? " v146u5j0-2" : "") + (isExpanded ? " v146u5j0-3" : "")}><span className="icon" /></div>
 );
 "#
     );
