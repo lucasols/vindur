@@ -1,4 +1,5 @@
 import type { Rule } from 'eslint';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname } from 'node:path';
 import {
@@ -35,67 +36,106 @@ function shouldProcessFile(filename: string, source: string): boolean {
 type SharedCache = {
   functions: TransformFunctionCache;
   fs: TransformFS;
-  /** Modification time of each file the compiler read, to evict it when it changes */
-  readFileMtimes: Map<string, number>;
-  /** Last source linted for each file, editors lint unsaved buffers */
-  lintedSources: Map<string, string>;
-  lastCallEnd: number;
+  /** Modification time of each file the compiler read or linted, to evict it when it changes */
+  mtimes: Map<string, number>;
+  /** Fingerprint of the last content compiled for each file, editors lint unsaved buffers */
+  fingerprints: Map<string, string>;
+  /** Files the compiler looked for but didn't find, creating one resets the cache */
+  missingFiles: Set<string>;
+  lastValidation: number;
 };
 
 const sharedCaches = new Map<string, SharedCache>();
 
-// A CLI run lints file after file and the files don't change during it, so only a call after
-// a pause, like an editor relinting after an edit, checks for changed files
-const REVALIDATE_AFTER_IDLE_MS = 1000;
+// Files are checked for changes at most once per interval, a CLI run lints many files in a row
+// and doesn't change them, an editor relints after edits
+const REVALIDATE_INTERVAL_MS = 1000;
 
 function fileMtime(fileAbsPath: string): number {
   return statSync(fileAbsPath, { throwIfNoEntry: false })?.mtimeMs ?? -1;
 }
 
+function fingerprint(content: string): string {
+  return createHash('sha1').update(content).digest('base64');
+}
+
 function getSharedCache(importAliases: Record<string, string>): SharedCache {
   const key = JSON.stringify(importAliases);
-  let cache = sharedCaches.get(key);
-  if (!cache) {
-    const readFileMtimes = new Map<string, number>();
-    cache = {
-      functions: {},
-      fs: {
-        readFile: (fileAbsPath: string) => {
-          const content = readFileSync(fileAbsPath, 'utf-8');
-          readFileMtimes.set(fileAbsPath, fileMtime(fileAbsPath));
-          return content;
-        },
-        exists: (fileAbsPath: string) => existsSync(fileAbsPath),
+  const existing = sharedCaches.get(key);
+  if (existing) return existing;
+
+  const mtimes = new Map<string, number>();
+  const fingerprints = new Map<string, string>();
+  const missingFiles = new Set<string>();
+  const cache: SharedCache = {
+    functions: {},
+    fs: {
+      readFile: (fileAbsPath: string) => {
+        // Read after the stat, so a write in between is seen as a change
+        const mtime = fileMtime(fileAbsPath);
+        const content = readFileSync(fileAbsPath, 'utf-8');
+        mtimes.set(fileAbsPath, mtime);
+        fingerprints.set(fileAbsPath, fingerprint(content));
+        return content;
       },
-      readFileMtimes,
-      lintedSources: new Map(),
-      lastCallEnd: 0,
-    };
-    sharedCaches.set(key, cache);
-  }
+      exists: (fileAbsPath: string) => {
+        const found = existsSync(fileAbsPath);
+        if (!found) missingFiles.add(fileAbsPath);
+        return found;
+      },
+    },
+    mtimes,
+    fingerprints,
+    missingFiles,
+    lastValidation: 0,
+  };
+  sharedCaches.set(key, cache);
   return cache;
 }
 
-/** Evicts the files that changed since the compiler read them, and their dependents */
-function invalidateChangedFiles(
-  cache: SharedCache,
-  filename: string,
-  source: string,
-) {
-  if (Date.now() - cache.lastCallEnd > REVALIDATE_AFTER_IDLE_MS) {
-    for (const [fileAbsPath, mtime] of cache.readFileMtimes) {
-      if (fileMtime(fileAbsPath) !== mtime) {
-        invalidateTransformCache(cache.functions, fileAbsPath);
-        cache.readFileMtimes.delete(fileAbsPath);
-      }
+/** Drops all compiled modules, for changes that can't be traced to the modules they affect */
+function resetSharedCache(cache: SharedCache, changedFile: string) {
+  // Also clears the module resolution cache, which is shared by all compilers
+  invalidateTransformCache(cache.functions, changedFile);
+  cache.functions = {};
+  cache.mtimes.clear();
+  cache.fingerprints.clear();
+  cache.missingFiles.clear();
+}
+
+/** Evicts the modules whose files changed on disk, and the modules built from them */
+function evictChangedFiles(cache: SharedCache) {
+  const now = Date.now();
+  if (now - cache.lastValidation < REVALIDATE_INTERVAL_MS) return;
+  cache.lastValidation = now;
+
+  // A module importing a file that didn't exist doesn't depend on it in the compiler, so its
+  // creation can't be traced to the modules to evict
+  for (const fileAbsPath of cache.missingFiles) {
+    if (existsSync(fileAbsPath)) {
+      resetSharedCache(cache, fileAbsPath);
+      return;
     }
   }
 
-  const lintedSource = cache.lintedSources.get(filename);
-  if (lintedSource !== undefined && lintedSource !== source) {
+  for (const [fileAbsPath, mtime] of cache.mtimes) {
+    if (fileMtime(fileAbsPath) !== mtime) {
+      invalidateTransformCache(cache.functions, fileAbsPath);
+      cache.mtimes.delete(fileAbsPath);
+      cache.fingerprints.delete(fileAbsPath);
+    }
+  }
+}
+
+/** The linted file's modules are compiled from `source`, which can differ from the last one */
+function trackLintedFile(cache: SharedCache, filename: string, source: string) {
+  const sourceFingerprint = fingerprint(source);
+  const previous = cache.fingerprints.get(filename);
+  if (previous !== undefined && previous !== sourceFingerprint) {
     invalidateTransformCache(cache.functions, filename);
   }
-  cache.lintedSources.set(filename, source);
+  cache.fingerprints.set(filename, sourceFingerprint);
+  cache.mtimes.set(filename, fileMtime(filename));
 }
 
 /** For tests, which lint different contents under the same paths */
@@ -128,7 +168,8 @@ function runVindurTransform(
   }
 
   const cache = getSharedCache(importAliases);
-  invalidateChangedFiles(cache, filename, source);
+  evictChangedFiles(cache);
+  trackLintedFile(cache, filename, source);
 
   try {
     transform({
@@ -163,7 +204,6 @@ function runVindurTransform(
     }
   }
 
-  cache.lastCallEnd = Date.now();
   return { errors };
 }
 
