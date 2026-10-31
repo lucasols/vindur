@@ -143,14 +143,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
             sourcemap: emitSourcemaps,
-            onWarning: (warning) => {
-              const file = warning.loc.filename ?? id;
-              this.warn({
-                message: warning.message,
-                id: file,
-                loc: { file, line: warning.loc.line, column: warning.loc.column },
-              });
-            },
           });
         } catch (error) {
           if (error instanceof TransformError) {
