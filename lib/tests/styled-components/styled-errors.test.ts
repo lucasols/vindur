@@ -138,3 +138,26 @@ test('should throw for vindur declarations not using const', async () => {
     loc: 3:7]
   `);
 });
+
+test('should throw for withComponent with a lowercase component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const card = (props: { className?: string }) => <div {...props} />;
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        const StyledCard = Box.withComponent(card);
+
+        export const App = () => <StyledCard />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Cannot use "card" in withComponent(): component names must start with an uppercase letter (CamelCase).
+    loc: 9:37]
+  `);
+});

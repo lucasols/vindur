@@ -198,18 +198,35 @@ pub(crate) fn hash_referenced_style_flags(
                         class.end,
                     )));
                 }
-                renames.push((class.start..class.end, flag.hashed.as_str()));
+                renames.push((class.start..class.end, flag.hashed.as_str(), *name));
             }
         }
         if renames.is_empty() {
             continue;
         }
         // A class can be selected through several references, e.g. `.item.other.active`
-        renames.sort_by_key(|(range, _)| range.start);
-        renames.dedup_by_key(|(range, _)| range.start);
+        renames.sort_by(|(a, _, a_name), (b, _, b_name)| {
+            a.start.cmp(&b.start).then(a_name.cmp(b_name))
+        });
+        // Components made with withComponent share the class of their base, but not the flags
+        // of their elements
+        if let Some([(range, _, first), (_, _, second)]) = renames
+            .array_windows()
+            .find(|[(a, a_hash, _), (b, b_hash, _)]| a.start == b.start && a_hash != b_hash)
+        {
+            let class = &rule[range.clone()];
+            return Err(located(CssError::new(
+                format!(
+                    "Style flag \"{class}\" can't be selected through a reference to \"{first}\" or \"{second}\", they share the class of the styled component they were made from with withComponent, but their elements have different flags. Select it through a reference to the element's styled component instead."
+                ),
+                range.start,
+                range.end,
+            )));
+        }
+        renames.dedup_by_key(|(range, _, _)| range.start);
         let mut renamed = String::with_capacity(rule.len());
         let mut last = 0;
-        for (range, hashed) in renames {
+        for (range, hashed, _) in renames {
             renamed.push_str(&rule[last..range.start]);
             renamed.push_str(hashed);
             last = range.end;

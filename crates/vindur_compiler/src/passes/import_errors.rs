@@ -21,14 +21,6 @@ pub(super) fn unresolved_import_error(
 ) -> Option<CompilerDiagnostic> {
     let (identifier, value) = find_unresolved_import(expression, constants, scoping)?;
     let message = match value {
-        StaticValue::CyclicImport { source_path } => format!(
-            "\"{}\" imported from {source_path} can't be evaluated, {source_path} is in an import cycle with {file_path}, move the value to a module outside the cycle",
-            identifier.name
-        ),
-        StaticValue::MissingImport {
-            imported_name,
-            source_path,
-        } => format!("\"{imported_name}\" not found in {source_path}"),
         StaticValue::InvalidFunction {
             source_path,
             cyclic_imports,
@@ -37,12 +29,7 @@ pub(super) fn unresolved_import_error(
             source_path,
             cyclic_imports,
         } => not_static_import_message(&identifier.name, source_path, cyclic_imports),
-        StaticValue::UnsupportedReExport {
-            imported_name,
-            source_path,
-            re_export,
-        } => re_export_message(imported_name, source_path, re_export.as_ref()),
-        _ => return None,
+        _ => unknown_import_message(&identifier.name, value, file_path)?,
     };
     let diagnostic = CompilerDiagnostic::error(file_path, source, expression.span(), message);
     // Only reached while collecting a dependency's facts, a linted file's own imports are
@@ -51,6 +38,30 @@ pub(super) fn unresolved_import_error(
         diagnostic.ignored_in_lint()
     } else {
         diagnostic
+    })
+}
+
+/// The error for an import whose module facts aren't known, because it is missing, only
+/// re-exported, or in an import cycle, `None` for other values
+pub(super) fn unknown_import_message(
+    name: &str,
+    value: &StaticValue,
+    file_path: &str,
+) -> Option<String> {
+    Some(match value {
+        StaticValue::CyclicImport { source_path } => format!(
+            "\"{name}\" imported from {source_path} can't be evaluated, {source_path} is in an import cycle with {file_path}, move the value to a module outside the cycle"
+        ),
+        StaticValue::MissingImport {
+            imported_name,
+            source_path,
+        } => format!("\"{imported_name}\" not found in {source_path}"),
+        StaticValue::UnsupportedReExport {
+            imported_name,
+            source_path,
+            re_export,
+        } => re_export_message(imported_name, source_path, re_export.as_ref()),
+        _ => return None,
     })
 }
 

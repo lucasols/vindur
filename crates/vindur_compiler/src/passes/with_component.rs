@@ -7,6 +7,7 @@ use crate::{
     facts::StaticValue,
 };
 
+use super::import_errors::unknown_import_message;
 use super::style_flag_selectors::flag_classes;
 use super::styled::{StyleFlag, StyledComponent};
 use super::transform_support::{VariableTransform, require_const};
@@ -46,13 +47,23 @@ pub(super) fn process_with_component(
         ));
     };
     // The styles of an imported styled base are applied by it, replacing it drops them
-    if base.element_is_base
-        && !transform.styled_components.contains_key(&base.element)
-        && matches!(
-            transform.constants.get(&base.element),
-            Some(StaticValue::ClassName { .. })
-        )
+    let imported_base = base
+        .element_is_base
+        .then(|| transform.constants.get(&base.element))
+        .flatten()
+        .filter(|_| !transform.styled_components.contains_key(&base.element));
+    // A base imported through a re-export or an import cycle can be a styled component
+    if let Some(message) = imported_base
+        .and_then(|value| unknown_import_message(&base.element, value, transform.file_path))
     {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            base_identifier.span,
+            message,
+        ));
+    }
+    if matches!(imported_base, Some(StaticValue::ClassName { .. })) {
         return Err(CompilerDiagnostic::error(
             transform.file_path,
             transform.source,
@@ -85,6 +96,17 @@ pub(super) fn process_with_component(
             argument_span,
             "withComponent() must be called with either a string literal element name or a component identifier."
                 .to_owned(),
+        ));
+    }
+    // JSX renders a lowercase name as an intrinsic element, not the component
+    if element_is_identifier && !element.chars().next().is_some_and(char::is_uppercase) {
+        return Err(CompilerDiagnostic::error(
+            transform.file_path,
+            transform.source,
+            argument_span,
+            format!(
+                "Cannot use \"{element}\" in withComponent(): component names must start with an uppercase letter (CamelCase)."
+            ),
         ));
     }
     if element_is_identifier

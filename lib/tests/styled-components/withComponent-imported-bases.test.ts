@@ -200,3 +200,134 @@ test('withComponent keeps the flags of its styled component element for referenc
     "
   `);
 });
+
+const reExportedCardFs = createFsMock({
+  'components.ts': `export { Card } from './card';`,
+  'card.tsx': dedent`
+    import { styled } from 'vindur';
+
+    export const Card = styled.div\`
+      color: red;
+    \`;
+  `,
+});
+
+test('should throw for style flags and withComponent on a re-exported styled base', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Card } from '#/components';
+
+        const Ext = styled(Card)<{ big: boolean }>\`
+          &.big { color: blue; }
+        \`;
+
+        export const App = () => <Ext big />;
+      `,
+      overrideDefaultFs: reExportedCardFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 4:19]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Card } from '#/components';
+
+        const Ext = styled(Card)\`
+          color: blue;
+        \`;
+
+        const Link = Ext.withComponent('a');
+
+        export const App = () => <Link />;
+      `,
+      overrideDefaultFs: reExportedCardFs,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: "Card" is re-exported by /components.ts from "./card", re-exports via \`export ... from\` are not supported, import it from "./card" directly
+    loc: 8:13]
+  `);
+});
+
+test('should extend a re-exported component without style flags', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+      import { Card } from '#/components';
+
+      const Ext = styled(Card)\`
+        color: blue;
+      \`;
+
+      export const App = () => <Ext />;
+    `,
+    overrideDefaultFs: createFsMock({
+      'components.ts': `export { Card } from './card';`,
+      'card.tsx': dedent`
+        export const Card = (props: { className?: string }) => <div {...props} />;
+      `,
+    }),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { Card } from "#/components";
+    export const App = () => <Card className="v1560qbr-1-Ext" />;
+    "
+  `);
+});
+
+test('should throw for selecting a style flag through withComponent elements with different flags', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Item } from '#/item';
+        import { Other } from '#/other';
+
+        const Base = styled.div\`
+          padding: 1px;
+        \`;
+
+        const A = Base.withComponent(Item);
+        const B = Base.withComponent(Other);
+
+        const Child = styled.span\`
+          \${A}.active & { color: green; }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => (
+          <>
+            <A active={on}>
+              <Child />
+            </A>
+            <B active={on} />
+          </>
+        );
+      `,
+      overrideDefaultFs: createFsMock({
+        'item.tsx': dedent`
+          import { styled } from 'vindur';
+
+          export const Item = styled.div<{ active: boolean }>\`
+            &.active { color: red; }
+          \`;
+        `,
+        'other.tsx': dedent`
+          import { styled } from 'vindur';
+
+          export const Other = styled.div<{ active: boolean }>\`
+            &.active { color: blue; }
+          \`;
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be selected through a reference to "A" or "B", they share the class of the styled component they were made from with withComponent, but their elements have different flags. Select it through a reference to the element's styled component instead.
+    loc: 12:6]
+  `);
+});

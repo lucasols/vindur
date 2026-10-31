@@ -281,9 +281,9 @@ const Div = Button.withComponent('div'); // Same styles, <div> element
 const CustomComponent = Button.withComponent(MyComponent); // Will render <MyComponent> and append the Button styles
 ```
 
-`withComponent` must be the initializer of its own top-level variable declaration, like the examples above.
+`withComponent` must be the initializer of its own top-level variable declaration, like the examples above. A custom component must be passed by a name starting with an uppercase letter, as JSX renders lowercase names as HTML elements.
 
-When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it. A component extending an imported styled component, like `styled(Card)`, can't call `withComponent`, as the styles of `Card` would be lost, call it on `Card` in its own file and extend that instead.
+When the new element is a styled component, it can't have a style flag with the same prop as the base, since the base's flags are not passed to it. A component extending an imported styled component, like `styled(Card)`, can't call `withComponent`, as the styles of `Card` would be lost, call it on `Card` in its own file and extend that instead. Elements made with `withComponent` from the same component share its class, so a style flag can't be selected through a reference to one of them, like `${Link}.active &`, when their styled component elements have different flags for it.
 
 ### Default Attributes
 
@@ -759,7 +759,7 @@ Compiles to scoped CSS variables:
 }
 ```
 
-Scoped variables must be written directly in the template, without CSS escapes or interpolations like `---${name}`. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables.
+Scoped variables must be written directly in the template, without CSS escapes or interpolations like `---${name}`. Interpolated values, like `vindurFn` results or string constants, can't contain `---` variables or complete one with the template text, like `${'---'}gap`.
 
 Quoted scoped names, like `"---brand"`, are renamed in `font`, `font-family`, `animation`, `animation-name` and `@keyframes`. In custom properties, write them without quotes. Scoped font family names must be a single lowercase word, as font families match case-insensitively. In selectors, scoped names can only be used in view transition pseudo-elements, like `::view-transition-old(---card)`, as classes and ids come from the HTML. Grid area strings, grid line names like `[main-start]` and the names in `grid-area`, `grid-row` and `grid-column` can't use scoped names, they are already local to their grid container. A custom property value can't continue on a line starting with `name:`, add the missing `;`.
 
@@ -965,7 +965,7 @@ const Button = styled.button`
 
 `vindurFn` functions are evaluated at compile time and can only be used in vindur styles (`css`, `styled`, `keyframes`, `createGlobalStyle` and the `css` prop). Calling or referencing them anywhere else, e.g. in a `style` prop or `.attrs()`, is a compile error.
 
-Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`.
+Re-exports via `export ... from`, `export * from` and `export * as ... from` are not supported: import values and functions from the module that declares them, or import them and export them from a local declaration, e.g. `export const INSET = BASE_INSET` or `export { INSET }`. Style values (`css` classes, `keyframes` and theme colors) can only be exported again with `export { name }`. A styled component imported through a re-export can be extended with `styled(Card)`, but the extension can't have style flags, call `withComponent` or select classes of its element, like `&.active`, import `Card` from the module that declares it instead.
 
 Values can't be imported back into an import cycle, e.g. `Sidebar.tsx` interpolating `HEADER_HEIGHT` from `Layout.tsx`, which imports `Sidebar.tsx`: move them to a module outside the cycle. Other values imported from modules that are in, or depend on, an import cycle can only be interpolated directly: constants derived from them, e.g. `export const SIZE = BASE_SIZE * 2`, and `export { SIZE }` are not static.
 
@@ -1259,7 +1259,7 @@ The CSS classes are automatically applied based on prop values:
 - **Boolean props**: `active: boolean` → applies class when `true`
 - **String literal unions**: `size: 'small' | 'large'` → applies class with value suffix. Values may only contain letters, digits, `-` and `_`
 
-Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. A value picking between strings, like `isLarge ? 'large' : 'small'`, is read once, so its condition can have them. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it, for an imported `Base` that is a compile error. A default exported styled component can't have flags, assign it to a `const` first.
+Flags are read from the props written on the element and are never passed to it, a flag prop inside a spread like `{...props}` is passed to the element as is. A runtime component (exported, referenced as a value or using `.attrs()`) reads its flags from all props, spreads included. Flag names can't contain `$` or be a prop vindur, React or the element handles (`className`, `style`, `css`, `cx`, `dynamicColor`, `key`, `ref`, `children`, `disabled`, `hidden`, `checked`, `required`, `readOnly`, `selected`, `multiple`, `open`). String union flag values can't contain calls or other side effects, as they are read twice, assign them to a variable first. A value picking between strings, like `isLarge ? 'large' : 'small'`, is read once, so its condition can have them. `styled(Base)` keeps the flags of `Base`, a flag of the extension with the same prop replaces it, for an imported `Base` that is a compile error. A default exported styled component can't have flags, assign it to a `const` first. Flag values can't call `stableId()` or `createClassName()`, assign the result to a module level constant first.
 
 #### CSS Selector Patterns
 

@@ -10,7 +10,7 @@ use oxc_css_parser::{
 };
 
 use super::css_syntax::{BlockKind, CssError, with_style_block};
-use super::css_tokens::{decode_ident, ident_end, is_ident_char, skipped_token_end};
+use super::css_tokens::{decode_ident, decode_string, ident_end, is_ident_char, skipped_token_end};
 
 /// How a scoped variable identifier is used
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -334,7 +334,7 @@ impl ScopedIdentCollector<'_> {
         let (_, content) = string_content(self.source, span);
         // Escaped words, like `"\2d --spin"`, are the same names
         let content = if content.contains('\\') {
-            decode_ident(content)
+            decode_string(content)
         } else {
             content.to_owned()
         };
@@ -360,7 +360,7 @@ impl ScopedIdentCollector<'_> {
                 ScopedRole::Name,
             );
         } else if content.contains('\\')
-            && is_scoped_name(&decode_ident(content))
+            && is_scoped_name(&decode_string(content))
             && self.error.is_none()
         {
             self.error = Some(CssError::new(
@@ -659,7 +659,14 @@ fn is_raw_var_call(name: &TokenWithSpanData, paren: &TokenWithSpanData, source: 
 
 /// Whether the text has an identifier starting with `---`, comments, strings and urls are ignored
 fn has_scoped_ident(text: &str) -> bool {
-    !scoped_ident_ranges(text).is_empty()
+    first_scoped_ident(text).is_some()
+}
+
+/// The first identifier starting with `---`, comments, strings and urls are ignored
+pub(super) fn first_scoped_ident(text: &str) -> Option<&str> {
+    scoped_ident_ranges(text)
+        .first()
+        .map(|range| &text[range.start..range.end])
 }
 
 /// A whole scoped name, like `---spin`
@@ -678,7 +685,7 @@ fn has_quoted_scoped_name(text: &str) -> bool {
                 && let Some(content) = text.get(index + 1..end.saturating_sub(1))
                 // Escaped names, like `"\2d --brand"`, are the same names
                 && (is_scoped_name(content)
-                    || (content.contains('\\') && is_scoped_name(&decode_ident(content))))
+                    || (content.contains('\\') && is_scoped_name(&decode_string(content))))
             {
                 return true;
             }

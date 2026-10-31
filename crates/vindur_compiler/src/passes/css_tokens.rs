@@ -188,6 +188,34 @@ pub(super) fn decode_ident(raw: &str) -> String {
     decoded
 }
 
+/// The text of a CSS string's content, where a `\\` before a newline continues the string and
+/// other escapes are decoded like in an identifier
+pub(super) fn decode_string(raw: &str) -> String {
+    let mut continued = String::with_capacity(raw.len());
+    let mut characters = raw.chars();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            continued.push(character);
+            continue;
+        }
+        match characters.next() {
+            Some('\r') => {
+                let rest = characters.as_str();
+                if let Some(after_newline) = rest.strip_prefix('\n') {
+                    characters = after_newline.chars();
+                }
+            }
+            Some('\n' | '\u{c}') => {}
+            Some(escaped) => {
+                continued.push('\\');
+                continued.push(escaped);
+            }
+            None => continued.push('\\'),
+        }
+    }
+    decode_ident(&continued)
+}
+
 /// The lowercase at-rule name without a vendor prefix, `-webkit-Keyframes` is `keyframes`. `None`
 /// for a prefix without a name, like `-webkit`
 pub(super) fn unprefixed_at_rule_name(decoded_name: &str) -> Option<String> {

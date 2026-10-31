@@ -9,7 +9,9 @@ use crate::{
 };
 
 use super::css_syntax::is_layer_name;
-use super::id_order::{ends_with_scoped_prefix, scoped_variable_names};
+use super::css_tokens::is_ident_char;
+use super::id_order::ends_with_scoped_prefix;
+use super::scoped_idents::first_scoped_ident;
 use super::static_evaluation::resolved_constant;
 
 /// Scoped variables must be written in the template text, values interpolated from constants or
@@ -20,26 +22,39 @@ pub(super) fn interpolated_scoped_variable_error(
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    let name = scoped_variable_names(value).into_iter().next()?;
+    let name = first_scoped_ident(value)?;
     Some(CompilerDiagnostic::error(
         file_path,
         source,
         expression.span(),
         format!(
-            "Interpolated values can't contain scoped variables like \"---{name}\", write scoped variables directly in the template"
+            "Interpolated values can't contain scoped variables like \"{name}\", write scoped variables directly in the template"
         ),
     ))
 }
 
-/// A scoped name continuing into an interpolation, like `---${name}` or `var(---gap-${size})`,
-/// would only be a scoped name after evaluation, so it is never renamed consistently
-pub(super) fn split_scoped_name_error(
+/// A scoped name joined from the template text and an interpolated value, like `---${name}`,
+/// `-${'--gap'}` or `${'---'}gap`, would only be a scoped name after evaluation, so it is never
+/// renamed consistently
+pub(super) fn joined_scoped_name_error(
     css_before: &str,
+    value: &str,
+    css_after: &str,
     expression: &Expression<'_>,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
-    ends_with_scoped_prefix(css_before).then(|| {
+    let before = trailing_ident(css_before);
+    let joins_before = ends_with_scoped_prefix(css_before)
+        || (!before.is_empty() && format!("{before}{}", leading_ident(value)).starts_with("---"));
+    let joins_after = !value.is_empty() && {
+        let joined = format!("{css_before}{value}");
+        let end = trailing_ident(&joined);
+        end.len() > before.len()
+            && !leading_ident(css_after).is_empty()
+            && format!("{end}{}", leading_ident(css_after)).starts_with("---")
+    };
+    (joins_before || joins_after).then(|| {
         CompilerDiagnostic::error(
             file_path,
             source,
@@ -47,6 +62,24 @@ pub(super) fn split_scoped_name_error(
             "Scoped variable names can't contain interpolations, write the whole name in the template, e.g. `---gap`".to_owned(),
         )
     })
+}
+
+fn trailing_ident(text: &str) -> &str {
+    let start = text
+        .char_indices()
+        .rev()
+        .take_while(|(_, character)| is_ident_char(*character))
+        .last()
+        .map_or(text.len(), |(start, _)| start);
+    &text[start..]
+}
+
+fn leading_ident(text: &str) -> &str {
+    let end = text
+        .char_indices()
+        .find(|(_, character)| !is_ident_char(*character))
+        .map_or(text.len(), |(end, _)| end);
+    &text[..end]
 }
 
 pub(super) fn invalid_layer_error(

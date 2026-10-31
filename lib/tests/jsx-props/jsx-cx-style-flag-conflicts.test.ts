@@ -63,7 +63,7 @@ describe('Errors for Style Flag and CX Prop Conflicts', () => {
       }),
     ).rejects.toThrowErrorMatchingInlineSnapshot(
       `
-      [TransformError: /test.tsx: Style flag prop 'size' conflicts with cx prop key 'size' on Button. Use different names to avoid conflicts.
+      [TransformError: /test.tsx: Style flag prop 'size' conflicts with cx prop key 'size-small' on Button. Use different names to avoid conflicts.
       loc: 17:4]
     `,
     );
@@ -278,6 +278,35 @@ test('should throw for cx keys conflicting with style flags of an imported base'
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Style flag prop 'active' conflicts with cx prop key 'active' on Ext. Use different names to avoid conflicts.
+    loc: 8:48]
+  `);
+});
+
+test('should name the prop of an imported base string union flag conflicting with a cx key', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+        import { Item } from '#/item';
+
+        const Ext = styled(Item)\`
+          color: blue;
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => <Ext cx={{ 'size-small': on }} />;
+      `,
+      overrideDefaultFs: createFsMock({
+        'item.tsx': dedent`
+          import { styled } from 'vindur';
+
+          export const Item = styled.div<{ size: 'small' | 'large' }>\`
+            &.size-small { font-size: 12px; }
+          \`;
+        `,
+      }),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag prop 'size' conflicts with cx prop key 'size-small' on Ext. Use different names to avoid conflicts.
     loc: 8:48]
   `);
 });

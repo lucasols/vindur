@@ -26,9 +26,9 @@ const RESOLVED_VIRTUAL_PREFIX = `\0${VIRTUAL_PREFIX}`;
 const INLINE_SOURCEMAP_RE = /sourceMappingURL=data:application\/json;base64,/;
 const VINDUR_MODULE_IMPORT_RE = /\b(?:from\s*|import\s*)['"]vindur['"]/u;
 const VINDUR_JSX_PROP_RE = /\b(?:css|cx|dynamicColor)\s*=/u;
-// Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name` or
-// `'var(---color)'`, which are renamed or rejected
-const SCOPED_STYLE_KEY_RE = /['"`]---(?:[\w-]|['"`])|var\(---/u;
+// Scoped variable keys and reads of a `style` prop, like `'---color'`, `'---' + name`,
+// `` `---${name}` `` or `'var(---color)'`, which are renamed or rejected
+const SCOPED_STYLE_KEY_RE = /['"`]---|var\(---/u;
 const VINDUR_CODE_RES = [
   VINDUR_MODULE_IMPORT_RE,
   VINDUR_JSX_PROP_RE,

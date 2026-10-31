@@ -14,7 +14,7 @@ use super::import_errors::{
 };
 use super::interpolation_validation::{
     interpolated_scoped_variable_error, invalid_array_argument_error, invalid_layer_error,
-    split_scoped_name_error,
+    joined_scoped_name_error,
 };
 use super::static_evaluation::{
     collect_declaration_constants, evaluate_expression, has_css_text, is_unresolved_import,
@@ -235,7 +235,7 @@ fn build_template_css(
         let in_string_or_comment = open_tokens.ends_in_string_or_comment(&evaluated.css);
         if !in_string_or_comment
             && let Some(diagnostic) =
-                split_scoped_name_error(&evaluated.css, expression, file_path, source)
+                joined_scoped_name_error(&evaluated.css, "", "", expression, file_path, source)
         {
             return Err(diagnostic);
         }
@@ -301,10 +301,24 @@ fn build_template_css(
             StaticValue::CssClass { name, .. } => format!(".{name}"),
             value => {
                 let value = static_value_to_string(value);
-                if let Some(diagnostic) =
-                    interpolated_scoped_variable_error(&value, expression, file_path, source)
-                {
-                    return Err(diagnostic);
+                // Names in strings and comments are not renamed
+                if !in_string_or_comment {
+                    let css_after = template.quasis.get(index + 1).map_or("", quasi_text);
+                    if let Some(diagnostic) =
+                        interpolated_scoped_variable_error(&value, expression, file_path, source)
+                            .or_else(|| {
+                                joined_scoped_name_error(
+                                    &evaluated.css,
+                                    &value,
+                                    css_after,
+                                    expression,
+                                    file_path,
+                                    source,
+                                )
+                            })
+                    {
+                        return Err(diagnostic);
+                    }
                 }
                 value
             }
@@ -552,6 +566,11 @@ fn cooked_escape_error(
         let start = quasi.span.start + u32::try_from(index).ok()?;
         let message = if escaped.is_whitespace() {
             "A `\\` before a line break or space is a JavaScript escape in the template, remove it or write `\\\\` for a CSS escape".to_owned()
+        } else if escaped.is_alphanumeric() && !escaped.is_ascii_hexdigit() {
+            // A CSS escape of a letter is the letter itself, like `\n` for `n`
+            format!(
+                "`\\{escaped}` is a JavaScript escape in the template, write the character itself or a CSS escape of its hex code, like `\\\\A` for a line break or `\\\\2014` for `—`"
+            )
         } else {
             format!(
                 "`\\{escaped}` is a JavaScript escape in the template, write `\\\\{escaped}` for a CSS escape"

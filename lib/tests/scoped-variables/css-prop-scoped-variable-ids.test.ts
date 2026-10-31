@@ -253,3 +253,71 @@ test('should throw for scoped variable names built with interpolations', async (
     loc: 6:26]
   `);
 });
+
+test('should throw for scoped variable names completed by the template after an interpolation', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        const PREFIX = '---';
+
+        export const style = css\`
+          \${PREFIX}tone: red;
+          color: var(---tone);
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 6:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur';
+
+        const DASH = '-';
+
+        export const style = css\`
+          ---tone: red;
+          color: var(-\${DASH}-tone);
+        \`;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped variable names can't contain interpolations, write the whole name in the template, e.g. \`---gap\`
+    loc: 7:16]
+  `);
+});
+
+test('should allow interpolated values with `---` that is not a scoped name', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css } from 'vindur';
+
+      const HERO = '/img/hero---large.png';
+      const LABEL = 'a---b';
+
+      export const style = css\`
+        background: url("\${HERO}");
+        mask: url(\${HERO});
+        &::before {
+          content: '\${LABEL}';
+        }
+      \`;
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      background: url("/img/hero---large.png");
+      mask: url(/img/hero---large.png);
+      &::before {
+        content: "a---b";
+      }
+    }
+    "
+  `);
+});

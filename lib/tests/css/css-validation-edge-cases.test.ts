@@ -573,3 +573,45 @@ test('should throw for escapes JavaScript does not support in the template', asy
     loc: 5:23]
   `);
 });
+
+test('should suggest a CSS escape of the hex code for JavaScript letter escapes', async () => {
+  await expect(
+    transformWithFormat({
+      // \u2014 would be cooked by dedent
+      source: dedent`
+        import { css } from 'vindur';
+
+        export const style = css\`
+          &::before {
+            content: "BSu2014";
+          }
+        \`;
+      `.replace('BS', '\\'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`\\u\` is a JavaScript escape in the template, write the character itself or a CSS escape of its hex code, like \`\\\\A\` for a line break or \`\\\\2014\` for \`—\`
+    loc: 5:14]
+  `);
+});
+
+test('should throw for quoted scoped names with a line continuation', async () => {
+  await expect(
+    transformWithFormat({
+      // dedent drops the character after a backslash and a line break
+      source: dedent`
+        import { createGlobalStyle } from 'vindur';
+
+        createGlobalStyle\`
+          body {
+            font-family: "---braBSBS
+        nd";
+          }
+        \`;
+      `.replace('BSBS', '\\\\'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Scoped name \`---bra\\
+    nd\` can't contain escapes, write it without them
+    loc: 5:18]
+  `);
+});

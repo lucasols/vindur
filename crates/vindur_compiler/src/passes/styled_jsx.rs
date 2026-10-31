@@ -87,6 +87,17 @@ impl<'a> Visit<'a> for StyledJsxVisitor<'_, '_, '_> {
             ));
             return;
         }
+        if let Some((flag_name, span)) = rewritten_flag_value(element, component, self.edits) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.file_path,
+                self.source,
+                span,
+                format!(
+                    "Style flag `{flag_name}` value can't call `stableId()` or `createClassName()`, as the value is moved into the className, assign the result to a module level constant first"
+                ),
+            ));
+            return;
+        }
         let has_dynamic_color = element.opening_element.attributes.iter().any(|item| {
             let JSXAttributeItem::Attribute(attribute) = item else {
                 return false;
@@ -343,3 +354,35 @@ impl StyledJsxVisitor<'_, '_, '_> {
 }
 
 use super::styled_jsx_helpers::*;
+
+/// A style flag value code other passes rewrite, like an inline `stableId()`, as the value is
+/// moved into the className
+fn rewritten_flag_value<'e>(
+    element: &'e JSXElement<'_>,
+    component: &StyledComponent,
+    edits: &[Edit],
+) -> Option<(&'e str, oxc_span::Span)> {
+    element.opening_element.attributes.iter().find_map(|item| {
+        let JSXAttributeItem::Attribute(attribute) = item else {
+            return None;
+        };
+        let JSXAttributeName::Identifier(name) = &attribute.name else {
+            return None;
+        };
+        if !component
+            .style_flags
+            .iter()
+            .any(|flag| flag.prop_name == name.name.as_str())
+        {
+            return None;
+        }
+        let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value else {
+            return None;
+        };
+        let value = container.expression.span();
+        edits
+            .iter()
+            .find(|edit| edit.span.start >= value.start && edit.span.end <= value.end)
+            .map(|edit| (name.name.as_str(), edit.span))
+    })
+}

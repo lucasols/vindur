@@ -20,6 +20,7 @@ use super::{
     cx_modifier_selectors::StyleBlockClasses,
     function_validation::validate_vindur_function,
     function_value::try_compile_vindur_function,
+    import_errors::unknown_import_message,
     scoped::{ScopedVariables, process_scoped_variables},
     static_value::{TemplateContext, evaluate_template, locate_template_error},
     style_flag_selectors::{
@@ -27,7 +28,7 @@ use super::{
         rewrite_style_flag_selectors, style_classes, undeclared_style_classes,
     },
     styled::{
-        StyledComponent, StyledTagContext, css_class_name_part, styled_base_name,
+        StyledComponent, StyledTagContext, css_class_name_part, styled_base,
         styled_tag_component_with_attrs,
     },
     styled_attrs::{AttrsHoisting, hoist_attrs, merge_attrs},
@@ -245,8 +246,25 @@ pub(super) fn process_variable_declaration(
                 .cloned()
                 .collect::<Vec<_>>();
             style_flags.extend(own_style_flags.iter().cloned());
+            let base_identifier = styled_base(&tagged.tag);
+            // The flags of a base imported through a re-export or an import cycle are unknown
+            let unknown_base = base_identifier.and_then(|base| {
+                let value = transform.constants.get(base.name.as_str())?;
+                let message = unknown_import_message(&base.name, value, transform.file_path)?;
+                Some(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    base.span,
+                    message,
+                ))
+            });
+            if let Some(error) = &unknown_base
+                && !own_style_flags.is_empty()
+            {
+                return Err(error.clone());
+            }
             let flag_class_list = all_flag_classes(
-                styled_base_name(&tagged.tag),
+                base_identifier.map(|base| base.name.as_str()),
                 &base_component.style_flags,
                 &own_style_flags,
                 &style_flags,
@@ -276,7 +294,8 @@ pub(super) fn process_variable_declaration(
                 &template_context,
             )?;
             let content = clean_css(&content);
-            let classes = if transform.dev || !flag_class_list.is_empty() {
+            let classes = if transform.dev || !flag_class_list.is_empty() || unknown_base.is_some()
+            {
                 style_classes(&content).map_err(|error| {
                     css_error_diagnostic(transform.file_path, transform.source, tagged.span, error)
                 })?
@@ -284,6 +303,12 @@ pub(super) fn process_variable_declaration(
                 StyleBlockClasses::default()
             };
             let element_classes = classes.element;
+            // A selected class can be a flag of the base, hashed by its own module
+            if let Some(error) = unknown_base
+                && !element_classes.is_empty()
+            {
+                return Err(error);
+            }
             if transform.dev {
                 let other_element_flags =
                     other_element_flag_classes(&content, &classes.other, &flag_class_list);

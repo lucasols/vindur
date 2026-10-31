@@ -1,7 +1,7 @@
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeName, JSXElement, JSXFragment,
-    ObjectExpression, ObjectProperty, Program, Statement, TSTypeParameterInstantiation,
-    TaggedTemplateExpression, TemplateLiteral,
+    Argument, CallExpression, Expression, IdentifierReference, JSXAttribute, JSXAttributeName,
+    JSXElement, JSXFragment, ObjectExpression, ObjectProperty, Program, Statement,
+    TSTypeParameterInstantiation, TaggedTemplateExpression, TemplateLiteral,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_span::{GetSpan, Span};
@@ -251,16 +251,15 @@ fn unsupported_styled_tag_message(tag: &Expression<'_>) -> &'static str {
     "Unsupported styled component definition, use styled.tag`...`, styled(Component)`...` or add a single .attrs({...}) to them"
 }
 
-/// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
 /// The identifier a styled component extends, e.g. `Base` in `styled(Base).attrs({ ... })`
-pub(crate) fn styled_base_name<'a>(tag: &'a Expression<'_>) -> Option<&'a str> {
+pub(crate) fn styled_base<'a, 'b>(tag: &'a Expression<'b>) -> Option<&'a IdentifierReference<'b>> {
     let Expression::CallExpression(call) = attrs_base(tag) else {
         return None;
     };
     let [Argument::Identifier(base)] = call.arguments.as_slice() else {
         return None;
     };
-    Some(base.name.as_str())
+    Some(base)
 }
 
 /// The binding of the component a styled component extends, e.g. `Icons` in `styled(Icons.Star)`
@@ -278,6 +277,7 @@ pub(crate) fn styled_base_root_name<'a>(tag: &'a Expression<'_>) -> Option<&'a s
     }
 }
 
+/// The `styled(...)` call an `.attrs({...})` call is made on, or the tag itself
 fn attrs_base<'b, 'a>(tag: &'b Expression<'a>) -> &'b Expression<'a> {
     if let Expression::CallExpression(call) = tag
         && let Expression::StaticMemberExpression(member) = &call.callee

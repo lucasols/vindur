@@ -347,21 +347,23 @@ impl JsxCxVisitor<'_> {
         }
 
         if let Some(styled) = &styled {
+            // The flag props with the cx keys that select their classes
             let mut conflicts = styled
                 .style_flags
                 .iter()
-                .filter(|flag| {
-                    mappings.iter().any(|(class_name, _, _)| {
-                        !class_name.starts_with('$')
+                .filter_map(|flag| {
+                    mappings.iter().find_map(|(class_name, _, _)| {
+                        (!class_name.starts_with('$')
                             && (class_name == &flag.prop_name
                                 || class_name
                                     .strip_prefix(&flag.prop_name)
-                                    .is_some_and(|suffix| suffix.starts_with('-')))
+                                    .is_some_and(|suffix| suffix.starts_with('-'))))
+                        .then_some((flag.prop_name.as_str(), class_name.as_str()))
                     })
                 })
-                .map(|flag| flag.prop_name.as_str())
                 .collect::<Vec<_>>();
-            // Flags of an imported base, which the base applies, are only known by their classes
+            // Flags of an imported base, which the base applies, are only known by their classes,
+            // the prop is the part before the value, like `size` in `size-small`
             if let Some(StaticValue::ClassName { style_flags, .. }) =
                 jsx_name(name).and_then(|name| self.output.constants.get(name))
             {
@@ -370,27 +372,37 @@ impl JsxCxVisitor<'_> {
                     .iter()
                     .filter(|flag| !own_classes.iter().any(|own| own.original == flag.original));
                 for flag in inherited {
+                    let prop = flag
+                        .original
+                        .split_once('-')
+                        .map_or(flag.original.as_str(), |(prop, _)| prop);
                     if mappings
                         .iter()
                         .any(|(class_name, _, _)| class_name == &flag.original)
-                        && !conflicts.contains(&flag.original.as_str())
+                        && !conflicts.iter().any(|(conflict, _)| *conflict == prop)
                     {
-                        conflicts.push(&flag.original);
+                        conflicts.push((prop, &flag.original));
                     }
                 }
             }
+            if let [(prop, key)] = conflicts.as_slice() {
+                self.set_error(
+                    element.opening_element.span,
+                    format!(
+                        "Style flag prop '{prop}' conflicts with cx prop key '{key}' on {element_name}. Use different names to avoid conflicts."
+                    ),
+                );
+                return;
+            }
             if !conflicts.is_empty() {
-                let message = if conflicts.len() == 1 {
-                    format!(
-                        "Style flag prop '{}' conflicts with cx prop key '{}' on {element_name}. Use different names to avoid conflicts.",
-                        conflicts[0], conflicts[0]
-                    )
-                } else {
-                    format!(
-                        "Style flag props [{}] conflict with cx prop keys on {element_name}. Use different names to avoid conflicts.",
-                        conflicts.join(", ")
-                    )
-                };
+                let props = conflicts
+                    .iter()
+                    .map(|(prop, _)| *prop)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let message = format!(
+                    "Style flag props [{props}] conflict with cx prop keys on {element_name}. Use different names to avoid conflicts."
+                );
                 self.set_error(element.opening_element.span, message);
                 return;
             }

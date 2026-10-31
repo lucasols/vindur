@@ -554,6 +554,31 @@ test('should allow shadowing the base of a styled component kept as a runtime co
   `);
 });
 
+test('should allow shadowing a base rendered through a runtime withComponent element', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur'
+
+      const Card = (props: { className?: string }) => <div {...props} />
+      const Box = styled.div\`padding: 1px;\`
+      const Target = styled(Card)\`color: red;\`
+      const B = Box.withComponent(Target)
+
+      export const App = ({ Card }: { Card: string }) => <B title={Card} />
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { _vSC } from "vindur";
+    const Card = (props: { className?: string }) => <div {...props} />;
+    const Target = _vSC(Card, "v1560qbr-2-Target");
+    export const App = ({ Card }: { Card: string }) => (
+      <Target title={Card} className="v1560qbr-1-Box" />
+    );
+    "
+  `);
+});
+
 test('should allow type parameters with the name of a base of a styled component', async () => {
   const result = await transformWithFormat({
     source: dedent`

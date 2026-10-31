@@ -69,13 +69,15 @@ pub(super) struct ValueReferences {
 /// is used. Only an error when the JSX is compiled to the base, runtime components keep their own
 /// reference to it
 pub(super) struct ShadowedBase {
-    pub component: String,
+    /// The used styled component and the ones it renders, up to the one built from the base
+    pub chain: Vec<String>,
     pub span: Span,
     pub message: String,
 }
 
 impl ShadowedBase {
-    /// The error of the first usage compiled to its base, the JSX of runtime components is kept
+    /// The error of the first usage compiled to its base. The JSX of a runtime component is kept,
+    /// and a runtime component in the chain is rendered instead of the base
     pub(super) fn first_error(
         shadowed: &[Self],
         components: &FxHashMap<String, StyledComponent>,
@@ -83,9 +85,11 @@ impl ShadowedBase {
         source: &str,
     ) -> Result<(), CompilerDiagnostic> {
         match shadowed.iter().find(|shadowed| {
-            components
-                .get(&shadowed.component)
-                .is_some_and(|component| !component.runtime)
+            shadowed.chain.iter().all(|name| {
+                components
+                    .get(name)
+                    .is_some_and(|component| !component.runtime)
+            })
         }) {
             Some(shadowed) => Err(CompilerDiagnostic::error(
                 file_path,
@@ -208,15 +212,16 @@ impl ValueReferenceVisitor<'_, '_> {
         };
         // A styled component built from another one renders that one's base
         let mut component = name.name.as_str();
-        let mut depth = 0;
+        let mut chain = Vec::new();
         while let Some(base) = self.base_names.get(component)
-            && depth < self.base_names.len()
+            && chain.len() < self.base_names.len()
         {
+            chain.push(component.to_owned());
             if let Some(symbol_id) = self.value_binding(scope_id, base)
                 && self.scoping.symbol_scope_id(symbol_id) != self.scoping.root_scope_id()
             {
                 self.shadowed_bases.push(ShadowedBase {
-                    component: name.name.to_string(),
+                    chain,
                     span: self.scoping.symbol_span(symbol_id),
                     message: format!(
                         "\"{base}\" shadows the component \"{base}\" a styled component is built from, rename this binding"
@@ -225,7 +230,6 @@ impl ValueReferenceVisitor<'_, '_> {
                 return;
             }
             component = base;
-            depth += 1;
         }
     }
 
