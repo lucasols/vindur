@@ -343,6 +343,17 @@ fn compare_numbers(
     Some(StaticValue::Boolean(compare(left, right)))
 }
 
+fn is_primitive(value: &StaticValue) -> bool {
+    match value {
+        StaticValue::Boolean(_)
+        | StaticValue::Number(_)
+        | StaticValue::String(_)
+        | StaticValue::Undefined => true,
+        StaticValue::ImportedValue { value, .. } => is_primitive(value),
+        _ => false,
+    }
+}
+
 pub(super) fn evaluate_argument(
     argument: &Argument<'_>,
     constants: &FxHashMap<String, StaticValue>,
@@ -370,9 +381,10 @@ pub(super) fn evaluate_argument(
             binary.operator,
             evaluate_expression(&binary.right, constants, scoping)?,
         ),
-        // Properties of constant objects, like `iconColor.var` or `theme.spacing.md`
+        // Primitive properties of constant objects, like `iconColor.var` or `theme.spacing.md`
         Argument::StaticMemberExpression(_) => {
-            evaluate_expression(argument.to_expression(), constants, scoping)
+            let value = evaluate_expression(argument.to_expression(), constants, scoping)?;
+            is_primitive(&value).then_some(value)
         }
         _ => None,
     }

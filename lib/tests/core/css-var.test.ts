@@ -146,6 +146,50 @@ describe('createCssVar', () => {
     `);
   });
 
+  test('should pass theme color values to vindurFn functions', async () => {
+    const result = await transformWithFormat({
+      source: dedent`
+        import { createStaticThemeColors, css, vindurFn } from 'vindur'
+
+        export const colors = createStaticThemeColors({ primary: '#007bff' })
+
+        export const colored = vindurFn((color: string) => \`color: \${color};\`)
+
+        export const icon = css\`
+          \${colored(colors.primary.value)};
+        \`
+      `,
+    });
+
+    expect(result.css).toMatchInlineSnapshot(`
+      ".v1560qbr-1-icon {
+        color: var(--stc-primary-var, #007bff);
+      }
+      "
+    `);
+  });
+
+  test('should throw when a vindurFn argument property is not a primitive', async () => {
+    await expect(
+      transformWithFormat({
+        source: dedent`
+          import { createStaticThemeColors, css, vindurFn } from 'vindur'
+
+          export const colors = createStaticThemeColors({ primary: '#007bff' })
+
+          export const colored = vindurFn((color: string) => \`color: \${color};\`)
+
+          export const icon = css\`
+            \${colored(colors.primary)};
+          \`
+        `,
+      }),
+    ).rejects.toThrowErrorMatchingInlineSnapshot(`
+      [TransformError: /test.tsx: Unresolved function call at \`... icon = css\` ... \${colored(colors.primary)}, function must be statically analyzable and correctly imported with the configured aliases
+      loc: 8:4]
+    `);
+  });
+
   test('should throw when called with arguments', async () => {
     await expect(
       transformWithFormat({

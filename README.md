@@ -1557,13 +1557,19 @@ const AdaptiveButton = styled.button`
 
 [CSS layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) can be used to avoid conflicts with other styles.
 
-```tsx
-import { styled, layer, createGlobalStyle } from 'vindur';
+A module's styles load after the styles of the modules it imports, and the first appearance of a layer sets its order. So declare the layer order in its own module, imported before any component, e.g. as the first import of the app entry.
 
-// optionally create global style to set the layers order
-const GlobalStyle = createGlobalStyle`
+```tsx
+// layers.ts, imported first: `import './layers';`
+import { createGlobalStyle } from 'vindur';
+
+createGlobalStyle`
   @layer lower-priority, higher-priority;
 `;
+```
+
+```tsx
+import { styled, layer } from 'vindur';
 
 // then use the `layer` function extend the layers in the components;
 const Card = styled.div`
