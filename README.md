@@ -62,6 +62,8 @@ export default [
         {
           // import alias resolution used by the transformer
           importAliases: { '#/': '/' },
+          // the vite plugin's colorSchemeClassNames, if set
+          colorSchemeClassNames: { light: 'lm', dark: 'dm' },
         },
       ],
     },
@@ -412,6 +414,8 @@ const Navigation = styled.nav`
 ```
 
 Sass style suffix concatenation (`&--today`, `&__body`, `&-active`) is a compile error: CSS nesting doesn't concatenate, so the rule would never match. Write the full selector in its own rule instead, e.g. `.day { &--today {} }` -> `.day--today {}`, or use a separate class on the component itself, e.g. `&-active {}` -> `&.active {}`. `&div` is also an error since Sass and CSS nesting read it differently, write `div&` instead.
+
+Rules nested in a pseudo-element rule are a compile error, since `&` can't represent pseudo-elements and the rule would never match. Write the full selector in its own rule instead, e.g. `&::placeholder { .dark & {} }` -> `.dark &::placeholder {}` or `&::-webkit-scrollbar-thumb { &:hover {} }` -> `&::-webkit-scrollbar-thumb:hover {}`.
 
 ### Styled Component References
 
@@ -1531,7 +1535,7 @@ Dynamic colors provide the same color manipulation functions as static colors, p
   - `hexColor`: The color to set, `null`/`undefined`/`false` applies the `isNotDefined` selectors. No variables are set then, so `value` and `contrast.value` still resolve to the color of an ancestor that sets the same color. Only 3 or 6 digit hex colors are analyzed: other CSS colors only set `value` and the `isDefined` selectors, use the `setColorScheme` fallback and log an error in dev mode. `alpha`, `darker` and `lighter` still work with them, the contrast colors and `saturatedDarker` resolve like an unset color
   - `options.style?`: Additional CSS properties to merge
   - `options.className?`: Additional class names to merge
-  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set
+  - `options.setColorScheme?`: Sets the `color-scheme` style to `light` or `dark` to match the color, `fallback` is used when no color is set. With the `colorSchemeClassNames` plugin option it also adds the class of the scheme, see [Color scheme classes](#color-scheme-classes). An element has one color scheme, so use it on only one of its colors: more than one `set` with `setColorScheme` in a `dynamicColor` array is a compile error. In an array of more than one color, the options of each `set` must be written inline, without spreads, so they can be checked
   - `options.veryDarkThreshold?` / `options.veryLightThreshold?`: HSL lightness (0-1) limits for `isVeryDark` / `isVeryLight`, defaults to `0.25` / `0.85`
 - **`set(hexColor, options?)`**: Sets the color through the `dynamicColor` prop, which merges the element's `className` and `style`. `options` accepts `setColorScheme`, `veryDarkThreshold` and `veryLightThreshold`, the same as in `setProps`
 
@@ -1552,6 +1556,28 @@ Available conditional selectors:
 - **`isNotVeryDark`**: When the color is not very dark
 - **`isVeryLight`**: When the color is very light (high contrast needed)
 - **`isNotVeryLight`**: When the color is not very light
+
+### Color scheme classes
+
+If the app's light/dark mode uses classes, set them with the `colorSchemeClassNames` plugin option so `setColorScheme` also adds the class of the scheme:
+
+```ts
+vindurPlugin({
+  importAliases: { '#src/': '/abs/path/to/src/' },
+  colorSchemeClassNames: { light: 'lm', dark: 'dm' },
+});
+```
+
+```tsx
+// adds `dm` for dark colors, `lm` for light ones, and `dm` when no color is set
+<div
+  dynamicColor={bgColor.set(color, { setColorScheme: { fallback: 'dark' } })}
+/>
+```
+
+Pass the same `colorSchemeClassNames` to the `@vindur/check-transform` ESLint rule, so the scheme classes used in styles aren't reported as undeclared.
+
+A descendant selector like `.dm &` matches every ancestor with the class, not only the nearest one. So inside an element with the opposite class of an ancestor, both `.dm &` and `.lm &` rules match and the one declared last wins. To have the nearest scheme win, make the scheme classes set inherited CSS variables (e.g. `.dm { --text: white }`) and use those variables in the styles. The element that sets the color gets the class too, but `.dm &` only matches its descendants, so its own styles need `&.dm`, or the CSS variables, which also apply to the element itself.
 
 ### Usage Examples
 

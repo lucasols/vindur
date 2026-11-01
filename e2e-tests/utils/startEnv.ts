@@ -1,6 +1,9 @@
 /* eslint-disable no-console -- test file */
 import { invariant } from '@ls-stack/utils/assertions';
-import { vindurPlugin } from '@vindur-css/vite-plugin';
+import {
+  vindurPlugin,
+  type VindurPluginOptions,
+} from '@vindur-css/vite-plugin';
 import reactOxc from '@vitejs/plugin-react';
 import reactSwc from '@vitejs/plugin-react-swc';
 import {
@@ -25,6 +28,7 @@ const usedPorts = new Set<number>();
 type StartEnvOptions = {
   /** `oxc-compiler` uses @vitejs/plugin-react with the oxc React Compiler */
   reactPlugin: 'swc' | 'oxc-compiler';
+  colorSchemeClassNames?: VindurPluginOptions['colorSchemeClassNames'];
 };
 
 const defaultStartEnvOptions: StartEnvOptions = { reactPlugin: 'swc' };
@@ -174,6 +178,7 @@ export async function startEnv(
         importAliases: {
           '#src': tempDir,
         },
+        colorSchemeClassNames: options.colorSchemeClassNames,
       }),
     ],
     configFile: false,
@@ -353,6 +358,7 @@ export async function startEnvProd(
         importAliases: {
           '#src': tempDir,
         },
+        colorSchemeClassNames: options.colorSchemeClassNames,
         sourcemap: false,
       }),
     ],

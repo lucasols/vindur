@@ -1,4 +1,5 @@
 import { format } from 'prettier';
+import type { ColorSchemeClassNames } from '../src/runtime-colors';
 import {
   transform,
   type TransformFS,
@@ -56,6 +57,7 @@ export async function transformWithFormat({
   overrideDefaultImportAliases: importAliases = { '#/': '/' },
   production,
   sourcePath = '/test.tsx',
+  colorSchemeClassNames,
   onWarning,
 }: {
   source: string;
@@ -64,6 +66,7 @@ export async function transformWithFormat({
   production?: boolean;
   overrideDefaultImportAliases?: Record<string, string>;
   sourcePath?: string;
+  colorSchemeClassNames?: ColorSchemeClassNames;
   onWarning?: (warning: TransformWarning) => void;
 }) {
   const result = transform({
@@ -74,6 +77,7 @@ export async function transformWithFormat({
     importAliases,
     source,
     dev: !production,
+    colorSchemeClassNames,
     onWarning,
   });
 

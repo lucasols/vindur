@@ -7,8 +7,10 @@ import {
   transform,
   TransformError,
   TransformWarning,
+  validateColorSchemeClassNames,
   type TransformFS,
   type TransformFunctionCache,
+  type TransformOptions,
 } from 'vindur/transform';
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
@@ -85,7 +87,8 @@ const fs: TransformFS = {
 function runVindurTransform(
   filename: string,
   source: string,
-  importAliases: Record<string, string> = {},
+  importAliases: Record<string, string>,
+  colorSchemeClassNames: TransformOptions['colorSchemeClassNames'],
 ) {
   const errors: Array<{
     message: string;
@@ -106,6 +109,8 @@ function runVindurTransform(
     });
   }
 
+  // The function cache doesn't depend on `colorSchemeClassNames`, only the output of the
+  // linted file does, so the cache is keyed by the import aliases alone
   const cache = getSharedCache(importAliases);
 
   try {
@@ -115,6 +120,7 @@ function runVindurTransform(
       dev: true, // Always run in dev mode
       fs,
       importAliases,
+      colorSchemeClassNames,
       sourcemap: false, // We don't need sourcemaps for ESLint
       onWarning,
       transformDynamicColorCache: {},
@@ -163,6 +169,17 @@ export const checkTransformRule: Rule.RuleModule = {
             },
             description: 'Import path aliases for resolving module imports',
           },
+          colorSchemeClassNames: {
+            type: 'object',
+            properties: {
+              light: { type: 'string' },
+              dark: { type: 'string' },
+            },
+            required: ['light', 'dark'],
+            additionalProperties: false,
+            description:
+              'The colorSchemeClassNames option of the vite plugin, so their classes are not reported as undeclared',
+          },
         },
         additionalProperties: false,
       },
@@ -179,13 +196,21 @@ export const checkTransformRule: Rule.RuleModule = {
     const source = context.sourceCode.getText();
     const options = context.options[0] || {};
     const importAliases = options.importAliases || {};
+    // Outside the transform, whose non-transform errors are skipped, so an invalid config
+    // fails the lint run instead of silently disabling the rule
+    validateColorSchemeClassNames(options.colorSchemeClassNames);
 
     // Only process relevant files
     if (!shouldProcessFile(filename, source)) return {};
 
     return {
       Program(node) {
-        const result = runVindurTransform(filename, source, importAliases);
+        const result = runVindurTransform(
+          filename,
+          source,
+          importAliases,
+          options.colorSchemeClassNames,
+        );
 
         for (const error of result.errors) {
           context.report({
