@@ -1577,7 +1577,7 @@ vindurPlugin({
 
 Pass the same `colorSchemeClassNames` to the `@vindur/check-transform` ESLint rule, so the scheme classes used in styles aren't reported as undeclared.
 
-A descendant selector like `.dm &` matches every ancestor with the class, not only the nearest one. So inside an element with the opposite class of an ancestor, both `.dm &` and `.lm &` rules match and the one declared last wins. To have the nearest scheme win, make the scheme classes set inherited CSS variables (e.g. `.dm { --text: white }`) and use those variables in the styles.
+A descendant selector like `.dm &` matches every ancestor with the class, not only the nearest one. So inside an element with the opposite class of an ancestor, both `.dm &` and `.lm &` rules match and the one declared last wins. To have the nearest scheme win, make the scheme classes set inherited CSS variables (e.g. `.dm { --text: white }`) and use those variables in the styles. The element that sets the color gets the class too, but `.dm &` only matches its descendants, so its own styles need `&.dm`, or the CSS variables, which also apply to the element itself.
 
 ### Usage Examples
 
