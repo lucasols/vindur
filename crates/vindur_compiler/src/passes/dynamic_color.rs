@@ -81,6 +81,13 @@ impl DynamicColorVisitor<'_> {
             );
             return;
         };
+        if let Some(span) = non_inline_array_options(&container.expression) {
+            self.error(
+                span,
+                "Write the options of each color.set in a dynamicColor array inline, e.g. `color.set(value, { setColorScheme: { fallback: 'dark' } })`, so the colors can be checked for conflicting options".to_owned(),
+            );
+            return;
+        }
         if let Some(span) = second_color_scheme_setter(&container.expression) {
             self.error(
                 span,
@@ -349,8 +356,38 @@ impl DynamicColorVisitor<'_> {
     }
 }
 
+/// The options of a `set` in a `dynamicColor` array of more than one color that aren't an
+/// object literal without spreads and computed keys, so `second_color_scheme_setter` sees
+/// every `setColorScheme`
+fn non_inline_array_options(expression: &JSXExpression<'_>) -> Option<oxc_span::Span> {
+    let JSXExpression::ArrayExpression(array) = expression else {
+        return None;
+    };
+    if array.elements.len() < 2 {
+        return None;
+    }
+    array.elements.iter().find_map(|element| {
+        let Expression::CallExpression(call) = element.as_expression()? else {
+            return None;
+        };
+        match call.arguments.get(1)? {
+            // Spread arguments are rejected with the invalid dynamicColor error
+            Argument::SpreadElement(_) => None,
+            Argument::ObjectExpression(options) => options
+                .properties
+                .iter()
+                .any(|property| match property {
+                    ObjectPropertyKind::ObjectProperty(property) => property.computed,
+                    ObjectPropertyKind::SpreadProperty(_) => true,
+                })
+                .then_some(options.span),
+            options => Some(options.span()),
+        }
+    })
+}
+
 /// The options of the second `set` in a `dynamicColor` array whose options object literal has
-/// a `setColorScheme` key, options passed as a variable aren't checked
+/// a `setColorScheme` key, `non_inline_array_options` rejects other options in arrays
 fn second_color_scheme_setter(expression: &JSXExpression<'_>) -> Option<oxc_span::Span> {
     let JSXExpression::ArrayExpression(array) = expression else {
         return None;
