@@ -166,6 +166,7 @@ test('should allow nested pseudo selectors with & and top level pseudo selectors
         :where(&.broken) { color: blue; }
         :where(body.x &), :is(.y &) { color: green; }
         .a:not(:hover, :focus-within) { color: gray; }
+        [href]:hover { color: black; }
         \${isDark} { color: white; }
       \`
 
@@ -196,6 +197,9 @@ test('should allow nested pseudo selectors with & and top level pseudo selectors
       }
       .a:not(:hover, :focus-within) {
         color: gray;
+      }
+      [href]:hover {
+        color: black;
       }
       .dm &,
       .dark-theme & {

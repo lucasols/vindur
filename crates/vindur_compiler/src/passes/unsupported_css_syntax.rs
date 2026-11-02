@@ -101,7 +101,7 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
         }
         let rest = &css[index..];
         let byte = bytes[index];
-        if is_global_selector(rest)
+        if starts_with_pseudo_class(rest, GLOBAL_SELECTOR)
             && !is_custom_property_value(css, prelude_start)
             && !is_at_rule_prelude(css, prelude_start)
             && starts_rule_block(css, index)
@@ -143,6 +143,10 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                     message: top_level_at_rule_message(at_rule, &name, tag_type, enclosing_block),
                 });
             }
+        }
+        // A selector can start with an attribute, like `[href]:hover`
+        if matches!(byte, b'(' | b'[') && prelude_start.is_none() {
+            prelude_start = Some(index);
         }
         match byte {
             b'(' | b'[' => paren_depth += 1,
@@ -259,22 +263,14 @@ fn has_parent_selector(selector: &str, allow_scope: bool) -> bool {
             b']' => bracket_depth = bracket_depth.saturating_sub(1),
             _ if bracket_depth > 0 => {}
             b'&' => return true,
-            b':' if allow_scope && is_scope_selector(&selector[index..]) => return true,
+            b':' if allow_scope && starts_with_pseudo_class(&selector[index..], SCOPE_SELECTOR) => {
+                return true;
+            }
             _ => {}
         }
         index += selector[index..].chars().next().map_or(1, char::len_utf8);
     }
     false
-}
-
-// Pseudo-class names are case-insensitive
-fn is_scope_selector(rest: &str) -> bool {
-    rest.get(..SCOPE_SELECTOR.len())
-        .is_some_and(|name| name.eq_ignore_ascii_case(SCOPE_SELECTOR))
-        && !rest[SCOPE_SELECTOR.len()..]
-            .chars()
-            .next()
-            .is_some_and(is_ident_char)
 }
 
 // Splits a selector list at its top-level commas, returning the offset and text of each trimmed
@@ -324,11 +320,11 @@ fn bare_pseudo_selector_message(selector: &str) -> String {
     )
 }
 
-// Pseudo-class names are case-insensitive
-fn is_global_selector(rest: &str) -> bool {
-    rest.get(..GLOBAL_SELECTOR.len())
-        .is_some_and(|name| name.eq_ignore_ascii_case(GLOBAL_SELECTOR))
-        && !rest[GLOBAL_SELECTOR.len()..]
+// Pseudo-class names are case-insensitive, e.g. `:global` or `:scope`
+fn starts_with_pseudo_class(rest: &str, pseudo_class: &str) -> bool {
+    rest.get(..pseudo_class.len())
+        .is_some_and(|name| name.eq_ignore_ascii_case(pseudo_class))
+        && !rest[pseudo_class.len()..]
             .chars()
             .next()
             .is_some_and(is_ident_char)
@@ -636,6 +632,7 @@ mod tests {
         assert_eq!(offset("&::before { --x: { a: b }; color: red; }"), None);
         assert_eq!(offset("&::after { @media print { color: red; } }"), None);
         assert_eq!(offset("&:hover { &::after { color: red; } }"), None);
+        assert_eq!(offset("&::before { [x] { color: red; } }"), Some(12));
     }
 
     #[test]
@@ -706,6 +703,8 @@ mod tests {
             ":where(&.broken) { color: red; }",
             ":where(body.x &), :is(.a &) { color: red; }",
             ":not(.a &) { color: red; }",
+            "[href]:hover { color: red; }",
+            "a { [data-scrollable]::-webkit-scrollbar { width: 0; } }",
             ".a:not(:hover, :focus-within) { color: red; }",
             "> :hover { color: red; }",
             "[title=':x'] { color: red; }",
@@ -719,6 +718,7 @@ mod tests {
             ":root { --x: red; }",
             "::selection { color: red; }",
             "@media print { :root { --x: red; } }",
+            "body { [href]:hover { color: red; } }",
         ] {
             assert_eq!(selector(css, "createGlobalStyle"), None, "{css}");
         }
