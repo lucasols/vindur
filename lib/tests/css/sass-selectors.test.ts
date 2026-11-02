@@ -94,7 +94,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`::-webkit-scrollbar\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&::-webkit-scrollbar\` to match the parent itself or \`& ::-webkit-scrollbar\` to match its descendants
+    [TransformError: /test.tsx: \`::-webkit-scrollbar\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&::-webkit-scrollbar\` to match the parent itself or \`& ::-webkit-scrollbar\` to match its descendants
     loc: 4:4]
   `);
 
@@ -112,7 +112,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants
     loc: 4:4]
   `);
 
@@ -124,7 +124,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:focus-visible\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:focus-visible\` to match the parent itself or \`& :focus-visible\` to match its descendants
+    [TransformError: /test.tsx: \`:focus-visible\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:focus-visible\` to match the parent itself or \`& :focus-visible\` to match its descendants
     loc: 2:34]
   `);
 
@@ -137,7 +137,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants (found in the interpolated value)
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants (found in the interpolated value)
     loc: 3:27]
   `);
 
@@ -149,7 +149,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`::selection\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&::selection\` to match the parent itself or \`& ::selection\` to match its descendants
+    [TransformError: /test.tsx: \`::selection\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&::selection\` to match the parent itself or \`& ::selection\` to match its descendants
     loc: 2:25]
   `);
 });

@@ -213,8 +213,9 @@ fn is_nested_rule(tag_type: &str, blocks: &[Block<'_>]) -> bool {
     tag_type != "createGlobalStyle" || blocks.iter().any(|block| !matches!(block, Block::Grouping))
 }
 
-// Stylis attaches a nested selector starting with a pseudo-class or pseudo-element to the parent
-// selector, like `&:hover`, but native CSS nesting reads it as a descendant, `& :hover`. Returns
+// Native CSS nesting reads a nested selector starting with a pseudo-class or pseudo-element as a
+// descendant, `& :hover`, but stylis 3 (Linaria, styled-components v5) attaches it to the parent
+// selector, like `&:hover`, so code migrated from it silently changes meaning. Returns
 // the offset and text of the first comma-separated selector that starts with `:` without a `&`,
 // rules directly in `@scope` can use `:scope` instead
 fn bare_pseudo_selector(
@@ -319,7 +320,7 @@ fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
 
 fn bare_pseudo_selector_message(selector: &str) -> String {
     format!(
-        "`{selector}` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
+        "`{selector}` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
     )
 }
 
@@ -651,7 +652,7 @@ mod tests {
             error("a { :hover { color: red; } }", "css"),
             Some((
                 ":hover".to_owned(),
-                "`:hover` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
+                "`:hover` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
             ))
         );
         let selector = |css: &str, tag_type: &str| error(css, tag_type).map(|(text, _)| text);
