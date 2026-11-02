@@ -426,11 +426,11 @@ fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
 fn bare_pseudo_selector_message(selector: &str) -> String {
     if parent_selector_count(selector) > 0 {
         return format!(
-            "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write `&{selector}` to match the parent itself or `*{selector}` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`"
+            "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&{selector}` to match the parent itself or `*{selector}` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`"
         );
     }
     format!(
-        "`{selector}` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
+        "`{selector}` is ambiguous, CSS nesting reads it as a descendant selector, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
     )
 }
 
@@ -763,14 +763,14 @@ mod tests {
             error("a { :hover { color: red; } }", "css"),
             Some((
                 ":hover".to_owned(),
-                "`:hover` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
+                "`:hover` is ambiguous, CSS nesting reads it as a descendant selector, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
             ))
         );
         assert_eq!(
             error(":not(.a &) { color: red; }", "css"),
             Some((
                 ":not(.a &)".to_owned(),
-                "`:not(.a &)` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write `&:not(.a &)` to match the parent itself or `*:not(.a &)` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`".to_owned()
+                "`:not(.a &)` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&:not(.a &)` to match the parent itself or `*:not(.a &)` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`".to_owned()
             ))
         );
         let selector = |css: &str, tag_type: &str| error(css, tag_type).map(|(text, _)| text);

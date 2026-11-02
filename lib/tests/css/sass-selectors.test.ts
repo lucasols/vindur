@@ -94,7 +94,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`::-webkit-scrollbar\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&::-webkit-scrollbar\` to match the parent itself or \`& ::-webkit-scrollbar\` to match its descendants
+    [TransformError: /test.tsx: \`::-webkit-scrollbar\` is ambiguous, CSS nesting reads it as a descendant selector, write \`&::-webkit-scrollbar\` to match the parent itself or \`& ::-webkit-scrollbar\` to match its descendants
     loc: 4:4]
   `);
 
@@ -112,7 +112,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants
     loc: 4:4]
   `);
 
@@ -124,7 +124,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:focus-visible\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:focus-visible\` to match the parent itself or \`& :focus-visible\` to match its descendants
+    [TransformError: /test.tsx: \`:focus-visible\` is ambiguous, CSS nesting reads it as a descendant selector, write \`&:focus-visible\` to match the parent itself or \`& :focus-visible\` to match its descendants
     loc: 2:34]
   `);
 
@@ -137,7 +137,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants (found in the interpolated value)
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants (found in the interpolated value)
     loc: 3:27]
   `);
 
@@ -149,7 +149,7 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`::selection\` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write \`&::selection\` to match the parent itself or \`& ::selection\` to match its descendants
+    [TransformError: /test.tsx: \`::selection\` is ambiguous, CSS nesting reads it as a descendant selector, write \`&::selection\` to match the parent itself or \`& ::selection\` to match its descendants
     loc: 2:25]
   `);
 });
@@ -163,7 +163,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:not(.collapsed &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:not(.collapsed &)\` to match the parent itself or \`*:not(.collapsed &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:not(.collapsed &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:not(.collapsed &)\` to match the parent itself or \`*:not(.collapsed &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
     loc: 2:25]
   `);
 
@@ -175,7 +175,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:is(.a, &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:is(.a, &)\` to match the parent itself or \`*:is(.a, &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:is(.a, &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:is(.a, &)\` to match the parent itself or \`*:is(.a, &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
     loc: 2:25]
   `);
 
@@ -187,7 +187,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover &\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:hover &\` to match the parent itself or \`*:hover &\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:hover &\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:hover &\` to match the parent itself or \`*:hover &\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
     loc: 2:25]
   `);
 });
