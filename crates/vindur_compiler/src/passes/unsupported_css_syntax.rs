@@ -170,7 +170,8 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                 }
                 if let (Block::Style { .. }, Some(start)) = (block, prelude_start)
                     && is_nested_rule(tag_type, &blocks)
-                    && let Some((offset, selector)) = bare_pseudo_selector(css, start, index)
+                    && let Some((offset, selector)) =
+                        bare_pseudo_selector(css, start, index, is_in_scope_rule(&blocks))
                 {
                     return Some(UnsupportedSyntax {
                         offset,
@@ -215,15 +216,64 @@ fn is_nested_rule(tag_type: &str, blocks: &[Block<'_>]) -> bool {
 // Stylis attaches a nested selector starting with a pseudo-class or pseudo-element to the parent
 // selector, like `&:hover`, but native CSS nesting reads it as a descendant, `& :hover`. Returns
 // the offset and text of the first comma-separated selector that starts with `:` without a `&`,
-// `:scope` selectors in `@scope` rules don't need it
-fn bare_pseudo_selector(css: &str, start: usize, end: usize) -> Option<(usize, &str)> {
+// rules directly in `@scope` can use `:scope` instead
+fn bare_pseudo_selector(
+    css: &str,
+    start: usize,
+    end: usize,
+    in_scope_rule: bool,
+) -> Option<(usize, &str)> {
     selector_list_parts(css, start, end)
         .into_iter()
-        .find(|(_, part)| {
-            part.starts_with(':')
-                && !part.contains('&')
-                && !part.to_ascii_lowercase().contains(":scope")
+        .find(|(_, part)| part.starts_with(':') && !has_parent_selector(part, in_scope_rule))
+}
+
+// Rules whose nearest enclosing rule is `@scope` are relative to the scope root
+fn is_in_scope_rule(blocks: &[Block<'_>]) -> bool {
+    blocks
+        .iter()
+        .rev()
+        .find(|block| !matches!(block, Block::Grouping))
+        .is_some_and(|block| {
+            matches!(block, Block::OtherAtRule(at_rule)
+                if at_rule_name(at_rule).is_some_and(|(_, name)| name == "scope"))
         })
+}
+
+const SCOPE_SELECTOR: &str = ":scope";
+
+// Looks for `&`, or `:scope` when allowed, outside comments, strings, escapes and attribute
+// selectors, e.g. `:hover[title='&']` has no parent selector
+fn has_parent_selector(selector: &str, allow_scope: bool) -> bool {
+    let bytes = selector.as_bytes();
+    let mut bracket_depth = 0_usize;
+    let mut index = 0;
+    while index < bytes.len() {
+        if let Some(token_end) = skipped_token_end(selector, index) {
+            index = token_end;
+            continue;
+        }
+        match bytes[index] {
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            _ if bracket_depth > 0 => {}
+            b'&' => return true,
+            b':' if allow_scope && is_scope_selector(&selector[index..]) => return true,
+            _ => {}
+        }
+        index += selector[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    false
+}
+
+// Pseudo-class names are case-insensitive
+fn is_scope_selector(rest: &str) -> bool {
+    rest.get(..SCOPE_SELECTOR.len())
+        .is_some_and(|name| name.eq_ignore_ascii_case(SCOPE_SELECTOR))
+        && !rest[SCOPE_SELECTOR.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_ident_char)
 }
 
 // Splits a selector list at its top-level commas, returning the offset and text of each trimmed
@@ -628,6 +678,28 @@ mod tests {
             ),
             Some(":hover".to_owned())
         );
+        for (css, expected) in [
+            (":hover /* & */ { color: red; }", ":hover /* & */"),
+            (
+                ":not([data-x=\"&\"]) { color: red; }",
+                ":not([data-x=\"&\"])",
+            ),
+            (":hover[title='&'] { color: red; }", ":hover[title='&']"),
+            (":hover[data-x=&] { color: red; }", ":hover[data-x=&]"),
+            (
+                "@scope (&) { :hover[title=':scope'] { color: red; } }",
+                ":hover[title=':scope']",
+            ),
+            ("a { :scope > b { color: red; } }", ":scope > b"),
+            (":not(:scope):hover { color: red; }", ":not(:scope):hover"),
+            (
+                "@scope (&) { :scope { :scope:hover { color: red; } } }",
+                ":scope:hover",
+            ),
+            ("@scope (&) { :scoped { color: red; } }", ":scoped"),
+        ] {
+            assert_eq!(selector(css, "css"), Some(expected.to_owned()), "{css}");
+        }
         for css in [
             "&:hover, & ::before { color: red; }",
             ":where(&.broken) { color: red; }",
@@ -637,6 +709,7 @@ mod tests {
             "> :hover { color: red; }",
             "[title=':x'] { color: red; }",
             "@scope (&) { :scope.active { color: red; } }",
+            "@scope (&) { @media print { :SCOPE:hover { color: red; } } }",
             "--x: { :hover { a: b } };",
         ] {
             assert_eq!(selector(css, "css"), None, "{css}");
