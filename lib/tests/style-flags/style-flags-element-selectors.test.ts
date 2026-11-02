@@ -186,14 +186,14 @@ test('should reject style flags in rules that match both the element and other e
   await expect(
     transformWithFormat({ source: styled('&:hover, & .child', 'active') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ".a :where(&, .x)". Split the selectors into separate rules.
     loc: 4:24]
   `);
 
   await expect(
     transformWithFormat({ source: styled('.a :where(&, .x)', 'active') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ".a :where(&, .x)". Split the selectors into separate rules.
     loc: 4:23]
   `);
 });

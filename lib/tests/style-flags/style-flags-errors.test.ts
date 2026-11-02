@@ -357,7 +357,7 @@ test('should throw for style flag classes in rules matching other elements too',
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
+    [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ".a :where(&, .x)". Split the selectors into separate rules.
     loc: 5:6]
   `);
 });
