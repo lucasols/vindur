@@ -168,6 +168,16 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                         message: pseudo_element_nesting_message(selector),
                     });
                 }
+                if let (Block::Style { .. }, Some(start)) = (block, prelude_start)
+                    && is_nested_rule(tag_type, &blocks)
+                    && let Some((offset, selector)) = bare_pseudo_selector(css, start, index)
+                {
+                    return Some(UnsupportedSyntax {
+                        offset,
+                        len: selector.len(),
+                        message: bare_pseudo_selector_message(selector),
+                    });
+                }
                 blocks.push(block);
                 prelude_start = None;
             }
@@ -195,6 +205,72 @@ fn selector_suffix_len(from_ampersand: &str) -> Option<usize> {
         .find(|character: char| !is_ident_char(character))
         .unwrap_or(suffix.len());
     (len > 0).then_some(len + 1)
+}
+
+// Rules at the root of scoped templates are nested in the generated class
+fn is_nested_rule(tag_type: &str, blocks: &[Block<'_>]) -> bool {
+    tag_type != "createGlobalStyle" || blocks.iter().any(|block| !matches!(block, Block::Grouping))
+}
+
+// Stylis attaches a nested selector starting with a pseudo-class or pseudo-element to the parent
+// selector, like `&:hover`, but native CSS nesting reads it as a descendant, `& :hover`. Returns
+// the offset and text of the first comma-separated selector that starts with `:` without a `&`,
+// `:scope` selectors in `@scope` rules don't need it
+fn bare_pseudo_selector(css: &str, start: usize, end: usize) -> Option<(usize, &str)> {
+    selector_list_parts(css, start, end)
+        .into_iter()
+        .find(|(_, part)| {
+            part.starts_with(':')
+                && !part.contains('&')
+                && !part.to_ascii_lowercase().contains(":scope")
+        })
+}
+
+// Splits a selector list at its top-level commas, returning the offset and text of each trimmed
+// selector
+fn selector_list_parts(css: &str, start: usize, end: usize) -> Vec<(usize, &str)> {
+    let bytes = css.as_bytes();
+    let mut parts = Vec::new();
+    let mut paren_depth = 0_usize;
+    let mut part_start = start;
+    let mut index = start;
+    while index < end {
+        if let Some(token_end) = skipped_token_end(css, index) {
+            index = token_end;
+            continue;
+        }
+        match bytes[index] {
+            b'(' | b'[' => paren_depth += 1,
+            b')' | b']' => paren_depth = paren_depth.saturating_sub(1),
+            b',' if paren_depth == 0 => {
+                parts.push(trimmed_part(css, part_start, index));
+                part_start = index + 1;
+            }
+            _ => {}
+        }
+        index += css[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    parts.push(trimmed_part(css, part_start, end.min(css.len())));
+    parts
+}
+
+// Trims whitespace and leading comments, like `/* x */ :hover`
+fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
+    let mut start = start;
+    loop {
+        let raw = &css[start..end];
+        start += raw.len() - raw.trim_start().len();
+        if !css[start..end].starts_with("/*") {
+            return (start, css[start..end].trim_end());
+        }
+        start = skipped_token_end(css, start).map_or(end, |comment_end| comment_end.min(end));
+    }
+}
+
+fn bare_pseudo_selector_message(selector: &str) -> String {
+    format!(
+        "`{selector}` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
+    )
 }
 
 // Pseudo-class names are case-insensitive
@@ -509,6 +585,69 @@ mod tests {
         assert_eq!(offset("&::before { --x: { a: b }; color: red; }"), None);
         assert_eq!(offset("&::after { @media print { color: red; } }"), None);
         assert_eq!(offset("&:hover { &::after { color: red; } }"), None);
+    }
+
+    #[test]
+    fn rejects_nested_selectors_starting_with_a_pseudo_class_without_ampersand() {
+        let error = |css: &str, tag_type: &str| {
+            find_unsupported_syntax(css, tag_type).map(|syntax| {
+                (
+                    css[syntax.offset..syntax.offset + syntax.len].to_owned(),
+                    syntax.message,
+                )
+            })
+        };
+        assert_eq!(
+            error("a { :hover { color: red; } }", "css"),
+            Some((
+                ":hover".to_owned(),
+                "`:hover` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
+            ))
+        );
+        let selector = |css: &str, tag_type: &str| error(css, tag_type).map(|(text, _)| text);
+        assert_eq!(
+            selector("::-webkit-scrollbar { width: 0; }", "styled"),
+            Some("::-webkit-scrollbar".to_owned())
+        );
+        assert_eq!(
+            selector("&:hover, /* a, b */ :focus-visible  { color: red; }", "css"),
+            Some(":focus-visible".to_owned())
+        );
+        assert_eq!(
+            selector("@media print { :hover { color: red; } }", "css"),
+            Some(":hover".to_owned())
+        );
+        assert_eq!(
+            selector("body { ::selection { color: red; } }", "createGlobalStyle"),
+            Some("::selection".to_owned())
+        );
+        assert_eq!(
+            selector(
+                "@scope (.a) { :hover { color: red; } }",
+                "createGlobalStyle"
+            ),
+            Some(":hover".to_owned())
+        );
+        for css in [
+            "&:hover, & ::before { color: red; }",
+            ":where(&.broken) { color: red; }",
+            ":where(body.x &), :is(.a &) { color: red; }",
+            ":not(.a &) { color: red; }",
+            ".a:not(:hover, :focus-within) { color: red; }",
+            "> :hover { color: red; }",
+            "[title=':x'] { color: red; }",
+            "@scope (&) { :scope.active { color: red; } }",
+            "--x: { :hover { a: b } };",
+        ] {
+            assert_eq!(selector(css, "css"), None, "{css}");
+        }
+        for css in [
+            ":root { --x: red; }",
+            "::selection { color: red; }",
+            "@media print { :root { --x: red; } }",
+        ] {
+            assert_eq!(selector(css, "createGlobalStyle"), None, "{css}");
+        }
     }
 
     #[test]

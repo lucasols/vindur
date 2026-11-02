@@ -77,3 +77,138 @@ test('should throw for placeholder selectors', async () => {
     loc: 2:37]
   `);
 });
+
+test('should throw for nested selectors starting with a pseudo-class or pseudo-element without &', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        export const Container = styled.div\`
+          > .scrollableContainer {
+            ::-webkit-scrollbar {
+              width: 0;
+              height: 0;
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`::-webkit-scrollbar\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&::-webkit-scrollbar\` to match the parent itself or \`& ::-webkit-scrollbar\` to match its descendants
+    loc: 4:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur'
+        export const Card = styled.div\`
+          a {
+            :hover {
+              color: red;
+            }
+          }
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants
+    loc: 4:4]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const style = css\`&:hover, :focus-visible { color: red; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:focus-visible\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:focus-visible\` to match the parent itself or \`& :focus-visible\` to match its descendants
+    loc: 2:34]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const hover = ':hover'
+        export const style = css\`\${hover} { color: red; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:hover\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&:hover\` to match the parent itself or \`& :hover\` to match its descendants (found in the interpolated value)
+    loc: 3:27]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle } from 'vindur'
+        createGlobalStyle\`body { ::selection { color: red; } }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`::selection\` is ambiguous, Sass and stylis attach it to the parent selector but CSS nesting reads it as a descendant selector, write \`&::selection\` to match the parent itself or \`& ::selection\` to match its descendants
+    loc: 2:25]
+  `);
+});
+
+test('should allow nested pseudo selectors with & and top level pseudo selectors in global styles', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, createGlobalStyle } from 'vindur'
+
+      const isDark = '.dm &, .dark-theme &'
+
+      export const style = css\`
+        & :hover { color: red; }
+        :where(&.broken) { color: blue; }
+        :where(body.x &), :is(.y &) { color: green; }
+        .a:not(:hover, :focus-within) { color: gray; }
+        \${isDark} { color: white; }
+      \`
+
+      createGlobalStyle\`
+        :root { --x: red; }
+        ::selection { color: var(--x); }
+      \`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "const isDark = ".dm &, .dark-theme &";
+    export const style = "v1560qbr-1-style";
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-style {
+      & :hover {
+        color: red;
+      }
+      :where(&.broken) {
+        color: blue;
+      }
+      :where(body.x &),
+      :is(.y &) {
+        color: green;
+      }
+      .a:not(:hover, :focus-within) {
+        color: gray;
+      }
+      .dm &,
+      .dark-theme & {
+        color: white;
+      }
+    }
+
+    :root {
+      --x: red;
+    }
+    ::selection {
+      color: var(--x);
+    }
+    "
+  `);
+});
