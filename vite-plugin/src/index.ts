@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, relative } from 'node:path';
 import type { SourceMapInput } from 'rollup';
@@ -400,20 +401,22 @@ function hasVindurStyles(code: string, id: string): boolean {
 }
 
 const VIRTUAL_CSS_ID_PREFIX_REGEX = /\.[jt]sx?$/;
+const UNSAFE_VIRTUAL_ID_CHARS_REGEX = /[^\w.-]/g;
 
 function getVirtualCssIdPrefix(id: string): string {
   const relativePath = relative(process.cwd(), id);
   return relativePath
     .replace(VIRTUAL_CSS_ID_PREFIX_REGEX, '')
-    .replace(/\//g, '_');
+    .replace(UNSAFE_VIRTUAL_ID_CHARS_REGEX, '_');
 }
 
+// The id only has URL safe characters: the dev server decodes the request URL before
+// `load`, so a percent-encoded id, like a source path with `[id]`, would not match the
+// stored CSS. The hash keeps ids unique when sanitized paths collide
 function makeVirtualId(srcId: string): string {
   const prefix = getVirtualCssIdPrefix(srcId);
-  // `&lang.css` keeps the id ending in `.css`, otherwise the encoded source
-  // path (e.g. `App.tsx`) matches the JS filters of other plugins, like the
-  // React Compiler in @vitejs/plugin-react
-  return `${VIRTUAL_PREFIX}${prefix}.css?src=${encodeURIComponent(srcId)}&lang.css`;
+  const hash = createHash('sha256').update(srcId).digest('hex').slice(0, 10);
+  return `${VIRTUAL_PREFIX}${prefix}-${hash}.css`;
 }
 
 function resolveVirtualId(id: string): string {
