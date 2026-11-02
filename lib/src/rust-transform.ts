@@ -39,6 +39,7 @@ export function transformWithRust({
   transformFunctionCache,
   fs,
   importAliases,
+  colorSchemeClassNames,
   onWarning,
 }: TransformOptions): VindurTransformResult {
   mirrorRustFunctionCache({
@@ -68,6 +69,7 @@ export function transformWithRust({
       sourcemap,
       normalizeCode: true,
       importAliases,
+      colorSchemeClassNames,
     },
     fs.readFile,
     fs.exists,

@@ -15,5 +15,5 @@ mod semantic;
 pub use compiler::{Compiler, TransformOutput};
 pub use diagnostic::{CompilerDiagnostic, DiagnosticSeverity, SourcePosition};
 pub use facts::{ModuleFacts, ModuleId};
-pub use options::TransformOptions;
+pub use options::{ColorSchemeClassNames, TransformOptions};
 pub use resolver::SourceLoader;

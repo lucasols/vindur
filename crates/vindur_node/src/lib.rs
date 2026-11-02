@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use napi::bindgen_prelude::Function;
 use napi_derive::napi;
 use vindur_compiler::{
-    Compiler as CoreCompiler, CompilerDiagnostic, DiagnosticSeverity as CoreDiagnosticSeverity,
-    SourceLoader, TransformOptions as CoreTransformOptions,
+    ColorSchemeClassNames as CoreColorSchemeClassNames, Compiler as CoreCompiler,
+    CompilerDiagnostic, DiagnosticSeverity as CoreDiagnosticSeverity, SourceLoader,
+    TransformOptions as CoreTransformOptions,
 };
 
 #[napi(string_enum)]
@@ -36,6 +37,13 @@ pub struct TransformOptions {
     pub sourcemap: Option<bool>,
     pub normalize_code: Option<bool>,
     pub import_aliases: Option<HashMap<String, String>>,
+    pub color_scheme_class_names: Option<ColorSchemeClassNames>,
+}
+
+#[napi(object)]
+pub struct ColorSchemeClassNames {
+    pub light: String,
+    pub dark: String,
 }
 
 #[napi(object)]
@@ -77,6 +85,7 @@ impl Compiler {
             sourcemap: None,
             normalize_code: None,
             import_aliases: None,
+            color_scheme_class_names: None,
         });
         let mut loader = JsSourceLoader { read_file, exists };
         let result = self.inner.transform_with_loader(
@@ -91,6 +100,12 @@ impl Compiler {
                     .unwrap_or_default()
                     .into_iter()
                     .collect(),
+                color_scheme_class_names: options.color_scheme_class_names.map(|class_names| {
+                    CoreColorSchemeClassNames {
+                        light: class_names.light,
+                        dark: class_names.dark,
+                    }
+                }),
             },
             &mut loader,
         );

@@ -45,7 +45,7 @@ struct UnsupportedSyntax {
 #[derive(Clone, Copy)]
 enum Block<'a> {
     Grouping,
-    Style,
+    Style { pseudo_element: bool },
     OtherAtRule(&'a str),
 }
 
@@ -157,7 +157,18 @@ fn find_unsupported_syntax(css: &str, tag_type: &str) -> Option<UnsupportedSynta
                 continue;
             }
             b'{' => {
-                blocks.push(block_kind(css, prelude_start));
+                let block = block_kind(css, prelude_start);
+                if let (Block::Style { .. }, Some(start)) = (block, prelude_start)
+                    && is_in_pseudo_element_rule(&blocks)
+                {
+                    let selector = css[start..index].trim_end();
+                    return Some(UnsupportedSyntax {
+                        offset: start,
+                        len: selector.len(),
+                        message: pseudo_element_nesting_message(selector),
+                    });
+                }
+                blocks.push(block);
                 prelude_start = None;
             }
             b'}' => {
@@ -244,13 +255,69 @@ fn is_at_rule_prelude(css: &str, prelude_start: Option<usize>) -> bool {
 
 fn block_kind(css: &str, prelude_start: Option<usize>) -> Block<'_> {
     let Some((at_rule, name)) = prelude_at_rule(css, prelude_start) else {
-        return Block::Style;
+        return Block::Style {
+            pseudo_element: prelude_start.is_some_and(|start| has_pseudo_element(&css[start..])),
+        };
     };
     if GROUPING_AT_RULES.contains(&name.as_str()) {
         Block::Grouping
     } else {
         Block::OtherAtRule(at_rule)
     }
+}
+
+// `&` can't represent pseudo-elements, so a rule nested in `&::placeholder` becomes
+// `.dark :is(.x::placeholder)` in native nesting and lightningcss, which matches nothing
+fn is_in_pseudo_element_rule(blocks: &[Block<'_>]) -> bool {
+    blocks.iter().any(|block| {
+        matches!(
+            block,
+            Block::Style {
+                pseudo_element: true
+            }
+        )
+    })
+}
+
+// Legacy pseudo-elements that also accept the single colon syntax
+const LEGACY_PSEUDO_ELEMENTS: [&str; 4] = ["before", "after", "first-line", "first-letter"];
+
+// Scans the selector until its block opens
+fn has_pseudo_element(css: &str) -> bool {
+    let bytes = css.as_bytes();
+    let mut bracket_depth = 0_usize;
+    let mut index = 0;
+    while index < bytes.len() {
+        if let Some(token_end) = skipped_token_end(css, index) {
+            index = token_end;
+            continue;
+        }
+        match bytes[index] {
+            b'{' if bracket_depth == 0 => return false,
+            // Attribute selectors can contain colons, e.g. `[href^=http:]`
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b':' if bracket_depth == 0 => {
+                if bytes.get(index + 1) == Some(&b':') {
+                    return true;
+                }
+                let name_end = ident_end(css, index + 1);
+                let name = decode_ident(&css[index + 1..name_end]).to_ascii_lowercase();
+                if LEGACY_PSEUDO_ELEMENTS.contains(&name.as_str()) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        index += css[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    false
+}
+
+fn pseudo_element_nesting_message(selector: &str) -> String {
+    format!(
+        "`{selector}` can't be nested in a pseudo-element rule, `&` can't represent pseudo-elements so it would never match the pseudo-element. Write it as its own rule with the full selector, e.g. `&::placeholder {{ .dark & {{}} }}` -> `.dark &::placeholder {{}}` or `&::-webkit-scrollbar-thumb {{ &:hover {{}} }}` -> `&::-webkit-scrollbar-thumb:hover {{}}`"
+    )
 }
 
 // Returns the at-rule and its lowercase name without vendor prefix, e.g.
@@ -302,7 +369,9 @@ fn selector_suffix_message(selector: &str, tag_type: &str, blocks: &[Block<'_>])
             "`{selector}` is ambiguous, Sass concatenates it to the parent selector but CSS nesting reads it as an element selector, write `{element}&` to match `{element}` elements or the full selector for a suffix"
         );
     }
-    let in_style_rule = blocks.iter().any(|block| matches!(block, Block::Style));
+    let in_style_rule = blocks
+        .iter()
+        .any(|block| matches!(block, Block::Style { .. }));
     if !in_style_rule && tag_type != "createGlobalStyle" {
         return format!(
             "`{selector}` is not supported, CSS nesting can't concatenate a suffix to the generated class name, use a separate class instead, e.g. `&-active {{}}` -> `&.active {{}}`"
@@ -339,7 +408,7 @@ fn global_selector_message(from_global: &str, tag_type: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::find_unsupported_syntax;
+    use super::{find_unsupported_syntax, has_pseudo_element};
 
     #[test]
     fn handles_non_ascii_characters_after_global() {
@@ -421,6 +490,25 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn detects_pseudo_elements_in_selectors() {
+        assert!(has_pseudo_element("&::placeholder {"));
+        assert!(has_pseudo_element("&:hover, &:BEFORE {"));
+        assert!(has_pseudo_element("&:first-letter{"));
+        assert!(!has_pseudo_element("&:hover, &:first-child {"));
+        assert!(!has_pseudo_element("a[href^='x::y'], a[title=x\\:\\:y] {"));
+        assert!(!has_pseudo_element("&:not(.x) { &::before {} }"));
+    }
+
+    #[test]
+    fn rejects_rules_nested_in_pseudo_element_rules() {
+        let offset = |css: &str| find_unsupported_syntax(css, "css").map(|syntax| syntax.offset);
+        assert_eq!(offset("&::before { .dm & { color: red; } }"), Some(12));
+        assert_eq!(offset("&::before { --x: { a: b }; color: red; }"), None);
+        assert_eq!(offset("&::after { @media print { color: red; } }"), None);
+        assert_eq!(offset("&:hover { &::after { color: red; } }"), None);
     }
 
     #[test]

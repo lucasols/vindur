@@ -61,15 +61,13 @@ describe('Dynamic Colors - Multiple Colors', () => {
         const color1 = createDynamicCssColor()
         const color2 = createDynamicCssColor()
 
-        const options = { veryLightThreshold: 0.9 }
-
         const Component = ({ color }) => {
           return (
             <div
               className="box"
               dynamicColor={[
                 color1.set(color, { veryDarkThreshold: 0.12 }),
-                color2.set('#ff6b6b', options),
+                color2.set('#ff6b6b', { veryLightThreshold: 0.9 }),
               ]}
             />
           );
@@ -81,9 +79,6 @@ describe('Dynamic Colors - Multiple Colors', () => {
       "import { createDynamicCssColor } from "vindur";
       const color1 = createDynamicCssColor("v1560qbr-1-color1", true);
       const color2 = createDynamicCssColor("v1560qbr-2-color2", true);
-      const options = {
-        veryLightThreshold: 0.9,
-      };
       const Component = ({ color }) => {
         return (
           <div
@@ -94,7 +89,9 @@ describe('Dynamic Colors - Multiple Colors', () => {
                 {
                   className: "box",
                 },
-                options,
+                {
+                  veryLightThreshold: 0.9,
+                },
               ),
               {
                 veryDarkThreshold: 0.12,
@@ -239,4 +236,125 @@ describe('Dynamic Colors - Multiple Colors', () => {
       "
     `);
   });
+});
+
+test('should throw for more than one setColorScheme in a dynamicColor array', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const bg = createDynamicCssColor()
+        const border = createDynamicCssColor()
+
+        const Component = ({ color }) => (
+          <div
+            dynamicColor={[
+              bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+              border.set('#000', { setColorScheme: { fallback: 'light' } }),
+            ]}
+          />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Only one color in a dynamicColor array can use setColorScheme, the element can only have one color scheme. Remove setColorScheme from the other colors
+    loc: 10:25]
+  `);
+});
+
+test('should allow setColorScheme on one color of a dynamicColor array', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor } from 'vindur'
+
+      const bg = createDynamicCssColor()
+      const border = createDynamicCssColor()
+
+      const Component = ({ color }) => (
+        <div
+          dynamicColor={[
+            bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+            border.set('#000', { veryDarkThreshold: 0.1 }),
+          ]}
+        />
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const bg = createDynamicCssColor("v1560qbr-1-bg", true);
+    const border = createDynamicCssColor("v1560qbr-2-border", true);
+    const Component = ({ color }) => (
+      <div
+        {...bg._sp(
+          color,
+          border._sp("#000", undefined, {
+            veryDarkThreshold: 0.1,
+          }),
+          {
+            setColorScheme: {
+              fallback: "dark",
+            },
+          },
+        )}
+      />
+    );
+    "
+  `);
+});
+
+test('should throw for set options passed as a variable in a dynamicColor array', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const bg = createDynamicCssColor()
+        const border = createDynamicCssColor()
+
+        const options = { setColorScheme: { fallback: 'light' } }
+
+        const Component = ({ color }) => (
+          <div
+            dynamicColor={[
+              bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+              border.set('#000', options),
+            ]}
+          />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Write the options of each color.set in a dynamicColor array inline, e.g. \`color.set(value, { setColorScheme: { fallback: 'dark' } })\`, so the colors can be checked for conflicting options
+    loc: 12:25]
+  `);
+});
+
+test('should throw for spread set options in a dynamicColor array', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor } from 'vindur'
+
+        const bg = createDynamicCssColor()
+        const border = createDynamicCssColor()
+
+        const scheme = { setColorScheme: { fallback: 'light' } }
+
+        const Component = ({ color }) => (
+          <div
+            dynamicColor={[
+              bg.set(color, { setColorScheme: { fallback: 'dark' } }),
+              border.set('#000', { ...scheme, veryDarkThreshold: 0.1 }),
+            ]}
+          />
+        )
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Write the options of each color.set in a dynamicColor array inline, e.g. \`color.set(value, { setColorScheme: { fallback: 'dark' } })\`, so the colors can be checked for conflicting options
+    loc: 12:25]
+  `);
 });

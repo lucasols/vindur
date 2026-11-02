@@ -136,9 +136,7 @@ fn shares_indices_between_stable_ids_and_jsx_css_props() {
         source,
         &TransformOptions {
             dev: true,
-            sourcemap: false,
-            normalize_code: false,
-            import_aliases: FxHashMap::default(),
+            ..TransformOptions::default()
         },
     );
 
@@ -170,9 +168,7 @@ const AttachmentImage = styled.img`border: 1px solid cyan;`;
         source,
         &TransformOptions {
             dev: false,
-            sourcemap: false,
-            normalize_code: false,
-            import_aliases: FxHashMap::default(),
+            ..TransformOptions::default()
         },
     );
 

@@ -1,5 +1,6 @@
 import type { RawSourceMap } from 'source-map';
 import type { CompiledFunction } from './types';
+import type { ColorSchemeClassNames } from './runtime-colors';
 import { TransformWarning } from './custom-errors';
 import {
   invalidateRustTransformCache,
@@ -41,6 +42,8 @@ export type TransformOptions = {
   transformFunctionCache: TransformFunctionCache;
   transformDynamicColorCache: TransformDynamicColorCache;
   importAliases: Record<string, string>;
+  /** Classes `setColorScheme` adds for the scheme of a dynamic color, e.g. `{ light: 'lm', dark: 'dm' }` */
+  colorSchemeClassNames?: ColorSchemeClassNames;
   sourcemap?: boolean;
   onWarning?: (warning: TransformWarning) => void;
 };
@@ -63,7 +66,26 @@ export function mayContainVindurCode(code: string): boolean {
   return VINDUR_CODE_PATTERNS.some((pattern) => pattern.test(code));
 }
 
+// A single class name, the runtime adds it as is
+const CLASS_NAME_RE = /^-?[_a-z][\w-]*$/iu;
+
+/** Throws when a class name isn't a single class, bundler plugins call it once on setup */
+export function validateColorSchemeClassNames(
+  classNames: TransformOptions['colorSchemeClassNames'],
+): void {
+  if (!classNames) return;
+  for (const scheme of ['light', 'dark'] as const) {
+    const className = classNames[scheme];
+    if (!CLASS_NAME_RE.test(className)) {
+      throw new Error(
+        `colorSchemeClassNames.${scheme} must be a single class name, got ${JSON.stringify(className)}`,
+      );
+    }
+  }
+}
+
 export function transform(options: TransformOptions): VindurTransformResult {
+  validateColorSchemeClassNames(options.colorSchemeClassNames);
   return transformWithRust(options);
 }
 
