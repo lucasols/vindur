@@ -74,7 +74,7 @@ pub(super) fn rewrite_modifiers(
     }
     rewrite_classes(css, &element_classes(css, kind)?, mappings, |name| {
         format!(
-            "cx prop class \"{name}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${name})."
+            "cx prop class \"{name}\" can't be hashed in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \".a :where(&, .x)\". Split the selectors into separate rules or use a $-prefixed class (e.g. ${name})."
         )
     })
 }

@@ -122,7 +122,7 @@ pub(crate) fn rewrite_style_flag_selectors(
         .collect::<Vec<_>>();
     rewrite_classes(css, classes, &mappings, |name| {
         format!(
-            "Style flag \"{name}\" can't be used in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \":where(&, .x)\". Split the selectors into separate rules."
+            "Style flag \"{name}\" can't be used in a rule that matches both the element and other elements, like \"&.{name}\" nested in \"&:hover, & .child\" or \".a :where(&, .x)\". Split the selectors into separate rules."
         )
     })
 }

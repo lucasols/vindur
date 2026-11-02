@@ -473,7 +473,7 @@ test('referencing styled component flags hashes flags of nested and scoped refer
       \`;
 
       const Child = styled.div\`
-        :is(\${Item}).active & {
+        .list :is(\${Item}).active & {
           color: green;
         }
         .list \${Item} {
@@ -517,7 +517,7 @@ test('referencing styled component flags hashes flags of nested and scoped refer
     }
 
     .v1560qbr-2 {
-      :is(.v1560qbr-1).vmabrr & {
+      .list :is(.v1560qbr-1).vmabrr & {
         color: green;
       }
       .list .v1560qbr-1 {
