@@ -217,10 +217,11 @@ fn is_nested_rule(tag_type: &str, blocks: &[Block<'_>]) -> bool {
     tag_type != "createGlobalStyle" || blocks.iter().any(|block| !matches!(block, Block::Grouping))
 }
 
-// Native CSS nesting reads a nested selector starting with a pseudo-class or pseudo-element as a
-// descendant, `& :hover`, but stylis 3 (Linaria, styled-components v5) attaches it to the parent
-// selector, like `&:hover`, so code migrated from it silently changes meaning. Returns
-// the offset and text of the first comma-separated selector that starts with `:` without a `&`,
+// Stylis 3 (Linaria, styled-components v5) attaches every nested selector starting with a
+// pseudo-class or pseudo-element to the parent selector, like `&:hover` or `&:not(.a &)`, but
+// native CSS nesting reads it as a descendant, `& :hover`, or as written when it contains `&`, so
+// code migrated from it silently changes meaning. Returns the offset and text of the first
+// comma-separated selector that starts with `:` and doesn't match the same elements in both,
 // rules directly in `@scope` can use `:scope` instead
 fn bare_pseudo_selector(
     css: &str,
@@ -230,7 +231,90 @@ fn bare_pseudo_selector(
 ) -> Option<(usize, &str)> {
     selector_list_parts(css, start, end)
         .into_iter()
-        .find(|(_, part)| part.starts_with(':') && !has_parent_selector(part, in_scope_rule))
+        .find(|(_, part)| {
+            part.starts_with(':')
+                && !(in_scope_rule && has_parent_selector(part, true))
+                && !is_anchored_is_or_where(part)
+        })
+}
+
+// `:is()` or `:where()` whose selectors all match `&`, like `:where(body.x &)` or
+// `:is(&.a):hover`, matches only the parent in both stylis 3 and native CSS nesting. A combinator
+// after it, like `:is(.a) &`, would match other elements
+fn is_anchored_is_or_where(selector: &str) -> bool {
+    let Some(name_len) = [":is", ":where"]
+        .into_iter()
+        .find(|name| starts_with_pseudo_class(selector, name))
+        .map(str::len)
+    else {
+        return false;
+    };
+    if !selector[name_len..].starts_with('(') {
+        return false;
+    }
+    let top_level = top_level_bytes(selector);
+    let Some(close) = top_level
+        .iter()
+        .find(|(_, byte)| *byte == b')')
+        .map(|(index, _)| *index)
+    else {
+        return false;
+    };
+    selector_list_parts(selector, name_len + 1, close)
+        .iter()
+        .all(|(_, argument)| last_compound_has_ampersand(argument))
+        && !top_level
+            .iter()
+            .any(|(index, byte)| *index > close && is_combinator(*byte))
+}
+
+fn last_compound_has_ampersand(selector: &str) -> bool {
+    let top_level = top_level_bytes(selector);
+    let compound_start = top_level
+        .iter()
+        .rev()
+        .find(|(_, byte)| is_combinator(*byte))
+        .map_or(0, |(index, _)| index + 1);
+    top_level
+        .iter()
+        .any(|(index, byte)| *index >= compound_start && *byte == b'&')
+}
+
+fn is_combinator(byte: u8) -> bool {
+    byte.is_ascii_whitespace() || matches!(byte, b'>' | b'+' | b'~')
+}
+
+// The bytes of a selector and their offsets, skipping comments, strings, escapes and the contents
+// of parentheses and attribute selectors
+fn top_level_bytes(selector: &str) -> Vec<(usize, u8)> {
+    let bytes = selector.as_bytes();
+    let mut top_level = Vec::new();
+    let mut depth = 0_usize;
+    let mut index = 0;
+    while index < bytes.len() {
+        if let Some(token_end) = skipped_token_end(selector, index) {
+            index = token_end;
+            continue;
+        }
+        match bytes[index] {
+            byte @ (b'(' | b'[') => {
+                if depth == 0 {
+                    top_level.push((index, byte));
+                }
+                depth += 1;
+            }
+            byte @ (b')' | b']') => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    top_level.push((index, byte));
+                }
+            }
+            byte if depth == 0 => top_level.push((index, byte)),
+            _ => {}
+        }
+        index += selector[index..].chars().next().map_or(1, char::len_utf8);
+    }
+    top_level
 }
 
 // Rules whose nearest enclosing rule is `@scope` are relative to the scope root
@@ -315,6 +399,11 @@ fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
 }
 
 fn bare_pseudo_selector_message(selector: &str) -> String {
+    if has_parent_selector(selector, false) {
+        return format!(
+            "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write `&{selector}` to match the parent itself. A leading `:is()` or `:where()` is only allowed when each of its selectors matches `&`, like `:where(.dark &)`"
+        );
+    }
     format!(
         "`{selector}` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&{selector}` to match the parent itself or `& {selector}` to match its descendants"
     )
@@ -652,6 +741,13 @@ mod tests {
                 "`:hover` is ambiguous, CSS nesting reads it as a descendant selector but stylis 3 (used by Linaria and styled-components v5) attaches it to the parent, write `&:hover` to match the parent itself or `& :hover` to match its descendants".to_owned()
             ))
         );
+        assert_eq!(
+            error(":not(.a &) { color: red; }", "css"),
+            Some((
+                ":not(.a &)".to_owned(),
+                "`:not(.a &)` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write `&:not(.a &)` to match the parent itself. A leading `:is()` or `:where()` is only allowed when each of its selectors matches `&`, like `:where(.dark &)`".to_owned()
+            ))
+        );
         let selector = |css: &str, tag_type: &str| error(css, tag_type).map(|(text, _)| text);
         assert_eq!(
             selector("::-webkit-scrollbar { width: 0; }", "styled"),
@@ -695,6 +791,18 @@ mod tests {
                 ":scope:hover",
             ),
             ("@scope (&) { :scoped { color: red; } }", ":scoped"),
+            (":not(.a &) { color: red; }", ":not(.a &)"),
+            (":has(&) { color: red; }", ":has(&)"),
+            (":hover & { color: red; }", ":hover &"),
+            (":is(.a, &) { color: red; }", ":is(.a, &)"),
+            (":where(&, .x) { color: red; }", ":where(&, .x)"),
+            (":is(.item).active & { color: red; }", ":is(.item).active &"),
+            (":where(& .child) { color: red; }", ":where(& .child)"),
+            (":where(.a :not(&)) { color: red; }", ":where(.a :not(&))"),
+            (":is(&) .child { color: red; }", ":is(&) .child"),
+            (":where(&)>.child { color: red; }", ":where(&)>.child"),
+            (":where([title='&']) { color: red; }", ":where([title='&'])"),
+            (":is() { color: red; }", ":is()"),
         ] {
             assert_eq!(selector(css, "css"), Some(expected.to_owned()), "{css}");
         }
@@ -702,7 +810,9 @@ mod tests {
             "&:hover, & ::before { color: red; }",
             ":where(&.broken) { color: red; }",
             ":where(body.x &), :is(.a &) { color: red; }",
-            ":not(.a &) { color: red; }",
+            ":IS(.dark &, .dm >&, &.x) { color: red; }",
+            ":where(&.x):hover::before { color: red; }",
+            ":is(&):not(.a &) { color: red; }",
             "[href]:hover { color: red; }",
             "a { [data-scrollable]::-webkit-scrollbar { width: 0; } }",
             ".a:not(:hover, :focus-within) { color: red; }",

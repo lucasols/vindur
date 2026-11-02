@@ -154,6 +154,44 @@ test('should throw for nested selectors starting with a pseudo-class or pseudo-e
   `);
 });
 
+test('should throw for nested selectors starting with a pseudo-class that contain & but match other elements', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const style = css\`:not(.collapsed &) { display: none; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:not(.collapsed &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:not(.collapsed &)\` to match the parent itself. A leading \`:is()\` or \`:where()\` is only allowed when each of its selectors matches \`&\`, like \`:where(.dark &)\`
+    loc: 2:25]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const style = css\`:is(.a, &) { color: red; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:is(.a, &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:is(.a, &)\` to match the parent itself. A leading \`:is()\` or \`:where()\` is only allowed when each of its selectors matches \`&\`, like \`:where(.dark &)\`
+    loc: 2:25]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        export const style = css\`:hover & { color: red; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:hover &\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write \`&:hover &\` to match the parent itself. A leading \`:is()\` or \`:where()\` is only allowed when each of its selectors matches \`&\`, like \`:where(.dark &)\`
+    loc: 2:25]
+  `);
+});
+
 test('should allow nested pseudo selectors with & and top level pseudo selectors in global styles', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -165,6 +203,7 @@ test('should allow nested pseudo selectors with & and top level pseudo selectors
         & :hover { color: red; }
         :where(&.broken) { color: blue; }
         :where(body.x &), :is(.y &) { color: green; }
+        :where(&.z):hover { color: purple; }
         .a:not(:hover, :focus-within) { color: gray; }
         [href]:hover { color: black; }
         \${isDark} { color: white; }
@@ -194,6 +233,9 @@ test('should allow nested pseudo selectors with & and top level pseudo selectors
       :where(body.x &),
       :is(.y &) {
         color: green;
+      }
+      :where(&.z):hover {
+        color: purple;
       }
       .a:not(:hover, :focus-within) {
         color: gray;

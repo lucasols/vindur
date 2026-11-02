@@ -191,10 +191,10 @@ test('should reject style flags in rules that match both the element and other e
   `);
 
   await expect(
-    transformWithFormat({ source: styled(':where(&, .x)', 'active') }),
+    transformWithFormat({ source: styled('.a :where(&, .x)', 'active') }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: Style flag "active" can't be used in a rule that matches both the element and other elements, like "&.active" nested in "&:hover, & .child" or ":where(&, .x)". Split the selectors into separate rules.
-    loc: 4:20]
+    loc: 4:23]
   `);
 });
 
