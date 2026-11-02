@@ -234,7 +234,7 @@ fn bare_pseudo_selector(
         .into_iter()
         .find(|(_, part)| {
             part.starts_with(':')
-                && !(in_scope_rule && parent_selector_count(part, true) > 0)
+                && !(in_scope_rule && has_scope_selector(part))
                 && !is_anchored_is_or_where(part)
         })
 }
@@ -265,9 +265,9 @@ fn is_anchored_is_or_where(selector: &str) -> bool {
     selector_list_parts(selector, name_len + 1, close)
         .iter()
         .all(|(_, argument)| {
-            parent_selector_count(argument, false) == 1 && last_compound_has_ampersand(argument)
+            parent_selector_count(argument) == 1 && last_compound_has_ampersand(argument)
         })
-        && parent_selector_count(&selector[close + 1..], false) == 0
+        && parent_selector_count(&selector[close + 1..]) == 0
 }
 
 fn last_compound_has_ampersand(selector: &str) -> bool {
@@ -333,9 +333,21 @@ fn is_in_scope_rule(blocks: &[Block<'_>]) -> bool {
 
 const SCOPE_SELECTOR: &str = ":scope";
 
-// Counts `&`, and `:scope` when allowed, outside comments, strings, escapes and attribute
-// selectors, e.g. `:hover[title='&']` has no parent selector
-fn parent_selector_count(selector: &str, allow_scope: bool) -> usize {
+// Counts `&` outside comments, strings, escapes and attribute selectors, e.g. `:hover[title='&']`
+// has no parent selector
+fn parent_selector_count(selector: &str) -> usize {
+    count_outside_attributes(selector, |rest| rest.starts_with('&'))
+}
+
+fn has_scope_selector(selector: &str) -> bool {
+    count_outside_attributes(selector, |rest| {
+        starts_with_pseudo_class(rest, SCOPE_SELECTOR)
+    }) > 0
+}
+
+// Counts the positions where `matches` accepts the rest of the selector, skipping comments,
+// strings, escapes and the contents of attribute selectors
+fn count_outside_attributes(selector: &str, matches: impl Fn(&str) -> bool) -> usize {
     let bytes = selector.as_bytes();
     let mut bracket_depth = 0_usize;
     let mut count = 0;
@@ -349,10 +361,7 @@ fn parent_selector_count(selector: &str, allow_scope: bool) -> usize {
             b'[' => bracket_depth += 1,
             b']' => bracket_depth = bracket_depth.saturating_sub(1),
             _ if bracket_depth > 0 => {}
-            b'&' => count += 1,
-            b':' if allow_scope && starts_with_pseudo_class(&selector[index..], SCOPE_SELECTOR) => {
-                count += 1;
-            }
+            _ if matches(&selector[index..]) => count += 1,
             _ => {}
         }
         index += selector[index..].chars().next().map_or(1, char::len_utf8);
@@ -415,7 +424,7 @@ fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
 }
 
 fn bare_pseudo_selector_message(selector: &str) -> String {
-    if parent_selector_count(selector, false) > 0 {
+    if parent_selector_count(selector) > 0 {
         return format!(
             "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent but stylis 3 (used by Linaria and styled-components v5) does, write `&{selector}` to match the parent itself or `*{selector}` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`"
         );
@@ -807,6 +816,8 @@ mod tests {
                 ":scope:hover",
             ),
             ("@scope (&) { :scoped { color: red; } }", ":scoped"),
+            ("@scope (.a) { :hover & { color: red; } }", ":hover &"),
+            ("@scope (&) { :not(.a &) { color: red; } }", ":not(.a &)"),
             (":not(.a &) { color: red; }", ":not(.a &)"),
             (":has(&) { color: red; }", ":has(&)"),
             (":hover & { color: red; }", ":hover &"),
