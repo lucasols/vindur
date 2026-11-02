@@ -239,10 +239,13 @@ fn bare_pseudo_selector(
         })
 }
 
-// A leading `:is()` or `:where()` whose selectors each have a single `&`, in their last compound,
-// like `:where(body.x &)` or `:is(&.a):hover .icon`, matches only the parent in both stylis 3 and
-// native CSS nesting. More `&`, like `:is(& + &)` or `:is(&) + &`, match other elements when the
-// parent is a selector list, as native nesting matches each `&` with any of its selectors
+// A leading `:is()` or `:where()` anchors the selector to the parent when either:
+// - each of its selectors has a single `&`, outside nested pseudo-classes, and no `&` follows it,
+//   like `:where(body.x &)`, `:where(& .text)` or `:is(&.a):hover .icon`
+// - its selectors have no `&` and the selector ends with a single `&` compound, like
+//   `:where(.dark) &` or `:is(.dark) > &`
+// More `&`, like `:is(& + &)` or `:is(&) + &`, match other elements when the parent is a selector
+// list, as native nesting matches each `&` with any of its selectors
 fn is_anchored_is_or_where(selector: &str) -> bool {
     let Some(name_len) = [":is", ":where"]
         .into_iter()
@@ -262,12 +265,24 @@ fn is_anchored_is_or_where(selector: &str) -> bool {
     else {
         return false;
     };
-    selector_list_parts(selector, name_len + 1, close)
+    let arguments = selector_list_parts(selector, name_len + 1, close);
+    let rest = &selector[close + 1..];
+    if arguments
         .iter()
-        .all(|(_, argument)| {
-            parent_selector_count(argument) == 1 && last_compound_has_ampersand(argument)
-        })
-        && parent_selector_count(&selector[close + 1..]) == 0
+        .all(|(_, argument)| !argument.is_empty() && parent_selector_count(argument) == 0)
+    {
+        return parent_selector_count(rest) == 1 && last_compound_has_ampersand(rest);
+    }
+    arguments.iter().all(|(_, argument)| {
+        parent_selector_count(argument) == 1 && top_level_ampersand_count(argument) == 1
+    }) && parent_selector_count(rest) == 0
+}
+
+fn top_level_ampersand_count(selector: &str) -> usize {
+    top_level_bytes(selector)
+        .iter()
+        .filter(|(_, byte)| *byte == b'&')
+        .count()
 }
 
 fn last_compound_has_ampersand(selector: &str) -> bool {
@@ -426,7 +441,7 @@ fn trimmed_part(css: &str, start: usize, end: usize) -> (usize, &str) {
 fn bare_pseudo_selector_message(selector: &str) -> String {
     if parent_selector_count(selector) > 0 {
         return format!(
-            "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&{selector}` to match the parent itself or `*{selector}` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`"
+            "`{selector}` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&{selector}` to match the parent itself or `*{selector}` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&` and the rest of the selector has none, like `:where(.dark &) .icon`, or when it has no `&` and the selector ends with `&`, like `:where(.dark) &`"
         );
     }
     format!(
@@ -770,7 +785,7 @@ mod tests {
             error(":not(.a &) { color: red; }", "css"),
             Some((
                 ":not(.a &)".to_owned(),
-                "`:not(.a &)` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&:not(.a &)` to match the parent itself or `*:not(.a &)` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&`, in its last compound, and the rest of the selector has none, like `:where(.dark &) .icon`".to_owned()
+                "`:not(.a &)` is ambiguous, CSS nesting doesn't attach a selector that contains `&` to the parent, so it can match elements outside of it, write `&:not(.a &)` to match the parent itself or `*:not(.a &)` to keep the CSS nesting meaning. A leading `:is()` or `:where()` is allowed when each of its selectors has a single `&` and the rest of the selector has none, like `:where(.dark &) .icon`, or when it has no `&` and the selector ends with `&`, like `:where(.dark) &`".to_owned()
             ))
         );
         let selector = |css: &str, tag_type: &str| error(css, tag_type).map(|(text, _)| text);
@@ -823,19 +838,26 @@ mod tests {
             (":hover & { color: red; }", ":hover &"),
             (":is(.a, &) { color: red; }", ":is(.a, &)"),
             (":where(&, .x) { color: red; }", ":where(&, .x)"),
-            (":is(.item).active & { color: red; }", ":is(.item).active &"),
-            (":where(& .child) { color: red; }", ":where(& .child)"),
             (":where(.a :not(&)) { color: red; }", ":where(.a :not(&))"),
             (":root.dark & { color: red; }", ":root.dark &"),
             (":is(& + &) { color: red; }", ":is(& + &)"),
             (":is(&) + & { color: red; }", ":is(&) + &"),
             (":is(&):not(.a &) { color: red; }", ":is(&):not(.a &)"),
-            (
-                ":where(& /* x */ .y) { color: red; }",
-                ":where(& /* x */ .y)",
-            ),
             (":where([title='&']) { color: red; }", ":where([title='&'])"),
             (":is() { color: red; }", ":is()"),
+            (":where(& &) { color: red; }", ":where(& &)"),
+            (
+                ":where(.dm &, .lm .dm &, .dm .lm .dm & &) { color: red; }",
+                ":where(.dm &, .lm .dm &, .dm .lm .dm & &)",
+            ),
+            (":where(.dark) & .x { color: red; }", ":where(.dark) & .x"),
+            (":where(.dark) & & { color: red; }", ":where(.dark) & &"),
+            (
+                ":where(.dark) :is(&) { color: red; }",
+                ":where(.dark) :is(&)",
+            ),
+            (":not(.a) & { color: red; }", ":not(.a) &"),
+            (":is() & { color: red; }", ":is() &"),
         ] {
             assert_eq!(selector(css, "css"), Some(expected.to_owned()), "{css}");
         }
@@ -849,6 +871,10 @@ mod tests {
             ":where(&)>.child, :is(&.a, .b &) + .c { color: red; }",
             ":where(&.active) /* note */ { color: red; }",
             ":where(& /* x */) { color: red; }",
+            ":where(& .text), :where(& /* x */ .y) { color: red; }",
+            ":where(.vw25kiv-1-c0) & { color: red; }",
+            ":is(.dark) > &, :where(.dark) .x & { color: red; }",
+            ":is(.item).active & { color: red; }",
             "*:root.dark & { color: red; }",
             "[href]:hover { color: red; }",
             "a { [data-scrollable]::-webkit-scrollbar { width: 0; } }",

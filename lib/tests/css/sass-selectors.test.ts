@@ -163,7 +163,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:not(.collapsed &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:not(.collapsed &)\` to match the parent itself or \`*:not(.collapsed &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:not(.collapsed &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:not(.collapsed &)\` to match the parent itself or \`*:not(.collapsed &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\` and the rest of the selector has none, like \`:where(.dark &) .icon\`, or when it has no \`&\` and the selector ends with \`&\`, like \`:where(.dark) &\`
     loc: 2:25]
   `);
 
@@ -175,7 +175,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:is(.a, &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:is(.a, &)\` to match the parent itself or \`*:is(.a, &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:is(.a, &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:is(.a, &)\` to match the parent itself or \`*:is(.a, &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\` and the rest of the selector has none, like \`:where(.dark &) .icon\`, or when it has no \`&\` and the selector ends with \`&\`, like \`:where(.dark) &\`
     loc: 2:25]
   `);
 
@@ -187,7 +187,7 @@ test('should throw for nested selectors starting with a pseudo-class that contai
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: \`:hover &\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:hover &\` to match the parent itself or \`*:hover &\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\`, in its last compound, and the rest of the selector has none, like \`:where(.dark &) .icon\`
+    [TransformError: /test.tsx: \`:hover &\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:hover &\` to match the parent itself or \`*:hover &\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\` and the rest of the selector has none, like \`:where(.dark &) .icon\`, or when it has no \`&\` and the selector ends with \`&\`, like \`:where(.dark) &\`
     loc: 2:25]
   `);
 });
@@ -254,6 +254,104 @@ test('should allow nested pseudo selectors with & and top level pseudo selectors
     }
     ::selection {
       color: var(--x);
+    }
+    "
+  `);
+});
+
+test('should allow a leading :where() anchored by & inside it or after it', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createDynamicCssColor, styled } from 'vindur'
+
+      const fieldBgColor = createDynamicCssColor()
+
+      const Tile = styled.div\`
+        :where(\${fieldBgColor.container.isDark}) & {
+          color: white;
+        }
+        :where(& .text) {
+          color: gray;
+        }
+      \`
+
+      export const Component = () => (
+        <div dynamicColor={fieldBgColor.set('#000')}>
+          <Tile />
+        </div>
+      )
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { createDynamicCssColor } from "vindur";
+    const fieldBgColor = createDynamicCssColor("v1560qbr-1-fieldBgColor", true);
+    export const Component = () => (
+      <div {...fieldBgColor._sp("#000")}>
+        <div className="v1560qbr-2-Tile" />
+      </div>
+    );
+    "
+  `);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-2-Tile {
+      :where(.v1560qbr-1-fieldBgColor-container-isDark) & {
+        color: white;
+      }
+      :where(& .text) {
+        color: gray;
+      }
+    }
+    "
+  `);
+});
+
+test('should throw for a leading :where() with more than one & in a selector', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css } from 'vindur'
+        const isDark = '.dm &, .lm .dm &'
+        export const style = css\`:where(\${isDark} &) { color: red; }\`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: \`:where(.dm &, .lm .dm & &)\` is ambiguous, CSS nesting doesn't attach a selector that contains \`&\` to the parent, so it can match elements outside of it, write \`&:where(.dm &, .lm .dm & &)\` to match the parent itself or \`*:where(.dm &, .lm .dm & &)\` to keep the CSS nesting meaning. A leading \`:is()\` or \`:where()\` is allowed when each of its selectors has a single \`&\` and the rest of the selector has none, like \`:where(.dark &) .icon\`, or when it has no \`&\` and the selector ends with \`&\`, like \`:where(.dark) &\`
+    loc: 3:25]
+  `);
+});
+
+test('should allow pseudo selectors in top level and @media rules of global styles', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { createGlobalStyle } from 'vindur'
+
+      createGlobalStyle\`
+        :where(body:not(.default-scrollbar)) {
+          scrollbar-width: thin;
+        }
+
+        @media (min-width: 1024px) {
+          :where(body.scrollbar-medium) {
+            scrollbar-width: auto;
+          }
+        }
+      \`
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`""`);
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ":where(body:not(.default-scrollbar)) {
+      scrollbar-width: thin;
+    }
+
+    @media (min-width: 1024px) {
+      :where(body.scrollbar-medium) {
+        scrollbar-width: auto;
+      }
     }
     "
   `);
