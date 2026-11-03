@@ -148,7 +148,7 @@ test('should reject a hashed cx key in the className of the element with a css p
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: class "active" on "div" never matches the "&.active" styles, as the cx prop of "div" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    [TransformError: /test.tsx: class "active" on "div" is also a key of its cx prop, which hashes it, so the static class is never the cx class. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
     loc: 2:69]
   `);
 });
@@ -630,5 +630,47 @@ test('should allow a static class of a key the styled component rules do not dec
       </>
     );
     "
+  `);
+});
+
+test('should reject a static class of a key of the element own cx prop without styles for it', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Box cx={{ active }} className="active" />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" is also a key of its cx prop, which hashes it, so the static class is never the cx class. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 8:33]
+  `);
+});
+
+test('should reject a hashed cx key in the attrs of a styled component whose css prop declares it', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div.attrs({ className: 'active' })\`
+          color: red;
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Box css={\`&.active { color: blue; }\`} cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" in the .attrs() of "Box" is also a key of the cx prop of "Box", which hashes it, so the static class is never the cx class. Remove it from .attrs() and add it with the cx prop where it's needed, or use "$active" in the cx prop to keep the class name
+    loc: 3:42]
   `);
 });

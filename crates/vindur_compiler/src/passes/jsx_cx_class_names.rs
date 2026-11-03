@@ -93,6 +93,9 @@ struct HashedKey {
     /// If some styles of the element have the key renamed, so a static class of it never matches
     /// them. The elements of a styled component get the hashed class anyway
     renamed: bool,
+    /// A key of the element's own cx prop, a static class of it is never the cx class, whether
+    /// or not its styles declare `&.key`
+    own: bool,
 }
 
 /// Where the static classes are written, for the fix suggested in the error
@@ -134,6 +137,7 @@ impl StaticClassNameVisitor<'_> {
             owner: name.to_owned(),
             css_reference: None,
             renamed: true,
+            own: true,
         }));
         let mut strings = Vec::new();
         for attribute in find_attributes(element, "className") {
@@ -233,6 +237,16 @@ impl StaticClassNameVisitor<'_> {
             ));
             return;
         }
+        // The elements with the cx prop get the `.attrs()` classes too, so a static class of a
+        // key that their styles don't declare is still never the cx class
+        let hashed = hashed
+            .into_iter()
+            .map(|key| HashedKey {
+                own: !key.renamed,
+                renamed: true,
+                ..key
+            })
+            .collect::<Vec<_>>();
         self.report(name, &hashed, &strings, ClassSource::Attrs);
     }
 
@@ -267,6 +281,7 @@ impl StaticClassNameVisitor<'_> {
                         owner: key.owner.clone(),
                         css_reference: None,
                         renamed: key.renamed,
+                        own: false,
                     },
                 ));
             }
@@ -306,6 +321,7 @@ impl StaticClassNameVisitor<'_> {
                 owner: modifier.element_name.clone(),
                 css_reference: None,
                 renamed: modifier.renamed,
+                own: false,
             })
             .collect()
     }
@@ -332,6 +348,7 @@ impl StaticClassNameVisitor<'_> {
                         owner: key.element_name.clone(),
                         css_reference: Some(reference.identifier.clone()),
                         renamed: true,
+                        own: false,
                     })
             })
             .collect()
@@ -360,9 +377,16 @@ impl StaticClassNameVisitor<'_> {
                     None => format!("the \"&.{class}\" styles"),
                 };
                 let message = match source {
+                    ClassSource::Element if key.own => format!(
+                        "class \"{class}\" on \"{name}\" is also a key of its cx prop, which hashes it, so the static class is never the cx class. Add it with the cx prop instead, e.g. cx={{{{ {key}: condition }}}}, or use \"${class}\" in the cx prop to keep the class name",
+                        key = property_key(class)
+                    ),
                     ClassSource::Element => format!(
                         "class \"{class}\" on \"{name}\" never matches {styles}, as the cx prop of \"{owner}\" hashes it. Add it with the cx prop instead, e.g. cx={{{{ {key}: condition }}}}, or use \"${class}\" in the cx prop to keep the class name",
                         key = property_key(class)
+                    ),
+                    ClassSource::Attrs if key.own => format!(
+                        "class \"{class}\" in the .attrs() of \"{name}\" is also a key of the cx prop of \"{owner}\", which hashes it, so the static class is never the cx class. Remove it from .attrs() and add it with the cx prop where it's needed, or use \"${class}\" in the cx prop to keep the class name"
                     ),
                     ClassSource::Attrs => format!(
                         "class \"{class}\" in the .attrs() of \"{name}\" never matches {styles} of \"{owner}\", as its cx prop hashes it. Remove it from .attrs() and add it with the cx prop where it's needed, or use \"${class}\" in the cx prop to keep the class name"

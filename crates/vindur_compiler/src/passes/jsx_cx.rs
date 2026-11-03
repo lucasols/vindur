@@ -67,8 +67,9 @@ pub(crate) struct JsxCxTransform<'a> {
     pub id_starts: &'a FxHashMap<u32, u32>,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
-    /// The indices of the `createGlobalStyle` rules, which are never the rules of an element class
-    pub global_rules: &'a [usize],
+    /// The indices of the `createGlobalStyle` rules and the rules of `css` templates that aren't
+    /// module level css constants, which are never the rules of an element class
+    pub non_element_rules: &'a [usize],
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub hashed_styled_modifiers: &'a mut Vec<HashedStyledModifier>,
     pub hashed_css_reference_keys: &'a mut Vec<HashedCssReferenceKey>,
@@ -668,7 +669,8 @@ impl JsxCxVisitor<'_> {
             let class = classes[index];
             if !self.extended_declarations.contains_key(class) {
                 let mut declared = Vec::new();
-                for rule in owner_rules(self.output.css_rules, self.output.global_rules, class) {
+                for rule in owner_rules(self.output.css_rules, self.output.non_element_rules, class)
+                {
                     declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
                 }
                 self.extended_declarations
@@ -772,7 +774,11 @@ impl JsxCxVisitor<'_> {
             return Ok(Vec::new());
         };
         let mut declared = self.css_prop_class_names(element);
-        for rule in owner_rules(self.output.css_rules, self.output.global_rules, base_class) {
+        for rule in owner_rules(
+            self.output.css_rules,
+            self.output.non_element_rules,
+            base_class,
+        ) {
             declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
         }
         Ok(mappings
@@ -849,7 +855,7 @@ impl JsxCxVisitor<'_> {
     /// If the rules of the class have the hashed class, after they were renamed
     fn declares_renamed_class(&self, owner: &str, hashed: &str) -> bool {
         let selector = format!(".{hashed}");
-        owner_rules(self.output.css_rules, self.output.global_rules, owner).any(|rule| {
+        owner_rules(self.output.css_rules, self.output.non_element_rules, owner).any(|rule| {
             rule.match_indices(&selector).any(|(index, _)| {
                 !rule[index + selector.len()..].starts_with(|char: char| {
                     char.is_ascii_alphanumeric() || char == '-' || char == '_'
@@ -877,12 +883,12 @@ impl JsxCxVisitor<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             let owners = std::slice::from_ref(owner);
-            let global_rules = self.output.global_rules;
+            let non_element_rules = self.output.non_element_rules;
             if let Err(error) =
-                rewrite_class_rules(self.output.css_rules, global_rules, owners, &pending)
+                rewrite_class_rules(self.output.css_rules, non_element_rules, owners, &pending)
             {
                 let failing =
-                    failing_modifier(self.output.css_rules, global_rules, owners, &pending);
+                    failing_modifier(self.output.css_rules, non_element_rules, owners, &pending);
                 return Err((error, failing.map(str::to_owned)));
             }
         }

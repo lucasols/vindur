@@ -429,7 +429,8 @@ pub(crate) fn transform_program(
         },
     )?;
     // Like global styles, the rules of local css templates are never an element's own rules
-    global_rules.extend(local_css_rules.iter().map(|(index, _)| *index));
+    let mut non_element_rules = global_rules;
+    non_element_rules.extend(local_css_rules.iter().map(|(index, _)| *index));
 
     transform_jsx_cx_props(
         program,
@@ -446,7 +447,7 @@ pub(crate) fn transform_program(
             id_starts: &jsx_id_starts,
             edits: &mut edits,
             css_rules: &mut css_rules,
-            global_rules: &global_rules,
+            non_element_rules: &non_element_rules,
             elements: &mut cx_elements,
             hashed_styled_modifiers: &mut hashed_styled_modifiers,
             hashed_css_reference_keys: &mut hashed_css_reference_keys,
@@ -644,7 +645,7 @@ pub(crate) fn transform_program(
         &hashed_owners,
         &css_rules,
         CssRuleOrigins {
-            global_rules: &global_rules,
+            non_element_rules: &non_element_rules,
             local_css_rules: &local_css_rules,
         },
         &file_hash,

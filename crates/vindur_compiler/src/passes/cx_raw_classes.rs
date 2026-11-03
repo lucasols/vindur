@@ -34,7 +34,7 @@ impl HashedCxKeys {
 #[derive(Clone, Copy)]
 pub(super) struct CssRuleOrigins<'r> {
     /// `createGlobalStyle` rules and the rules of local css templates
-    pub global_rules: &'r [usize],
+    pub non_element_rules: &'r [usize],
     /// The rules of `css` templates that aren't module level css constants, with their location
     pub local_css_rules: &'r [(usize, Span)],
 }
@@ -57,7 +57,7 @@ pub(super) fn raw_hashed_cx_key_error(
     source: &str,
 ) -> Option<CompilerDiagnostic> {
     let CssRuleOrigins {
-        global_rules,
+        non_element_rules,
         local_css_rules,
     } = origins;
     let generated_prefix = format!("{file_hash}-");
@@ -89,7 +89,7 @@ pub(super) fn raw_hashed_cx_key_error(
         // Only the generated rules of elements have modifiers of their own element, the `&` of
         // global styles like `html { &.key { ... } }` or `${Box} { &.key { ... } }` can be any
         // element
-        let owner = if global_rules.contains(&index) {
+        let owner = if non_element_rules.contains(&index) {
             None
         } else {
             element_rule_owner(&stylesheet.statements, &generated_prefix)
@@ -327,7 +327,7 @@ mod tests {
     use super::{CssRuleOrigins, HashedCxKeys, raw_hashed_cx_key_error};
 
     /// `vh-1-Card` is a css reference whose own `&.active` rules a cx prop renamed
-    fn check(rule: &str, global_rules: &[usize]) -> bool {
+    fn check(rule: &str, non_element_rules: &[usize]) -> bool {
         let keys = HashedCxKeys {
             keys: vec![("active".to_owned(), Span::new(0, 0))],
         };
@@ -337,7 +337,7 @@ mod tests {
             &hashed_owners,
             &[rule.to_owned()],
             CssRuleOrigins {
-                global_rules,
+                non_element_rules,
                 local_css_rules: &[],
             },
             "vh",

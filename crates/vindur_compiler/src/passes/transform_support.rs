@@ -346,7 +346,7 @@ pub(super) fn process_variable_declaration(
                 classes
                     .sibling_filter
                     .iter()
-                    .any(|range| content.get(range.clone()) == Some(flag.original.as_str()))
+                    .any(|class| class.name == flag.original)
             }) {
                 return Err(CompilerDiagnostic::error(
                     transform.file_path,

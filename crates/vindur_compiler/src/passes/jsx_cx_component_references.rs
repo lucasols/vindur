@@ -56,11 +56,13 @@ pub(crate) fn component_reference_modifier_error(
             }
         };
         for modifier in candidates {
+            // Classes in `of` selectors are never renamed, the raw class check reports them
             if referenced_classes(
                 &stylesheet.statements,
                 &modifier.classes,
                 &modifier.placeholders,
             )
+            .element
             .iter()
             .any(|class| class.name == modifier.class_name)
             {

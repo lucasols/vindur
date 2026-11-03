@@ -249,21 +249,21 @@ fn declares_rewritten_modifier(
 /// `${Box} { ... }`, are global styles and never its rules
 pub(super) fn owner_rules<'r>(
     css_rules: &'r [String],
-    global_rules: &'r [usize],
+    non_element_rules: &'r [usize],
     class_name: &'r str,
 ) -> impl Iterator<Item = &'r String> {
     css_rules
         .iter()
         .enumerate()
         .filter(move |(index, rule)| {
-            !global_rules.contains(index) && is_class_rule(rule, class_name)
+            !non_element_rules.contains(index) && is_class_rule(rule, class_name)
         })
         .map(|(_, rule)| rule)
 }
 
 pub(super) fn rewrite_class_rules(
     css_rules: &mut [String],
-    global_rules: &[usize],
+    non_element_rules: &[usize],
     class_names: &[String],
     mappings: &[(String, String, bool)],
 ) -> Result<(), CssError> {
@@ -271,7 +271,7 @@ pub(super) fn rewrite_class_rules(
         return Ok(());
     }
     for (index, rule) in css_rules.iter_mut().enumerate() {
-        if !global_rules.contains(&index)
+        if !non_element_rules.contains(&index)
             && class_names
                 .iter()
                 .any(|class_name| is_class_rule(rule, class_name))
@@ -285,7 +285,7 @@ pub(super) fn rewrite_class_rules(
 /// The class of the mapping `rewrite_class_rules` fails on, so the error is reported at its cx key
 pub(super) fn failing_modifier<'m>(
     css_rules: &[String],
-    global_rules: &[usize],
+    non_element_rules: &[usize],
     class_names: &[String],
     mappings: &'m [(String, String, bool)],
 ) -> Option<&'m str> {
@@ -294,7 +294,7 @@ pub(super) fn failing_modifier<'m>(
         .find(|mapping| {
             class_names
                 .iter()
-                .flat_map(|class_name| owner_rules(css_rules, global_rules, class_name))
+                .flat_map(|class_name| owner_rules(css_rules, non_element_rules, class_name))
                 .any(|rule| {
                     rewrite_modifiers(rule, ModifierCss::ClassRule, std::slice::from_ref(mapping))
                         .is_err()

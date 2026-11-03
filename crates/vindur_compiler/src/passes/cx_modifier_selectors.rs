@@ -147,8 +147,9 @@ pub(super) struct StyleBlockClasses {
     pub element: Vec<ElementClass>,
     /// The class names of the selectors of other elements, e.g. `name` in `& .name`
     pub other: Vec<Range<usize>>,
-    /// The class names of the `of S` selectors of `:nth-child()`, which also count siblings
-    pub sibling_filter: Vec<Range<usize>>,
+    /// The classes of the `of S` selectors of the element's `:nth-child()`, which also count
+    /// its siblings
+    pub sibling_filter: Vec<ElementClass>,
 }
 
 pub(super) fn style_block_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
@@ -194,15 +195,23 @@ fn collect_classes(
     Ok(collector)
 }
 
-/// The classes that may apply to a styled component selected through a reference to it in the
-/// statements, e.g. `active` in `.item.active &`, `:is(.item).active &` or
-/// `& .item { &.active { ... } }`, sorted by position. The component is referenced by its
-/// `classes` and its forward reference `placeholders`
+/// The classes of a styled component selected through a reference to it in some statements
+pub(super) struct ReferencedClasses {
+    /// The classes that may apply to the component, e.g. `active` in `.item.active &`,
+    /// `:is(.item).active &` or `& .item { &.active { ... } }`, sorted by position
+    pub element: Vec<ElementClass>,
+    /// The classes of the `of S` selectors of the component's `:nth-child()`, which also count
+    /// its siblings
+    pub sibling_filter: Vec<ElementClass>,
+}
+
+/// The classes of a styled component selected through a reference to it in the statements. The
+/// component is referenced by its `classes` and its forward reference `placeholders`
 pub(super) fn referenced_classes(
     statements: &[Statement<'_>],
     classes: &[String],
     placeholders: &[String],
-) -> Vec<ElementClass> {
+) -> ReferencedClasses {
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
         other_classes: None,
@@ -217,7 +226,10 @@ pub(super) fn referenced_classes(
     };
     collector.statements(statements, OTHER);
     collector.classes.sort_by_key(|class| class.start);
-    collector.classes
+    ReferencedClasses {
+        element: collector.classes,
+        sibling_filter: collector.sibling_filter_classes,
+    }
 }
 
 const ELEMENT: Context = Context::Nested(Subject::Element);
@@ -236,7 +248,7 @@ struct ElementClassCollector<'r> {
     /// In the `of S` selectors of `:nth-child()`, whose classes are of other elements too
     in_sibling_filter: bool,
     /// The classes of the `of S` selectors of `:nth-child()`
-    sibling_filter_classes: Vec<Range<usize>>,
+    sibling_filter_classes: Vec<ElementClass>,
 }
 
 impl ElementClassCollector<'_> {
@@ -360,17 +372,16 @@ impl ElementClassCollector<'_> {
                     let InterpolableIdent::Literal(ident) = &class.name else {
                         continue;
                     };
-                    if self.in_sibling_filter {
-                        self.sibling_filter_classes
-                            .push(ident.span.start..ident.span.end);
-                    }
-                    if subject != Subject::Other && !self.in_sibling_filter {
-                        self.classes.push(ElementClass {
-                            start: ident.span.start,
-                            end: ident.span.end,
-                            name: ident.name.to_owned(),
-                            mixed: subject == Subject::Mixed,
-                        });
+                    let class = ElementClass {
+                        start: ident.span.start,
+                        end: ident.span.end,
+                        name: ident.name.to_owned(),
+                        mixed: subject == Subject::Mixed,
+                    };
+                    if subject != Subject::Other && self.in_sibling_filter {
+                        self.sibling_filter_classes.push(class);
+                    } else if subject != Subject::Other {
+                        self.classes.push(class);
                     } else if let Some(other_classes) = &mut self.other_classes {
                         other_classes.push(ident.span.start..ident.span.end);
                     }

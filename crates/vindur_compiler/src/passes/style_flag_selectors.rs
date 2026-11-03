@@ -218,16 +218,20 @@ pub(crate) fn hash_referenced_style_flags(
                 Some(StaticValue::ClassName { style_flags, .. }) => style_flags.as_slice(),
                 _ => &[],
             };
-            if let Some(class) = referenced_classes(
+            let referenced = referenced_classes(
                 &stylesheet.statements,
                 std::slice::from_ref(class_name),
                 &[],
-            )
-            .into_iter()
-            .find(|class| {
-                class.name != *class_name
-                    && !known_flags.iter().any(|flag| flag.original == class.name)
-            }) {
+            );
+            if let Some(class) = referenced
+                .element
+                .into_iter()
+                .chain(referenced.sibling_filter)
+                .find(|class| {
+                    class.name != *class_name
+                        && !known_flags.iter().any(|flag| flag.original == class.name)
+                })
+            {
                 return Err(located(CssError::new(
                     format!(
                         "Class \"{}\" can't be selected through a reference to \"{name}\", the style flags of the component it renders are unknown: {message}",
@@ -240,11 +244,28 @@ pub(crate) fn hash_referenced_style_flags(
         }
         let mut renames = Vec::new();
         for (name, class_name, flags) in referenced {
-            for class in referenced_classes(
+            let referenced = referenced_classes(
                 &stylesheet.statements,
                 std::slice::from_ref(class_name),
                 &[],
-            ) {
+            );
+            // Siblings matched by `of S` never get the hashed flag class of the component
+            if let Some((class, flag)) = referenced.sibling_filter.iter().find_map(|class| {
+                flags
+                    .iter()
+                    .find(|flag| flag.original == class.name)
+                    .map(|flag| (class, flag))
+            }) {
+                return Err(located(CssError::new(
+                    format!(
+                        "Style flag \"{0}\" of \"{name}\" can't be used in the \"of\" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the \"of\" selectors",
+                        flag.original
+                    ),
+                    class.start,
+                    class.end,
+                )));
+            }
+            for class in referenced.element {
                 let Some(flag) = flags.iter().find(|flag| flag.original == class.name) else {
                     continue;
                 };
