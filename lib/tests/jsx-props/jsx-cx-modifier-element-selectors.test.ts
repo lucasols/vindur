@@ -98,9 +98,6 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
         :where(&.active) {
           color: red;
         }
-        &:nth-child(1 of .active) {
-          color: blue;
-        }
         @scope (&.active) {
           &.disabled {
             color: green;
@@ -136,9 +133,6 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
     ".v1560qbr-1-Box {
       :where(&.v1560qbr-2-active) {
         color: red;
-      }
-      &:nth-child(1 of .v1560qbr-2-active) {
-        color: blue;
       }
       @scope (&.v1560qbr-2-active) {
         &.v1560qbr-3-disabled {

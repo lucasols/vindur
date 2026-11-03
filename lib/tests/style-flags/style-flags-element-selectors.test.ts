@@ -4,6 +4,29 @@ import { expect, test } from 'vitest';
 import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
+test('should reject style flags in the of selectors of nth-child', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ active: boolean }>\`
+          &:nth-child(2n of &.active) {
+            color: green;
+          }
+        \`;
+
+        export const App = ({ active }: { active: boolean }) => (
+          <Button active={active} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be used in the "of" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the "of" selectors
+    loc: 3:15]
+  `);
+});
+
 test('should hash style flags in every selector of the element', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -24,9 +47,6 @@ test('should hash style flags in every selector of the element', async () => {
         }
         :is(&.active, &.size-large) {
           outline: none;
-        }
-        &:nth-child(1 of .size-small) {
-          color: green;
         }
         &:hover {
           &.active {
@@ -77,9 +97,6 @@ test('should hash style flags in every selector of the element', async () => {
       }
       :is(&.v1560qbr-1-Button-active, &.v1560qbr-1-Button-size-large) {
         outline: none;
-      }
-      &:nth-child(1 of .v1560qbr-1-Button-size-small) {
-        color: green;
       }
       &:hover {
         &.v1560qbr-1-Button-active {

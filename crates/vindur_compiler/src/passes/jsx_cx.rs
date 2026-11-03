@@ -31,8 +31,8 @@ use super::{
     jsx_cx_class_names::HashedCssReferenceKey,
     jsx_cx_component_references::HashedStyledModifier,
     jsx_cx_css_references::{
-        CssReference, css_references, failing_modifier, inline_css_template_modifiers, owner_rules,
-        rewrite_class_rules, unsupported_css_reference_modifiers, wrapped_css_reference_modifiers,
+        CssReference, css_references, failing_modifier, owner_rules, rewrite_class_rules,
+        unsupported_css_reference_modifiers, wrapped_css_reference_modifiers,
         wrapped_css_references,
     },
     runtime_helpers::RuntimeHelperNames,
@@ -380,23 +380,6 @@ impl JsxCxVisitor<'_> {
         {
             self.set_error(span, message);
             return;
-        }
-        match inline_css_template_modifiers(
-            element,
-            self.output.edits,
-            self.output.css_rules,
-            self.output.global_rules,
-            &mappings,
-        ) {
-            Ok(None) => {}
-            Ok(Some((span, message))) => {
-                self.set_error(span, message);
-                return;
-            }
-            Err(error) => {
-                self.set_error(attribute.span, error.message);
-                return;
-            }
         }
 
         if let Some(styled) = &styled {

@@ -18,7 +18,7 @@ use super::{
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
     cx_optimize::optimize_cx_calls,
-    cx_raw_classes::{HashedCxKeys, raw_hashed_cx_key_error},
+    cx_raw_classes::{CssRuleOrigins, HashedCxKeys, raw_hashed_cx_key_error},
     cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -125,6 +125,7 @@ pub(crate) fn transform_program(
     let file_hash = format!("v{}", murmur2(file_path));
     let mut css_rules = Vec::new();
     let mut global_rules = Vec::new();
+    let mut local_css_rules = Vec::new();
     let mut styled_components = FxHashMap::default();
     let mut handled_calls = Vec::new();
     let mut needs_merge_helper = false;
@@ -424,8 +425,11 @@ pub(crate) fn transform_program(
             id_index: &mut id_index,
             dev: options.dev,
             scoped_variables: &mut scoped_variables,
+            local_css_rules: &mut local_css_rules,
         },
     )?;
+    // Like global styles, the rules of local css templates are never an element's own rules
+    global_rules.extend(local_css_rules.iter().map(|(index, _)| *index));
 
     transform_jsx_cx_props(
         program,
@@ -639,7 +643,10 @@ pub(crate) fn transform_program(
         &hashed_cx_keys,
         &hashed_owners,
         &css_rules,
-        &global_rules,
+        CssRuleOrigins {
+            global_rules: &global_rules,
+            local_css_rules: &local_css_rules,
+        },
         &file_hash,
         file_path,
         source,

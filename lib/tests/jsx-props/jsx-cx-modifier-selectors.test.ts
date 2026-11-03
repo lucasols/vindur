@@ -271,7 +271,7 @@ test('should rewrite cx classes after type and id selectors', async () => {
   `);
 });
 
-test('should rewrite nested & compounds and the of selector list of nth-child', async () => {
+test('should rewrite nested & compounds of the element', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
@@ -280,11 +280,10 @@ test('should rewrite nested & compounds and the of selector list of nth-child', 
         &:not(&.active) { opacity: 0.5; }
         &:is(.list &.active) { color: red; }
         &:has(&.active > .icon) { color: blue; }
-        &:nth-child(2n+1 of .active, .hidden) { top: 0; }
         &:nth-child(2n+1) .current { left: 0; }
       \`;
 
-      export const App = ({ a, h }) => <Item cx={{ active: a, hidden: h }} />;
+      export const App = ({ a }) => <Item cx={{ active: a }} />;
     `,
   });
 
@@ -298,9 +297,6 @@ test('should rewrite nested & compounds and the of selector list of nth-child', 
       }
       &:has(&.v1560qbr-2-active > .icon) {
         color: blue;
-      }
-      &:nth-child(2n + 1 of .v1560qbr-2-active, .v1560qbr-3-hidden) {
-        top: 0;
       }
       &:nth-child(2n + 1) .current {
         left: 0;
@@ -526,13 +522,40 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
   `);
 });
 
-test('should rewrite uppercase of and scoped roots on the styled element', async () => {
+test('should reject cx keys in the of selector list of nth-child', async () => {
+  const source = (selector: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Item = styled.div\`
+      ${selector} { top: 0; }
+    \`;
+
+    export const App = ({ a }) => <Item cx={{ active: a }} />;
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source('&:nth-child(2n+1 of .active, .hidden)'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&:nth-child(2n+1 of .active, .hidden)" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 7:42]
+  `);
+
+  await expect(
+    transformWithFormat({ source: source('&:nth-last-child(2n OF &.active)') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&:nth-last-child(2n OF &.active)" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 7:42]
+  `);
+});
+
+test('should rewrite scoped roots on the styled element', async () => {
   const result = await transformWithFormat({
     source: dedent`
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        &:nth-child(2n OF .active) { top: 0; }
         @scope (& .child) { &.current { left: 0; } }
         @scope (&.active) { & { right: 0; } }
       \`;
@@ -550,9 +573,6 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
-      &:nth-child(2n OF .v1560qbr-2-active) {
-        top: 0;
-      }
       @scope (& .child) {
         &.current {
           left: 0;

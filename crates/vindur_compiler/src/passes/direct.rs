@@ -27,6 +27,9 @@ pub(crate) struct DirectTransform<'a> {
     pub id_index: &'a mut u32,
     pub dev: bool,
     pub scoped_variables: &'a mut ScopedVariables,
+    /// The rules of the `css` templates compiled here, with the template location. They are not
+    /// module level css constants, so cx props never hash their modifiers
+    pub local_css_rules: &'a mut Vec<(usize, Span)>,
 }
 
 pub(crate) fn transform_direct_tags(
@@ -155,7 +158,15 @@ impl<'a> Visit<'a> for DirectTagVisitor<'_> {
             }
         });
         match rules {
-            Ok(rules) => self.output.css_rules.extend(rules),
+            Ok(rules) => {
+                if tag_name == "css" {
+                    let start = self.output.css_rules.len();
+                    self.output
+                        .local_css_rules
+                        .extend((start..start + rules.len()).map(|index| (index, tagged.span)));
+                }
+                self.output.css_rules.extend(rules);
+            }
             Err(error) => {
                 self.diagnostic = Some(css_error_diagnostic(
                     self.output.file_path,

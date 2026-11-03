@@ -341,6 +341,23 @@ pub(super) fn process_variable_declaration(
             } else {
                 StyleBlockClasses::default()
             };
+            // Siblings matched by `of S` never get the hashed flag class of the element
+            if let Some(flag) = flag_class_list.iter().find(|flag| {
+                classes
+                    .sibling_filter
+                    .iter()
+                    .any(|range| content.get(range.clone()) == Some(flag.original.as_str()))
+            }) {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    tagged.span,
+                    format!(
+                        "Style flag \"{name}\" can't be used in the \"of\" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the \"of\" selectors",
+                        name = flag.original
+                    ),
+                ));
+            }
             let element_classes = classes.element;
             // A selected class can be a flag of the base, hashed by its own module
             if let Some(error) = unknown_base

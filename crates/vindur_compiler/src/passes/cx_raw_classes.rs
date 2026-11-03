@@ -30,6 +30,15 @@ impl HashedCxKeys {
     }
 }
 
+/// The indices of the file's css rules that are never an element's own rules
+#[derive(Clone, Copy)]
+pub(super) struct CssRuleOrigins<'r> {
+    /// `createGlobalStyle` rules and the rules of local css templates
+    pub global_rules: &'r [usize],
+    /// The rules of `css` templates that aren't module level css constants, with their location
+    pub local_css_rules: &'r [(usize, Span)],
+}
+
 /// A hashed cx key only renames the classes of its own element, e.g. `&.key`, so any other raw
 /// `.key` class in the file's styles, like `&:has(.key)`, `& .key`, `.key &` or `.key` in another
 /// component or global styles, never matches elements that get the key through cx. The modifiers
@@ -42,11 +51,15 @@ pub(super) fn raw_hashed_cx_key_error(
     keys: &HashedCxKeys,
     hashed_owners: &[(&str, &str)],
     css_rules: &[String],
-    global_rules: &[usize],
+    origins: CssRuleOrigins<'_>,
     file_hash: &str,
     file_path: &str,
     source: &str,
 ) -> Option<CompilerDiagnostic> {
+    let CssRuleOrigins {
+        global_rules,
+        local_css_rules,
+    } = origins;
     let generated_prefix = format!("{file_hash}-");
     let selectors = keys
         .keys
@@ -114,6 +127,28 @@ pub(super) fn raw_hashed_cx_key_error(
             } else {
                 &raw.selectors
             };
+            // Local css templates are written where they are used, so the error points at them
+            if let Some((_, template)) = local_css_rules.iter().find(|(local, _)| *local == index) {
+                let chain = match raw.selectors.split_first() {
+                    Some((first, rest))
+                        if rule[first.start..first.end]
+                            .trim()
+                            .starts_with(&format!(".{generated_prefix}")) =>
+                    {
+                        rest
+                    }
+                    _ => &raw.selectors,
+                };
+                return Some(CompilerDiagnostic::error(
+                    file_path,
+                    source,
+                    *template,
+                    format!(
+                        "cx key \"{name}\" is hashed, so the class \".{name}\" in the selector \"{selector}\" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use \"${name}\" in the cx prop to keep the class name, or rename one of the classes",
+                        selector = nested_selector_text(rule, chain)
+                    ),
+                ));
+            }
             return Some(CompilerDiagnostic::error(
                 file_path,
                 source,
@@ -289,7 +324,7 @@ impl<'c> ClassCollector<'c> {
 mod tests {
     use oxc_span::Span;
 
-    use super::{HashedCxKeys, raw_hashed_cx_key_error};
+    use super::{CssRuleOrigins, HashedCxKeys, raw_hashed_cx_key_error};
 
     /// `vh-1-Card` is a css reference whose own `&.active` rules a cx prop renamed
     fn check(rule: &str, global_rules: &[usize]) -> bool {
@@ -301,7 +336,10 @@ mod tests {
             &keys,
             &hashed_owners,
             &[rule.to_owned()],
-            global_rules,
+            CssRuleOrigins {
+                global_rules,
+                local_css_rules: &[],
+            },
             "vh",
             "file.tsx",
             "",
