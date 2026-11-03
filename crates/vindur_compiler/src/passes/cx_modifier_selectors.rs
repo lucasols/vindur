@@ -124,6 +124,22 @@ pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<Elemen
     Ok(collect_classes(css, kind, None)?.classes)
 }
 
+/// The class selectors that may apply to the element itself in the parsed generated rules of the
+/// element class, see `ModifierCss::ClassRule`
+pub(super) fn class_rule_element_classes(statements: &[Statement<'_>]) -> Vec<ElementClass> {
+    let mut collector = ElementClassCollector {
+        classes: Vec::new(),
+        other_classes: None,
+        reference: None,
+        scope_root: Subject::Other,
+        nesting: Subject::Element,
+        in_sibling_filter: false,
+        sibling_filter_classes: Vec::new(),
+    };
+    collector.statements(statements, Context::Outer);
+    collector.classes
+}
+
 /// The class selectors of a style block
 #[derive(Default)]
 pub(super) struct StyleBlockClasses {
@@ -131,6 +147,9 @@ pub(super) struct StyleBlockClasses {
     pub element: Vec<ElementClass>,
     /// The class names of the selectors of other elements, e.g. `name` in `& .name`
     pub other: Vec<Range<usize>>,
+    /// The classes of the `of S` selectors of the element's `:nth-child()`, which also count
+    /// its siblings
+    pub sibling_filter: Vec<ElementClass>,
 }
 
 pub(super) fn style_block_classes(css: &str) -> Result<StyleBlockClasses, CssError> {
@@ -138,6 +157,7 @@ pub(super) fn style_block_classes(css: &str) -> Result<StyleBlockClasses, CssErr
     Ok(StyleBlockClasses {
         element: collector.classes,
         other: collector.other_classes.unwrap_or_default(),
+        sibling_filter: collector.sibling_filter_classes,
     })
 }
 
@@ -154,6 +174,8 @@ fn collect_classes(
         reference: None,
         scope_root: Subject::Other,
         nesting: Subject::Element,
+        in_sibling_filter: false,
+        sibling_filter_classes: Vec::new(),
     };
     match kind {
         ModifierCss::Block => {
@@ -173,15 +195,23 @@ fn collect_classes(
     Ok(collector)
 }
 
-/// The classes that may apply to a styled component selected through a reference to it in the
-/// statements, e.g. `active` in `.item.active &`, `:is(.item).active &` or
-/// `& .item { &.active { ... } }`, sorted by position. The component is referenced by its
-/// `classes` and its forward reference `placeholders`
+/// The classes of a styled component selected through a reference to it in some statements
+pub(super) struct ReferencedClasses {
+    /// The classes that may apply to the component, e.g. `active` in `.item.active &`,
+    /// `:is(.item).active &` or `& .item { &.active { ... } }`, sorted by position
+    pub element: Vec<ElementClass>,
+    /// The classes of the `of S` selectors of the component's `:nth-child()`, which also count
+    /// its siblings
+    pub sibling_filter: Vec<ElementClass>,
+}
+
+/// The classes of a styled component selected through a reference to it in the statements. The
+/// component is referenced by its `classes` and its forward reference `placeholders`
 pub(super) fn referenced_classes(
     statements: &[Statement<'_>],
     classes: &[String],
     placeholders: &[String],
-) -> Vec<ElementClass> {
+) -> ReferencedClasses {
     let mut collector = ElementClassCollector {
         classes: Vec::new(),
         other_classes: None,
@@ -191,10 +221,15 @@ pub(super) fn referenced_classes(
         }),
         scope_root: Subject::Other,
         nesting: Subject::Other,
+        in_sibling_filter: false,
+        sibling_filter_classes: Vec::new(),
     };
     collector.statements(statements, OTHER);
     collector.classes.sort_by_key(|class| class.start);
-    collector.classes
+    ReferencedClasses {
+        element: collector.classes,
+        sibling_filter: collector.sibling_filter_classes,
+    }
 }
 
 const ELEMENT: Context = Context::Nested(Subject::Element);
@@ -210,6 +245,10 @@ struct ElementClassCollector<'r> {
     scope_root: Subject,
     /// What `&` is in the selectors being walked
     nesting: Subject,
+    /// In the `of S` selectors of `:nth-child()`, whose classes are of other elements too
+    in_sibling_filter: bool,
+    /// The classes of the `of S` selectors of `:nth-child()`
+    sibling_filter_classes: Vec<ElementClass>,
 }
 
 impl ElementClassCollector<'_> {
@@ -333,13 +372,16 @@ impl ElementClassCollector<'_> {
                     let InterpolableIdent::Literal(ident) = &class.name else {
                         continue;
                     };
-                    if subject != Subject::Other {
-                        self.classes.push(ElementClass {
-                            start: ident.span.start,
-                            end: ident.span.end,
-                            name: ident.name.to_owned(),
-                            mixed: subject == Subject::Mixed,
-                        });
+                    let class = ElementClass {
+                        start: ident.span.start,
+                        end: ident.span.end,
+                        name: ident.name.to_owned(),
+                        mixed: subject == Subject::Mixed,
+                    };
+                    if subject != Subject::Other && self.in_sibling_filter {
+                        self.sibling_filter_classes.push(class);
+                    } else if subject != Subject::Other {
+                        self.classes.push(class);
                     } else if let Some(other_classes) = &mut self.other_classes {
                         other_classes.push(ident.span.start..ident.span.end);
                     }
@@ -351,6 +393,8 @@ impl ElementClassCollector<'_> {
                     } else {
                         Subject::Other
                     };
+                    let outer_filter = self.in_sibling_filter;
+                    self.in_sibling_filter |= counts_siblings(pseudo);
                     for argument in pseudo_class_selectors(pseudo) {
                         match argument {
                             SelectorArgument::Complex(selector) => {
@@ -360,6 +404,7 @@ impl ElementClassCollector<'_> {
                                 .compound(compound, inherited.max(self.compound_subject(compound))),
                         }
                     }
+                    self.in_sibling_filter = outer_filter;
                 }
                 _ => {}
             }
@@ -460,6 +505,12 @@ pub(super) fn pseudo_class_selectors<'s, 'a>(
 /// selectors, so the subject of each one is the element. `:has()` matches other elements
 fn matches_element(pseudo: &PseudoClassSelector<'_>) -> bool {
     pseudo_class_name_is(pseudo, &["not"]) || selects_element(pseudo)
+}
+
+/// The `of S` selectors of `:nth-child()` also count the siblings matching them, so their classes
+/// are never only of the element
+fn counts_siblings(pseudo: &PseudoClassSelector<'_>) -> bool {
+    pseudo_class_name_is(pseudo, &["nth-child", "nth-last-child"])
 }
 
 /// The pseudo-classes that only match elements matching their selectors
@@ -567,7 +618,6 @@ mod tests {
                 block("&:hover { &.active { color: red; } }"),
                 block(":where(&.active) { &.disabled { color: red; } }"),
                 block(".x:not(&.active) { color: red; }"),
-                block("&:nth-child(1 of .active):nth-last-child(2 of &.disabled) { color: red; }"),
                 block("@scope (&.active) { &.disabled { color: red; } }"),
                 block("@scope (&) { :scope.active { color: red; } }"),
                 block("@scope (&) { :scope { &.active { color: red; } } }"),
@@ -590,7 +640,6 @@ mod tests {
                 "&:hover { &.h-active { color: red; } }",
                 ":where(&.h-active) { &.h-disabled { color: red; } }",
                 ".x:not(&.h-active) { color: red; }",
-                "&:nth-child(1 of .h-active):nth-last-child(2 of &.h-disabled) { color: red; }",
                 "@scope (&.h-active) { &.h-disabled { color: red; } }",
                 "@scope (&) { :scope.h-active { color: red; } }",
                 "@scope (&) { :scope { &.h-active { color: red; } } }",
@@ -615,6 +664,7 @@ mod tests {
             "&:hover, & .child { &.other { color: red; } }",
             ":not(&) { &.active { color: red; } }",
             "&:nth-of-type(1) .active { color: red; }",
+            "&:nth-child(1 of .active):nth-last-child(2 of &.disabled) { color: red; }",
             "@scope (.x) { &.active { color: red; } }",
             "@scope (&) to (.active) { color: red; }",
             "@scope (.x) to (&.active) { color: red; }",

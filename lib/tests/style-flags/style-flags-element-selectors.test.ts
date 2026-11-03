@@ -4,6 +4,88 @@ import { expect, test } from 'vitest';
 import type { TransformWarning } from '../../src/custom-errors';
 import { transformWithFormat } from '../testUtils';
 
+test('should reject style flags in the of selectors of nth-child', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Button = styled.button<{ active: boolean }>\`
+          &:nth-child(2n of &.active) {
+            color: green;
+          }
+        \`;
+
+        export const App = ({ active }: { active: boolean }) => (
+          <Button active={active} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" can't be used in the "of" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the "of" selectors
+    loc: 3:15]
+  `);
+});
+
+test('should reject style flags in the of selectors of nth-child selected through a component reference', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Item = styled.div<{ active: boolean }>\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const List = styled.div\`
+          \${Item}:nth-child(1 of .active) & {
+            color: green;
+          }
+        \`;
+
+        export const App = ({ active }: { active: boolean }) => (
+          <List>
+            <Item active={active} />
+          </List>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Style flag "active" of "Item" can't be used in the "of" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the "of" selectors
+    loc: 9:6]
+  `);
+});
+
+test('should warn about style flag names in the of selectors of other elements', async () => {
+  const warnings: TransformWarning[] = [];
+
+  await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Item = styled.div<{ active: boolean }>\`
+        &.active {
+          color: red;
+        }
+        & .row:nth-child(1 of .active) {
+          color: blue;
+        }
+      \`;
+    `,
+    onWarning: (warning) => warnings.push(warning),
+  });
+
+  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
+    "
+    - TransformWarning#:
+        message: "The style flag class \\"active\\" is used in a selector of another element in Item, where it is kept as written and doesn't match the flag. Flag classes only apply to the element itself, e.g. \\"&.active\\""
+        loc: 'current_file:3:6'
+    "
+  `);
+});
+
 test('should hash style flags in every selector of the element', async () => {
   const result = await transformWithFormat({
     source: dedent`
@@ -24,9 +106,6 @@ test('should hash style flags in every selector of the element', async () => {
         }
         :is(&.active, &.size-large) {
           outline: none;
-        }
-        &:nth-child(1 of .size-small) {
-          color: green;
         }
         &:hover {
           &.active {
@@ -77,9 +156,6 @@ test('should hash style flags in every selector of the element', async () => {
       }
       :is(&.v1560qbr-1-Button-active, &.v1560qbr-1-Button-size-large) {
         outline: none;
-      }
-      &:nth-child(1 of .v1560qbr-1-Button-size-small) {
-        color: green;
       }
       &:hover {
         &.v1560qbr-1-Button-active {

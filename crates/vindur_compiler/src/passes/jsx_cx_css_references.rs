@@ -1,4 +1,4 @@
-use oxc_ast::ast::{IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression};
+use oxc_ast::ast::{Expression, IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression};
 use oxc_ast_visit::Visit;
 use oxc_semantic::Scoping;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -14,20 +14,14 @@ use super::{
 };
 
 pub(super) struct CssReference {
-    name: String,
-    css: String,
-    identifier: String,
-    span: oxc_span::Span,
+    /// The class name of the referenced css
+    pub name: String,
+    pub css: String,
+    pub identifier: String,
+    pub span: oxc_span::Span,
     imported: bool,
     /// A local css exported to other files, which don't get its renamed modifiers
     exported: bool,
-}
-
-impl CssReference {
-    /// The class name of the referenced css
-    pub(super) fn name(&self) -> &str {
-        &self.name
-    }
 }
 
 /// The `css` function references used in `className` or `css`
@@ -71,6 +65,24 @@ pub(super) fn wrapped_css_references(
         references: Vec::new(),
     };
     collector.visit_jsx_expression(expression);
+    collector.references
+}
+
+/// The `css` function references anywhere in an expression, e.g. `styles` in
+/// `.attrs({ className: cx(styles, 'a') })`
+pub(super) fn expression_css_references(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    exported_names: &FxHashMap<String, String>,
+) -> Vec<CssReference> {
+    let mut collector = CssReferenceCollector {
+        constants,
+        scoping,
+        exported_names,
+        references: Vec::new(),
+    };
+    collector.visit_expression(expression);
     collector.references
 }
 
@@ -233,20 +245,39 @@ fn declares_rewritten_modifier(
         .any(|(original, _, should_rewrite)| *should_rewrite && declared.contains(original)))
 }
 
+/// The generated rules of the class, `createGlobalStyle` rules selecting it, like
+/// `${Box} { ... }`, are global styles and never its rules
+pub(super) fn owner_rules<'r>(
+    css_rules: &'r [String],
+    non_element_rules: &'r [usize],
+    class_name: &'r str,
+) -> impl Iterator<Item = &'r String> {
+    css_rules
+        .iter()
+        .enumerate()
+        .filter(move |(index, rule)| {
+            !non_element_rules.contains(index) && is_class_rule(rule, class_name)
+        })
+        .map(|(_, rule)| rule)
+}
+
 pub(super) fn rewrite_class_rules(
     css_rules: &mut [String],
+    non_element_rules: &[usize],
     class_names: &[String],
     mappings: &[(String, String, bool)],
 ) -> Result<(), CssError> {
     if !rewrites_any(mappings) {
         return Ok(());
     }
-    for rule in css_rules.iter_mut().filter(|rule| {
-        class_names
-            .iter()
-            .any(|class_name| is_class_rule(rule, class_name))
-    }) {
-        *rule = rewrite_modifiers(rule, ModifierCss::ClassRule, mappings)?;
+    for (index, rule) in css_rules.iter_mut().enumerate() {
+        if !non_element_rules.contains(&index)
+            && class_names
+                .iter()
+                .any(|class_name| is_class_rule(rule, class_name))
+        {
+            *rule = rewrite_modifiers(rule, ModifierCss::ClassRule, mappings)?;
+        }
     }
     Ok(())
 }
@@ -254,19 +285,16 @@ pub(super) fn rewrite_class_rules(
 /// The class of the mapping `rewrite_class_rules` fails on, so the error is reported at its cx key
 pub(super) fn failing_modifier<'m>(
     css_rules: &[String],
+    non_element_rules: &[usize],
     class_names: &[String],
     mappings: &'m [(String, String, bool)],
 ) -> Option<&'m str> {
     mappings
         .iter()
         .find(|mapping| {
-            css_rules
+            class_names
                 .iter()
-                .filter(|rule| {
-                    class_names
-                        .iter()
-                        .any(|class_name| is_class_rule(rule, class_name))
-                })
+                .flat_map(|class_name| owner_rules(css_rules, non_element_rules, class_name))
                 .any(|rule| {
                     rewrite_modifiers(rule, ModifierCss::ClassRule, std::slice::from_ref(mapping))
                         .is_err()

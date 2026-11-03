@@ -53,6 +53,8 @@ pub(super) struct VariableTransform<'a> {
     pub id_index: &'a mut u32,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
+    /// The indices of the `css_rules` of global styles
+    pub global_rules: &'a mut Vec<usize>,
     pub styled_components: &'a mut FxHashMap<String, StyledComponent>,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -96,6 +98,7 @@ pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be e
 /// `@namespace` after another rule
 pub(super) fn push_global_style(
     css_rules: &mut Vec<String>,
+    global_rules: &mut Vec<usize>,
     has_side_effects: &mut bool,
     content: String,
     file_path: &str,
@@ -105,6 +108,7 @@ pub(super) fn push_global_style(
     check_global_start_order(css_rules, &content)
         .map_err(|message| CompilerDiagnostic::error(file_path, source, span, message))?;
     if !content.is_empty() {
+        global_rules.push(css_rules.len());
         css_rules.push(content);
         *has_side_effects = true;
     }
@@ -337,6 +341,23 @@ pub(super) fn process_variable_declaration(
             } else {
                 StyleBlockClasses::default()
             };
+            // Siblings matched by `of S` never get the hashed flag class of the element
+            if let Some(flag) = flag_class_list.iter().find(|flag| {
+                classes
+                    .sibling_filter
+                    .iter()
+                    .any(|class| class.name == flag.original)
+            }) {
+                return Err(CompilerDiagnostic::error(
+                    transform.file_path,
+                    transform.source,
+                    tagged.span,
+                    format!(
+                        "Style flag \"{name}\" can't be used in the \"of\" selectors of :nth-child() or :nth-last-child(), they also count the sibling elements matching them, which never get the hashed flag class. Move the flag class out of the \"of\" selectors",
+                        name = flag.original
+                    ),
+                ));
+            }
             let element_classes = classes.element;
             // A selected class can be a flag of the base, hashed by its own module
             if let Some(error) = unknown_base
@@ -668,6 +689,7 @@ pub(super) fn process_variable_declaration(
             })?;
             push_global_style(
                 transform.css_rules,
+                transform.global_rules,
                 transform.has_side_effects,
                 content,
                 transform.file_path,

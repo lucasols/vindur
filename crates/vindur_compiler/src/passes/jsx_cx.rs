@@ -16,9 +16,9 @@ use crate::{
 use super::{
     css::clean_css,
     css_syntax::CssError,
-    cx_key_warnings::CxKeyUsages,
     cx_modifier_selectors::{ModifierCss, element_class_names, rewrites_any},
     cx_optimize::condition_text,
+    cx_raw_classes::HashedCxKeys,
     jsx_attributes::{
         find_attribute, find_last_attribute, jsx_name, opening_attribute_insertion_offset,
     },
@@ -28,9 +28,10 @@ use super::{
     },
     jsx_css::is_foreign_css_attribute,
     jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
+    jsx_cx_class_names::HashedCssReferenceKey,
     jsx_cx_component_references::HashedStyledModifier,
     jsx_cx_css_references::{
-        CssReference, css_references, failing_modifier, rewrite_class_rules,
+        CssReference, css_references, failing_modifier, owner_rules, rewrite_class_rules,
         unsupported_css_reference_modifiers, wrapped_css_reference_modifiers,
         wrapped_css_references,
     },
@@ -40,8 +41,7 @@ use super::{
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
         ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name, find_jsx,
-        inlined_component_classes, is_class_rule, unsupported_spread_message,
-        validate_styled_spreads,
+        inlined_component_classes, unsupported_spread_message, validate_styled_spreads,
     },
 };
 
@@ -67,13 +67,17 @@ pub(crate) struct JsxCxTransform<'a> {
     pub id_starts: &'a FxHashMap<u32, u32>,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
+    /// The indices of the `createGlobalStyle` rules and the rules of `css` templates that aren't
+    /// module level css constants, which are never the rules of an element class
+    pub non_element_rules: &'a [usize],
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub hashed_styled_modifiers: &'a mut Vec<HashedStyledModifier>,
+    pub hashed_css_reference_keys: &'a mut Vec<HashedCssReferenceKey>,
     pub class_expressions: &'a mut FxHashMap<u32, String>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_merge_helper: &'a mut bool,
     pub helper_names: &'a RuntimeHelperNames,
-    pub key_usages: &'a mut CxKeyUsages,
+    pub hashed_keys: &'a mut HashedCxKeys,
 }
 
 pub(crate) fn transform_jsx_cx_props(
@@ -200,7 +204,20 @@ impl JsxCxVisitor<'_> {
             (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
-        let owners = ModifierOwners::new(element, styled.as_ref(), has_vindur_css, &css_references);
+        let wrapped_references = wrapped_css_references(
+            element,
+            self.output.constants,
+            self.output.scoping,
+            self.output.exported_names,
+        );
+        let owners = ModifierOwners::new(
+            element,
+            styled.as_ref(),
+            self.output.styled_components,
+            has_vindur_css,
+            &css_references,
+            &wrapped_references,
+        );
         let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
@@ -269,6 +286,26 @@ impl JsxCxVisitor<'_> {
                     return;
                 }
             };
+            let with_component = match &styled {
+                Some(styled) if hashed => self.with_component_declaring(styled, &class_name),
+                _ => Ok(None),
+            };
+            match with_component {
+                Ok(Some(target)) => {
+                    self.set_error(
+                        property.key.span(),
+                        format!(
+                            "cx prop class \"{class_name}\" can't be hashed on styled component \"{element_name}\", its \"&.{class_name}\" styles are declared in \"{target}\", which it renders with withComponent(). Move the modifier styles into \"{element_name}\" or use a $-prefixed class (e.g. ${class_name})."
+                        ),
+                    );
+                    return;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    self.set_error(property.key.span(), error.message);
+                    return;
+                }
+            }
             if is_extended {
                 self.set_error(
                     property.key.span(),
@@ -280,13 +317,11 @@ impl JsxCxVisitor<'_> {
             }
             let (output_name, should_rewrite_css) =
                 if let Some(unhashed) = class_name.strip_prefix('$') {
-                    self.output.key_usages.unhashed.insert(unhashed.to_owned());
                     (unhashed.to_owned(), false)
                 } else {
                     self.output
-                        .key_usages
-                        .hashed
-                        .push((class_name.clone(), property.key.span()));
+                        .hashed_keys
+                        .insert(&class_name, property.key.span());
                     let key = format!("{context_key}:{class_name}");
                     let index = *self.class_indices.entry(key).or_insert_with(|| {
                         let index = *self.output.id_index;
@@ -341,12 +376,6 @@ impl JsxCxVisitor<'_> {
             self.set_error(span, message);
             return;
         }
-        let wrapped_references = wrapped_css_references(
-            element,
-            self.output.constants,
-            self.output.scoping,
-            self.output.exported_names,
-        );
         if let Some((span, message)) =
             wrapped_css_reference_modifiers(&wrapped_references, &mappings, &self.renamed_modifiers)
         {
@@ -449,7 +478,7 @@ impl JsxCxVisitor<'_> {
                 .collect(),
             None => css_references
                 .iter()
-                .map(|reference| reference.name().to_owned())
+                .map(|reference| reference.name.clone())
                 .collect::<Vec<_>>(),
         };
         if let Err((error, failing)) = self.rewrite_owner_rules(&rules_owners, &mappings) {
@@ -463,6 +492,18 @@ impl JsxCxVisitor<'_> {
                 .unwrap_or(attribute.span);
             self.set_error(span, error.message);
             return;
+        }
+        // Css references of a styled component and wrapped ones are not renamed, their elements
+        // still get the hashed classes
+        self.record_hashed_css_reference_keys(
+            &css_references,
+            styled.is_none(),
+            &mappings,
+            element_name,
+        );
+        self.record_hashed_css_reference_keys(&wrapped_references, false, &mappings, element_name);
+        if let Some(styled) = &styled {
+            self.mark_renamed_styled_modifiers(styled, &mappings);
         }
         if let Some(css_index) = css_index {
             self.output.elements.insert(
@@ -592,15 +633,43 @@ impl JsxCxVisitor<'_> {
         class_name: &str,
     ) -> Result<bool, CssError> {
         let classes = styled.class_name.split_whitespace().collect::<Vec<_>>();
-        for index in 0..classes.len().saturating_sub(1) {
+        self.declares_modifier(&classes, classes.len().saturating_sub(1), class_name)
+    }
+
+    /// The local styled component a styled component renders with `withComponent()` that declares
+    /// the class in its rules, e.g. `Box` for `&.active` in `Plain.withComponent(Box)`. Its rules
+    /// are only renamed for cx props of that component, but its elements get the hashed class
+    fn with_component_declaring(
+        &mut self,
+        styled: &StyledComponent,
+        class_name: &str,
+    ) -> Result<Option<String>, CssError> {
+        let rendered = rendered_styled_components(styled, self.output.styled_components);
+        for pair in rendered.windows(2) {
+            let [component, target] = pair else {
+                continue;
+            };
+            let classes = target.class_name.split_whitespace().collect::<Vec<_>>();
+            if self.declares_modifier(&classes, classes.len(), class_name)? {
+                return Ok(Some(component.element.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    /// If the rules of the first `count` styled component `classes` declare the class, also when
+    /// cx props of that component already renamed it
+    fn declares_modifier(
+        &mut self,
+        classes: &[&str],
+        count: usize,
+        class_name: &str,
+    ) -> Result<bool, CssError> {
+        for index in 0..count {
             let class = classes[index];
             if !self.extended_declarations.contains_key(class) {
                 let mut declared = Vec::new();
-                for rule in self
-                    .output
-                    .css_rules
-                    .iter()
-                    .filter(|rule| is_class_rule(rule, class))
+                for rule in owner_rules(self.output.css_rules, self.output.non_element_rules, class)
                 {
                     declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
                 }
@@ -662,7 +731,32 @@ impl JsxCxVisitor<'_> {
                 class_name: class_name.to_owned(),
                 element_name: element_name.to_owned(),
                 span,
+                renamed: false,
             });
+    }
+
+    /// Marks the hashed modifiers of the styled component whose rules had the key renamed
+    fn mark_renamed_styled_modifiers(
+        &mut self,
+        styled: &StyledComponent,
+        mappings: &[(String, String, bool)],
+    ) {
+        let Some(owner) = styled.class_name.split_whitespace().last() else {
+            return;
+        };
+        for (key, hashed, _) in mappings
+            .iter()
+            .filter(|(_, _, should_rewrite)| *should_rewrite)
+        {
+            if !self.declares_renamed_class(owner, hashed) {
+                continue;
+            }
+            for modifier in self.output.hashed_styled_modifiers.iter_mut() {
+                if modifier.class_name == *key && modifier.classes.join(" ") == styled.class_name {
+                    modifier.renamed = true;
+                }
+            }
+        }
     }
 
     fn missing_styled_classes(
@@ -680,12 +774,11 @@ impl JsxCxVisitor<'_> {
             return Ok(Vec::new());
         };
         let mut declared = self.css_prop_class_names(element);
-        for rule in self
-            .output
-            .css_rules
-            .iter()
-            .filter(|rule| is_class_rule(rule, base_class))
-        {
+        for rule in owner_rules(
+            self.output.css_rules,
+            self.output.non_element_rules,
+            base_class,
+        ) {
             declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
         }
         Ok(mappings
@@ -725,6 +818,52 @@ impl JsxCxVisitor<'_> {
         element_class_names(&clean_css(&content), ModifierCss::Block).unwrap_or_default()
     }
 
+    /// Records the hashed keys of the css references an element carries. Renamed references have
+    /// their rules renamed in place, so other elements using them can't add the keys as static
+    /// classes, and the raw `&.key` selectors left in the rules of the others never match it
+    fn record_hashed_css_reference_keys(
+        &mut self,
+        references: &[CssReference],
+        renamed: bool,
+        mappings: &[(String, String, bool)],
+        element_name: &str,
+    ) {
+        for reference in references {
+            for (key, hashed, _) in mappings
+                .iter()
+                .filter(|(_, _, should_rewrite)| *should_rewrite)
+            {
+                let is_renamed = renamed && self.declares_renamed_class(&reference.name, hashed);
+                let recorded = &mut self.output.hashed_css_reference_keys;
+                if let Some(existing) = recorded
+                    .iter_mut()
+                    .find(|recorded| recorded.css_class == reference.name && recorded.key == *key)
+                {
+                    existing.renamed |= is_renamed;
+                    continue;
+                }
+                recorded.push(HashedCssReferenceKey {
+                    css_class: reference.name.clone(),
+                    key: key.clone(),
+                    renamed: is_renamed,
+                    element_name: element_name.to_owned(),
+                });
+            }
+        }
+    }
+
+    /// If the rules of the class have the hashed class, after they were renamed
+    fn declares_renamed_class(&self, owner: &str, hashed: &str) -> bool {
+        let selector = format!(".{hashed}");
+        owner_rules(self.output.css_rules, self.output.non_element_rules, owner).any(|rule| {
+            rule.match_indices(&selector).any(|(index, _)| {
+                !rule[index + selector.len()..].starts_with(|char: char| {
+                    char.is_ascii_alphanumeric() || char == '-' || char == '_'
+                })
+            })
+        })
+    }
+
     /// Renames the hashed modifiers in the rules of each owner, the error has the class it failed
     /// on, if any
     fn rewrite_owner_rules(
@@ -744,8 +883,12 @@ impl JsxCxVisitor<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             let owners = std::slice::from_ref(owner);
-            if let Err(error) = rewrite_class_rules(self.output.css_rules, owners, &pending) {
-                let failing = failing_modifier(self.output.css_rules, owners, &pending);
+            let non_element_rules = self.output.non_element_rules;
+            if let Err(error) =
+                rewrite_class_rules(self.output.css_rules, non_element_rules, owners, &pending)
+            {
+                let failing =
+                    failing_modifier(self.output.css_rules, non_element_rules, owners, &pending);
                 return Err((error, failing.map(str::to_owned)));
             }
         }
@@ -804,15 +947,17 @@ impl ModifierOwners {
     fn new(
         element: &JSXElement<'_>,
         styled: Option<&StyledComponent>,
+        styled_components: &FxHashMap<String, StyledComponent>,
         has_vindur_css: bool,
         css_references: &[CssReference],
+        wrapped_references: &[CssReference],
     ) -> Self {
         let styled_class = styled
             .and_then(|styled| styled.class_name.split_whitespace().last())
             .map(str::to_owned);
         let references = css_references
             .iter()
-            .map(|reference| reference.name().to_owned())
+            .map(|reference| reference.name.clone())
             .collect::<Vec<_>>();
         let css_prop = has_vindur_css.then(|| format!("css:{}", element.span.start));
         // Css references of a styled component are not renamed, see
@@ -821,15 +966,47 @@ impl ModifierOwners {
             Some(class) => vec![class.clone()],
             None => references.clone(),
         };
-        // A `$` key class also matches the rules of the extended styled components
+        // A `$` key class also matches the rules of the extended styled components, of the styled
+        // components rendered with `withComponent()` and of the css references wrapped in the
+        // `className` expression
         let styled_classes = styled
             .into_iter()
+            .flat_map(|styled| rendered_styled_components(styled, styled_components))
             .flat_map(|styled| styled.class_name.split_whitespace().map(str::to_owned));
+        let wrapped = wrapped_references
+            .iter()
+            .map(|reference| reference.name.clone());
         Self {
             hashed: hashed.into_iter().chain(css_prop.clone()).collect(),
-            unhashed: styled_classes.chain(references).chain(css_prop).collect(),
+            unhashed: styled_classes
+                .chain(references)
+                .chain(wrapped)
+                .chain(css_prop)
+                .collect(),
         }
     }
+}
+
+/// A styled component and the local styled components its elements render with
+/// `withComponent()`, e.g. `Box` for `Plain.withComponent(Box)`
+pub(super) fn rendered_styled_components<'s>(
+    styled: &'s StyledComponent,
+    styled_components: &'s FxHashMap<String, StyledComponent>,
+) -> Vec<&'s StyledComponent> {
+    let mut rendered = vec![styled];
+    let mut current = styled;
+    // Bounded, as `withComponent()` targets are declared before their use
+    for _ in 0..styled_components.len() {
+        if !current.element_is_identifier || current.element_is_base {
+            break;
+        }
+        let Some(target) = styled_components.get(&current.element) else {
+            break;
+        };
+        rendered.push(target);
+        current = target;
+    }
+    rendered
 }
 
 fn class_name_sources<'a>(output: &JsxCxTransform<'a>) -> ClassNameSources<'a> {

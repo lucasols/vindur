@@ -300,17 +300,165 @@ test('should reject hashed cx modifiers of a css reference inside a className ex
     );
   `;
 
-  await expect(
-    transformWithFormat({ source: source('cx(styles)') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+  await expect(transformWithFormat({ source: source('cx(styles)') })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
     loc: 12:21]
   `);
 
-  await expect(
-    transformWithFormat({ source: source('`${styles} extra`') }),
-  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+  await expect(transformWithFormat({ source: source('`${styles} extra`') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx prop modifiers can't be used with the css reference "styles" inside a className expression, its modifier styles are only hashed when it's passed directly. Use className={styles} or $-prefixed classes (e.g. $active).
     loc: 12:21]
+  `);
+});
+
+test('should fail on a $ key with a css reference wrapped in className when another element hashes the key', async () => {
+  const card = dedent`
+    import { css, cx } from 'vindur';
+
+    const card = css\`
+      &.active {
+        color: blue;
+      }
+    \`;
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${card}
+
+        export const A = ({ on }: { on: boolean }) => (
+          <>
+            <div className={card} cx={{ active: on }} />
+            <div className={cx(card)} cx={{ $active: on }} />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 12:36]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${card}
+
+        export const A = ({ on }: { on: boolean }) => (
+          <>
+            <div className={cx(card)} cx={{ $active: on }} />
+            <div className={card} cx={{ active: on }} />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 12:32]
+  `);
+});
+
+test('should reject hashed cx modifiers of an inline css template in className', async () => {
+  const source = (className: string) => dedent`
+    import { css, styled, cx } from 'vindur';
+
+    const Box = styled.div\`
+      color: blue;
+    \`;
+
+    export const App = ({ on }: { on: boolean }) => (
+      <Box className={${className}} cx={{ active: on }} />
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source('css`&.active { color: red; }`'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 8:18]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source("cx(css`&.active { color: red; }`, 'x')"),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 8:21]
+  `);
+});
+
+test('should reject hashed cx keys in css templates that are not module level constants', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: blue;
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => {
+          const local = css\`&.active { color: red; }\`;
+          return <Box className={local} cx={{ active: on }} />;
+        };
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 8:16]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        const Box = styled.div\`
+          color: blue;
+        \`;
+
+        const styles = { card: css\`&.active { color: red; }\` };
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Box className={styles.card} cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 7:23]
+  `);
+});
+
+test('should reject hashed cx keys in local css templates of elements that do not hash them', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled } from 'vindur';
+
+        const Item = styled.div\`
+          &.active { color: blue; }
+        \`;
+
+        export const App = ({ on }: { on: boolean }) => {
+          const local = css\`&.active { color: red; }\`;
+          return (
+            <>
+              <Item cx={{ active: on }} />
+              <div className={local} />
+            </>
+          );
+        };
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" of this css template never matches elements that get it through cx, only module level css constants passed directly have their modifiers hashed. Move the styles to a module level css constant, use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 8:16]
   `);
 });

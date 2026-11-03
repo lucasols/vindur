@@ -561,7 +561,7 @@ describe('Warnings for Missing CSS Classes', () => {
             opacity: 0.5;
           }
 
-          & .loading {
+          & .spinner {
             opacity: 0;
           }
         \`;
@@ -589,7 +589,7 @@ describe('Warnings for Missing CSS Classes', () => {
           opacity: 0.5;
         }
 
-        & .loading {
+        & .spinner {
           opacity: 0;
         }
       }

@@ -15,6 +15,9 @@ pub(crate) struct HashedStyledModifier {
     pub class_name: String,
     pub element_name: String,
     pub span: Span,
+    /// If the styled component rules had the key renamed, e.g. `&.key`, it may only be declared
+    /// in the css prop of the element
+    pub renamed: bool,
 }
 
 /// Fails when a hashed cx class of a styled component is selected through a component reference,
@@ -53,11 +56,13 @@ pub(crate) fn component_reference_modifier_error(
             }
         };
         for modifier in candidates {
+            // Classes in `of` selectors are never renamed, the raw class check reports them
             if referenced_classes(
                 &stylesheet.statements,
                 &modifier.classes,
                 &modifier.placeholders,
             )
+            .element
             .iter()
             .any(|class| class.name == modifier.class_name)
             {
@@ -89,6 +94,7 @@ mod tests {
             class_name: "active".to_owned(),
             element_name: "Item".to_owned(),
             span: Span::new(0, 0),
+            renamed: true,
         }];
         component_reference_modifier_error(&[rule.to_owned()], &modifiers, "file.tsx", "").is_some()
     }

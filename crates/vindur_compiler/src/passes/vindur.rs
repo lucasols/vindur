@@ -17,8 +17,8 @@ use super::{
     compile_time_references::uncompiled_reference_error,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
     cx_optimize::optimize_cx_calls,
+    cx_raw_classes::{CssRuleOrigins, HashedCxKeys, raw_hashed_cx_key_error},
     cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -29,6 +29,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
+    jsx_cx_class_names::{StaticClassNameContext, static_hashed_class_name_error},
     jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
@@ -123,6 +124,8 @@ pub(crate) fn transform_program(
     }
     let file_hash = format!("v{}", murmur2(file_path));
     let mut css_rules = Vec::new();
+    let mut global_rules = Vec::new();
+    let mut local_css_rules = Vec::new();
     let mut styled_components = FxHashMap::default();
     let mut handled_calls = Vec::new();
     let mut needs_merge_helper = false;
@@ -134,9 +137,10 @@ pub(crate) fn transform_program(
     let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
+    let mut hashed_css_reference_keys = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
-    let mut cx_key_usages = CxKeyUsages::default();
+    let mut hashed_cx_keys = HashedCxKeys::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let mut class_prop_usages = None;
@@ -187,6 +191,7 @@ pub(crate) fn transform_program(
                         id_index: &mut id_index,
                         edits: &mut edits,
                         css_rules: &mut css_rules,
+                        global_rules: &mut global_rules,
                         styled_components: &mut styled_components,
                         file_path,
                         source,
@@ -240,6 +245,7 @@ pub(crate) fn transform_program(
                             id_index: &mut id_index,
                             edits: &mut edits,
                             css_rules: &mut css_rules,
+                            global_rules: &mut global_rules,
                             styled_components: &mut styled_components,
                             file_path,
                             source,
@@ -285,6 +291,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     push_global_style(
                         &mut css_rules,
+                        &mut global_rules,
                         &mut has_side_effects,
                         content,
                         file_path,
@@ -418,8 +425,12 @@ pub(crate) fn transform_program(
             id_index: &mut id_index,
             dev: options.dev,
             scoped_variables: &mut scoped_variables,
+            local_css_rules: &mut local_css_rules,
         },
     )?;
+    // Like global styles, the rules of local css templates are never an element's own rules
+    let mut non_element_rules = global_rules;
+    non_element_rules.extend(local_css_rules.iter().map(|(index, _)| *index));
 
     transform_jsx_cx_props(
         program,
@@ -436,13 +447,30 @@ pub(crate) fn transform_program(
             id_starts: &jsx_id_starts,
             edits: &mut edits,
             css_rules: &mut css_rules,
+            non_element_rules: &non_element_rules,
             elements: &mut cx_elements,
             hashed_styled_modifiers: &mut hashed_styled_modifiers,
+            hashed_css_reference_keys: &mut hashed_css_reference_keys,
             class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
-            key_usages: &mut cx_key_usages,
+            hashed_keys: &mut hashed_cx_keys,
+        },
+    )?;
+    let attrs_css_reference_owners = static_hashed_class_name_error(
+        program,
+        StaticClassNameContext {
+            imports: &imports,
+            styled_components: &styled_components,
+            constants: &constants,
+            scoping,
+            exported_names: &exported_names,
+            modifiers: &hashed_styled_modifiers,
+            css_reference_keys: &hashed_css_reference_keys,
+            has_hashed_keys: !hashed_cx_keys.keys.is_empty(),
+            file_path,
+            source,
         },
     )?;
 
@@ -591,13 +619,40 @@ pub(crate) fn transform_program(
             error.error.message,
         ));
     }
-    if options.dev {
-        warnings.extend(raw_hashed_cx_key_warnings(
-            &cx_key_usages,
-            &css_rules,
-            file_path,
-            source,
-        )?);
+    // The rules of these owners had their own modifiers of the key renamed, or belong to css
+    // references of elements that get the hashed class without renaming them
+    let hashed_owners = hashed_styled_modifiers
+        .iter()
+        .filter_map(|modifier| {
+            modifier
+                .classes
+                .last()
+                .map(|owner| (owner.as_str(), modifier.class_name.as_str()))
+        })
+        .chain(
+            hashed_css_reference_keys
+                .iter()
+                .map(|key| (key.css_class.as_str(), key.key.as_str())),
+        )
+        .chain(
+            attrs_css_reference_owners
+                .iter()
+                .map(|(class, key)| (class.as_str(), key.as_str())),
+        )
+        .collect::<Vec<_>>();
+    if let Some(diagnostic) = raw_hashed_cx_key_error(
+        &hashed_cx_keys,
+        &hashed_owners,
+        &css_rules,
+        CssRuleOrigins {
+            non_element_rules: &non_element_rules,
+            local_css_rules: &local_css_rules,
+        },
+        &file_hash,
+        file_path,
+        source,
+    ) {
+        return Err(diagnostic);
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variables.warnings(file_path, source));

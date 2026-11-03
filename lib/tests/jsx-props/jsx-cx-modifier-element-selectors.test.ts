@@ -98,16 +98,13 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
         :where(&.active) {
           color: red;
         }
-        &:nth-child(1 of .active) {
-          color: blue;
-        }
         @scope (&.active) {
           &.disabled {
             color: green;
           }
         }
         @scope (.child) {
-          &.active {
+          &.current {
             color: orange;
           }
         }
@@ -137,16 +134,13 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
       :where(&.v1560qbr-2-active) {
         color: red;
       }
-      &:nth-child(1 of .v1560qbr-2-active) {
-        color: blue;
-      }
       @scope (&.v1560qbr-2-active) {
         &.v1560qbr-3-disabled {
           color: green;
         }
       }
       @scope (.child) {
-        &.active {
+        &.current {
           color: orange;
         }
       }
@@ -167,14 +161,14 @@ test('should keep classes of other elements when rewriting cx modifiers', async 
         &.active {
           color: red;
         }
-        & .active, & + .active {
+        & .current, & + .current {
           color: blue;
         }
-        &:has(.active) {
+        &:has(.current) {
           color: green;
         }
         & .child {
-          &.active {
+          &.current {
             color: orange;
           }
         }
@@ -192,15 +186,15 @@ test('should keep classes of other elements when rewriting cx modifiers', async 
       &.v1560qbr-2-active {
         color: red;
       }
-      & .active,
-      & + .active {
+      & .current,
+      & + .current {
         color: blue;
       }
-      &:has(.active) {
+      &:has(.current) {
         color: green;
       }
       & .child {
-        &.active {
+        &.current {
           color: orange;
         }
       }
@@ -222,7 +216,7 @@ test('should rewrite cx modifiers in layers of the css prop', async () => {
                 opacity: 0.5;
               }
             }
-            & .active {
+            & .current {
               color: red;
             }
           \`}
@@ -249,7 +243,7 @@ test('should rewrite cx modifiers in layers of the css prop', async () => {
     }
 
     .v1560qbr-1-css-prop-1 {
-      & .active {
+      & .current {
         color: red;
       }
     }
@@ -266,7 +260,7 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
         &:where(.selected) {
           color: red;
         }
-        & .selected {
+        & .current {
           color: blue;
         }
       \`;
@@ -290,7 +284,7 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
       &:where(.v1560qbr-2-selected) {
         color: red;
       }
-      & .selected {
+      & .current {
         color: blue;
       }
     }
@@ -311,7 +305,7 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
         }
 
         @scope (.child) {
-          :scope.active {
+          :scope.current {
             color: blue;
           }
         }
@@ -345,7 +339,7 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
       }
 
       @scope (.child) {
-        :scope.active {
+        :scope.current {
           color: blue;
         }
       }
@@ -489,7 +483,7 @@ test('should keep classes of other elements selected with a component reference'
       \`;
 
       const List = styled.ul\`
-        & \${Item} .active, &.active \${Item} { font-weight: bold; }
+        & \${Item} .current, &.active \${Item} { font-weight: bold; }
       \`;
 
       export const App = ({ on }: { on: boolean }) => (
@@ -517,11 +511,85 @@ test('should keep classes of other elements selected with a component reference'
     }
 
     .v1560qbr-2-List {
-      & .v1560qbr-1-Item .active,
+      & .v1560qbr-1-Item .current,
       &.active .v1560qbr-1-Item {
         font-weight: bold;
       }
     }
     "
+  `);
+});
+
+test('should reject cx modifiers declared by the styled component rendered with withComponent()', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Plain = styled.div\`
+          color: blue;
+        \`;
+
+        const Alias = Plain.withComponent(Box);
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Alias cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Alias", its "&.active" styles are declared in "Box", which it renders with withComponent(). Move the modifier styles into "Alias" or use a $-prefixed class (e.g. $active).
+    loc: 16:15]
+  `);
+});
+
+test('should reject $ keys of a withComponent() alias for modifiers its rendered styled component hashes', async () => {
+  const source = (elements: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Box = styled.div\`
+      &.active {
+        color: red;
+      }
+    \`;
+
+    const Plain = styled.div\`
+      color: blue;
+    \`;
+
+    const Alias = Plain.withComponent(Box);
+
+    export const App = ({ on }: { on: boolean }) => (
+      <>
+        ${elements}
+      </>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Box cx={{ active: on }} />\n<Alias cx={{ $active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:17]
+  `);
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Alias cx={{ $active: on }} />\n<Box cx={{ active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:15]
   `);
 });
