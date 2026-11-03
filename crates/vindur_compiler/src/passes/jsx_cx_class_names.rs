@@ -270,18 +270,17 @@ impl StaticClassNameVisitor<'_> {
 
     /// The hashed keys of the cx props of a styled component, also of the components it extends
     /// and the styled component it renders with `withComponent()`. With `extending`, also the
-    /// keys of the components extending it, which get its `.attrs()`
+    /// keys of the components whose elements get its `.attrs()`: the ones extending it or
+    /// rendering it with `withComponent()`
     fn styled_hashed_keys(&self, styled: &StyledComponent, extending: bool) -> Vec<HashedKey> {
         let mut classes = Vec::new();
         match styled.class_name.split_whitespace().last() {
             Some(own_class) if extending => {
                 for component in self.context.styled_components.values() {
-                    if component
-                        .class_name
-                        .split_whitespace()
-                        .any(|class| class == own_class)
-                    {
-                        self.element_classes(component, &mut classes);
+                    let mut rendered = Vec::new();
+                    self.element_classes(component, &mut rendered);
+                    if rendered.contains(&own_class) {
+                        classes.extend(rendered);
                     }
                 }
             }

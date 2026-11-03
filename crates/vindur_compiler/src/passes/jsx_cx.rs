@@ -212,6 +212,7 @@ impl JsxCxVisitor<'_> {
         let owners = ModifierOwners::new(
             element,
             styled.as_ref(),
+            self.output.styled_components,
             has_vindur_css,
             &css_references,
             &wrapped_references,
@@ -656,21 +657,15 @@ impl JsxCxVisitor<'_> {
         styled: &StyledComponent,
         class_name: &str,
     ) -> Result<Option<String>, CssError> {
-        let components = self.output.styled_components;
-        let mut current = styled;
-        // Bounded, as `withComponent()` targets are declared before their use
-        for _ in 0..components.len() {
-            if !current.element_is_identifier || current.element_is_base {
-                break;
-            }
-            let Some(target) = components.get(&current.element) else {
-                break;
+        let rendered = rendered_styled_components(styled, self.output.styled_components);
+        for pair in rendered.windows(2) {
+            let [component, target] = pair else {
+                continue;
             };
             let classes = target.class_name.split_whitespace().collect::<Vec<_>>();
             if self.declares_modifier(&classes, classes.len(), class_name)? {
-                return Ok(Some(current.element.clone()));
+                return Ok(Some(component.element.clone()));
             }
-            current = target;
         }
         Ok(None)
     }
@@ -935,6 +930,7 @@ impl ModifierOwners {
     fn new(
         element: &JSXElement<'_>,
         styled: Option<&StyledComponent>,
+        styled_components: &FxHashMap<String, StyledComponent>,
         has_vindur_css: bool,
         css_references: &[CssReference],
         wrapped_references: &[CssReference],
@@ -953,10 +949,12 @@ impl ModifierOwners {
             Some(class) => vec![class.clone()],
             None => references.clone(),
         };
-        // A `$` key class also matches the rules of the extended styled components and of the css
-        // references wrapped in the `className` expression
+        // A `$` key class also matches the rules of the extended styled components, of the styled
+        // components rendered with `withComponent()` and of the css references wrapped in the
+        // `className` expression
         let styled_classes = styled
             .into_iter()
+            .flat_map(|styled| rendered_styled_components(styled, styled_components))
             .flat_map(|styled| styled.class_name.split_whitespace().map(str::to_owned));
         let wrapped = wrapped_references
             .iter()
@@ -970,6 +968,28 @@ impl ModifierOwners {
                 .collect(),
         }
     }
+}
+
+/// A styled component and the local styled components its elements render with
+/// `withComponent()`, e.g. `Box` for `Plain.withComponent(Box)`
+fn rendered_styled_components<'s>(
+    styled: &'s StyledComponent,
+    styled_components: &'s FxHashMap<String, StyledComponent>,
+) -> Vec<&'s StyledComponent> {
+    let mut rendered = vec![styled];
+    let mut current = styled;
+    // Bounded, as `withComponent()` targets are declared before their use
+    for _ in 0..styled_components.len() {
+        if !current.element_is_identifier || current.element_is_base {
+            break;
+        }
+        let Some(target) = styled_components.get(&current.element) else {
+            break;
+        };
+        rendered.push(target);
+        current = target;
+    }
+    rendered
 }
 
 fn class_name_sources<'a>(output: &JsxCxTransform<'a>) -> ClassNameSources<'a> {

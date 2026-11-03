@@ -527,3 +527,32 @@ test('should reject a hashed cx key in the className and attrs of a withComponen
     loc: 9:44]
   `);
 });
+
+test('should reject a hashed cx key in the attrs of the styled component a withComponent() alias renders', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Target = styled.div.attrs({ className: 'active' })\`
+          color: red;
+        \`;
+
+        const Plain = styled.div\`
+          &.active {
+            color: blue;
+          }
+        \`;
+
+        const Alias = Plain.withComponent(Target);
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Alias cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" in the .attrs() of "Target" never matches the "&.active" styles of "Alias", as its cx prop hashes it. Remove it from .attrs() and add it with the cx prop where it's needed, or use "$active" in the cx prop to keep the class name
+    loc: 3:45]
+  `);
+});

@@ -554,3 +554,48 @@ test('should reject cx modifiers declared by the styled component rendered with 
     loc: 16:15]
   `);
 });
+
+test('should reject $ keys of a withComponent() alias for modifiers its rendered styled component hashes', async () => {
+  const source = (elements: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Box = styled.div\`
+      &.active {
+        color: red;
+      }
+    \`;
+
+    const Plain = styled.div\`
+      color: blue;
+    \`;
+
+    const Alias = Plain.withComponent(Box);
+
+    export const App = ({ on }: { on: boolean }) => (
+      <>
+        ${elements}
+      </>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Box cx={{ active: on }} />\n<Alias cx={{ $active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:17]
+  `);
+  await expect(
+    transformWithFormat({
+      source: source(
+        '<Alias cx={{ $active: on }} />\n<Box cx={{ active: on }} />',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 18:15]
+  `);
+});
