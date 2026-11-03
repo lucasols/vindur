@@ -389,3 +389,97 @@ test('should quote hyphenated keys in the suggested cx prop', async () => {
     loc: 12:19]
   `);
 });
+
+test('should reject a hashed cx key of a css reference declared in other styles of it', async () => {
+  const header = dedent`
+    import { css, cx, createGlobalStyle } from 'vindur';
+
+    const base = css\`
+      color: red;
+    \`;
+
+    createGlobalStyle\`
+      \${base} {
+        &.active {
+          outline: 1px solid;
+        }
+      }
+    \`;
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${header}
+
+        export const A = ({ active }: { active: boolean }) => (
+          <>
+            <div className={base} cx={{ active }} />
+            <div className={cx(base, 'active')} />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "div" never matches the "&.active" styles of the css reference "base", as the cx prop of "div" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 18:29]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${header}
+
+        export const A = ({ active }: { active: boolean }) => (
+          <>
+            <div className={base} cx={{ active }} />
+            <div css={base} className="active" />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "div" never matches the "&.active" styles of the css reference "base", as the cx prop of "div" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 18:30]
+  `);
+});
+
+test('should allow a static class of a cx key hashed on an element with a css reference that has no rules for it', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { css, cx } from 'vindur';
+
+      const base = css\`
+        color: red;
+      \`;
+
+      export const A = ({ active }: { active: boolean }) => (
+        <>
+          <div
+            css={\`
+              &.active {
+                color: blue;
+              }
+            \`}
+            className={base}
+            cx={{ active }}
+          />
+          <div className={cx(base, 'active')} />
+        </>
+      );
+    `,
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-base {
+      color: red;
+    }
+
+    .v1560qbr-2-css-prop-2 {
+      &.v1560qbr-3-active {
+        color: blue;
+      }
+    }
+    "
+  `);
+});

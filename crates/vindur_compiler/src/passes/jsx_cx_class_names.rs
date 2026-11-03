@@ -28,8 +28,10 @@ pub(crate) struct HashedCssReferenceKey {
     /// The class name of the css reference
     pub css_class: String,
     pub key: String,
-    /// If the css reference declares the key as a modifier, e.g. `&.key`
-    pub declared: bool,
+    /// If the rules of the css reference had the key renamed, e.g. `&.key`. The css references of
+    /// styled components and the wrapped ones are not renamed, but their elements get the hashed
+    /// class
+    pub renamed: bool,
     /// The element whose cx prop hashes it
     pub element_name: String,
 }
@@ -39,19 +41,27 @@ pub(crate) struct HashedCssReferenceKey {
 /// `<div css={...} cx={{ active }} className="active" />` or
 /// `<div className={cx(card, 'active')} />` with `<div className={card} cx={{ active }} />`. Also
 /// checks the `className` of the styled component `.attrs()`
+///
+/// Returns the `(css class, key)` pairs of the css references in the `.attrs()` className of
+/// styled components whose cx props hash the key, their elements get the hashed class but their
+/// rules are not renamed
 pub(crate) fn static_hashed_class_name_error(
     program: &Program<'_>,
     context: StaticClassNameContext<'_>,
-) -> Option<CompilerDiagnostic> {
+) -> Result<Vec<(String, String)>, CompilerDiagnostic> {
     if !context.has_hashed_keys {
-        return None;
+        return Ok(Vec::new());
     }
     let mut visitor = StaticClassNameVisitor {
         context,
+        attrs_owners: Vec::new(),
         diagnostic: None,
     };
     visitor.visit_program(program);
-    visitor.diagnostic
+    match visitor.diagnostic {
+        Some(diagnostic) => Err(diagnostic),
+        None => Ok(visitor.attrs_owners),
+    }
 }
 
 pub(crate) struct StaticClassNameContext<'a> {
@@ -69,6 +79,7 @@ pub(crate) struct StaticClassNameContext<'a> {
 
 struct StaticClassNameVisitor<'a> {
     context: StaticClassNameContext<'a>,
+    attrs_owners: Vec<(String, String)>,
     diagnostic: Option<CompilerDiagnostic>,
 }
 
@@ -196,6 +207,13 @@ impl StaticClassNameVisitor<'_> {
             }
         }
         let hashed = self.styled_hashed_keys(styled, true);
+        for reference in &references {
+            self.attrs_owners.extend(
+                hashed
+                    .iter()
+                    .map(|key| (reference.name.clone(), key.name.clone())),
+            );
+        }
         if let Some((reference, key)) = self.attrs_reference_modifier(&references, &hashed) {
             self.diagnostic = Some(CompilerDiagnostic::error(
                 self.context.file_path,
@@ -277,7 +295,7 @@ impl StaticClassNameVisitor<'_> {
             .collect()
     }
 
-    /// The hashed keys the css references declare as modifiers
+    /// The hashed keys renamed in the rules of the css references
     fn css_reference_hashed_keys(&self, references: &[CssReference]) -> Vec<HashedKey> {
         references
             .iter()
@@ -285,7 +303,7 @@ impl StaticClassNameVisitor<'_> {
                 self.context
                     .css_reference_keys
                     .iter()
-                    .filter(|key| key.declared && key.css_class == reference.name)
+                    .filter(|key| key.renamed && key.css_class == reference.name)
                     .map(|key| HashedKey {
                         name: key.key.clone(),
                         owner: key.element_name.clone(),

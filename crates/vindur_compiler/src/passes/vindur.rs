@@ -448,7 +448,7 @@ pub(crate) fn transform_program(
             hashed_keys: &mut hashed_cx_keys,
         },
     )?;
-    if let Some(diagnostic) = static_hashed_class_name_error(
+    let attrs_css_reference_owners = static_hashed_class_name_error(
         program,
         StaticClassNameContext {
             imports: &imports,
@@ -462,9 +462,7 @@ pub(crate) fn transform_program(
             file_path,
             source,
         },
-    ) {
-        return Err(diagnostic);
-    }
+    )?;
 
     transform_jsx_css_props(
         program,
@@ -611,7 +609,8 @@ pub(crate) fn transform_program(
             error.error.message,
         ));
     }
-    // The rules of these owners already had their own modifiers of the key renamed
+    // The rules of these owners had their own modifiers of the key renamed, or belong to css
+    // references of elements that get the hashed class without renaming them
     let hashed_owners = hashed_styled_modifiers
         .iter()
         .filter_map(|modifier| {
@@ -624,6 +623,11 @@ pub(crate) fn transform_program(
             hashed_css_reference_keys
                 .iter()
                 .map(|key| (key.css_class.as_str(), key.key.as_str())),
+        )
+        .chain(
+            attrs_css_reference_owners
+                .iter()
+                .map(|(class, key)| (class.as_str(), key.as_str())),
         )
         .collect::<Vec<_>>();
     if let Some(diagnostic) = raw_hashed_cx_key_error(

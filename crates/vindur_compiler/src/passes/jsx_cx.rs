@@ -202,7 +202,19 @@ impl JsxCxVisitor<'_> {
             (None, false) => "css-ref".to_owned(),
             (None, true) => format!("css:{}", element.span.start),
         };
-        let owners = ModifierOwners::new(element, styled.as_ref(), has_vindur_css, &css_references);
+        let wrapped_references = wrapped_css_references(
+            element,
+            self.output.constants,
+            self.output.scoping,
+            self.output.exported_names,
+        );
+        let owners = ModifierOwners::new(
+            element,
+            styled.as_ref(),
+            has_vindur_css,
+            &css_references,
+            &wrapped_references,
+        );
         let css_index = if has_vindur_css {
             let index = *self.output.id_index;
             *self.output.id_index += 1;
@@ -341,12 +353,6 @@ impl JsxCxVisitor<'_> {
             self.set_error(span, message);
             return;
         }
-        let wrapped_references = wrapped_css_references(
-            element,
-            self.output.constants,
-            self.output.scoping,
-            self.output.exported_names,
-        );
         if let Some((span, message)) =
             wrapped_css_reference_modifiers(&wrapped_references, &mappings, &self.renamed_modifiers)
         {
@@ -464,9 +470,15 @@ impl JsxCxVisitor<'_> {
             self.set_error(span, error.message);
             return;
         }
-        if styled.is_none() {
-            self.record_hashed_css_reference_keys(&css_references, &mappings, element_name);
-        }
+        // Css references of a styled component and wrapped ones are not renamed, their elements
+        // still get the hashed classes
+        self.record_hashed_css_reference_keys(
+            &css_references,
+            styled.is_none(),
+            &mappings,
+            element_name,
+        );
+        self.record_hashed_css_reference_keys(&wrapped_references, false, &mappings, element_name);
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
@@ -728,43 +740,54 @@ impl JsxCxVisitor<'_> {
         element_class_names(&clean_css(&content), ModifierCss::Block).unwrap_or_default()
     }
 
-    /// Records the hashed keys of the css references of an element, their rules are renamed in
-    /// place, so other elements using them can't add the keys as static classes
+    /// Records the hashed keys of the css references an element carries. Renamed references have
+    /// their rules renamed in place, so other elements using them can't add the keys as static
+    /// classes, and the raw `&.key` selectors left in the rules of the others never match it
     fn record_hashed_css_reference_keys(
         &mut self,
         references: &[CssReference],
+        renamed: bool,
         mappings: &[(String, String, bool)],
         element_name: &str,
     ) {
         for reference in references {
-            let recorded = &self.output.hashed_css_reference_keys;
-            let pending = mappings
+            for (key, hashed, _) in mappings
                 .iter()
-                .filter(|(key, _, should_rewrite)| {
-                    *should_rewrite
-                        && !recorded.iter().any(|recorded| {
-                            recorded.css_class == reference.name && recorded.key == *key
-                        })
-                })
-                .map(|(key, _, _)| key)
-                .collect::<Vec<_>>();
-            if pending.is_empty() {
-                continue;
-            }
-            // Invalid css is reported with its location by the css pass
-            let declared =
-                element_class_names(&reference.css, ModifierCss::Block).unwrap_or_default();
-            for key in pending {
-                self.output
-                    .hashed_css_reference_keys
-                    .push(HashedCssReferenceKey {
-                        css_class: reference.name.clone(),
-                        key: key.clone(),
-                        declared: declared.contains(key),
-                        element_name: element_name.to_owned(),
-                    });
+                .filter(|(_, _, should_rewrite)| *should_rewrite)
+            {
+                let is_renamed = renamed && self.declares_renamed_class(&reference.name, hashed);
+                let recorded = &mut self.output.hashed_css_reference_keys;
+                if let Some(existing) = recorded
+                    .iter_mut()
+                    .find(|recorded| recorded.css_class == reference.name && recorded.key == *key)
+                {
+                    existing.renamed |= is_renamed;
+                    continue;
+                }
+                recorded.push(HashedCssReferenceKey {
+                    css_class: reference.name.clone(),
+                    key: key.clone(),
+                    renamed: is_renamed,
+                    element_name: element_name.to_owned(),
+                });
             }
         }
+    }
+
+    /// If the rules of the class have the hashed class, after they were renamed
+    fn declares_renamed_class(&self, owner: &str, hashed: &str) -> bool {
+        let selector = format!(".{hashed}");
+        self.output
+            .css_rules
+            .iter()
+            .filter(|rule| is_class_rule(rule, owner))
+            .any(|rule| {
+                rule.match_indices(&selector).any(|(index, _)| {
+                    !rule[index + selector.len()..].starts_with(|char: char| {
+                        char.is_ascii_alphanumeric() || char == '-' || char == '_'
+                    })
+                })
+            })
     }
 
     /// Renames the hashed modifiers in the rules of each owner, the error has the class it failed
@@ -848,6 +871,7 @@ impl ModifierOwners {
         styled: Option<&StyledComponent>,
         has_vindur_css: bool,
         css_references: &[CssReference],
+        wrapped_references: &[CssReference],
     ) -> Self {
         let styled_class = styled
             .and_then(|styled| styled.class_name.split_whitespace().last())
@@ -863,13 +887,21 @@ impl ModifierOwners {
             Some(class) => vec![class.clone()],
             None => references.clone(),
         };
-        // A `$` key class also matches the rules of the extended styled components
+        // A `$` key class also matches the rules of the extended styled components and of the css
+        // references wrapped in the `className` expression
         let styled_classes = styled
             .into_iter()
             .flat_map(|styled| styled.class_name.split_whitespace().map(str::to_owned));
+        let wrapped = wrapped_references
+            .iter()
+            .map(|reference| reference.name.clone());
         Self {
             hashed: hashed.into_iter().chain(css_prop.clone()).collect(),
-            unhashed: styled_classes.chain(references).chain(css_prop).collect(),
+            unhashed: styled_classes
+                .chain(references)
+                .chain(wrapped)
+                .chain(css_prop)
+                .collect(),
         }
     }
 }

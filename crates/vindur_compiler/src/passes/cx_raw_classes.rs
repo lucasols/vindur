@@ -35,8 +35,9 @@ impl HashedCxKeys {
 /// component or global styles, never matches elements that get the key through cx. The modifiers
 /// of other elements, like `&.key` of a component that doesn't hash it, can't select those
 /// elements, so they are allowed. `hashed_owners` are the `(element class, key)` pairs whose
-/// rules had the key renamed, a raw modifier left in a rule of these classes is from other
-/// styles, e.g. `${styles} { &.key { ... } }` in global styles
+/// rules had the key renamed, or whose elements get the hashed class without renaming them, like
+/// a css reference of a styled component. A raw modifier left in a rule of these classes never
+/// matches those elements, e.g. `${styles} { &.key { ... } }` in global styles
 pub(super) fn raw_hashed_cx_key_error(
     keys: &HashedCxKeys,
     hashed_owners: &[(&str, &str)],

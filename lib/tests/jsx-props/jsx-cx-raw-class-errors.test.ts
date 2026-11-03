@@ -295,3 +295,96 @@ test('should allow the modifiers of other components, comments and values with t
 
   expect(warnings).toEqual([]);
 });
+
+test('should reject raw modifiers in other styles of css references carried by elements that hash the key', async () => {
+  const globalCard = dedent`
+    createGlobalStyle\`
+      \${card} {
+        &.active {
+          outline: 1px solid;
+        }
+      }
+    \`;
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled, createGlobalStyle } from 'vindur';
+
+        const card = css\`
+          color: red;
+        \`;
+
+        const Box = styled.div\`
+          &.active {
+            color: blue;
+          }
+        \`;
+
+        ${globalCard}
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Box className={card} cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".v1560qbr-1-card { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 22:30]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, styled, createGlobalStyle } from 'vindur';
+
+        const card = css\`
+          color: red;
+        \`;
+
+        const Box = styled.div.attrs({ className: card })\`
+          &.active {
+            color: blue;
+          }
+        \`;
+
+        ${globalCard}
+
+        export const A = ({ active }: { active: boolean }) => <Box cx={{ active }} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".v1560qbr-1-card { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 21:65]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, cx, createGlobalStyle } from 'vindur';
+
+        const card = css\`
+          color: red;
+        \`;
+
+        ${globalCard}
+
+        export const A = ({ active, b }: { active: boolean; b: boolean }) => (
+          <div
+            css={\`
+              &.active {
+                color: blue;
+              }
+            \`}
+            className={cx(card, b && 'x')}
+            cx={{ active }}
+          />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".v1560qbr-1-card { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 23:10]
+  `);
+});

@@ -314,3 +314,51 @@ test('should reject hashed cx modifiers of a css reference inside a className ex
     loc: 12:21]
   `);
 });
+
+test('should fail on a $ key with a css reference wrapped in className when another element hashes the key', async () => {
+  const card = dedent`
+    import { css, cx } from 'vindur';
+
+    const card = css\`
+      &.active {
+        color: blue;
+      }
+    \`;
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${card}
+
+        export const A = ({ on }: { on: boolean }) => (
+          <>
+            <div className={card} cx={{ active: on }} />
+            <div className={cx(card)} cx={{ $active: on }} />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 12:36]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        ${card}
+
+        export const A = ({ on }: { on: boolean }) => (
+          <>
+            <div className={cx(card)} cx={{ $active: on }} />
+            <div className={card} cx={{ active: on }} />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" is used both hashed and as "$active" with the same styles, hashing renames their "&.active" selectors so "$active" would stop matching. Use the same key in all cx props of these styles.
+    loc: 12:32]
+  `);
+});
