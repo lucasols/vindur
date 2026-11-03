@@ -53,6 +53,8 @@ pub(super) struct VariableTransform<'a> {
     pub id_index: &'a mut u32,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
+    /// The indices of the `css_rules` of global styles
+    pub global_rules: &'a mut Vec<usize>,
     pub styled_components: &'a mut FxHashMap<String, StyledComponent>,
     pub file_path: &'a str,
     pub source: &'a str,
@@ -96,6 +98,7 @@ pub(super) const GLOBAL_STYLE_EXPORT_ERROR: &str = "createGlobalStyle can't be e
 /// `@namespace` after another rule
 pub(super) fn push_global_style(
     css_rules: &mut Vec<String>,
+    global_rules: &mut Vec<usize>,
     has_side_effects: &mut bool,
     content: String,
     file_path: &str,
@@ -105,6 +108,7 @@ pub(super) fn push_global_style(
     check_global_start_order(css_rules, &content)
         .map_err(|message| CompilerDiagnostic::error(file_path, source, span, message))?;
     if !content.is_empty() {
+        global_rules.push(css_rules.len());
         css_rules.push(content);
         *has_side_effects = true;
     }
@@ -668,6 +672,7 @@ pub(super) fn process_variable_declaration(
             })?;
             push_global_style(
                 transform.css_rules,
+                transform.global_rules,
                 transform.has_side_effects,
                 content,
                 transform.file_path,

@@ -483,3 +483,89 @@ test('should allow a static class of a cx key hashed on an element with a css re
     "
   `);
 });
+
+test('should reject a hashed cx key in string concatenations of the className', async () => {
+  await expect(
+    transformWithFormat({ source: boxSource("{id + ' active'}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches the "&.active" styles, as the cx prop of "Box" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 12:25]
+  `);
+  await expect(
+    transformWithFormat({ source: boxSource("{'item ' + (a ? 'active' : '')}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches the "&.active" styles, as the cx prop of "Box" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 12:35]
+  `);
+});
+
+test('should allow classes joined to an expression in string concatenations', async () => {
+  const result = await transformWithFormat({
+    source: boxSource("{'item-' + id + 'active' + ' x-' + id}"),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({
+      active,
+      a,
+      id,
+    }: {
+      active: boolean;
+      a: boolean;
+      id: string;
+    }) => (
+      <>
+        <div className={"v1560qbr-1-Box" + (active ? " v1560qbr-2-active" : "")} />
+        <div
+          className={
+            "v1560qbr-1-Box " + ("item-" + id + "active" + " x-" + id || "")
+          }
+        />
+      </>
+    );
+    "
+  `);
+});
+
+test('should reject a hashed cx key in the className and attrs of a withComponent() alias of the styled component', async () => {
+  const source = (alias: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Box = styled.div\`
+      &.active {
+        color: blue;
+      }
+    \`;
+
+    ${alias}
+
+    export const A = ({ active }: { active: boolean }) => (
+      <>
+        <Box cx={{ active }} />
+        <Alias className="active" />
+      </>
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source(
+        'const Plain = styled.div`color: red;`;\nconst Alias = Plain.withComponent(Box);',
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Alias" never matches the "&.active" styles, as the cx prop of "Box" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 15:21]
+  `);
+  await expect(
+    transformWithFormat({
+      source: source(
+        "const Plain = styled.div.attrs({ className: 'active' })`color: red;`;\nconst Alias = Plain.withComponent(Box);",
+      ),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" in the .attrs() of "Plain" never matches the "&.active" styles of "Box", as its cx prop hashes it. Remove it from .attrs() and add it with the cx prop where it's needed, or use "$active" in the cx prop to keep the class name
+    loc: 9:44]
+  `);
+});

@@ -388,3 +388,41 @@ test('should reject raw modifiers in other styles of css references carried by e
     loc: 23:10]
   `);
 });
+
+test('should reject modifiers of other components in global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, styled } from 'vindur';
+
+        const Item = styled.div\`
+          &.selected {
+            color: blue;
+          }
+        \`;
+
+        const Box = styled.div\`
+          color: red;
+        \`;
+
+        createGlobalStyle\`
+          \${Box} {
+            &.selected {
+              color: green;
+            }
+          }
+        \`;
+
+        export const A = ({ selected }: { selected: boolean }) => (
+          <>
+            <Item cx={{ selected }} />
+            <Box className="selected" />
+          </>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "selected" is hashed, so the class ".selected" in the selector ".v1560qbr-2-Box { &.selected }" never matches elements that get it through cx. Use "$selected" in the cx prop to keep the class name, or rename one of the classes
+    loc: 23:16]
+  `);
+});

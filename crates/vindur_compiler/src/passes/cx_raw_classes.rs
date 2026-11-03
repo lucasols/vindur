@@ -33,8 +33,8 @@ impl HashedCxKeys {
 /// A hashed cx key only renames the classes of its own element, e.g. `&.key`, so any other raw
 /// `.key` class in the file's styles, like `&:has(.key)`, `& .key`, `.key &` or `.key` in another
 /// component or global styles, never matches elements that get the key through cx. The modifiers
-/// of other elements, like `&.key` of a component that doesn't hash it, can't select those
-/// elements, so they are allowed. `hashed_owners` are the `(element class, key)` pairs whose
+/// in the rules of other elements, like `&.key` of a component that doesn't hash it, can't select
+/// those elements, so they are allowed, global styles are always checked. `hashed_owners` are the `(element class, key)` pairs whose
 /// rules had the key renamed, or whose elements get the hashed class without renaming them, like
 /// a css reference of a styled component. A raw modifier left in a rule of these classes never
 /// matches those elements, e.g. `${styles} { &.key { ... } }` in global styles
@@ -42,6 +42,7 @@ pub(super) fn raw_hashed_cx_key_error(
     keys: &HashedCxKeys,
     hashed_owners: &[(&str, &str)],
     css_rules: &[String],
+    global_rules: &[usize],
     file_hash: &str,
     file_path: &str,
     source: &str,
@@ -52,7 +53,7 @@ pub(super) fn raw_hashed_cx_key_error(
         .iter()
         .map(|(name, span)| (name.as_str(), format!(".{name}"), *span))
         .collect::<Vec<_>>();
-    for rule in css_rules {
+    for (index, rule) in css_rules.iter().enumerate() {
         let candidates = selectors
             .iter()
             .filter(|(_, selector, _)| rule.contains(selector.as_str()))
@@ -73,8 +74,13 @@ pub(super) fn raw_hashed_cx_key_error(
             }
         };
         // Only the generated rules of elements have modifiers of their own element, the `&` of
-        // global styles like `html { &.key { ... } }` can be any element
-        let owner = element_rule_owner(&stylesheet.statements, &generated_prefix);
+        // global styles like `html { &.key { ... } }` or `${Box} { &.key { ... } }` can be any
+        // element
+        let owner = if global_rules.contains(&index) {
+            None
+        } else {
+            element_rule_owner(&stylesheet.statements, &generated_prefix)
+        };
         let is_element_rule = owner.is_some();
         let own_classes = if is_element_rule {
             class_rule_element_classes(&stylesheet.statements)
@@ -286,7 +292,7 @@ mod tests {
     use super::{HashedCxKeys, raw_hashed_cx_key_error};
 
     /// `vh-1-Card` is a css reference whose own `&.active` rules a cx prop renamed
-    fn fails(rule: &str) -> bool {
+    fn check(rule: &str, global_rules: &[usize]) -> bool {
         let keys = HashedCxKeys {
             keys: vec![("active".to_owned(), Span::new(0, 0))],
         };
@@ -295,11 +301,28 @@ mod tests {
             &keys,
             &hashed_owners,
             &[rule.to_owned()],
+            global_rules,
             "vh",
             "file.tsx",
             "",
         )
         .is_some()
+    }
+
+    fn fails(rule: &str) -> bool {
+        check(rule, &[])
+    }
+
+    #[test]
+    fn fails_for_modifiers_of_element_classes_in_global_styles() {
+        assert_eq!(
+            [
+                check(".vh-1-Item { &.active { color: red; } }", &[0]),
+                check(".vh-1-Item.active { color: red; }", &[0]),
+                check(".vh2-1-Imported { &.active { color: red; } }", &[0]),
+            ],
+            [true; 3]
+        );
     }
 
     #[test]

@@ -124,6 +124,7 @@ pub(crate) fn transform_program(
     }
     let file_hash = format!("v{}", murmur2(file_path));
     let mut css_rules = Vec::new();
+    let mut global_rules = Vec::new();
     let mut styled_components = FxHashMap::default();
     let mut handled_calls = Vec::new();
     let mut needs_merge_helper = false;
@@ -189,6 +190,7 @@ pub(crate) fn transform_program(
                         id_index: &mut id_index,
                         edits: &mut edits,
                         css_rules: &mut css_rules,
+                        global_rules: &mut global_rules,
                         styled_components: &mut styled_components,
                         file_path,
                         source,
@@ -242,6 +244,7 @@ pub(crate) fn transform_program(
                             id_index: &mut id_index,
                             edits: &mut edits,
                             css_rules: &mut css_rules,
+                            global_rules: &mut global_rules,
                             styled_components: &mut styled_components,
                             file_path,
                             source,
@@ -287,6 +290,7 @@ pub(crate) fn transform_program(
                     .map_err(|error| css_error_diagnostic(file_path, source, tagged.span, error))?;
                     push_global_style(
                         &mut css_rules,
+                        &mut global_rules,
                         &mut has_side_effects,
                         content,
                         file_path,
@@ -634,6 +638,7 @@ pub(crate) fn transform_program(
         &hashed_cx_keys,
         &hashed_owners,
         &css_rules,
+        &global_rules,
         &file_hash,
         file_path,
         source,

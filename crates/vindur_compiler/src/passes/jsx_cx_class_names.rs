@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Argument, BindingPattern, Expression, JSXAttributeValue, JSXElement, JSXExpression,
-    LogicalOperator, ObjectPropertyKind, Program, VariableDeclarator,
+    Argument, BinaryOperator, BindingPattern, Expression, JSXAttributeValue, JSXElement,
+    JSXExpression, LogicalOperator, ObjectPropertyKind, Program, VariableDeclarator,
 };
 use std::borrow::Cow;
 
@@ -268,24 +268,33 @@ impl StaticClassNameVisitor<'_> {
         None
     }
 
-    /// The hashed keys of the cx props of a styled component, also of the components it extends.
-    /// With `extending`, also the keys of the components extending it, which get its `.attrs()`
+    /// The hashed keys of the cx props of a styled component, also of the components it extends
+    /// and the styled component it renders with `withComponent()`. With `extending`, also the
+    /// keys of the components extending it, which get its `.attrs()`
     fn styled_hashed_keys(&self, styled: &StyledComponent, extending: bool) -> Vec<HashedKey> {
-        let own_class = styled.class_name.split_whitespace().last();
+        let mut classes = Vec::new();
+        match styled.class_name.split_whitespace().last() {
+            Some(own_class) if extending => {
+                for component in self.context.styled_components.values() {
+                    if component
+                        .class_name
+                        .split_whitespace()
+                        .any(|class| class == own_class)
+                    {
+                        self.element_classes(component, &mut classes);
+                    }
+                }
+            }
+            _ => self.element_classes(styled, &mut classes),
+        }
         self.context
             .modifiers
             .iter()
             .filter(|modifier| {
-                let is_own_or_base = modifier.classes.last().is_some_and(|owner| {
-                    styled
-                        .class_name
-                        .split_whitespace()
-                        .any(|class| class == owner)
-                });
-                let is_extending = extending
-                    && own_class
-                        .is_some_and(|own| modifier.classes.iter().any(|class| class == own));
-                is_own_or_base || is_extending
+                modifier
+                    .classes
+                    .last()
+                    .is_some_and(|owner| classes.contains(&owner.as_str()))
             })
             .map(|modifier| HashedKey {
                 name: modifier.class_name.clone(),
@@ -293,6 +302,23 @@ impl StaticClassNameVisitor<'_> {
                 css_reference: None,
             })
             .collect()
+    }
+
+    /// The styled component classes the elements of a styled component get, also of the local
+    /// styled component it renders, like `Box` in `Plain.withComponent(Box)`
+    fn element_classes<'s>(&'s self, styled: &'s StyledComponent, classes: &mut Vec<&'s str>) {
+        let mut current = Some(styled);
+        // Bounded, as `withComponent()` targets are declared before their use
+        for _ in 0..self.context.styled_components.len() + 1 {
+            let Some(component) = current else {
+                break;
+            };
+            classes.extend(component.class_name.split_whitespace());
+            current = component
+                .element_is_identifier
+                .then(|| self.context.styled_components.get(&component.element))
+                .flatten();
+        }
     }
 
     /// The hashed keys renamed in the rules of the css references
@@ -369,47 +395,20 @@ impl StaticClassNameVisitor<'_> {
                 strings.push((literal.value.as_str().to_owned(), literal.span));
             }
             Expression::TemplateLiteral(template) => {
-                let last = template.quasis.len().saturating_sub(1);
+                let mut pieces = Vec::new();
                 for (index, quasi) in template.quasis.iter().enumerate() {
-                    let Some(cooked) = &quasi.value.cooked else {
-                        continue;
-                    };
-                    let text = cooked.as_str();
-                    // Classes joined to an expression, like `item-` in `item-${id}`, are not
-                    // known
-                    let start = if index > 0 && !starts_with_separator(text) {
-                        text.find(|c: char| c.is_ascii_whitespace())
-                            .unwrap_or(text.len())
-                    } else {
-                        0
-                    };
-                    let end = if index < last && !ends_with_separator(text) {
-                        text.rfind(|c: char| c.is_ascii_whitespace()).unwrap_or(0)
-                    } else {
-                        text.len()
-                    };
-                    if start < end {
-                        strings.push((text[start..end].to_owned(), quasi.span));
+                    let text = quasi.value.cooked.as_ref().unwrap_or(&quasi.value.raw);
+                    pieces.push(ClassPiece::Text(text.as_str(), quasi.span));
+                    if let Some(expression) = template.expressions.get(index) {
+                        pieces.push(ClassPiece::Expression(expression));
                     }
                 }
-                // An expression between class separators is a whole class list, e.g.
-                // `${active ? 'active' : ''}` in `item ${...}`
-                for (index, expression) in template.expressions.iter().enumerate() {
-                    let (Some(before), Some(after)) =
-                        (template.quasis.get(index), template.quasis.get(index + 1))
-                    else {
-                        continue;
-                    };
-                    let before = before.value.raw.as_str();
-                    let after = after.value.raw.as_str();
-                    let separated_before =
-                        (index == 0 && before.is_empty()) || ends_with_separator(before);
-                    let separated_after =
-                        (index + 1 == last && after.is_empty()) || starts_with_separator(after);
-                    if separated_before && separated_after {
-                        self.class_strings(expression, in_cx, strings);
-                    }
-                }
+                self.joined_class_strings(&pieces, in_cx, strings);
+            }
+            Expression::BinaryExpression(binary) if binary.operator == BinaryOperator::Addition => {
+                let mut pieces = Vec::new();
+                concatenation_pieces(expression.get_inner_expression(), &mut pieces);
+                self.joined_class_strings(&pieces, in_cx, strings);
             }
             Expression::ConditionalExpression(conditional) => {
                 self.class_strings(&conditional.consequent, in_cx, strings);
@@ -442,6 +441,82 @@ impl StaticClassNameVisitor<'_> {
             }
             _ => {}
         }
+    }
+
+    /// The classes of strings joined with other values, like a template literal or a `+`
+    /// concatenation. Classes joined to another value, like `item-` in `item-${id}`, are not
+    /// known, and a value between class separators is a whole class list, e.g.
+    /// `${active ? 'active' : ''}` in `item ${...}`
+    fn joined_class_strings(
+        &self,
+        pieces: &[ClassPiece<'_, '_>],
+        in_cx: bool,
+        strings: &mut Vec<(String, Span)>,
+    ) {
+        let last = pieces.len().saturating_sub(1);
+        for (index, piece) in pieces.iter().enumerate() {
+            match piece {
+                ClassPiece::Text(text, span) => {
+                    let start = if index > 0 && !starts_with_separator(text) {
+                        text.find(|c: char| c.is_ascii_whitespace())
+                            .unwrap_or(text.len())
+                    } else {
+                        0
+                    };
+                    let end = if index < last && !ends_with_separator(text) {
+                        text.rfind(|c: char| c.is_ascii_whitespace()).unwrap_or(0)
+                    } else {
+                        text.len()
+                    };
+                    if start < end {
+                        strings.push((text[start..end].to_owned(), *span));
+                    }
+                }
+                ClassPiece::Expression(expression) => {
+                    let separated_before = match index.checked_sub(1).map(|before| &pieces[before])
+                    {
+                        None => true,
+                        Some(ClassPiece::Text(text, _)) => {
+                            (index == 1 && text.is_empty()) || ends_with_separator(text)
+                        }
+                        Some(ClassPiece::Expression(_)) => false,
+                    };
+                    let separated_after = match pieces.get(index + 1) {
+                        None => true,
+                        Some(ClassPiece::Text(text, _)) => {
+                            (index + 1 == last && text.is_empty()) || starts_with_separator(text)
+                        }
+                        Some(ClassPiece::Expression(_)) => false,
+                    };
+                    if separated_before && separated_after {
+                        self.class_strings(expression, in_cx, strings);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A part of a joined class string
+enum ClassPiece<'s, 'a> {
+    Text(&'s str, Span),
+    Expression(&'s Expression<'a>),
+}
+
+/// The operands of a `+` concatenation, string literals are texts
+fn concatenation_pieces<'s, 'a>(
+    expression: &'s Expression<'a>,
+    pieces: &mut Vec<ClassPiece<'s, 'a>>,
+) {
+    match expression.get_inner_expression() {
+        Expression::BinaryExpression(binary) if binary.operator == BinaryOperator::Addition => {
+            concatenation_pieces(&binary.left, pieces);
+            concatenation_pieces(&binary.right, pieces);
+        }
+        Expression::StringLiteral(literal) => {
+            pieces.push(ClassPiece::Text(literal.value.as_str(), literal.span));
+        }
+        expression => pieces.push(ClassPiece::Expression(expression)),
     }
 }
 
