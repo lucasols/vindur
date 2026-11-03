@@ -1,14 +1,17 @@
-use oxc_ast::ast::{Expression, IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression};
+use oxc_ast::ast::{
+    Expression, IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression,
+    TaggedTemplateExpression,
+};
 use oxc_ast_visit::Visit;
 use oxc_semantic::Scoping;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::facts::StaticValue;
+use crate::{edit::Edit, facts::StaticValue};
 
 use super::{
     css_syntax::CssError,
     cx_modifier_selectors::{ModifierCss, element_class_names, rewrite_modifiers, rewrites_any},
-    jsx_attributes::find_last_attribute,
+    jsx_attributes::{find_attributes, find_last_attribute},
     static_evaluation::resolved_constant,
     styled_jsx_helpers::is_class_rule,
 };
@@ -245,20 +248,39 @@ fn declares_rewritten_modifier(
         .any(|(original, _, should_rewrite)| *should_rewrite && declared.contains(original)))
 }
 
+/// The generated rules of the class, `createGlobalStyle` rules selecting it, like
+/// `${Box} { ... }`, are global styles and never its rules
+pub(super) fn owner_rules<'r>(
+    css_rules: &'r [String],
+    global_rules: &'r [usize],
+    class_name: &'r str,
+) -> impl Iterator<Item = &'r String> {
+    css_rules
+        .iter()
+        .enumerate()
+        .filter(move |(index, rule)| {
+            !global_rules.contains(index) && is_class_rule(rule, class_name)
+        })
+        .map(|(_, rule)| rule)
+}
+
 pub(super) fn rewrite_class_rules(
     css_rules: &mut [String],
+    global_rules: &[usize],
     class_names: &[String],
     mappings: &[(String, String, bool)],
 ) -> Result<(), CssError> {
     if !rewrites_any(mappings) {
         return Ok(());
     }
-    for rule in css_rules.iter_mut().filter(|rule| {
-        class_names
-            .iter()
-            .any(|class_name| is_class_rule(rule, class_name))
-    }) {
-        *rule = rewrite_modifiers(rule, ModifierCss::ClassRule, mappings)?;
+    for (index, rule) in css_rules.iter_mut().enumerate() {
+        if !global_rules.contains(&index)
+            && class_names
+                .iter()
+                .any(|class_name| is_class_rule(rule, class_name))
+        {
+            *rule = rewrite_modifiers(rule, ModifierCss::ClassRule, mappings)?;
+        }
     }
     Ok(())
 }
@@ -266,23 +288,74 @@ pub(super) fn rewrite_class_rules(
 /// The class of the mapping `rewrite_class_rules` fails on, so the error is reported at its cx key
 pub(super) fn failing_modifier<'m>(
     css_rules: &[String],
+    global_rules: &[usize],
     class_names: &[String],
     mappings: &'m [(String, String, bool)],
 ) -> Option<&'m str> {
     mappings
         .iter()
         .find(|mapping| {
-            css_rules
+            class_names
                 .iter()
-                .filter(|rule| {
-                    class_names
-                        .iter()
-                        .any(|class_name| is_class_rule(rule, class_name))
-                })
+                .flat_map(|class_name| owner_rules(css_rules, global_rules, class_name))
                 .any(|rule| {
                     rewrite_modifiers(rule, ModifierCss::ClassRule, std::slice::from_ref(mapping))
                         .is_err()
                 })
         })
         .map(|(original, _, _)| original.as_str())
+}
+
+/// Inline `css` templates in `className` get a generated class whose rules are never renamed,
+/// so fail when one declares a hashed cx modifier, e.g. ``className={css`&.active { ... }`}``
+pub(super) fn inline_css_template_modifiers(
+    element: &JSXElement<'_>,
+    edits: &[Edit],
+    css_rules: &[String],
+    global_rules: &[usize],
+    mappings: &[(String, String, bool)],
+) -> Result<Option<(oxc_span::Span, String)>, CssError> {
+    if !rewrites_any(mappings) {
+        return Ok(None);
+    }
+    let mut collector = TaggedTemplateCollector { spans: Vec::new() };
+    for attribute in find_attributes(element, "className") {
+        if let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value {
+            collector.visit_jsx_expression(&container.expression);
+        }
+    }
+    for span in collector.spans {
+        // Compiled `css` templates are replaced by their generated class name
+        let Some(class_name) = edits
+            .iter()
+            .find(|edit| edit.span == span)
+            .and_then(|edit| edit.replacement.strip_prefix('"')?.strip_suffix('"'))
+        else {
+            continue;
+        };
+        for rule in owner_rules(css_rules, global_rules, class_name) {
+            let declared = element_class_names(rule, ModifierCss::ClassRule)?;
+            if let Some((original, _, _)) = mappings.iter().find(|(original, _, should_rewrite)| {
+                *should_rewrite && declared.contains(original)
+            }) {
+                return Ok(Some((
+                    span,
+                    format!(
+                        "cx prop class \"{original}\" can't be hashed with the inline css template in className, its \"&.{original}\" styles are only hashed in the element's own styles or in a module level css reference passed directly. Move the modifier styles there or use a $-prefixed class (e.g. ${original})."
+                    ),
+                )));
+            }
+        }
+    }
+    Ok(None)
+}
+
+struct TaggedTemplateCollector {
+    spans: Vec<oxc_span::Span>,
+}
+
+impl<'a> Visit<'a> for TaggedTemplateCollector {
+    fn visit_tagged_template_expression(&mut self, tagged: &TaggedTemplateExpression<'a>) {
+        self.spans.push(tagged.span);
+    }
 }

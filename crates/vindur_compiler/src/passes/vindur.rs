@@ -442,6 +442,7 @@ pub(crate) fn transform_program(
             id_starts: &jsx_id_starts,
             edits: &mut edits,
             css_rules: &mut css_rules,
+            global_rules: &global_rules,
             elements: &mut cx_elements,
             hashed_styled_modifiers: &mut hashed_styled_modifiers,
             hashed_css_reference_keys: &mut hashed_css_reference_keys,

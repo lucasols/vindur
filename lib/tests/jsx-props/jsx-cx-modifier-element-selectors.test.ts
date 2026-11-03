@@ -525,3 +525,32 @@ test('should keep classes of other elements selected with a component reference'
     "
   `);
 });
+
+test('should reject cx modifiers declared by the styled component rendered with withComponent()', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        const Plain = styled.div\`
+          color: blue;
+        \`;
+
+        const Alias = Plain.withComponent(Box);
+
+        export const App = ({ on }: { on: boolean }) => (
+          <Alias cx={{ active: on }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Alias", its "&.active" styles are declared in "Box", which it renders with withComponent(). Move the modifier styles into "Alias" or use a $-prefixed class (e.g. $active).
+    loc: 16:15]
+  `);
+});

@@ -31,8 +31,8 @@ use super::{
     jsx_cx_class_names::HashedCssReferenceKey,
     jsx_cx_component_references::HashedStyledModifier,
     jsx_cx_css_references::{
-        CssReference, css_references, failing_modifier, rewrite_class_rules,
-        unsupported_css_reference_modifiers, wrapped_css_reference_modifiers,
+        CssReference, css_references, failing_modifier, inline_css_template_modifiers, owner_rules,
+        rewrite_class_rules, unsupported_css_reference_modifiers, wrapped_css_reference_modifiers,
         wrapped_css_references,
     },
     runtime_helpers::RuntimeHelperNames,
@@ -41,8 +41,7 @@ use super::{
     styled::{StyledComponent, styled_ref_placeholder},
     styled_jsx_helpers::{
         ClassNameTarget, CxClasses, class_concat, decode_jsx_entities, emit_class_name, find_jsx,
-        inlined_component_classes, is_class_rule, unsupported_spread_message,
-        validate_styled_spreads,
+        inlined_component_classes, unsupported_spread_message, validate_styled_spreads,
     },
 };
 
@@ -68,6 +67,8 @@ pub(crate) struct JsxCxTransform<'a> {
     pub id_starts: &'a FxHashMap<u32, u32>,
     pub edits: &'a mut Vec<Edit>,
     pub css_rules: &'a mut Vec<String>,
+    /// The indices of the `createGlobalStyle` rules, which are never the rules of an element class
+    pub global_rules: &'a [usize],
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub hashed_styled_modifiers: &'a mut Vec<HashedStyledModifier>,
     pub hashed_css_reference_keys: &'a mut Vec<HashedCssReferenceKey>,
@@ -283,6 +284,26 @@ impl JsxCxVisitor<'_> {
                     return;
                 }
             };
+            let with_component = match &styled {
+                Some(styled) if hashed => self.with_component_declaring(styled, &class_name),
+                _ => Ok(None),
+            };
+            match with_component {
+                Ok(Some(target)) => {
+                    self.set_error(
+                        property.key.span(),
+                        format!(
+                            "cx prop class \"{class_name}\" can't be hashed on styled component \"{element_name}\", its \"&.{class_name}\" styles are declared in \"{target}\", which it renders with withComponent(). Move the modifier styles into \"{element_name}\" or use a $-prefixed class (e.g. ${class_name})."
+                        ),
+                    );
+                    return;
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    self.set_error(property.key.span(), error.message);
+                    return;
+                }
+            }
             if is_extended {
                 self.set_error(
                     property.key.span(),
@@ -358,6 +379,23 @@ impl JsxCxVisitor<'_> {
         {
             self.set_error(span, message);
             return;
+        }
+        match inline_css_template_modifiers(
+            element,
+            self.output.edits,
+            self.output.css_rules,
+            self.output.global_rules,
+            &mappings,
+        ) {
+            Ok(None) => {}
+            Ok(Some((span, message))) => {
+                self.set_error(span, message);
+                return;
+            }
+            Err(error) => {
+                self.set_error(attribute.span, error.message);
+                return;
+            }
         }
 
         if let Some(styled) = &styled {
@@ -607,16 +645,49 @@ impl JsxCxVisitor<'_> {
         class_name: &str,
     ) -> Result<bool, CssError> {
         let classes = styled.class_name.split_whitespace().collect::<Vec<_>>();
-        for index in 0..classes.len().saturating_sub(1) {
+        self.declares_modifier(&classes, classes.len().saturating_sub(1), class_name)
+    }
+
+    /// The local styled component a styled component renders with `withComponent()` that declares
+    /// the class in its rules, e.g. `Box` for `&.active` in `Plain.withComponent(Box)`. Its rules
+    /// are only renamed for cx props of that component, but its elements get the hashed class
+    fn with_component_declaring(
+        &mut self,
+        styled: &StyledComponent,
+        class_name: &str,
+    ) -> Result<Option<String>, CssError> {
+        let components = self.output.styled_components;
+        let mut current = styled;
+        // Bounded, as `withComponent()` targets are declared before their use
+        for _ in 0..components.len() {
+            if !current.element_is_identifier || current.element_is_base {
+                break;
+            }
+            let Some(target) = components.get(&current.element) else {
+                break;
+            };
+            let classes = target.class_name.split_whitespace().collect::<Vec<_>>();
+            if self.declares_modifier(&classes, classes.len(), class_name)? {
+                return Ok(Some(current.element.clone()));
+            }
+            current = target;
+        }
+        Ok(None)
+    }
+
+    /// If the rules of the first `count` styled component `classes` declare the class, also when
+    /// cx props of that component already renamed it
+    fn declares_modifier(
+        &mut self,
+        classes: &[&str],
+        count: usize,
+        class_name: &str,
+    ) -> Result<bool, CssError> {
+        for index in 0..count {
             let class = classes[index];
             if !self.extended_declarations.contains_key(class) {
                 let mut declared = Vec::new();
-                for rule in self
-                    .output
-                    .css_rules
-                    .iter()
-                    .filter(|rule| is_class_rule(rule, class))
-                {
+                for rule in owner_rules(self.output.css_rules, self.output.global_rules, class) {
                     declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
                 }
                 self.extended_declarations
@@ -695,12 +766,7 @@ impl JsxCxVisitor<'_> {
             return Ok(Vec::new());
         };
         let mut declared = self.css_prop_class_names(element);
-        for rule in self
-            .output
-            .css_rules
-            .iter()
-            .filter(|rule| is_class_rule(rule, base_class))
-        {
+        for rule in owner_rules(self.output.css_rules, self.output.global_rules, base_class) {
             declared.extend(element_class_names(rule, ModifierCss::ClassRule)?);
         }
         Ok(mappings
@@ -777,17 +843,13 @@ impl JsxCxVisitor<'_> {
     /// If the rules of the class have the hashed class, after they were renamed
     fn declares_renamed_class(&self, owner: &str, hashed: &str) -> bool {
         let selector = format!(".{hashed}");
-        self.output
-            .css_rules
-            .iter()
-            .filter(|rule| is_class_rule(rule, owner))
-            .any(|rule| {
-                rule.match_indices(&selector).any(|(index, _)| {
-                    !rule[index + selector.len()..].starts_with(|char: char| {
-                        char.is_ascii_alphanumeric() || char == '-' || char == '_'
-                    })
+        owner_rules(self.output.css_rules, self.output.global_rules, owner).any(|rule| {
+            rule.match_indices(&selector).any(|(index, _)| {
+                !rule[index + selector.len()..].starts_with(|char: char| {
+                    char.is_ascii_alphanumeric() || char == '-' || char == '_'
                 })
             })
+        })
     }
 
     /// Renames the hashed modifiers in the rules of each owner, the error has the class it failed
@@ -809,8 +871,12 @@ impl JsxCxVisitor<'_> {
                 .cloned()
                 .collect::<Vec<_>>();
             let owners = std::slice::from_ref(owner);
-            if let Err(error) = rewrite_class_rules(self.output.css_rules, owners, &pending) {
-                let failing = failing_modifier(self.output.css_rules, owners, &pending);
+            let global_rules = self.output.global_rules;
+            if let Err(error) =
+                rewrite_class_rules(self.output.css_rules, global_rules, owners, &pending)
+            {
+                let failing =
+                    failing_modifier(self.output.css_rules, global_rules, owners, &pending);
                 return Err((error, failing.map(str::to_owned)));
             }
         }

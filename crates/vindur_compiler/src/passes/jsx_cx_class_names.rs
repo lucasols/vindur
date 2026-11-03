@@ -398,7 +398,7 @@ impl StaticClassNameVisitor<'_> {
                 let mut pieces = Vec::new();
                 for (index, quasi) in template.quasis.iter().enumerate() {
                     let text = quasi.value.cooked.as_ref().unwrap_or(&quasi.value.raw);
-                    pieces.push(ClassPiece::Text(text.as_str(), quasi.span));
+                    pieces.push(ClassPiece::Text(Cow::Borrowed(text.as_str()), quasi.span));
                     if let Some(expression) = template.expressions.get(index) {
                         pieces.push(ClassPiece::Expression(expression));
                     }
@@ -499,7 +499,7 @@ impl StaticClassNameVisitor<'_> {
 
 /// A part of a joined class string
 enum ClassPiece<'s, 'a> {
-    Text(&'s str, Span),
+    Text(Cow<'s, str>, Span),
     Expression(&'s Expression<'a>),
 }
 
@@ -513,9 +513,17 @@ fn concatenation_pieces<'s, 'a>(
             concatenation_pieces(&binary.left, pieces);
             concatenation_pieces(&binary.right, pieces);
         }
-        Expression::StringLiteral(literal) => {
-            pieces.push(ClassPiece::Text(literal.value.as_str(), literal.span));
-        }
+        // Adjacent literals are one text, like `' ' + 'active'` in `id + ' ' + 'active'`
+        Expression::StringLiteral(literal) => match pieces.last_mut() {
+            Some(ClassPiece::Text(text, span)) => {
+                text.to_mut().push_str(literal.value.as_str());
+                span.end = literal.span.end;
+            }
+            _ => pieces.push(ClassPiece::Text(
+                Cow::Borrowed(literal.value.as_str()),
+                literal.span,
+            )),
+        },
         expression => pieces.push(ClassPiece::Expression(expression)),
     }
 }

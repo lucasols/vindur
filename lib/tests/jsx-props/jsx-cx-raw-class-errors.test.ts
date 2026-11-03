@@ -426,3 +426,67 @@ test('should reject modifiers of other components in global styles', async () =>
     loc: 23:16]
   `);
 });
+
+test('should reject modifiers in global styles that start with the hashing component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, styled } from 'vindur';
+
+        const Box = styled.div\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        createGlobalStyle\`
+          \${Box} {
+            color: blue;
+          }
+
+          .other {
+            &.active {
+              color: green;
+            }
+          }
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Box cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".other { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 22:13]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createGlobalStyle, styled } from 'vindur';
+
+        const Box = styled.div\`
+          &.active {
+            color: red;
+          }
+        \`;
+
+        createGlobalStyle\`
+          \${Box} {
+            &.active {
+              color: blue;
+            }
+          }
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Box cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed on styled component "Box", other styles select it through a component reference, like "\${Box}.active", which would stop matching. Use a $-prefixed class (e.g. $active) or a style flag.
+    loc: 18:13]
+  `);
+});

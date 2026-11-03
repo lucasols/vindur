@@ -362,3 +362,35 @@ test('should fail on a $ key with a css reference wrapped in className when anot
     loc: 12:32]
   `);
 });
+
+test('should reject hashed cx modifiers of an inline css template in className', async () => {
+  const source = (className: string) => dedent`
+    import { css, styled, cx } from 'vindur';
+
+    const Box = styled.div\`
+      color: blue;
+    \`;
+
+    export const App = ({ on }: { on: boolean }) => (
+      <Box className={${className}} cx={{ active: on }} />
+    );
+  `;
+
+  await expect(
+    transformWithFormat({
+      source: source('css`&.active { color: red; }`'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed with the inline css template in className, its "&.active" styles are only hashed in the element's own styles or in a module level css reference passed directly. Move the modifier styles there or use a $-prefixed class (e.g. $active).
+    loc: 8:18]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: source("cx(css`&.active { color: red; }`, 'x')"),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx prop class "active" can't be hashed with the inline css template in className, its "&.active" styles are only hashed in the element's own styles or in a module level css reference passed directly. Move the modifier styles there or use a $-prefixed class (e.g. $active).
+    loc: 8:21]
+  `);
+});
