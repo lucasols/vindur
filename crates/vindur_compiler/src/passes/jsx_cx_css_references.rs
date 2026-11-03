@@ -1,4 +1,4 @@
-use oxc_ast::ast::{IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression};
+use oxc_ast::ast::{Expression, IdentifierReference, JSXAttributeValue, JSXElement, JSXExpression};
 use oxc_ast_visit::Visit;
 use oxc_semantic::Scoping;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -14,20 +14,14 @@ use super::{
 };
 
 pub(super) struct CssReference {
-    name: String,
-    css: String,
-    identifier: String,
-    span: oxc_span::Span,
+    /// The class name of the referenced css
+    pub name: String,
+    pub css: String,
+    pub identifier: String,
+    pub span: oxc_span::Span,
     imported: bool,
     /// A local css exported to other files, which don't get its renamed modifiers
     exported: bool,
-}
-
-impl CssReference {
-    /// The class name of the referenced css
-    pub(super) fn name(&self) -> &str {
-        &self.name
-    }
 }
 
 /// The `css` function references used in `className` or `css`
@@ -71,6 +65,24 @@ pub(super) fn wrapped_css_references(
         references: Vec::new(),
     };
     collector.visit_jsx_expression(expression);
+    collector.references
+}
+
+/// The `css` function references anywhere in an expression, e.g. `styles` in
+/// `.attrs({ className: cx(styles, 'a') })`
+pub(super) fn expression_css_references(
+    expression: &Expression<'_>,
+    constants: &FxHashMap<String, StaticValue>,
+    scoping: &Scoping,
+    exported_names: &FxHashMap<String, String>,
+) -> Vec<CssReference> {
+    let mut collector = CssReferenceCollector {
+        constants,
+        scoping,
+        exported_names,
+        references: Vec::new(),
+    };
+    collector.visit_expression(expression);
     collector.references
 }
 

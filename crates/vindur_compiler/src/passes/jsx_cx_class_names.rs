@@ -1,6 +1,6 @@
 use oxc_ast::ast::{
-    Argument, BindingPattern, Expression, IdentifierReference, JSXAttributeValue, JSXElement,
-    JSXExpression, LogicalOperator, ObjectPropertyKind, Program, VariableDeclarator,
+    Argument, BindingPattern, Expression, JSXAttributeValue, JSXElement, JSXExpression,
+    LogicalOperator, ObjectPropertyKind, Program, VariableDeclarator,
 };
 use std::borrow::Cow;
 
@@ -15,7 +15,9 @@ use super::{
     cx_modifier_selectors::{ModifierCss, element_class_names},
     jsx_attributes::{find_attributes, jsx_name},
     jsx_cx_component_references::HashedStyledModifier,
-    static_evaluation::resolved_constant,
+    jsx_cx_css_references::{
+        CssReference, css_references, expression_css_references, wrapped_css_references,
+    },
     styled::StyledComponent,
     styled_jsx_helpers::decode_jsx_entities,
 };
@@ -26,6 +28,8 @@ pub(crate) struct HashedCssReferenceKey {
     /// The class name of the css reference
     pub css_class: String,
     pub key: String,
+    /// If the css reference declares the key as a modifier, e.g. `&.key`
+    pub declared: bool,
     /// The element whose cx prop hashes it
     pub element_name: String,
 }
@@ -55,6 +59,7 @@ pub(crate) struct StaticClassNameContext<'a> {
     pub styled_components: &'a FxHashMap<String, StyledComponent>,
     pub constants: &'a FxHashMap<String, StaticValue>,
     pub scoping: &'a Scoping,
+    pub exported_names: &'a FxHashMap<String, String>,
     pub modifiers: &'a [HashedStyledModifier],
     pub css_reference_keys: &'a [HashedCssReferenceKey],
     pub has_hashed_keys: bool,
@@ -67,10 +72,12 @@ struct StaticClassNameVisitor<'a> {
     diagnostic: Option<CompilerDiagnostic>,
 }
 
-/// A hashed cx key and the element whose cx prop hashes it
+/// A hashed cx key, the element whose cx prop hashes it and the css reference declaring it, if
+/// it's not a key of the element styles
 struct HashedKey {
     name: String,
     owner: String,
+    css_reference: Option<String>,
 }
 
 /// Where the static classes are written, for the fix suggested in the error
@@ -78,14 +85,6 @@ struct HashedKey {
 enum ClassSource {
     Element,
     Attrs,
-}
-
-/// A css reference used in a `className` or `css` expression
-struct UsedCssReference<'c> {
-    identifier: String,
-    span: Span,
-    class_name: &'c str,
-    css: &'c str,
 }
 
 impl<'a> Visit<'a> for StaticClassNameVisitor<'_> {
@@ -106,7 +105,7 @@ impl<'a> Visit<'a> for StaticClassNameVisitor<'_> {
     }
 }
 
-impl<'v> StaticClassNameVisitor<'v> {
+impl StaticClassNameVisitor<'_> {
     fn check_element(&mut self, element: &JSXElement<'_>) {
         let Some(name) = jsx_name(&element.opening_element.name) else {
             return;
@@ -118,29 +117,40 @@ impl<'v> StaticClassNameVisitor<'v> {
         hashed.extend(own_hashed_keys(element).map(|key| HashedKey {
             name: key,
             owner: name.to_owned(),
+            css_reference: None,
         }));
         let mut strings = Vec::new();
-        let mut references = Vec::new();
-        for attribute_name in ["className", "css"] {
-            for attribute in find_attributes(element, attribute_name) {
-                match &attribute.value {
-                    Some(JSXAttributeValue::StringLiteral(literal))
-                        if attribute_name == "className" =>
-                    {
-                        strings.push((decode_jsx_entities(&literal.value), literal.span));
-                    }
-                    Some(JSXAttributeValue::ExpressionContainer(container)) => {
-                        if let Some(expression) = container.expression.as_expression() {
-                            self.css_references(expression, &mut references);
-                            if attribute_name == "className" {
-                                self.class_strings(expression, false, &mut strings);
-                            }
-                        }
-                    }
-                    _ => {}
+        for attribute in find_attributes(element, "className") {
+            match &attribute.value {
+                Some(JSXAttributeValue::StringLiteral(literal)) => {
+                    strings.push((decode_jsx_entities(&literal.value), literal.span));
                 }
+                Some(JSXAttributeValue::ExpressionContainer(container)) => {
+                    if let Some(expression) = container.expression.as_expression() {
+                        self.class_strings(expression, false, &mut strings);
+                    }
+                }
+                _ => {}
             }
         }
+        if strings.is_empty() {
+            return;
+        }
+        // The css references that add their class to the element, a css reference interpolated
+        // in a css prop template is copied into the element styles
+        let context = &self.context;
+        let mut references = css_references(
+            element,
+            context.constants,
+            context.scoping,
+            context.exported_names,
+        );
+        references.extend(wrapped_css_references(
+            element,
+            context.constants,
+            context.scoping,
+            context.exported_names,
+        ));
         hashed.extend(self.css_reference_hashed_keys(&references));
         self.report(name, &hashed, &strings, ClassSource::Element);
     }
@@ -177,32 +187,67 @@ impl<'v> StaticClassNameVisitor<'v> {
                 && property.key.static_name().as_deref() == Some("className")
             {
                 self.class_strings(&property.value, false, &mut strings);
-                self.css_references(&property.value, &mut references);
-            }
-        }
-        let mut hashed = self.styled_hashed_keys(styled, true);
-        // Modifiers of css references in `.attrs()` are not renamed for the styled component cx
-        // props, like `className={styles}` on the element
-        for reference in &references {
-            let declared =
-                element_class_names(reference.css, ModifierCss::Block).unwrap_or_default();
-            if let Some(key) = hashed.iter().find(|key| declared.contains(&key.name)) {
-                self.diagnostic = Some(CompilerDiagnostic::error(
-                    self.context.file_path,
-                    self.context.source,
-                    reference.span,
-                    format!(
-                        "cx prop modifiers can't be used on styled component \"{owner}\" with the css reference \"{identifier}\" in its .attrs() className. Move the modifier styles into the styled component or use $-prefixed classes (e.g. ${key}).",
-                        owner = key.owner,
-                        identifier = reference.identifier,
-                        key = key.name
-                    ),
+                references.extend(expression_css_references(
+                    &property.value,
+                    self.context.constants,
+                    self.context.scoping,
+                    self.context.exported_names,
                 ));
-                return;
             }
         }
-        hashed.extend(self.css_reference_hashed_keys(&references));
+        let hashed = self.styled_hashed_keys(styled, true);
+        if let Some((reference, key)) = self.attrs_reference_modifier(&references, &hashed) {
+            self.diagnostic = Some(CompilerDiagnostic::error(
+                self.context.file_path,
+                self.context.source,
+                reference.span,
+                format!(
+                    "css reference \"{identifier}\" in the .attrs() className of \"{name}\" declares the \"&.{key}\" modifier, which the cx prop of \"{owner}\" hashes, so it never matches the elements of \"{name}\". Move the modifier styles into the styled component, or use \"${key}\" in the cx prop to keep the class name",
+                    identifier = reference.identifier,
+                    owner = key.owner,
+                    key = key.name
+                ),
+            ));
+            return;
+        }
         self.report(name, &hashed, &strings, ClassSource::Attrs);
+    }
+
+    /// A css reference in `.attrs()` that declares a modifier hashed by a cx prop, of the styled
+    /// component or of the css reference itself. Its rules are not renamed for the styled
+    /// component cx props, and when another element hashes it, the styled component can't add the
+    /// hashed class
+    fn attrs_reference_modifier<'r>(
+        &self,
+        references: &'r [CssReference],
+        styled_keys: &[HashedKey],
+    ) -> Option<(&'r CssReference, HashedKey)> {
+        for reference in references {
+            if let Some(key) = self
+                .css_reference_hashed_keys(std::slice::from_ref(reference))
+                .into_iter()
+                .next()
+            {
+                return Some((reference, key));
+            }
+            if styled_keys.is_empty() {
+                continue;
+            }
+            // Invalid css is reported with its location by the css pass
+            let declared =
+                element_class_names(&reference.css, ModifierCss::Block).unwrap_or_default();
+            if let Some(key) = styled_keys.iter().find(|key| declared.contains(&key.name)) {
+                return Some((
+                    reference,
+                    HashedKey {
+                        name: key.name.clone(),
+                        owner: key.owner.clone(),
+                        css_reference: None,
+                    },
+                ));
+            }
+        }
+        None
     }
 
     /// The hashed keys of the cx props of a styled component, also of the components it extends.
@@ -227,49 +272,27 @@ impl<'v> StaticClassNameVisitor<'v> {
             .map(|modifier| HashedKey {
                 name: modifier.class_name.clone(),
                 owner: modifier.element_name.clone(),
+                css_reference: None,
             })
             .collect()
     }
 
-    /// The hashed keys the used css references declare as modifiers
-    fn css_reference_hashed_keys(&self, references: &[UsedCssReference<'_>]) -> Vec<HashedKey> {
-        let mut hashed = Vec::new();
-        for reference in references {
-            let keys = self
-                .context
-                .css_reference_keys
-                .iter()
-                .filter(|key| key.css_class == reference.class_name)
-                .collect::<Vec<_>>();
-            if keys.is_empty() {
-                continue;
-            }
-            let declared =
-                element_class_names(reference.css, ModifierCss::Block).unwrap_or_default();
-            hashed.extend(
-                keys.into_iter()
-                    .filter(|key| declared.contains(&key.key))
+    /// The hashed keys the css references declare as modifiers
+    fn css_reference_hashed_keys(&self, references: &[CssReference]) -> Vec<HashedKey> {
+        references
+            .iter()
+            .flat_map(|reference| {
+                self.context
+                    .css_reference_keys
+                    .iter()
+                    .filter(|key| key.declared && key.css_class == reference.name)
                     .map(|key| HashedKey {
                         name: key.key.clone(),
                         owner: key.element_name.clone(),
-                    }),
-            );
-        }
-        hashed
-    }
-
-    /// The css references anywhere in the expression
-    fn css_references(
-        &self,
-        expression: &Expression<'_>,
-        references: &mut Vec<UsedCssReference<'v>>,
-    ) {
-        let mut collector = CssReferenceCollector {
-            constants: self.context.constants,
-            scoping: self.context.scoping,
-            references,
-        };
-        collector.visit_expression(expression);
+                        css_reference: Some(reference.identifier.clone()),
+                    })
+            })
+            .collect()
     }
 
     fn report(
@@ -288,13 +311,19 @@ impl<'v> StaticClassNameVisitor<'v> {
                     continue;
                 };
                 let owner = &key.owner;
+                let styles = match &key.css_reference {
+                    Some(reference) => {
+                        format!("the \"&.{class}\" styles of the css reference \"{reference}\"")
+                    }
+                    None => format!("the \"&.{class}\" styles"),
+                };
                 let message = match source {
                     ClassSource::Element => format!(
-                        "class \"{class}\" on \"{name}\" never matches its \"&.{class}\" styles, as the cx prop of \"{owner}\" hashes it. Use cx={{{{ {key}: true }}}} instead, or \"${class}\" in the cx prop to keep the class name",
+                        "class \"{class}\" on \"{name}\" never matches {styles}, as the cx prop of \"{owner}\" hashes it. Add it with the cx prop instead, e.g. cx={{{{ {key}: condition }}}}, or use \"${class}\" in the cx prop to keep the class name",
                         key = property_key(class)
                     ),
                     ClassSource::Attrs => format!(
-                        "class \"{class}\" in the .attrs() of \"{name}\" never matches the \"&.{class}\" styles of \"{owner}\", as its cx prop hashes it. Remove it from .attrs() and add it with the cx prop where it's needed, or \"${class}\" in the cx prop to keep the class name"
+                        "class \"{class}\" in the .attrs() of \"{name}\" never matches {styles} of \"{owner}\", as its cx prop hashes it. Remove it from .attrs() and add it with the cx prop where it's needed, or use \"${class}\" in the cx prop to keep the class name"
                     ),
                 };
                 self.diagnostic = Some(CompilerDiagnostic::error(
@@ -394,27 +423,6 @@ impl<'v> StaticClassNameVisitor<'v> {
                 }
             }
             _ => {}
-        }
-    }
-}
-
-struct CssReferenceCollector<'c, 'r> {
-    constants: &'c FxHashMap<String, StaticValue>,
-    scoping: &'c Scoping,
-    references: &'r mut Vec<UsedCssReference<'c>>,
-}
-
-impl<'a> Visit<'a> for CssReferenceCollector<'_, '_> {
-    fn visit_identifier_reference(&mut self, identifier: &IdentifierReference<'a>) {
-        if let Some(StaticValue::CssClass { name, css, .. }) =
-            resolved_constant(identifier, self.constants, self.scoping)
-        {
-            self.references.push(UsedCssReference {
-                identifier: identifier.name.to_string(),
-                span: identifier.span,
-                class_name: name,
-                css,
-            });
         }
     }
 }

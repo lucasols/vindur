@@ -34,9 +34,12 @@ impl HashedCxKeys {
 /// `.key` class in the file's styles, like `&:has(.key)`, `& .key`, `.key &` or `.key` in another
 /// component or global styles, never matches elements that get the key through cx. The modifiers
 /// of other elements, like `&.key` of a component that doesn't hash it, can't select those
-/// elements, so they are allowed
+/// elements, so they are allowed. `hashed_owners` are the `(element class, key)` pairs whose
+/// rules had the key renamed, a raw modifier left in a rule of these classes is from other
+/// styles, e.g. `${styles} { &.key { ... } }` in global styles
 pub(super) fn raw_hashed_cx_key_error(
     keys: &HashedCxKeys,
+    hashed_owners: &[(&str, &str)],
     css_rules: &[String],
     file_hash: &str,
     file_path: &str,
@@ -70,7 +73,8 @@ pub(super) fn raw_hashed_cx_key_error(
         };
         // Only the generated rules of elements have modifiers of their own element, the `&` of
         // global styles like `html { &.key { ... } }` can be any element
-        let is_element_rule = is_element_class_rule(&stylesheet.statements, &generated_prefix);
+        let owner = element_rule_owner(&stylesheet.statements, &generated_prefix);
+        let is_element_rule = owner.is_some();
         let own_classes = if is_element_rule {
             class_rule_element_classes(&stylesheet.statements)
         } else {
@@ -79,17 +83,26 @@ pub(super) fn raw_hashed_cx_key_error(
         let mut collector = ClassCollector::default();
         collector.statements(&stylesheet.statements);
         for (name, _, span) in candidates {
-            let raw = collector.classes.iter().find(|class| {
-                class.name == *name
-                    && !own_classes.iter().any(|own| {
-                        !own.mixed && own.start == class.span.start && own.end == class.span.end
-                    })
+            let is_hashing_owner = owner.is_some_and(|owner| {
+                hashed_owners
+                    .iter()
+                    .any(|(class, key)| *class == owner && key == name)
             });
-            let Some(raw) = raw else {
+            let is_own_class = |class: &SelectorClass<'_>| {
+                own_classes.iter().any(|own| {
+                    !own.mixed && own.start == class.span.start && own.end == class.span.end
+                })
+            };
+            let Some(raw) = collector
+                .classes
+                .iter()
+                .find(|class| class.name == *name && (is_hashing_owner || !is_own_class(class)))
+            else {
                 continue;
             };
-            // The generated class of the element rule is not written in the source
-            let chain = if is_element_rule {
+            // The generated class of the element rule is not written in the source, except when
+            // other styles select the element with it, like `${styles} { &.key { ... } }`
+            let chain = if is_element_rule && !(is_hashing_owner && is_own_class(raw)) {
                 raw.selectors.get(1..).unwrap_or_default()
             } else {
                 &raw.selectors
@@ -123,34 +136,46 @@ fn nested_selector_text(css: &str, chain: &[CssSpan]) -> String {
     text
 }
 
-/// If the statements are the generated rules of an element class of the file, e.g.
-/// `.vhash-1-Box { ... }`, also inside `@layer` blocks
-fn is_element_class_rule(statements: &[Statement<'_>], generated_prefix: &str) -> bool {
-    !statements.is_empty()
-        && statements.iter().all(|statement| match statement {
-            Statement::QualifiedRule(rule) => {
-                is_generated_class_selector(&rule.selector, generated_prefix)
+/// The element class of the file the statements are the generated rules of, e.g. `vhash-1-Box`
+/// for `.vhash-1-Box { ... }`, also inside `@layer` blocks
+fn element_rule_owner<'s>(
+    statements: &'s [Statement<'s>],
+    generated_prefix: &str,
+) -> Option<&'s str> {
+    let mut owner = None;
+    for statement in statements {
+        let class = match statement {
+            Statement::QualifiedRule(rule) => generated_class(&rule.selector, generated_prefix)?,
+            Statement::AtRule(rule) if rule.name.name.eq_ignore_ascii_case("layer") => {
+                element_rule_owner(&rule.block.as_ref()?.statements, generated_prefix)?
             }
-            Statement::AtRule(rule) if rule.name.name.eq_ignore_ascii_case("layer") => rule
-                .block
-                .as_ref()
-                .is_some_and(|block| is_element_class_rule(&block.statements, generated_prefix)),
-            _ => false,
-        })
+            _ => return None,
+        };
+        if owner.is_some_and(|owner| owner != class) {
+            return None;
+        }
+        owner = Some(class);
+    }
+    owner
 }
 
-fn is_generated_class_selector(list: &SelectorList<'_>, generated_prefix: &str) -> bool {
+/// The class of a selector list that is a single generated class of the file
+fn generated_class<'s>(list: &'s SelectorList<'s>, generated_prefix: &str) -> Option<&'s str> {
     let [selector] = list.selectors.as_slice() else {
-        return false;
+        return None;
     };
     let [ComplexSelectorChild::CompoundSelector(compound)] = selector.children.as_slice() else {
-        return false;
+        return None;
     };
-    matches!(
-        compound.children.as_slice(),
-        [SimpleSelector::Class(class)]
-            if matches!(&class.name, InterpolableIdent::Literal(ident) if ident.name.starts_with(generated_prefix))
-    )
+    match compound.children.as_slice() {
+        [SimpleSelector::Class(class)] => match &class.name {
+            InterpolableIdent::Literal(ident) if ident.name.starts_with(generated_prefix) => {
+                Some(ident.name)
+            }
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 struct SelectorClass<'c> {
@@ -259,11 +284,21 @@ mod tests {
 
     use super::{HashedCxKeys, raw_hashed_cx_key_error};
 
+    /// `vh-1-Card` is a css reference whose own `&.active` rules a cx prop renamed
     fn fails(rule: &str) -> bool {
         let keys = HashedCxKeys {
             keys: vec![("active".to_owned(), Span::new(0, 0))],
         };
-        raw_hashed_cx_key_error(&keys, &[rule.to_owned()], "vh", "file.tsx", "").is_some()
+        let hashed_owners = [("vh-1-Card", "active")];
+        raw_hashed_cx_key_error(
+            &keys,
+            &hashed_owners,
+            &[rule.to_owned()],
+            "vh",
+            "file.tsx",
+            "",
+        )
+        .is_some()
     }
 
     #[test]
@@ -290,8 +325,10 @@ mod tests {
                 fails("html.active { color: red; }"),
                 fails(".vh-1-Item .x { &.active { color: red; } }"),
                 fails(".vh-1-Item { &::slotted(.active) { color: red; } }"),
+                fails("@layer theme { .vh-1-Card { &.active { color: red; } } }"),
+                fails(".vh-1-Card { &.active { color: red; } }"),
             ],
-            [true; 20]
+            [true; 22]
         );
     }
 

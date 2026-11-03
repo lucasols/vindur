@@ -449,7 +449,7 @@ impl JsxCxVisitor<'_> {
                 .collect(),
             None => css_references
                 .iter()
-                .map(|reference| reference.name().to_owned())
+                .map(|reference| reference.name.clone())
                 .collect::<Vec<_>>(),
         };
         if let Err((error, failing)) = self.rewrite_owner_rules(&rules_owners, &mappings) {
@@ -465,7 +465,7 @@ impl JsxCxVisitor<'_> {
             return;
         }
         if styled.is_none() {
-            self.record_hashed_css_reference_keys(&rules_owners, &mappings, element_name);
+            self.record_hashed_css_reference_keys(&css_references, &mappings, element_name);
         }
         if let Some(css_index) = css_index {
             self.output.elements.insert(
@@ -732,27 +732,37 @@ impl JsxCxVisitor<'_> {
     /// place, so other elements using them can't add the keys as static classes
     fn record_hashed_css_reference_keys(
         &mut self,
-        references: &[String],
+        references: &[CssReference],
         mappings: &[(String, String, bool)],
         element_name: &str,
     ) {
         for reference in references {
-            for (key, _, should_rewrite) in mappings {
-                if *should_rewrite
-                    && !self
-                        .output
-                        .hashed_css_reference_keys
-                        .iter()
-                        .any(|recorded| recorded.css_class == *reference && recorded.key == *key)
-                {
-                    self.output
-                        .hashed_css_reference_keys
-                        .push(HashedCssReferenceKey {
-                            css_class: reference.clone(),
-                            key: key.clone(),
-                            element_name: element_name.to_owned(),
-                        });
-                }
+            let recorded = &self.output.hashed_css_reference_keys;
+            let pending = mappings
+                .iter()
+                .filter(|(key, _, should_rewrite)| {
+                    *should_rewrite
+                        && !recorded.iter().any(|recorded| {
+                            recorded.css_class == reference.name && recorded.key == *key
+                        })
+                })
+                .map(|(key, _, _)| key)
+                .collect::<Vec<_>>();
+            if pending.is_empty() {
+                continue;
+            }
+            // Invalid css is reported with its location by the css pass
+            let declared =
+                element_class_names(&reference.css, ModifierCss::Block).unwrap_or_default();
+            for key in pending {
+                self.output
+                    .hashed_css_reference_keys
+                    .push(HashedCssReferenceKey {
+                        css_class: reference.name.clone(),
+                        key: key.clone(),
+                        declared: declared.contains(key),
+                        element_name: element_name.to_owned(),
+                    });
             }
         }
     }
@@ -844,7 +854,7 @@ impl ModifierOwners {
             .map(str::to_owned);
         let references = css_references
             .iter()
-            .map(|reference| reference.name().to_owned())
+            .map(|reference| reference.name.clone())
             .collect::<Vec<_>>();
         let css_prop = has_vindur_css.then(|| format!("css:{}", element.span.start));
         // Css references of a styled component are not renamed, see

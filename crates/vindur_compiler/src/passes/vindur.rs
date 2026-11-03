@@ -455,6 +455,7 @@ pub(crate) fn transform_program(
             styled_components: &styled_components,
             constants: &constants,
             scoping,
+            exported_names: &exported_names,
             modifiers: &hashed_styled_modifiers,
             css_reference_keys: &hashed_css_reference_keys,
             has_hashed_keys: !hashed_cx_keys.keys.is_empty(),
@@ -610,9 +611,29 @@ pub(crate) fn transform_program(
             error.error.message,
         ));
     }
-    if let Some(diagnostic) =
-        raw_hashed_cx_key_error(&hashed_cx_keys, &css_rules, &file_hash, file_path, source)
-    {
+    // The rules of these owners already had their own modifiers of the key renamed
+    let hashed_owners = hashed_styled_modifiers
+        .iter()
+        .filter_map(|modifier| {
+            modifier
+                .classes
+                .last()
+                .map(|owner| (owner.as_str(), modifier.class_name.as_str()))
+        })
+        .chain(
+            hashed_css_reference_keys
+                .iter()
+                .map(|key| (key.css_class.as_str(), key.key.as_str())),
+        )
+        .collect::<Vec<_>>();
+    if let Some(diagnostic) = raw_hashed_cx_key_error(
+        &hashed_cx_keys,
+        &hashed_owners,
+        &css_rules,
+        &file_hash,
+        file_path,
+        source,
+    ) {
         return Err(diagnostic);
     }
     let css = css_rules.join("\n\n");

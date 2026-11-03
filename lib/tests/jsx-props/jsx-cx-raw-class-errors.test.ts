@@ -157,6 +157,39 @@ test('should reject a hashed cx key used as a raw class of ancestors in other co
   `);
 });
 
+test('should reject a hashed cx key selected through its css reference in global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { css, createGlobalStyle } from 'vindur';
+
+        const styles = css\`
+          &.active {
+            color: blue;
+          }
+        \`;
+
+        createGlobalStyle\`
+          @layer theme {
+            \${styles} {
+              &.active {
+                opacity: 0.5;
+              }
+            }
+          }
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <div className={styles} cx={{ active }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".v1560qbr-1-styles { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 20:32]
+  `);
+});
+
 test('should reject a hashed cx key used as a raw class in the template of a parent component, also in production', async () => {
   const source = dedent`
     import { styled } from 'vindur';
