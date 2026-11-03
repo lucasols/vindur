@@ -349,6 +349,7 @@ export async function startEnvProd(
 
   const port = getSafeRandomPort();
   const outDir = path.join(testRunDirPath, 'dist');
+  const buildLogs: string[] = [];
 
   await viteBuild({
     plugins: [
@@ -359,7 +360,6 @@ export async function startEnvProd(
           '#src': tempDir,
         },
         colorSchemeClassNames: options.colorSchemeClassNames,
-        sourcemap: false,
       }),
     ],
     configFile: false,
@@ -371,8 +371,13 @@ export async function startEnvProd(
     },
     build: {
       outDir,
-      sourcemap: false,
+      sourcemap: true,
       emptyOutDir: true,
+      rolldownOptions: {
+        onwarn: (warning) => {
+          buildLogs.push(`${warning.code}: ${warning.message}`);
+        },
+      },
     },
   });
 
@@ -452,7 +457,7 @@ export async function startEnvProd(
     baseUrl: url,
     getFile,
     createFile,
-    serverLogs: [],
+    serverLogs: buildLogs,
     getGeneratedCode,
     cleanup,
     [Symbol.asyncDispose]: cleanup,

@@ -22,7 +22,6 @@ export type VindurPluginOptions = {
   importAliases: Record<string, string>;
   /** Classes `setColorScheme` adds for the scheme of a dynamic color, e.g. `{ light: 'lm', dark: 'dm' }` */
   colorSchemeClassNames?: TransformOptions['colorSchemeClassNames'];
-  sourcemap?: boolean;
 };
 
 const JS_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
@@ -37,7 +36,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     debugLogs = false,
     importAliases = {},
     colorSchemeClassNames,
-    sourcemap,
   } = options;
   // Fails on setup, not as a transform error of the first transformed file
   validateColorSchemeClassNames(colorSchemeClassNames);
@@ -50,7 +48,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
   // Track which files depend on which external files (for hot-reload)
   const depToSources = new Map<string, Set<string>>(); // externalFile -> Set<dependentFile>
   const sourceToDeps = new Map<string, Set<string>>(); // sourceFile -> Set<externalFile>
-  let emitSourcemaps = false;
   let isServe = false;
 
   const fs: TransformFS = {
@@ -63,8 +60,6 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
     enforce: 'pre',
     configResolved(config) {
       isServe = config.command === 'serve';
-      // Dev always serves sourcemaps, builds follow `build.sourcemap`
-      emitSourcemaps = sourcemap ?? (isServe || !!config.build.sourcemap);
     },
 
     resolveId(id) {
@@ -142,7 +137,9 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
             colorSchemeClassNames,
-            sourcemap: emitSourcemaps,
+            // Always emitted: the bundler drops the maps it doesn't need, and a
+            // transform without a map breaks the maps of the whole chain
+            sourcemap: true,
           });
         } catch (error) {
           if (error instanceof TransformError) {
@@ -192,11 +189,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             injectCssImport(result.code, virtualId)
           : result.code;
 
-        // Without a map Rollup reports the sourcemap as broken, `null` would claim the code
-        // didn't move
-        return result.map ?
-            { code: codeWithCssImport, map: result.map }
-          : codeWithCssImport;
+        return { code: codeWithCssImport, map: result.map };
       },
     },
 
@@ -225,7 +218,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           transformDynamicColorCache: dynamicColorCache,
           importAliases,
           colorSchemeClassNames,
-          sourcemap: emitSourcemaps,
+          sourcemap: true,
         });
 
         const vid = makeVirtualId(changed);
@@ -263,7 +256,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
             colorSchemeClassNames,
-            sourcemap: emitSourcemaps,
+            sourcemap: true,
           });
 
           const dependentVid = makeVirtualId(srcId);
@@ -315,7 +308,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
             transformDynamicColorCache: dynamicColorCache,
             importAliases,
             colorSchemeClassNames,
-            sourcemap: emitSourcemaps,
+            sourcemap: true,
           });
 
           const vid = makeVirtualId(srcId);

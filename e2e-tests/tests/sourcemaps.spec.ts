@@ -3,7 +3,7 @@ import { __LEGIT_CAST__ } from '@ls-stack/utils/saferTyping';
 import { expect, test } from '@playwright/test';
 import { SourceMapConsumer, type RawSourceMap } from 'source-map';
 import type { TestEnv } from '../utils/startEnv';
-import { startEnv } from '../utils/startEnv';
+import { startEnv, startEnvProd } from '../utils/startEnv';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -97,8 +97,55 @@ test('maps the compiled JS back to the source', async () => {
     JSON.parse(Buffer.from(mapBase64, 'base64').toString('utf-8')),
   );
 
-  // The opening quote of the string, whichever quotes the output uses
-  const index = code.indexOf('mapped-label') - 1;
+  expect(await findLabelInSource(code, map)).toEqual({
+    source: expect.stringContaining('App.tsx'),
+    ...getLabelSourcePosition(),
+  });
+});
+
+test('maps the built JS back to the source', async () => {
+  await using prodEnv = await startEnvProd('sourcemaps-prod', {
+    'App.tsx': appSource,
+  });
+
+  expect(prodEnv.serverLogs).toEqual([]);
+
+  const html = await prodEnv.getGeneratedCode();
+  const scriptPath = /src="([^"]+\.js)"/.exec(html)?.[1] ?? '';
+  const code = await (await fetch(`${prodEnv.baseUrl}${scriptPath}`)).text();
+  const map = __LEGIT_CAST__<RawSourceMap>(
+    await (await fetch(`${prodEnv.baseUrl}${scriptPath}.map`)).json(),
+  );
+
+  expect(await findLabelInSource(code, map)).toEqual({
+    source: expect.stringContaining('App.tsx'),
+    ...getLabelSourcePosition(),
+  });
+});
+
+// The opening quote of the string, whichever quotes the output uses
+function getLabelIndex(code: string): number {
+  return code.indexOf('mapped-label') - 1;
+}
+
+function getLabelSourcePosition(): { line: number; column: number } {
+  const index = getLabelIndex(appSource);
+  const before = appSource.slice(0, index);
+  return {
+    line: before.split('\n').length,
+    column: index - before.lastIndexOf('\n') - 1,
+  };
+}
+
+async function findLabelInSource(
+  code: string,
+  map: RawSourceMap,
+): Promise<{
+  source: string | null;
+  line: number | null;
+  column: number | null;
+}> {
+  const index = getLabelIndex(code);
   const before = code.slice(0, index);
   const consumer = await new SourceMapConsumer(map);
   const original = consumer.originalPositionFor({
@@ -106,11 +153,9 @@ test('maps the compiled JS back to the source', async () => {
     column: index - before.lastIndexOf('\n') - 1,
   });
   consumer.destroy();
-
-  const sourceIndex = appSource.indexOf('mapped-label') - 1;
-  const sourceBefore = appSource.slice(0, sourceIndex);
-  expect({ line: original.line, column: original.column }).toEqual({
-    line: sourceBefore.split('\n').length,
-    column: sourceIndex - sourceBefore.lastIndexOf('\n') - 1,
-  });
-});
+  return {
+    source: original.source,
+    line: original.line,
+    column: original.column,
+  };
+}
