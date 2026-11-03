@@ -14,6 +14,7 @@ use crate::{CompilerDiagnostic, facts::StaticValue, semantic::VindurImports};
 use super::{
     cx_modifier_selectors::{ModifierCss, element_class_names},
     jsx_attributes::{find_attributes, jsx_name},
+    jsx_cx::rendered_styled_components,
     jsx_cx_component_references::HashedStyledModifier,
     jsx_cx_css_references::{
         CssReference, css_references, expression_css_references, wrapped_css_references,
@@ -89,6 +90,9 @@ struct HashedKey {
     name: String,
     owner: String,
     css_reference: Option<String>,
+    /// If some styles of the element have the key renamed, so a static class of it never matches
+    /// them. The elements of a styled component get the hashed class anyway
+    renamed: bool,
 }
 
 /// Where the static classes are written, for the fix suggested in the error
@@ -129,6 +133,7 @@ impl StaticClassNameVisitor<'_> {
             name: key,
             owner: name.to_owned(),
             css_reference: None,
+            renamed: true,
         }));
         let mut strings = Vec::new();
         for attribute in find_attributes(element, "className") {
@@ -261,6 +266,7 @@ impl StaticClassNameVisitor<'_> {
                         name: key.name.clone(),
                         owner: key.owner.clone(),
                         css_reference: None,
+                        renamed: key.renamed,
                     },
                 ));
             }
@@ -299,6 +305,7 @@ impl StaticClassNameVisitor<'_> {
                 name: modifier.class_name.clone(),
                 owner: modifier.element_name.clone(),
                 css_reference: None,
+                renamed: modifier.renamed,
             })
             .collect()
     }
@@ -306,17 +313,8 @@ impl StaticClassNameVisitor<'_> {
     /// The styled component classes the elements of a styled component get, also of the local
     /// styled component it renders, like `Box` in `Plain.withComponent(Box)`
     fn element_classes<'s>(&'s self, styled: &'s StyledComponent, classes: &mut Vec<&'s str>) {
-        let mut current = Some(styled);
-        // Bounded, as `withComponent()` targets are declared before their use
-        for _ in 0..self.context.styled_components.len() + 1 {
-            let Some(component) = current else {
-                break;
-            };
+        for component in rendered_styled_components(styled, self.context.styled_components) {
             classes.extend(component.class_name.split_whitespace());
-            current = component
-                .element_is_identifier
-                .then(|| self.context.styled_components.get(&component.element))
-                .flatten();
         }
     }
 
@@ -333,6 +331,7 @@ impl StaticClassNameVisitor<'_> {
                         name: key.key.clone(),
                         owner: key.element_name.clone(),
                         css_reference: Some(reference.identifier.clone()),
+                        renamed: true,
                     })
             })
             .collect()
@@ -350,7 +349,7 @@ impl StaticClassNameVisitor<'_> {
         }
         for (classes, span) in strings {
             for class in classes.split_ascii_whitespace() {
-                let Some(key) = hashed.iter().find(|key| key.name == class) else {
+                let Some(key) = hashed.iter().find(|key| key.renamed && key.name == class) else {
                     continue;
                 };
                 let owner = &key.owner;

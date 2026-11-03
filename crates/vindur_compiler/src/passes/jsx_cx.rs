@@ -518,6 +518,9 @@ impl JsxCxVisitor<'_> {
             element_name,
         );
         self.record_hashed_css_reference_keys(&wrapped_references, false, &mappings, element_name);
+        if let Some(styled) = &styled {
+            self.mark_renamed_styled_modifiers(styled, &mappings);
+        }
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
@@ -743,7 +746,32 @@ impl JsxCxVisitor<'_> {
                 class_name: class_name.to_owned(),
                 element_name: element_name.to_owned(),
                 span,
+                renamed: false,
             });
+    }
+
+    /// Marks the hashed modifiers of the styled component whose rules had the key renamed
+    fn mark_renamed_styled_modifiers(
+        &mut self,
+        styled: &StyledComponent,
+        mappings: &[(String, String, bool)],
+    ) {
+        let Some(owner) = styled.class_name.split_whitespace().last() else {
+            return;
+        };
+        for (key, hashed, _) in mappings
+            .iter()
+            .filter(|(_, _, should_rewrite)| *should_rewrite)
+        {
+            if !self.declares_renamed_class(owner, hashed) {
+                continue;
+            }
+            for modifier in self.output.hashed_styled_modifiers.iter_mut() {
+                if modifier.class_name == *key && modifier.classes.join(" ") == styled.class_name {
+                    modifier.renamed = true;
+                }
+            }
+        }
     }
 
     fn missing_styled_classes(
@@ -972,7 +1000,7 @@ impl ModifierOwners {
 
 /// A styled component and the local styled components its elements render with
 /// `withComponent()`, e.g. `Box` for `Plain.withComponent(Box)`
-fn rendered_styled_components<'s>(
+pub(super) fn rendered_styled_components<'s>(
     styled: &'s StyledComponent,
     styled_components: &'s FxHashMap<String, StyledComponent>,
 ) -> Vec<&'s StyledComponent> {

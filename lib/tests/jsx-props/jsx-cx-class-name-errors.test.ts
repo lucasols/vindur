@@ -598,3 +598,37 @@ test('should reject a hashed cx key in the attrs of the styled component a withC
     loc: 3:45]
   `);
 });
+
+test('should allow a static class of a key the styled component rules do not declare', async () => {
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const Box = styled.div\`
+        color: red;
+      \`;
+
+      export const A = ({ active }: { active: boolean }) => (
+        <>
+          <Box css={\`&.active { color: blue; }\`} cx={{ active }} />
+          <Box className="active" />
+        </>
+      );
+    `,
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const A = ({ active }: { active: boolean }) => (
+      <>
+        <div
+          className={
+            "v1560qbr-1-Box v1560qbr-2-css-prop-2" +
+            (active ? " v1560qbr-3-active" : "")
+          }
+        />
+        <div className="v1560qbr-1-Box active" />
+      </>
+    );
+    "
+  `);
+});
