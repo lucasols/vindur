@@ -135,6 +135,7 @@ pub(crate) fn transform_program(
     let mut has_side_effects = has_top_level_side_effects(program, &imports, &constants);
     let mut cx_elements: FxHashMap<u32, CxElementTransform> = FxHashMap::default();
     let mut hashed_styled_modifiers = Vec::new();
+    let mut hashed_css_reference_keys = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
     let mut hashed_cx_keys = HashedCxKeys::default();
@@ -439,6 +440,7 @@ pub(crate) fn transform_program(
             css_rules: &mut css_rules,
             elements: &mut cx_elements,
             hashed_styled_modifiers: &mut hashed_styled_modifiers,
+            hashed_css_reference_keys: &mut hashed_css_reference_keys,
             class_expressions: &mut class_expressions,
             warnings: &mut warnings,
             needs_merge_helper: &mut needs_merge_helper,
@@ -451,7 +453,10 @@ pub(crate) fn transform_program(
         StaticClassNameContext {
             imports: &imports,
             styled_components: &styled_components,
+            constants: &constants,
+            scoping,
             modifiers: &hashed_styled_modifiers,
+            css_reference_keys: &hashed_css_reference_keys,
             has_hashed_keys: !hashed_cx_keys.keys.is_empty(),
             file_path,
             source,

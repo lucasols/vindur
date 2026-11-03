@@ -28,6 +28,7 @@ use super::{
     },
     jsx_css::is_foreign_css_attribute,
     jsx_cx_attribute::{is_foreign_cx_attribute, is_foreign_styled_cx_attribute},
+    jsx_cx_class_names::HashedCssReferenceKey,
     jsx_cx_component_references::HashedStyledModifier,
     jsx_cx_css_references::{
         CssReference, css_references, failing_modifier, rewrite_class_rules,
@@ -69,6 +70,7 @@ pub(crate) struct JsxCxTransform<'a> {
     pub css_rules: &'a mut Vec<String>,
     pub elements: &'a mut FxHashMap<u32, CxElementTransform>,
     pub hashed_styled_modifiers: &'a mut Vec<HashedStyledModifier>,
+    pub hashed_css_reference_keys: &'a mut Vec<HashedCssReferenceKey>,
     pub class_expressions: &'a mut FxHashMap<u32, String>,
     pub warnings: &'a mut Vec<CompilerDiagnostic>,
     pub needs_merge_helper: &'a mut bool,
@@ -462,6 +464,9 @@ impl JsxCxVisitor<'_> {
             self.set_error(span, error.message);
             return;
         }
+        if styled.is_none() {
+            self.record_hashed_css_reference_keys(&rules_owners, &mappings, element_name);
+        }
         if let Some(css_index) = css_index {
             self.output.elements.insert(
                 element.span.start,
@@ -721,6 +726,35 @@ impl JsxCxVisitor<'_> {
             return Vec::new();
         };
         element_class_names(&clean_css(&content), ModifierCss::Block).unwrap_or_default()
+    }
+
+    /// Records the hashed keys of the css references of an element, their rules are renamed in
+    /// place, so other elements using them can't add the keys as static classes
+    fn record_hashed_css_reference_keys(
+        &mut self,
+        references: &[String],
+        mappings: &[(String, String, bool)],
+        element_name: &str,
+    ) {
+        for reference in references {
+            for (key, _, should_rewrite) in mappings {
+                if *should_rewrite
+                    && !self
+                        .output
+                        .hashed_css_reference_keys
+                        .iter()
+                        .any(|recorded| recorded.css_class == *reference && recorded.key == *key)
+                {
+                    self.output
+                        .hashed_css_reference_keys
+                        .push(HashedCssReferenceKey {
+                            css_class: reference.clone(),
+                            key: key.clone(),
+                            element_name: element_name.to_owned(),
+                        });
+                }
+            }
+        }
     }
 
     /// Renames the hashed modifiers in the rules of each owner, the error has the class it failed
