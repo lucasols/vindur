@@ -456,20 +456,7 @@ impl StaticClassNameVisitor<'_> {
         for (index, piece) in pieces.iter().enumerate() {
             match piece {
                 ClassPiece::Text(text, span) => {
-                    let start = if index > 0 && !starts_with_separator(text) {
-                        text.find(|c: char| c.is_ascii_whitespace())
-                            .unwrap_or(text.len())
-                    } else {
-                        0
-                    };
-                    let end = if index < last && !ends_with_separator(text) {
-                        text.rfind(|c: char| c.is_ascii_whitespace()).unwrap_or(0)
-                    } else {
-                        text.len()
-                    };
-                    if start < end {
-                        strings.push((text[start..end].to_owned(), *span));
-                    }
+                    push_separated_classes(text, *span, index == 0, index == last, strings);
                 }
                 ClassPiece::Expression(expression) => {
                     let separated_before = match index.checked_sub(1).map(|before| &pieces[before])
@@ -487,12 +474,48 @@ impl StaticClassNameVisitor<'_> {
                         }
                         Some(ClassPiece::Expression(_)) => false,
                     };
-                    if separated_before && separated_after {
-                        self.class_strings(expression, in_cx, strings);
+                    // The strings of a joined expression can still hold separated classes,
+                    // like `' active'` in `id + (a ? ' active' : '')`
+                    let mut inner = Vec::new();
+                    self.class_strings(expression, in_cx, &mut inner);
+                    for (text, span) in inner {
+                        push_separated_classes(
+                            &text,
+                            span,
+                            separated_before,
+                            separated_after,
+                            strings,
+                        );
                     }
                 }
             }
         }
+    }
+}
+
+/// Pushes the classes of a text, without its first class when it's joined to the value before
+/// it and its last class when it's joined to the value after it, e.g. only `b` of `a b c` in
+/// `${x}a b c${y}`
+fn push_separated_classes(
+    text: &str,
+    span: Span,
+    separated_before: bool,
+    separated_after: bool,
+    strings: &mut Vec<(String, Span)>,
+) {
+    let start = if separated_before || starts_with_separator(text) {
+        0
+    } else {
+        text.find(|c: char| c.is_ascii_whitespace())
+            .unwrap_or(text.len())
+    };
+    let end = if separated_after || ends_with_separator(text) {
+        text.len()
+    } else {
+        text.rfind(|c: char| c.is_ascii_whitespace()).unwrap_or(0)
+    };
+    if start < end {
+        strings.push((text[start..end].to_owned(), span));
     }
 }
 

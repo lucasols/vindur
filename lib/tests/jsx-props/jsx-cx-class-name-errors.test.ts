@@ -457,6 +457,48 @@ test('should reject a hashed cx key in string concatenations of the className', 
   `);
 });
 
+test('should reject a hashed cx key separated inside an expression joined to another value', async () => {
+  await expect(
+    transformWithFormat({ source: boxSource("{id + (a ? ' active' : '')}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches the "&.active" styles, as the cx prop of "Box" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 12:30]
+  `);
+  await expect(
+    transformWithFormat({ source: boxSource("{`${id}${a ? ' active' : ''}`}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches the "&.active" styles, as the cx prop of "Box" hashes it. Add it with the cx prop instead, e.g. cx={{ active: condition }}, or use "$active" in the cx prop to keep the class name
+    loc: 12:32]
+  `);
+});
+
+test('should allow a class glued to another value inside a joined expression', async () => {
+  const result = await transformWithFormat({
+    source: boxSource("{'item-' + (a ? 'active' : '')}"),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "import { cx } from "vindur";
+    export const A = ({
+      active,
+      a,
+      id,
+    }: {
+      active: boolean;
+      a: boolean;
+      id: string;
+    }) => (
+      <>
+        <div className={"v1560qbr-1-Box" + (active ? " v1560qbr-2-active" : "")} />
+        <div
+          className={"v1560qbr-1-Box " + ("item-" + (a ? "active" : "") || "")}
+        />
+      </>
+    );
+    "
+  `);
+});
+
 test('should allow classes joined to an expression in string concatenations', async () => {
   const result = await transformWithFormat({
     source: boxSource("{'item-' + id + 'active' + ' x-' + id}"),
