@@ -120,27 +120,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
         let result: VindurTransformResult;
 
         try {
-          result = transform({
-            fileAbsPath: id,
-            source: code,
-            dev: isServe,
-            debug:
-              debugLogs ?
-                {
-                  log: (message: string) => console.info(`[vindur] ${message}`),
-                  warn: (message: string) =>
-                    console.warn(`[vindur] ${message}`),
-                }
-              : undefined,
-            fs,
-            transformFunctionCache: functionCache,
-            transformDynamicColorCache: dynamicColorCache,
-            importAliases,
-            colorSchemeClassNames,
-            // Always emitted: the bundler drops the maps it doesn't need, and a
-            // transform without a map breaks the maps of the whole chain
-            sourcemap: true,
-          });
+          result = runTransform(id, code, isServe);
         } catch (error) {
           if (error instanceof TransformError) {
             return this.error({
@@ -202,24 +182,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       // If the changed file is a source, recompile it and return both modules
       if (sourceCache.has(changed)) {
         const code = await ctx.read();
-        const result = transform({
-          fileAbsPath: changed,
-          source: code,
-          dev: true,
-          debug:
-            debugLogs ?
-              {
-                log: (message: string) => console.info(`[vindur] ${message}`),
-                warn: (message: string) => console.warn(`[vindur] ${message}`),
-              }
-            : undefined,
-          fs,
-          transformFunctionCache: functionCache,
-          transformDynamicColorCache: dynamicColorCache,
-          importAliases,
-          colorSchemeClassNames,
-          sourcemap: true,
-        });
+        const result = runTransform(changed, code, true);
 
         const vid = makeVirtualId(changed);
         if (result.css && result.css.length > 0) {
@@ -239,25 +202,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           if (!srcMod || srcId === changed) continue;
 
           const srcCode = readFileSync(srcId, 'utf8');
-          const dependentResult = transform({
-            fileAbsPath: srcId,
-            source: srcCode,
-            dev: true,
-            debug:
-              debugLogs ?
-                {
-                  log: (message: string) => console.info(`[vindur] ${message}`),
-                  warn: (message: string) =>
-                    console.warn(`[vindur] ${message}`),
-                }
-              : undefined,
-            fs,
-            transformFunctionCache: functionCache,
-            transformDynamicColorCache: dynamicColorCache,
-            importAliases,
-            colorSchemeClassNames,
-            sourcemap: true,
-          });
+          const dependentResult = runTransform(srcId, srcCode, true);
 
           const dependentVid = makeVirtualId(srcId);
           if (dependentResult.css && dependentResult.css.length > 0) {
@@ -291,25 +236,7 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
           if (!srcMod) continue;
 
           const srcCode = readFileSync(srcId, 'utf8');
-          const result = transform({
-            fileAbsPath: srcId,
-            source: srcCode,
-            dev: true,
-            debug:
-              debugLogs ?
-                {
-                  log: (message: string) => console.info(`[vindur] ${message}`),
-                  warn: (message: string) =>
-                    console.warn(`[vindur] ${message}`),
-                }
-              : undefined,
-            fs,
-            transformFunctionCache: functionCache,
-            transformDynamicColorCache: dynamicColorCache,
-            importAliases,
-            colorSchemeClassNames,
-            sourcemap: true,
-          });
+          const result = runTransform(srcId, srcCode, true);
 
           const vid = makeVirtualId(srcId);
           if (result.css && result.css.length > 0) {
@@ -339,6 +266,33 @@ export function vindurPlugin(options: VindurPluginOptions): Plugin {
       sourceToDeps.clear();
     },
   };
+
+  function runTransform(
+    fileAbsPath: string,
+    source: string,
+    dev: boolean,
+  ): VindurTransformResult {
+    return transform({
+      fileAbsPath,
+      source,
+      dev,
+      debug:
+        debugLogs ?
+          {
+            log: (message: string) => console.info(`[vindur] ${message}`),
+            warn: (message: string) => console.warn(`[vindur] ${message}`),
+          }
+        : undefined,
+      fs,
+      transformFunctionCache: functionCache,
+      transformDynamicColorCache: dynamicColorCache,
+      importAliases,
+      colorSchemeClassNames,
+      // Always emitted: the bundler drops the maps it doesn't need, and a
+      // transform without a map breaks the maps of the whole chain
+      sourcemap: true,
+    });
+  }
 
   function updateDepGraph(sourceId: string, nextDeps: string[]): void {
     const prev = sourceToDeps.get(sourceId) ?? new Set<string>();

@@ -374,8 +374,9 @@ export async function startEnvProd(
       sourcemap: true,
       emptyOutDir: true,
       rolldownOptions: {
-        onwarn: (warning) => {
+        onwarn: (warning, defaultHandler) => {
           buildLogs.push(`${warning.code}: ${warning.message}`);
+          defaultHandler(warning);
         },
       },
     },

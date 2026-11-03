@@ -26,7 +26,7 @@ In a local Inertia production-build benchmark (three alternating warm runs), the
 
 Vindur works with your existing build tools:
 
-- **Vite** - Built-in plugin support (Vite 5 to 8). The plugin emits sourcemaps in dev and when `build.sourcemap` is enabled
+- **Vite** - Built-in plugin support (Vite 5 to 8). Sourcemaps follow your Vite sourcemap settings and are always on in dev
 - More build tools coming soon
 
 ## ESLint Plugin
