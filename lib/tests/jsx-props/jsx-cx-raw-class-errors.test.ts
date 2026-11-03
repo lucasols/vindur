@@ -27,7 +27,7 @@ test('should reject a hashed cx key used as a raw class in :has() of the element
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx key "isShown" is hashed, so the class ".isShown" in the selector "&:has(.isShown)" never matches elements that get it through cx. Use "$isShown" in the cx prop to keep the class name, or rename one of the classes
+    [TransformError: /test.tsx: cx key "isShown" is hashed, so the class ".isShown" in the selector "&.hasHiddenItems { &:has(.isShown) }" never matches elements that get it through cx. Use "$isShown" in the cx prop to keep the class name, or rename one of the classes
     loc: 16:13]
   `);
 });
@@ -66,7 +66,7 @@ test('should reject a hashed cx key used as a raw class of descendants', async (
       source: source('> .child { &.active { color: blue; } }'),
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "> .child { &.active }" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
     loc: 12:13]
   `);
 });
@@ -126,6 +126,34 @@ test('should reject a hashed cx key used as a raw class of ancestors in other co
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
     [TransformError: /test.tsx: cx key "isOpen" is hashed, so the class ".isOpen" in the selector ".isOpen .icon" never matches elements that get it through cx. Use "$isOpen" in the cx prop to keep the class name, or rename one of the classes
     loc: 16:14]
+  `);
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createGlobalStyle } from 'vindur';
+
+        createGlobalStyle\`
+          html {
+            &.isOpen {
+              overflow: hidden;
+            }
+          }
+        \`;
+
+        const Menu = styled.div\`
+          &.isOpen {
+            display: block;
+          }
+        \`;
+
+        export const A = ({ open }: { open: boolean }) => (
+          <Menu cx={{ isOpen: open }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "isOpen" is hashed, so the class ".isOpen" in the selector "html { &.isOpen }" never matches elements that get it through cx. Use "$isOpen" in the cx prop to keep the class name, or rename one of the classes
+    loc: 18:14]
   `);
 });
 

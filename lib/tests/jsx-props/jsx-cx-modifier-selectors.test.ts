@@ -410,7 +410,7 @@ test('should reject cx modifiers only declared for another element', async () =>
       `,
     }),
   ).rejects.toThrowErrorMatchingInlineSnapshot(`
-    [TransformError: /test.tsx: cx key "selected" is hashed, so the class ".selected" in the selector "&.selected" never matches elements that get it through cx. Use "$selected" in the cx prop to keep the class name, or rename one of the classes
+    [TransformError: /test.tsx: cx key "selected" is hashed, so the class ".selected" in the selector "& .tab { &.selected }" never matches elements that get it through cx. Use "$selected" in the cx prop to keep the class name, or rename one of the classes
     loc: 7:41]
   `);
 });

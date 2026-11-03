@@ -87,3 +87,89 @@ test('should allow classes joined to an expression and the class on other styled
     "
   `);
 });
+
+test('should reject a hashed cx key in type casts, nested cx() objects, computed keys and JSX entities', async () => {
+  await expect(
+    transformWithFormat({ source: boxSource("{'active' as const}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches its "&.active" styles, as the cx prop of "Box" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 12:20]
+  `);
+  await expect(
+    transformWithFormat({ source: boxSource('{cx(a && { active: true })}') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches its "&.active" styles, as the cx prop of "Box" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 12:30]
+  `);
+  await expect(
+    transformWithFormat({ source: boxSource("{cx({ ['active']: a })}") }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches its "&.active" styles, as the cx prop of "Box" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 12:26]
+  `);
+  await expect(transformWithFormat({ source: boxSource('"&#97;ctive"') }))
+    .rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches its "&.active" styles, as the cx prop of "Box" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 12:19]
+  `);
+});
+
+test('should allow disabled cx() classes', async () => {
+  const result = await transformWithFormat({
+    source: boxSource("{cx({ active: false }, 'item')}"),
+  });
+
+  expect(result.code).toMatchInlineSnapshot(`
+    "export const A = ({
+      active,
+      a,
+      id,
+    }: {
+      active: boolean;
+      a: boolean;
+      id: string;
+    }) => (
+      <>
+        <div className={"v1560qbr-1-Box" + (active ? " v1560qbr-2-active" : "")} />
+        <div className={"v1560qbr-1-Box " + ("item" || "")} />
+      </>
+    );
+    "
+  `);
+});
+
+test('should reject a hashed cx key in the className of the element with a css prop', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        export const A = ({ a }: { a: boolean }) => (
+          <div css={\`&.active { color: red; }\`} cx={{ active: a }} className="active" />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "div" never matches its "&.active" styles, as the cx prop of "div" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 2:69]
+  `);
+});
+
+test('should reject a hashed cx key in the attrs className of the styled component', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div.attrs({ className: 'active' })\`
+          &.active {
+            color: blue;
+          }
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => <Box cx={{ active }} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: class "active" on "Box" never matches its "&.active" styles, as the cx prop of "Box" hashes it. Use cx={{ active: true }} instead, or "$active" in the cx prop to keep the class name
+    loc: 3:42]
+  `);
+});

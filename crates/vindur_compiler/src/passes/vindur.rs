@@ -452,6 +452,7 @@ pub(crate) fn transform_program(
             imports: &imports,
             styled_components: &styled_components,
             modifiers: &hashed_styled_modifiers,
+            has_hashed_keys: !hashed_cx_keys.keys.is_empty(),
             file_path,
             source,
         },
@@ -605,7 +606,7 @@ pub(crate) fn transform_program(
         ));
     }
     if let Some(diagnostic) =
-        raw_hashed_cx_key_error(&hashed_cx_keys, &css_rules, file_path, source)
+        raw_hashed_cx_key_error(&hashed_cx_keys, &css_rules, &file_hash, file_path, source)
     {
         return Err(diagnostic);
     }

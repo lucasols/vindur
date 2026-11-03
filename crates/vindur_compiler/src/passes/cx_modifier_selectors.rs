@@ -124,6 +124,20 @@ pub(super) fn element_classes(css: &str, kind: ModifierCss) -> Result<Vec<Elemen
     Ok(collect_classes(css, kind, None)?.classes)
 }
 
+/// The class selectors that may apply to the element itself in the parsed generated rules of the
+/// element class, see `ModifierCss::ClassRule`
+pub(super) fn class_rule_element_classes(statements: &[Statement<'_>]) -> Vec<ElementClass> {
+    let mut collector = ElementClassCollector {
+        classes: Vec::new(),
+        other_classes: None,
+        reference: None,
+        scope_root: Subject::Other,
+        nesting: Subject::Element,
+    };
+    collector.statements(statements, Context::Outer);
+    collector.classes
+}
+
 /// The class selectors of a style block
 #[derive(Default)]
 pub(super) struct StyleBlockClasses {
