@@ -1,0 +1,236 @@
+import { dedent } from '@ls-stack/utils/dedent';
+import { expect, test } from 'vitest';
+import type { TransformWarning } from '../../src/custom-errors';
+import { transformWithFormat } from '../testUtils';
+
+test('should reject a hashed cx key used as a raw class in :has() of the element', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Box = styled.div\`
+          &.hasHiddenItems {
+            &.isShown {
+              display: block;
+            }
+
+            &:has(.isShown) {
+              display: flex;
+            }
+          }
+        \`;
+
+        export const A = ({ isShown }: { isShown: boolean }) => (
+          <Box cx={{ isShown }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "isShown" is hashed, so the class ".isShown" in the selector "&:has(.isShown)" never matches elements that get it through cx. Use "$isShown" in the cx prop to keep the class name, or rename one of the classes
+    loc: 16:13]
+  `);
+});
+
+test('should reject a hashed cx key used as a raw class of descendants', async () => {
+  const source = (selector: string) => dedent`
+    import { styled } from 'vindur';
+
+    const Box = styled.div\`
+      &.active {
+        color: red;
+      }
+
+      ${selector}
+    \`;
+
+    export const A = ({ active }: { active: boolean }) => (
+      <Box cx={{ active }} />
+    );
+  `;
+
+  await expect(
+    transformWithFormat({ source: source('& .active { color: blue; }') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "& .active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 12:13]
+  `);
+  await expect(
+    transformWithFormat({ source: source('> .active { color: blue; }') }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "> .active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 12:13]
+  `);
+  await expect(
+    transformWithFormat({
+      source: source('> .child { &.active { color: blue; } }'),
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector "&.active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 12:13]
+  `);
+});
+
+test('should reject a hashed cx key used as a raw class of ancestors in other components and global styles', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
+
+        const Menu = styled.div\`
+          &.isActive {
+            color: red;
+          }
+        \`;
+
+        const Item = styled.span\`
+          .isActive & {
+            color: black;
+          }
+        \`;
+
+        export const A = ({ active }: { active: boolean }) => (
+          <Menu cx={{ isActive: active }}>
+            <Item />
+          </Menu>
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "isActive" is hashed, so the class ".isActive" in the selector ".isActive &" never matches elements that get it through cx. Use "$isActive" in the cx prop to keep the class name, or rename one of the classes
+    loc: 16:14]
+  `);
+
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled, createGlobalStyle } from 'vindur';
+
+        createGlobalStyle\`
+          .isOpen .icon {
+            rotate: 180deg;
+          }
+        \`;
+
+        const Menu = styled.div\`
+          &.isOpen {
+            display: block;
+          }
+        \`;
+
+        export const A = ({ open }: { open: boolean }) => (
+          <Menu cx={{ isOpen: open }} />
+        );
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "isOpen" is hashed, so the class ".isOpen" in the selector ".isOpen .icon" never matches elements that get it through cx. Use "$isOpen" in the cx prop to keep the class name, or rename one of the classes
+    loc: 16:14]
+  `);
+});
+
+test('should reject a hashed cx key used as a raw class in the template of a parent component, also in production', async () => {
+  const source = dedent`
+    import { styled } from 'vindur';
+
+    const Box = styled.div\`
+      &.active {
+        color: blue;
+      }
+    \`;
+
+    const Panel = styled.div\`
+      .active {
+        color: red;
+      }
+    \`;
+
+    export const A = ({ active }: { active: boolean }) => (
+      <Panel>
+        <Box cx={{ active }} />
+      </Panel>
+    );
+  `;
+
+  await expect(transformWithFormat({ source })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 17:15]
+  `);
+  await expect(transformWithFormat({ source, production: true })).rejects
+    .toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "active" is hashed, so the class ".active" in the selector ".active" never matches elements that get it through cx. Use "$active" in the cx prop to keep the class name, or rename one of the classes
+    loc: 17:15]
+  `);
+});
+
+test('should allow the modifiers of other components, comments and values with the name of a hashed cx key', async () => {
+  const warnings: TransformWarning[] = [];
+
+  const result = await transformWithFormat({
+    source: dedent`
+      import { styled } from 'vindur';
+
+      const List = styled.ul\`
+        /* toggled with .active */
+        background: url(/icons/active.svg);
+
+        &.active {
+          color: red;
+        }
+      \`;
+
+      const Tab = styled.li\`
+        &.active {
+          font-weight: bold;
+        }
+
+        .list &.active {
+          color: blue;
+        }
+
+        &:not(.active) {
+          opacity: 0.5;
+        }
+      \`;
+
+      export const A = ({ on }: { on: boolean }) => (
+        <List cx={{ active: on }}>
+          <Tab className="active" />
+          <Tab cx={{ $active: on }} />
+        </List>
+      );
+    `,
+    onWarning: (warning) => {
+      warnings.push(warning);
+    },
+  });
+
+  expect(result.css).toMatchInlineSnapshot(`
+    ".v1560qbr-1-List {
+      /* toggled with .active */
+      background: url(/icons/active.svg);
+
+      &.v1560qbr-3-active {
+        color: red;
+      }
+    }
+
+    .v1560qbr-2-Tab {
+      &.active {
+        font-weight: bold;
+      }
+
+      .list &.active {
+        color: blue;
+      }
+
+      &:not(.active) {
+        opacity: 0.5;
+      }
+    }
+    "
+  `);
+
+  expect(warnings).toEqual([]);
+});

@@ -17,8 +17,8 @@ use super::{
     compile_time_references::uncompiled_reference_error,
     css::{clean_css, generate_class_rules},
     css_syntax::{BlockKind, css_error_diagnostic},
-    cx_key_warnings::{CxKeyUsages, raw_hashed_cx_key_warnings},
     cx_optimize::optimize_cx_calls,
+    cx_raw_classes::{HashedCxKeys, raw_hashed_cx_key_error},
     cx_references::non_call_cx_reference_error,
     direct::{DirectTransform, transform_direct_tags},
     dynamic_color::{DynamicColorTransform, transform_dynamic_color_props},
@@ -29,6 +29,7 @@ use super::{
     },
     jsx_css::{JsxCssTransform, transform_jsx_css_props},
     jsx_cx::{CxElementTransform, JsxCxTransform, transform_jsx_cx_props},
+    jsx_cx_class_names::{StaticClassNameContext, static_hashed_class_name_error},
     jsx_cx_component_references::component_reference_modifier_error,
     runtime_helpers::{RuntimeHelperNames, runtime_helper_import},
     scoped::{ScopedVariables, process_scoped_variables},
@@ -136,7 +137,7 @@ pub(crate) fn transform_program(
     let mut hashed_styled_modifiers = Vec::new();
     let helper_names = RuntimeHelperNames::new(program, scoping, file_path, source)?;
     let mut class_expressions: FxHashMap<u32, String> = FxHashMap::default();
-    let mut cx_key_usages = CxKeyUsages::default();
+    let mut hashed_cx_keys = HashedCxKeys::default();
     let mut scoped_variables = ScopedVariables::default();
     let mut warnings = Vec::new();
     let mut class_prop_usages = None;
@@ -442,9 +443,21 @@ pub(crate) fn transform_program(
             warnings: &mut warnings,
             needs_merge_helper: &mut needs_merge_helper,
             helper_names: &helper_names,
-            key_usages: &mut cx_key_usages,
+            hashed_keys: &mut hashed_cx_keys,
         },
     )?;
+    if let Some(diagnostic) = static_hashed_class_name_error(
+        program,
+        StaticClassNameContext {
+            imports: &imports,
+            styled_components: &styled_components,
+            modifiers: &hashed_styled_modifiers,
+            file_path,
+            source,
+        },
+    ) {
+        return Err(diagnostic);
+    }
 
     transform_jsx_css_props(
         program,
@@ -591,13 +604,10 @@ pub(crate) fn transform_program(
             error.error.message,
         ));
     }
-    if options.dev {
-        warnings.extend(raw_hashed_cx_key_warnings(
-            &cx_key_usages,
-            &css_rules,
-            file_path,
-            source,
-        )?);
+    if let Some(diagnostic) =
+        raw_hashed_cx_key_error(&hashed_cx_keys, &css_rules, file_path, source)
+    {
+        return Err(diagnostic);
     }
     let css = css_rules.join("\n\n");
     warnings.extend(scoped_variables.warnings(file_path, source));

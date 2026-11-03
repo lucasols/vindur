@@ -107,7 +107,7 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
           }
         }
         @scope (.child) {
-          &.active {
+          &.current {
             color: orange;
           }
         }
@@ -146,7 +146,7 @@ test('should rewrite cx modifiers nested in selector arguments and scope roots',
         }
       }
       @scope (.child) {
-        &.active {
+        &.current {
           color: orange;
         }
       }
@@ -167,14 +167,14 @@ test('should keep classes of other elements when rewriting cx modifiers', async 
         &.active {
           color: red;
         }
-        & .active, & + .active {
+        & .current, & + .current {
           color: blue;
         }
-        &:has(.active) {
+        &:has(.current) {
           color: green;
         }
         & .child {
-          &.active {
+          &.current {
             color: orange;
           }
         }
@@ -192,15 +192,15 @@ test('should keep classes of other elements when rewriting cx modifiers', async 
       &.v1560qbr-2-active {
         color: red;
       }
-      & .active,
-      & + .active {
+      & .current,
+      & + .current {
         color: blue;
       }
-      &:has(.active) {
+      &:has(.current) {
         color: green;
       }
       & .child {
-        &.active {
+        &.current {
           color: orange;
         }
       }
@@ -222,7 +222,7 @@ test('should rewrite cx modifiers in layers of the css prop', async () => {
                 opacity: 0.5;
               }
             }
-            & .active {
+            & .current {
               color: red;
             }
           \`}
@@ -249,7 +249,7 @@ test('should rewrite cx modifiers in layers of the css prop', async () => {
     }
 
     .v1560qbr-1-css-prop-1 {
-      & .active {
+      & .current {
         color: red;
       }
     }
@@ -266,7 +266,7 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
         &:where(.selected) {
           color: red;
         }
-        & .selected {
+        & .current {
           color: blue;
         }
       \`;
@@ -290,7 +290,7 @@ test('should rewrite cx modifiers in pseudo classes of css references', async ()
       &:where(.v1560qbr-2-selected) {
         color: red;
       }
-      & .selected {
+      & .current {
         color: blue;
       }
     }
@@ -311,7 +311,7 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
         }
 
         @scope (.child) {
-          :scope.active {
+          :scope.current {
             color: blue;
           }
         }
@@ -345,7 +345,7 @@ test('should rewrite cx modifiers in @scope limits and :scope selectors', async 
       }
 
       @scope (.child) {
-        :scope.active {
+        :scope.current {
           color: blue;
         }
       }
@@ -489,7 +489,7 @@ test('should keep classes of other elements selected with a component reference'
       \`;
 
       const List = styled.ul\`
-        & \${Item} .active, &.active \${Item} { font-weight: bold; }
+        & \${Item} .current, &.active \${Item} { font-weight: bold; }
       \`;
 
       export const App = ({ on }: { on: boolean }) => (
@@ -517,7 +517,7 @@ test('should keep classes of other elements selected with a component reference'
     }
 
     .v1560qbr-2-List {
-      & .v1560qbr-1-Item .active,
+      & .v1560qbr-1-Item .current,
       &.active .v1560qbr-1-Item {
         font-weight: bold;
       }

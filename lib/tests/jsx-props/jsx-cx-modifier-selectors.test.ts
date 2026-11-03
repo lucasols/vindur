@@ -158,8 +158,8 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
         &[data-state="open"].active { color: red; }
         &:not(.hidden).active { color: blue; }
         &:is(.active, .hidden) { top: 0; }
-        &:not(.active .hidden) { left: 0; }
-        &:has(.active) { right: 0; }
+        &:not(.current .hidden) { left: 0; }
+        &:has(.current) { right: 0; }
         &:hover.active\\:icon { z-index: 1; }
         &::after { content: "&:hover.active"; }
       \`;
@@ -196,10 +196,10 @@ test('should rewrite cx modifier classes after attribute selectors and inside sa
       &:is(.v1560qbr-2-active, .v1560qbr-3-hidden) {
         top: 0;
       }
-      &:not(.active .v1560qbr-3-hidden) {
+      &:not(.current .v1560qbr-3-hidden) {
         left: 0;
       }
-      &:has(.active) {
+      &:has(.current) {
         right: 0;
       }
       &:hover.active\\:icon {
@@ -281,7 +281,7 @@ test('should rewrite nested & compounds and the of selector list of nth-child', 
         &:is(.list &.active) { color: red; }
         &:has(&.active > .icon) { color: blue; }
         &:nth-child(2n+1 of .active, .hidden) { top: 0; }
-        &:nth-child(2n+1) .active { left: 0; }
+        &:nth-child(2n+1) .current { left: 0; }
       \`;
 
       export const App = ({ a, h }) => <Item cx={{ active: a, hidden: h }} />;
@@ -302,7 +302,7 @@ test('should rewrite nested & compounds and the of selector list of nth-child', 
       &:nth-child(2n + 1 of .v1560qbr-2-active, .v1560qbr-3-hidden) {
         top: 0;
       }
-      &:nth-child(2n + 1) .active {
+      &:nth-child(2n + 1) .current {
         left: 0;
       }
     }
@@ -316,8 +316,8 @@ test('should only rewrite cx classes of selectors that match the styled element'
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        &:has(.child:not(.active)) { color: red; }
-        & .tab { &.active { color: blue; } }
+        &:has(.child:not(.current)) { color: red; }
+        & .tab { &.current { color: blue; } }
         .dark & { &.active { color: green; } }
         &:hover { &.active { top: 0; } }
         @media (min-width: 1px) { &.active { left: 0; } }
@@ -331,11 +331,11 @@ test('should only rewrite cx classes of selectors that match the styled element'
 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
-      &:has(.child:not(.active)) {
+      &:has(.child:not(.current)) {
         color: red;
       }
       & .tab {
-        &.active {
+        &.current {
           color: blue;
         }
       }
@@ -372,7 +372,7 @@ test('should only rewrite css prop cx classes that match the element', async () 
       export const App = ({ a }) => (
         <div
           css={\`
-            & .tab { &.on { color: red; } }
+            & .tab { &.current { color: red; } }
             &.on { color: blue; }
           \`}
           cx={{ on: a }}
@@ -384,7 +384,7 @@ test('should only rewrite css prop cx classes that match the element', async () 
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-css-prop-1 {
       & .tab {
-        &.on {
+        &.current {
           color: red;
         }
       }
@@ -396,30 +396,22 @@ test('should only rewrite css prop cx classes that match the element', async () 
   `);
 });
 
-test('should warn about cx modifiers only declared for another element', async () => {
-  const warnings: TransformWarning[] = [];
+test('should reject cx modifiers only declared for another element', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { styled } from 'vindur';
 
-  await transformWithFormat({
-    source: dedent`
-      import { styled } from 'vindur';
+        const Box = styled.div\`
+          & .tab { &.selected { color: blue; } }
+        \`;
 
-      const Box = styled.div\`
-        & .tab { &.selected { color: blue; } }
-      \`;
-
-      export const App = ({ a }) => <Box cx={{ selected: a }} />;
-    `,
-    onWarning: (warning) => {
-      warnings.push(warning);
-    },
-  });
-
-  expect(compactSnapshot(warnings)).toMatchInlineSnapshot(`
-    "
-    - TransformWarning#:
-        message: 'Warning: Missing CSS classes for cx modifiers in Box: selected'
-        loc: 'current_file:7:30'
-    "
+        export const App = ({ a }) => <Box cx={{ selected: a }} />;
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: cx key "selected" is hashed, so the class ".selected" in the selector "&.selected" never matches elements that get it through cx. Use "$selected" in the cx prop to keep the class name, or rename one of the classes
+    loc: 7:41]
   `);
 });
 
@@ -431,7 +423,7 @@ test('should keep rewriting cx classes of nested rules that may match the styled
       const Box = styled.div\`
         /* responsive */ @media (min-width: 1px) { &.active { left: 0; } }
         :is(&) { &.active { top: 0; } }
-        & /* note */ .tab { &.active { color: blue; } }
+        & /* note */ .tab { &.current { color: blue; } }
         &:hover /* note */ { &.active { right: 0; } }
       \`;
 
@@ -453,7 +445,7 @@ test('should keep rewriting cx classes of nested rules that may match the styled
         }
       }
       & /* note */ .tab {
-        &.active {
+        &.current {
           color: blue;
         }
       }
@@ -476,7 +468,7 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
 
       const Box = styled.div\`
         @scope (&.active) to (&.done .stop) { & { color: red; } }
-        & a[href*="&"] { &:not(.disabled) { color: green; } }
+        & a[href*="&"] { &:not(.current) { color: green; } }
         &/* c */.active { top: 0; }
         &.active/* c */.done { left: 0; }
         &.a\\63 tive { right: 0; }
@@ -500,7 +492,7 @@ test('should rewrite cx classes in @scope preludes, layers, commented compounds 
         }
       }
       & a[href*="&"] {
-        &:not(.disabled) {
+        &:not(.current) {
           color: green;
         }
       }
@@ -541,7 +533,7 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
 
       const Box = styled.div\`
         &:nth-child(2n OF .active) { top: 0; }
-        @scope (& .child) { &.active { left: 0; } }
+        @scope (& .child) { &.current { left: 0; } }
         @scope (&.active) { & { right: 0; } }
       \`;
 
@@ -562,7 +554,7 @@ test('should rewrite uppercase of and scoped roots on the styled element', async
         top: 0;
       }
       @scope (& .child) {
-        &.active {
+        &.current {
           left: 0;
         }
       }
@@ -582,9 +574,9 @@ test('should leave cx classes of relative nested rules and rootless @scope and r
       import { styled } from 'vindur';
 
       const Box = styled.div\`
-        .tab { &.active { color: red; } }
-        > .icon { &.active { color: blue; } }
-        @scope to (& .stop) { &.active { color: green; } }
+        .tab { &.current { color: red; } }
+        > .icon { &.current { color: blue; } }
+        @scope to (& .stop) { &.current { color: green; } }
         @sc\\6f pe (&.active) { & { top: 0; } }
       \`;
 
@@ -595,17 +587,17 @@ test('should leave cx classes of relative nested rules and rootless @scope and r
   expect(result.css).toMatchInlineSnapshot(`
     ".v1560qbr-1-Box {
       .tab {
-        &.active {
+        &.current {
           color: red;
         }
       }
       > .icon {
-        &.active {
+        &.current {
           color: blue;
         }
       }
       @scope to (& .stop) {
-        &.active {
+        &.current {
           color: green;
         }
       }
