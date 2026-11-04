@@ -179,40 +179,38 @@ test('should allow a container selector followed by a descendant selector', asyn
   `);
 });
 
-test('should accept the deprecated `var` property as an alias of `value`', async () => {
-  const result = await transformWithFormat({
-    source: dedent`
-      import { createDynamicCssColor, createStaticThemeColors, css } from 'vindur'
+test('should reject the removed `var` property of colors', async () => {
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createStaticThemeColors, css } from 'vindur'
 
-      const color = createDynamicCssColor()
-      const colors = createStaticThemeColors({ primary: '#007bff' })
+        const colors = createStaticThemeColors({ primary: '#007bff' })
 
-      export const a = css\`
-        color: \${color.var};
-        background: \${color.contrast.var};
-        border-color: \${colors.primary.var};
-        outline-color: \${colors.primary.contrast.var};
-      \`
-    `,
-  });
-
-  expect(result.code).toMatchInlineSnapshot(`
-    "import { createDynamicCssColor, createStaticThemeColors } from "vindur";
-    const color = createDynamicCssColor("v1560qbr-1-color", true);
-    const colors = createStaticThemeColors({
-      primary: "#007bff",
-    });
-    export const a = "v1560qbr-2-a";
-    "
+        export const a = css\`
+          color: \${colors.primary.var};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... a = css\` ... \${colors.primary.var}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 6:11]
   `);
 
-  expect(result.css).toMatchInlineSnapshot(`
-    ".v1560qbr-2-a {
-      color: var(--v1560qbr-1-color);
-      background: var(--v1560qbr-1-color-c);
-      border-color: var(--stc-primary-var, #007bff);
-      outline-color: var(--stc-primary-contrast-var, #fff);
-    }
-    "
+  await expect(
+    transformWithFormat({
+      source: dedent`
+        import { createDynamicCssColor, css } from 'vindur'
+
+        const color = createDynamicCssColor()
+
+        export const a = css\`
+          color: \${color.contrast.var};
+        \`
+      `,
+    }),
+  ).rejects.toThrowErrorMatchingInlineSnapshot(`
+    [TransformError: /test.tsx: Invalid interpolation used at \`... a = css\` ... \${color.contrast.var}, only references to strings, numbers, or simple arithmetic calculations or simple string interpolations are supported
+    loc: 6:11]
   `);
 });

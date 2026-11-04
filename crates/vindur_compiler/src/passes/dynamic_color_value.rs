@@ -10,17 +10,10 @@ use super::{
     styled::strip_css_comments,
 };
 
-// `var` is the deprecated name of `value`
-pub(super) fn is_value_property(property: &str) -> bool {
-    matches!(property, "value" | "var")
-}
-
 pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Option<StaticValue> {
     match value {
         StaticValue::DynamicColor { id, dev } => match property {
-            property if is_value_property(property) => {
-                Some(StaticValue::String(format!("var(--{id})")))
-            }
+            "value" => Some(StaticValue::String(format!("var(--{id})"))),
             "contrast" | "self" | "container" => Some(StaticValue::DynamicColorPath {
                 id: id.clone(),
                 path: property.to_owned(),
@@ -29,7 +22,7 @@ pub(super) fn dynamic_color_member(value: &StaticValue, property: &str) -> Optio
             _ => None,
         },
         StaticValue::DynamicColorPath { id, path, .. }
-            if path == "contrast" && is_value_property(property) =>
+            if path == "contrast" && property == "value" =>
         {
             Some(StaticValue::String(format!("var(--{id}-c)")))
         }

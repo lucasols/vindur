@@ -225,7 +225,7 @@ test('should throw for createDynamicCssColor outside a top level `const` declara
       source: dedent`
         import { styled, createDynamicCssColor } from 'vindur'
 
-        const Box = styled.div.attrs({ style: { color: createDynamicCssColor().var } })\`
+        const Box = styled.div.attrs({ style: { color: createDynamicCssColor().value } })\`
           color: red;
         \`
       `,

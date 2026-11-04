@@ -257,7 +257,7 @@ describe('Dynamic Colors - Spread Props', () => {
 
         const box = css\`
           width: var(---width);
-          background: \${color.var};
+          background: \${color.value};
         \`
 
         const Component = ({ width, ...props }: { width: number }) => {

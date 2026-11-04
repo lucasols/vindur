@@ -9,7 +9,7 @@ use super::{
         OPTIMAL_CONTRAST_SATURATED_DARKER, compress_hex, mix, parse_hex, prefers_black_text,
         saturated_darker,
     },
-    dynamic_color_value::{ColorMethodArguments, is_color_method, is_value_property},
+    dynamic_color_value::{ColorMethodArguments, is_color_method},
 };
 
 pub(super) struct ThemeColorParseError {
@@ -84,7 +84,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
         StaticValue::ThemeColor { default_hex, .. } if property == "defaultHex" => {
             Some(StaticValue::String(default_hex.clone()))
         }
-        StaticValue::ThemeColor { name, hex, dev, .. } if is_value_property(property) => {
+        StaticValue::ThemeColor { name, hex, dev, .. } if property == "value" => {
             Some(color_value(name, "var", hex, *dev))
         }
         StaticValue::ThemeColor { name, hex, dev, .. } if property == "contrast" => {
@@ -95,7 +95,7 @@ pub(super) fn theme_member(value: &StaticValue, property: &str) -> Option<Static
                 dev: *dev,
             })
         }
-        StaticValue::ThemeColorContrast { name, hex, dev, .. } if is_value_property(property) => {
+        StaticValue::ThemeColorContrast { name, hex, dev, .. } if property == "value" => {
             Some(color_value(name, "contrast-var", hex, *dev))
         }
         _ => None,

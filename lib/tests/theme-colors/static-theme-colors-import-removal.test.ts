@@ -20,19 +20,19 @@ test('should remove imported theme colors only used in templates', async () => {
 
       createGlobalStyle\`
         body {
-          color: \${colors.primary.var};
+          color: \${colors.primary.value};
         }
       \`;
 
       const Box = styled.div\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
 
       export const A = () => (
         <>
           <Box />
           <div className={css\`border-color: \${colors.primary.darker(0.1)};\`} />
-          <div css={\`outline-color: \${colors.primary.var};\`} />
+          <div css={\`outline-color: \${colors.primary.value};\`} />
         </>
       );
     `,
@@ -58,7 +58,7 @@ test('should keep the other specifiers of a removed theme colors import', async 
       import { colors, helper } from '#/colors';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
 
       export const value = helper();
@@ -80,11 +80,11 @@ test('should keep imported theme colors used at runtime', async () => {
       import { styled } from 'vindur';
       import { colors } from '#/colors';
 
-      export const Box = styled.div.attrs({ title: colors.primary.var })\`
-        color: \${colors.primary.var};
+      export const Box = styled.div.attrs({ title: colors.primary.value })\`
+        color: \${colors.primary.value};
       \`;
 
-      export const A = () => <div style={{ color: colors.primary.var }} />;
+      export const A = () => <div style={{ color: colors.primary.value }} />;
     `,
     overrideDefaultFs: fs,
   });
@@ -93,12 +93,12 @@ test('should keep imported theme colors used at runtime', async () => {
     "import { _vSC } from "vindur";
     import { colors } from "#/colors";
     export const Box = _vSC("div", "v1560qbr-1-Box", {
-      title: colors.primary.var,
+      title: colors.primary.value,
     });
     export const A = () => (
       <div
         style={{
-          color: colors.primary.var,
+          color: colors.primary.value,
         }}
       />
     );
@@ -113,7 +113,7 @@ test('should keep a side effect import of a colors module with global styles', a
       import { colors } from '#/theme';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
     `,
     overrideDefaultFs: createFsMock({
@@ -124,7 +124,7 @@ test('should keep a side effect import of a colors module with global styles', a
 
         createGlobalStyle\`
           body {
-            background: \${colors.primary.var};
+            background: \${colors.primary.value};
           }
         \`;
       `,
@@ -145,7 +145,7 @@ test('should keep a side effect import of a colors module importing global style
       import { colors } from '#/theme';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
     `,
     overrideDefaultFs: createFsMock({
@@ -185,7 +185,7 @@ test('should remove a colors module without side effects and depend on its impor
       import { colors } from '#/theme';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
     `,
     overrideDefaultFs: createFsMock({
@@ -203,7 +203,7 @@ test('should remove a colors module without side effects and depend on its impor
         export const colors = createStaticThemeColors({ primary: '#007bff' });
 
         export const Swatch = styled.div\`
-          color: \${colors.primary.var};
+          color: \${colors.primary.value};
         \`;
 
         export function getTheme(dark: boolean): Theme {
@@ -272,7 +272,7 @@ test.each([
         import { colors } from '#/theme';
 
         export const styles = css\`
-          color: \${colors.primary.var};
+          color: \${colors.primary.value};
         \`;
       `,
       overrideDefaultFs: createFsMock({
@@ -300,7 +300,7 @@ test('should keep a side effect import next to type-only specifiers of a module 
       import { colors, type Theme, Mode } from '#/theme';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
 
       export const getMode = (theme: Theme): Mode => theme.mode;
@@ -317,7 +317,7 @@ test('should keep a side effect import next to type-only specifiers of a module 
 
         createGlobalStyle\`
           body {
-            background: \${colors.primary.var};
+            background: \${colors.primary.value};
           }
         \`;
       `,
@@ -340,7 +340,7 @@ test('should keep a side effect import when only type references of the colors r
       import { colors } from '#/theme';
 
       export const styles = css\`
-        color: \${colors.primary.var};
+        color: \${colors.primary.value};
       \`;
 
       export type Palette = typeof colors;
