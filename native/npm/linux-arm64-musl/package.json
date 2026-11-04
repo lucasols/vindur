@@ -1,6 +1,6 @@
 {
   "name": "@vindur-css/native-linux-arm64-musl",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "cpu": [
     "arm64"
   ],
