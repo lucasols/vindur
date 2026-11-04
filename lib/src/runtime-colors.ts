@@ -14,8 +14,6 @@ import {
 
 export type StaticColor<D extends string> = {
   value: string;
-  /** @deprecated Use `value` instead */
-  var: string;
   defaultHex: D;
   alpha: (alpha: number) => string;
   darker: (amount: number, alpha?: number) => string;
@@ -23,8 +21,6 @@ export type StaticColor<D extends string> = {
   saturatedDarker: (amount: number, alpha?: number) => string;
   contrast: {
     value: string;
-    /** @deprecated Use `value` instead */
-    var: string;
     optimal: (options?: { alpha?: number }) => string;
     alpha: (alpha: number) => string;
   };
@@ -321,7 +317,6 @@ function staticColorOps(hex: string): ColorOps {
 
   return {
     value: hex,
-    var: hex,
     alpha: (alpha) => alphaHex(rgb, alpha),
     darker: (amount, alpha) => withAlphaHex(mix(rgb, 0, amount), alpha),
     lighter: (amount, alpha) => withAlphaHex(mix(rgb, 255, amount), alpha),
@@ -329,7 +324,6 @@ function staticColorOps(hex: string): ColorOps {
       withAlphaHex(saturatedDarker(rgb, amount), alpha),
     contrast: {
       value: contrastHex,
-      var: contrastHex,
       optimal: (options) =>
         options?.alpha === undefined ?
           optimalHex
@@ -354,16 +348,12 @@ export function createStaticThemeColors<const C extends Record<string, string>>(
 
 export type ContrastOps = {
   value: string;
-  /** @deprecated Use `value` instead */
-  var: string;
   optimal: (options?: { alpha?: number }) => string;
   alpha: (alpha: number) => string;
 };
 
 export type ColorOps = {
   value: string;
-  /** @deprecated Use `value` instead */
-  var: string;
   alpha: (alpha: number) => string;
   darker: (amount: number, alpha?: number) => string;
   lighter: (amount: number, alpha?: number) => string;
@@ -395,7 +385,6 @@ export function buildColorOps({
 }): ColorOps {
   return {
     value: base,
-    var: base,
     alpha: (alpha: number) => withAlpha(base, alpha),
     darker: (amount: number, alpha?: number) =>
       withAlpha(
@@ -411,7 +400,6 @@ export function buildColorOps({
       withAlpha(saturatedDarkerOp(amount), alpha),
     contrast: {
       value: contrastBase,
-      var: contrastBase,
       optimal: (options?: { alpha?: number }) =>
         withAlpha(contrastOptimalBase, options?.alpha),
       alpha: (alpha: number) => withAlpha(contrastBase, alpha),

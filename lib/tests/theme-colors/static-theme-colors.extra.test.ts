@@ -194,7 +194,7 @@ describe('createStaticThemeColors', () => {
   });
 
   describe('color methods', () => {
-    test('should error on a theme color interpolated without .var', async () => {
+    test('should error on a theme color interpolated without .value', async () => {
       await expect(
         transformWithFormat({
           source: dedent`

@@ -184,7 +184,7 @@ test('should not reuse the id of a later dynamic color for a styled scoped varia
 
       export const accent = createDynamicCssColor()
 
-      export const Title = styled.h1\`color: \${accent.var};\`
+      export const Title = styled.h1\`color: \${accent.value};\`
 
       export const App = () => (
         <Card dynamicColor={accent.set('#f00')}>

@@ -1434,7 +1434,7 @@ An imported colors object that is only used in styles is removed from the compil
 
 Each color in your theme provides:
 
-- **`value`**: CSS variable reference for the color. `var` (and `contrast.var`) still works as a deprecated alias
+- **`value`**: CSS variable reference for the color
 - **`defaultHex`**: The original hex value passed in
 - **`alpha(amount)`**: Creates an alpha variant of the color
 - **`darker(amount, alpha?)`**: Mixes the color with black in sRGB (0-1 scale)

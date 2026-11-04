@@ -442,7 +442,7 @@ test('should throw error when a binding shadows the extended component where it 
         const MemoButton = memo(Button)
 
         const StyledButton = styled(MemoButton)\`
-          color: \${color.var};
+          color: \${color.value};
         \`
 
         export const App = ({ MemoButton, c }: { MemoButton: string; c: string }) => (
